@@ -1,0 +1,16 @@
+# Ignore everything
+*
+
+# Except
+!*.go
+!go.mod
+!go.sum
+
+!payloads/
+!payloads/**
+!images/
+!images/**
+
+!.git/
+!.gitignore
+!README.md
