@@ -5,7 +5,11 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"regexp"
+	"runtime"
 	"strings"
+
+	"math/rand"
 )
 
 func init() {
@@ -23,6 +27,10 @@ const (
 	colorCyan   = "\033[36m"
 	colorWhite  = "\033[37m"
 	colorBold   = "\033[1m"
+	colorGray   = "\033[90m"
+	colorOrange = "\033[38;5;208m"
+	colorPink   = "\033[38;5;206m"
+	colorTeal   = "\033[38;5;51m"
 )
 
 // LogInfo prints info messages (always shown)
@@ -30,14 +38,14 @@ func LogInfo(format string, v ...interface{}) {
 	fmt.Printf("[INFO] "+format+"\n", v...)
 }
 
-// LogDebug prints debug messages (only shown with -v flag)
+// LogDebug (only if -v and color cyan)
 func LogDebug(format string, v ...interface{}) {
 	if isVerbose {
 		fmt.Printf("\033[36m[DEBUG] "+format+"\033[0m\n", v...) // Cyan
 	}
 }
 
-// LogError prints error messages in red
+// LogError (red)
 func LogError(format string, v ...interface{}) {
 	fmt.Printf("\033[31m[ERROR] "+format+"\033[0m\n", v...) // Red
 }
@@ -54,6 +62,30 @@ func LogYellow(format string, v ...interface{}) {
 	fmt.Printf("\033[93m"+format+"\033[0m\n", v...) // Yellow
 }
 
+func LogRed(format string, v ...interface{}) {
+	fmt.Printf("\033[91m"+format+"\033[0m\n", v...) // Red
+}
+
+func LogPurple(format string, v ...interface{}) {
+	fmt.Printf(colorPurple+format+colorReset+"\n", v...) // Purple
+}
+
+func LogGray(format string, v ...interface{}) {
+	fmt.Printf(colorGray+format+colorReset+"\n", v...) // Gray
+}
+
+func LogOrange(format string, v ...interface{}) {
+	fmt.Printf(colorOrange+format+colorReset+"\n", v...) // Orange
+}
+
+func LogPink(format string, v ...interface{}) {
+	fmt.Printf(colorPink+format+colorReset+"\n", v...) // Pink
+}
+
+func LogTeal(format string, v ...interface{}) {
+	fmt.Printf(colorTeal+format+colorReset+"\n", v...) // Teal
+}
+
 // SetVerbose
 func SetVerbose(verbose bool) {
 	isVerbose = verbose
@@ -67,12 +99,21 @@ func readPayloadsFile(filename string) ([]string, error) {
 	}
 
 	payloads := strings.Split(strings.TrimSpace(string(content)), "\n")
+
+	LogYellow("\n[+] Read %d payloads from file %s", len(payloads), filename)
+
 	return payloads, nil
 }
 
 // BuildCurlCmd generates a curl command string for the given request parameters
 func buildCurlCmd(method, url string, headers map[string]string) string {
-	parts := []string{"curl", "-skgi", "--path-as-is"}
+	// Determine curl command based on OS
+	curlCmd := "curl"
+	if runtime.GOOS == "windows" {
+		curlCmd = "curl.exe"
+	}
+
+	parts := []string{curlCmd, "-skgi", "--path-as-is"}
 
 	// Add method if not GET
 	if method != "GET" {
@@ -172,7 +213,65 @@ func headersToMap(headers []Header) map[string]string {
 	return m
 }
 
+// Helper function to format headers for logging
+func formatHeaders(headers []Header) string {
+	if len(headers) == 0 {
+		return ""
+	}
+	return fmt.Sprintf(" [Headers: %v]", headers)
+}
+
+// Helper function to extract title from response body
+func extractTitle(body string) string {
+	var titleRegex = regexp.MustCompile(`(?i)<title>(.*?)</title>`)
+
+	matches := titleRegex.FindStringSubmatch(body)
+	if len(matches) > 1 {
+		return strings.TrimSpace(matches[1])
+	}
+	return ""
+}
+
 // Helper function to check if a byte is a letter
 func isLetter(c byte) bool {
 	return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')
+}
+
+// Helper function to generate random strings
+func generateRandomString(length int) string {
+	const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+	b := make([]byte, length)
+	for i := range b {
+		b[i] = charset[rand.Intn(len(charset))]
+	}
+	return string(b)
+}
+
+// ReplaceNth replaces the nth occurrence of old with new in s
+func ReplaceNth(s, old, new string, n int) string {
+	if n < 1 {
+		return s
+	}
+
+	count := 0
+	pos := 0
+
+	// Find the nth occurrence
+	for count < n {
+		nextPos := strings.Index(s[pos:], old)
+		if nextPos == -1 {
+			// Not enough occurrences found
+			return s
+		}
+
+		pos += nextPos
+		count++
+
+		if count < n {
+			pos += len(old) // Move past current occurrence
+		}
+	}
+
+	// Replace the nth occurrence
+	return s[:pos] + new + s[pos+len(old):]
 }

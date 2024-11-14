@@ -3,10 +3,19 @@ package main
 
 import (
 	"sync"
+
+	"github.com/slicingmelon/go-rawurlparser"
 )
 
 func RunAllBypasses(targetURL string) chan *Result {
 	results := make(chan *Result)
+
+	// Validate URL, should remove this, it's validated already
+	if parsedURL := rawurlparser.RawURLParse(targetURL); parsedURL == nil {
+		LogError("Failed to parse URL: %s", targetURL)
+		close(results)
+		return results
+	}
 
 	go func() {
 		if config.Mode == ModeAll || config.Mode == ModeMidPaths {
@@ -43,13 +52,13 @@ func runMidPathsBypass(targetURL string, results chan<- *Result) {
 	jobs := make(chan PayloadJob, 100)
 	var wg sync.WaitGroup
 
-	// Start workers
+	// Start workers first
 	for i := 0; i < config.Threads; i++ {
 		wg.Add(1)
 		go worker(&wg, jobs, results)
 	}
 
-	// Generate jobs
+	// Generate jobs in a goroutine
 	go func() {
 		generateMidPathsJobs(targetURL, jobs)
 		close(jobs)

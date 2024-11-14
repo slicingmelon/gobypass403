@@ -7,7 +7,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httputil"
-	"regexp"
+	"net/url"
 	"strings"
 	"time"
 
@@ -31,20 +31,50 @@ type ResponseDetails struct {
 	Title           string
 }
 
-// Helper function to extract title from response body
-func extractTitle(body string) string {
-	var titleRegex = regexp.MustCompile(`(?i)<title>(.*?)</title>`)
-
-	matches := titleRegex.FindStringSubmatch(body)
-	if len(matches) > 1 {
-		return strings.TrimSpace(matches[1])
-	}
-	return ""
-}
-
-func sendRequest(method, url string, headers []Header, bypassMode string) (*ResponseDetails, error) {
+/*
+Custom function to send raw requests
+Currently working only for HTTP/1.1 requests and partially for HTTP/2 requests
+Do not use golang to write pentest tools!
+*/
+func NewRawRequest(method string, parsedURL *rawurlparser.URL) (*http.Request, error) {
 	if method == "" {
 		method = "GET"
+	}
+
+	// LogDebug("Creating raw request for URL: scheme=%s, host=%s, path=%s, query=%s",
+	// 	parsedURL.Scheme, parsedURL.Host, parsedURL.Path, parsedURL.Query)
+
+	// Create URL structure that preserves raw path
+	httpURL := &url.URL{
+		Scheme:   parsedURL.Scheme,
+		Host:     parsedURL.Host,
+		Opaque:   "//" + parsedURL.Host + parsedURL.Path,
+		RawQuery: parsedURL.Query,
+	}
+
+	// Create the request
+	req := &http.Request{
+		Method: method,
+		URL:    httpURL,
+		Header: make(http.Header),
+		Host:   parsedURL.Host,
+	}
+
+	// LogDebug("Created request: method=%s, url=%s, host=%s, opaque=%s, query=%s",
+	// 	req.Method, req.URL.String(), req.Host, req.URL.Opaque, req.URL.RawQuery)
+
+	return req, nil
+}
+
+func sendRequest(method, rawURL string, headers []Header, bypassMode string) (*ResponseDetails, error) {
+	if method == "" {
+		method = "GET"
+	}
+
+	// Generate canary if debug mode is enabled
+	var canary string
+	if config.Debug {
+		canary = generateRandomString(18)
 	}
 
 	transport := &http.Transport{
@@ -59,7 +89,7 @@ func sendRequest(method, url string, headers []Header, bypassMode string) (*Resp
 		IdleConnTimeout:       90 * time.Second,
 		TLSHandshakeTimeout:   10 * time.Second,
 		ExpectContinueTimeout: 1 * time.Second,
-		ForceAttemptHTTP2:     true,
+		ForceAttemptHTTP2:     config.ForceHTTP2,
 	}
 
 	if config.ParsedProxy != nil {
@@ -68,25 +98,29 @@ func sendRequest(method, url string, headers []Header, bypassMode string) (*Resp
 
 	client := &http.Client{
 		Transport: transport,
+		// disable redirects
 		CheckRedirect: func(req *http.Request, via []*http.Request) error {
 			return http.ErrUseLastResponse
 		},
 	}
 
-	parsedURL := rawurlparser.RawURLParse(url)
+	//LogDebug("[%s] Parsing URL: %s", bypassMode, rawURL)
+	parsedURL := rawurlparser.RawURLParse(rawURL)
 	if parsedURL == nil {
 		return nil, fmt.Errorf("failed to parse URL")
 	}
 
-	req, err := http.NewRequest(method, parsedURL.String(), nil)
+	//LogDebug("[%s] Creating raw request for: %s with path: %s", bypassMode, rawURL, parsedURL.Path)
+	req, err := NewRawRequest(method, parsedURL)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %v", err)
 	}
 
-	req.URL.Opaque = parsedURL.Path
 	req.Close = true
 
+	// Add headers
 	for _, header := range headers {
+		LogDebug("[%s] Adding header: %s: %s", bypassMode, header.Key, header.Value)
 		req.Header.Add(header.Key, header.Value)
 	}
 
@@ -94,24 +128,25 @@ func sendRequest(method, url string, headers []Header, bypassMode string) (*Resp
 		req.Header.Set("User-Agent", defaultUserAgent)
 	}
 
-	if len(headers) > 0 {
-		// Build header string
-		var headerStrings []string
-		for _, h := range headers {
-			headerStrings = append(headerStrings, fmt.Sprintf("%s: %s", h.Key, h.Value))
-		}
-		LogDebug("[%s] Request: %s => Headers: %s",
-			bypassMode,
-			url,
-			strings.Join(headerStrings, ", "))
-	} else {
-		LogDebug("[%s] Request: %s", bypassMode, url)
+	if config.Debug {
+		req.Header.Add("X-Go-Bypass-403", canary)
+	}
+
+	// Official logging final
+	if config.Debug {
+		// If debug mode (-d) include canary
+		LogPurple("[%s] [%s] Sending request: %s%s", bypassMode, canary, req.URL, formatHeaders(headers))
+	} else if isVerbose {
+		// Just verbose (-v)
+		LogDebug("[%s] Sending request: %s%s", bypassMode, req.URL, formatHeaders(headers))
 	}
 
 	res, err := client.Do(req)
 	if err != nil {
+		LogError("[%s] Request failed: %v", bypassMode, err)
 		return nil, fmt.Errorf("request failed: %v", err)
 	}
+	//LogDebug("[%s] Got response with status: %d", bypassMode, res.StatusCode)
 	defer res.Body.Close()
 
 	respBytes, err := httputil.DumpResponse(res, true)
@@ -119,6 +154,7 @@ func sendRequest(method, url string, headers []Header, bypassMode string) (*Resp
 		return nil, fmt.Errorf("failed to dump response: %v", err)
 	}
 
+	// Rest of the response handling remains the same
 	responseStr := string(respBytes)
 	headerEnd := strings.Index(responseStr, "\r\n\r\n")
 	body := responseStr[headerEnd+4:]

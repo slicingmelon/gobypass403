@@ -16,13 +16,13 @@ type PayloadJob struct {
 }
 
 func generateMidPathsJobs(targetURL string, jobs chan<- PayloadJob) {
-	LogDebug("Starting MidPaths payload generation for: %s", targetURL)
-
 	parsedURL := rawurlparser.RawURLParse(targetURL)
-	if parsedURL == nil || parsedURL.Path == "" {
-		LogError("Failed to parse URL or empty path")
+	if parsedURL == nil {
+		LogError("Failed to parse URL")
 		return
 	}
+
+	LogDebug("Starting MidPaths payload generation for: %s", targetURL)
 
 	payloads, err := readPayloadsFile("payloads/internal_midpaths.lst")
 	if err != nil {
@@ -30,121 +30,49 @@ func generateMidPathsJobs(targetURL string, jobs chan<- PayloadJob) {
 		return
 	}
 
-	path := strings.Trim(parsedURL.Path, "/")
+	path := parsedURL.Path
+	if path == "" {
+		path = "/"
+	}
+
 	slashCount := strings.Count(path, "/")
-	LogDebug("Path: %s, slash count: %d", path, slashCount)
-	LogDebug("Number of payloads from file: %d", len(payloads))
+	if slashCount == 0 {
+		slashCount = 1
+	}
 
-	// deduplicate URLs
-	seen := make(map[string]bool)
+	baseURL := fmt.Sprintf("%s://%s", parsedURL.Scheme, parsedURL.Host)
 
-	for idxSlash := 0; idxSlash <= slashCount; idxSlash++ {
-		parts := strings.Split(path, "/")
+	// collect all URLs first
+	urls := make(map[string]bool)
 
+	for idxSlash := 0; idxSlash < slashCount; idxSlash++ {
 		for _, payload := range payloads {
 			// Post-slash variants (always)
-			parts[idxSlash] = payload
-			pathPost := strings.Join(parts, "/")
-
-			urls := []string{
-				fmt.Sprintf("%s://%s/%s", parsedURL.Scheme, parsedURL.Host, pathPost),
-				fmt.Sprintf("%s://%s//%s", parsedURL.Scheme, parsedURL.Host, pathPost),
-			}
-
-			for _, url := range urls {
-				if !seen[url] {
-					seen[url] = true
-					jobs <- PayloadJob{
-						method:     "GET",
-						url:        url,
-						bypassMode: ModeMidPaths,
-					}
-				}
+			pathPost := ReplaceNth(path, "/", "/"+payload, idxSlash+1)
+			if pathPost != path { // Only add if replacement was successful
+				// First and second variants
+				urls[fmt.Sprintf("%s%s", baseURL, pathPost)] = true
+				urls[fmt.Sprintf("%s/%s", baseURL, pathPost)] = true
 			}
 
 			// Pre-slash variants only if idxSlash > 1
 			if idxSlash > 1 {
-				parts[idxSlash] = payload + "/"
-				pathPre := strings.Join(parts, "/")
-
-				urls = []string{
-					fmt.Sprintf("%s://%s/%s", parsedURL.Scheme, parsedURL.Host, pathPre),
-					fmt.Sprintf("%s://%s//%s", parsedURL.Scheme, parsedURL.Host, pathPre),
-				}
-
-				for _, url := range urls {
-					if !seen[url] {
-						seen[url] = true
-						jobs <- PayloadJob{
-							method:     "GET",
-							url:        url,
-							bypassMode: ModeMidPaths,
-						}
-					}
+				pathPre := ReplaceNth(path, "/", payload+"/", idxSlash+1)
+				if pathPre != path { // Only add if replacement was successful
+					// First and second variants
+					urls[fmt.Sprintf("%s%s", baseURL, pathPre)] = true
+					urls[fmt.Sprintf("%s/%s", baseURL, pathPre)] = true
 				}
 			}
 		}
 	}
-}
 
-func generateHeaderIPJobs(targetURL string, jobs chan<- PayloadJob) {
-	LogDebug("Starting HeadersIP payload generation for: %s", targetURL)
-
-	headerNames, err := readPayloadsFile("payloads/header_ip_hosts.lst")
-	if err != nil {
-		LogError("Failed to read header names: %v", err)
-		return
-	}
-
-	ips, err := readPayloadsFile("payloads/internal_ip_hosts.lst")
-	if err != nil {
-		LogError("Failed to read IPs: %v", err)
-		return
-	}
-
-	// Special case job
-	jobs <- PayloadJob{
-		method: "GET",
-		url:    targetURL,
-		headers: []Header{{
-			Key:   "X-AppEngine-Trusted-IP-Request",
-			Value: "1",
-		}},
-		bypassMode: ModeHeadersIP,
-	}
-
-	// Generate regular jobs
-	for _, headerName := range headerNames {
-		for _, ip := range ips {
-			if headerName == "Forwarded" {
-				variations := []string{
-					fmt.Sprintf("by=%s", ip),
-					fmt.Sprintf("for=%s", ip),
-					fmt.Sprintf("host=%s", ip),
-				}
-
-				for _, variation := range variations {
-					jobs <- PayloadJob{
-						method: "GET",
-						url:    targetURL,
-						headers: []Header{{
-							Key:   headerName,
-							Value: variation,
-						}},
-						bypassMode: ModeHeadersIP,
-					}
-				}
-			} else {
-				jobs <- PayloadJob{
-					method: "GET",
-					url:    targetURL,
-					headers: []Header{{
-						Key:   headerName,
-						Value: ip,
-					}},
-					bypassMode: ModeHeadersIP,
-				}
-			}
+	LogYellow("[mid_paths] Generated %d payloads for %s", len(urls), targetURL)
+	for url := range urls {
+		jobs <- PayloadJob{
+			method:     "GET",
+			url:        url,
+			bypassMode: ModeMidPaths,
 		}
 	}
 }
@@ -164,40 +92,112 @@ func generateEndPathsJobs(targetURL string, jobs chan<- PayloadJob) {
 		return
 	}
 
-	basePath := strings.Trim(parsedURL.Path, "/")
-	separator := "/"
-	if basePath == "" || strings.HasSuffix(parsedURL.Path, "/") {
-		separator = ""
+	basePath := parsedURL.Path
+	separator := ""
+	if basePath != "/" && !strings.HasSuffix(basePath, "/") {
+		separator = "/"
 	}
 
-	seen := make(map[string]bool)
+	baseURL := fmt.Sprintf("%s://%s%s", parsedURL.Scheme, parsedURL.Host, basePath)
+
+	// collect all URLs first
+	urls := make(map[string]bool)
+
 	for _, payload := range payloads {
 		// First variant - 'url/suffix'
-		url1 := fmt.Sprintf("%s://%s/%s%s%s", parsedURL.Scheme, parsedURL.Host, basePath, separator, payload)
-		// Second variant - 'url/suffix/'
-		url2 := fmt.Sprintf("%s://%s/%s%s%s/", parsedURL.Scheme, parsedURL.Host, basePath, separator, payload)
+		urls[baseURL+separator+payload] = true
 
-		urls := []string{url1, url2}
+		// Second variant - 'url/suffix/'
+		urls[baseURL+separator+payload+"/"] = true
 
 		// Only if basePath is not "/" and payload doesn't start with a letter
-		if basePath != "" && !isLetter(payload[0]) {
-			// Third variant - Add 'suffix'
-			url3 := fmt.Sprintf("%s://%s/%s%s", parsedURL.Scheme, parsedURL.Host, basePath, payload)
-			// Fourth variant - Add 'suffix/'
-			url4 := fmt.Sprintf("%s://%s/%s%s/", parsedURL.Scheme, parsedURL.Host, basePath, payload)
-			urls = append(urls, url3, url4)
-		}
+		if basePath != "/" {
+			if !isLetter(payload[0]) {
+				// Third variant - Add 'suffix'
+				urls[baseURL+payload] = true
 
-		for _, url := range urls {
-			if !seen[url] {
-				seen[url] = true
-				jobs <- PayloadJob{
-					method:     "GET",
-					url:        url,
-					bypassMode: ModeEndPaths,
-				}
+				// Fourth variant - Add 'suffix/'
+				urls[baseURL+payload+"/"] = true
 			}
 		}
+	}
+
+	LogYellow("[end_paths] Generated %d payloads for %s", len(urls), targetURL)
+	for url := range urls {
+		jobs <- PayloadJob{
+			method:     "GET",
+			url:        url,
+			bypassMode: ModeEndPaths,
+		}
+	}
+}
+
+func generateHeaderIPJobs(targetURL string, jobs chan<- PayloadJob) {
+	LogDebug("Starting HeadersIP payload generation for: %s", targetURL)
+
+	headerNames, err := readPayloadsFile("payloads/header_ip_hosts.lst")
+	if err != nil {
+		LogError("Failed to read header names: %v", err)
+		return
+	}
+
+	ips, err := readPayloadsFile("payloads/internal_ip_hosts.lst")
+	if err != nil {
+		LogError("Failed to read IPs: %v", err)
+		return
+	}
+
+	allJobs := make([]PayloadJob, 0)
+
+	// Special case job
+	allJobs = append(allJobs, PayloadJob{
+		method: "GET",
+		url:    targetURL,
+		headers: []Header{{
+			Key:   "X-AppEngine-Trusted-IP-Request",
+			Value: "1",
+		}},
+		bypassMode: ModeHeadersIP,
+	})
+
+	// Generate regular jobs
+	for _, headerName := range headerNames {
+		for _, ip := range ips {
+			if headerName == "Forwarded" {
+				variations := []string{
+					fmt.Sprintf("by=%s", ip),
+					fmt.Sprintf("for=%s", ip),
+					fmt.Sprintf("host=%s", ip),
+				}
+
+				for _, variation := range variations {
+					allJobs = append(allJobs, PayloadJob{
+						method: "GET",
+						url:    targetURL,
+						headers: []Header{{
+							Key:   headerName,
+							Value: variation,
+						}},
+						bypassMode: ModeHeadersIP,
+					})
+				}
+			} else {
+				allJobs = append(allJobs, PayloadJob{
+					method: "GET",
+					url:    targetURL,
+					headers: []Header{{
+						Key:   headerName,
+						Value: ip,
+					}},
+					bypassMode: ModeHeadersIP,
+				})
+			}
+		}
+	}
+
+	LogYellow("[headers_ip] Generated %d payloads for %s", len(allJobs), targetURL)
+	for _, job := range allJobs {
+		jobs <- job
 	}
 }
 
@@ -213,6 +213,9 @@ func generateCaseSubstitutionJobs(targetURL string, jobs chan<- PayloadJob) {
 	basePath := parsedURL.Path
 	baseURL := fmt.Sprintf("%s://%s", parsedURL.Scheme, parsedURL.Host)
 
+	// collect all jobs first
+	allJobs := make([]PayloadJob, 0)
+
 	// Find all letter positions
 	for i, char := range basePath {
 		if isLetter(byte(char)) {
@@ -225,12 +228,17 @@ func generateCaseSubstitutionJobs(targetURL string, jobs chan<- PayloadJob) {
 			}
 			newPath += basePath[i+1:]
 
-			jobs <- PayloadJob{
+			allJobs = append(allJobs, PayloadJob{
 				method:     "GET",
 				url:        baseURL + newPath,
 				bypassMode: ModeCaseSubstitution,
-			}
+			})
 		}
+	}
+
+	LogYellow("[case_substitution] Generated %d payloads for %s", len(allJobs), targetURL)
+	for _, job := range allJobs {
+		jobs <- job
 	}
 }
 
@@ -246,34 +254,41 @@ func generateCharEncodeJobs(targetURL string, jobs chan<- PayloadJob) {
 	basePath := parsedURL.Path
 	baseURL := fmt.Sprintf("%s://%s", parsedURL.Scheme, parsedURL.Host)
 
+	allJobs := make([]PayloadJob, 0)
+
 	// Find all letter positions
 	for i, char := range basePath {
 		if isLetter(byte(char)) {
 			// Single URL encoding
 			encoded := fmt.Sprintf("%%%02x", char)
 			singleEncoded := basePath[:i] + encoded + basePath[i+1:]
-			jobs <- PayloadJob{
+			allJobs = append(allJobs, PayloadJob{
 				method:     "GET",
 				url:        baseURL + singleEncoded,
 				bypassMode: ModeCharEncode,
-			}
+			})
 
 			// Double URL encoding
 			doubleEncoded := basePath[:i] + "%25" + encoded[1:] + basePath[i+1:]
-			jobs <- PayloadJob{
+			allJobs = append(allJobs, PayloadJob{
 				method:     "GET",
 				url:        baseURL + doubleEncoded,
 				bypassMode: "char_encode_double",
-			}
+			})
 
 			// Triple URL encoding
 			tripleEncoded := basePath[:i] + "%2525" + encoded[1:] + basePath[i+1:]
-			jobs <- PayloadJob{
+			allJobs = append(allJobs, PayloadJob{
 				method:     "GET",
 				url:        baseURL + tripleEncoded,
 				bypassMode: "char_encode_triple",
-			}
+			})
 		}
+	}
+
+	LogYellow("[char_encode] Generated %d payloads for %s", len(allJobs), targetURL)
+	for _, job := range allJobs {
+		jobs <- job
 	}
 }
 
@@ -292,45 +307,56 @@ func generateHeaderSchemeJobs(targetURL string, jobs chan<- PayloadJob) {
 		return
 	}
 
-	seen := make(map[string]bool)
+	// collect all jobs
+	allJobs := make([]PayloadJob, 0)
 
 	for _, headerScheme := range headerSchemes {
-		// Special case for headers that take 'on' value
 		if headerScheme == "Front-End-Https" ||
 			headerScheme == "X-Forwarded-HTTPS" ||
 			headerScheme == "X-Forwarded-SSL" {
-			if !seen[headerScheme] {
-				seen[headerScheme] = true
-				jobs <- PayloadJob{
-					method: "GET",
-					url:    targetURL,
-					headers: []Header{{
-						Key:   headerScheme,
-						Value: "on",
-					}},
-					bypassMode: ModeHeadersScheme,
-				}
-			}
+			allJobs = append(allJobs, PayloadJob{
+				method: "GET",
+				url:    targetURL,
+				headers: []Header{{
+					Key:   headerScheme,
+					Value: "on",
+				}},
+				bypassMode: ModeHeadersScheme,
+			})
 			continue
 		}
 
 		// Handle other headers
 		for _, protoScheme := range protoSchemes {
-			headerValue := protoScheme
 			if headerScheme == "Forwarded" {
-				headerValue = fmt.Sprintf("proto=%s", protoScheme)
-			}
-
-			jobs <- PayloadJob{
-				method: "GET",
-				url:    targetURL,
-				headers: []Header{{
-					Key:   headerScheme,
-					Value: headerValue,
-				}},
-				bypassMode: ModeHeadersScheme,
+				// Specific rule for Forwarded header
+				allJobs = append(allJobs, PayloadJob{
+					method: "GET",
+					url:    targetURL,
+					headers: []Header{{
+						Key:   headerScheme,
+						Value: fmt.Sprintf("proto=%s", protoScheme),
+					}},
+					bypassMode: ModeHeadersScheme,
+				})
+			} else {
+				// Standard headers
+				allJobs = append(allJobs, PayloadJob{
+					method: "GET",
+					url:    targetURL,
+					headers: []Header{{
+						Key:   headerScheme,
+						Value: protoScheme,
+					}},
+					bypassMode: ModeHeadersScheme,
+				})
 			}
 		}
+	}
+
+	LogYellow("[headers_scheme] Generated %d payloads for %s", len(allJobs), targetURL)
+	for _, job := range allJobs {
+		jobs <- job
 	}
 }
 
@@ -355,11 +381,12 @@ func generateHeaderURLJobs(targetURL string, jobs chan<- PayloadJob) {
 		basePath = "/"
 	}
 
-	seen := make(map[string]bool)
+	// collect all jobs
+	allJobs := make([]PayloadJob, 0)
 
 	for _, headerURL := range headerURLs {
 		// First variant: base_path in header
-		jobs <- PayloadJob{
+		allJobs = append(allJobs, PayloadJob{
 			method: "GET",
 			url:    baseURL + "/",
 			headers: []Header{{
@@ -367,13 +394,13 @@ func generateHeaderURLJobs(targetURL string, jobs chan<- PayloadJob) {
 				Value: basePath,
 			}},
 			bypassMode: ModeHeadersURL,
-		}
+		})
 
 		// Second variant: full target URL in header (for specific headers)
 		if strings.Contains(strings.ToLower(headerURL), "url") ||
 			strings.Contains(strings.ToLower(headerURL), "request") ||
 			strings.Contains(strings.ToLower(headerURL), "file") {
-			jobs <- PayloadJob{
+			allJobs = append(allJobs, PayloadJob{
 				method: "GET",
 				url:    baseURL + "/",
 				headers: []Header{{
@@ -381,7 +408,7 @@ func generateHeaderURLJobs(targetURL string, jobs chan<- PayloadJob) {
 					Value: targetURL,
 				}},
 				bypassMode: ModeHeadersURL,
-			}
+			})
 		}
 
 		// Third and Fourth variants: parent paths
@@ -393,37 +420,36 @@ func generateHeaderURLJobs(targetURL string, jobs chan<- PayloadJob) {
 			}
 
 			// Third variant: parent path only
-			if !seen[headerURL+parentPath] {
-				seen[headerURL+parentPath] = true
-				jobs <- PayloadJob{
-					method: "GET",
-					url:    targetURL,
-					headers: []Header{{
-						Key:   headerURL,
-						Value: parentPath,
-					}},
-					bypassMode: ModeHeadersURL,
-				}
-			}
+			allJobs = append(allJobs, PayloadJob{
+				method: "GET",
+				url:    targetURL,
+				headers: []Header{{
+					Key:   headerURL,
+					Value: parentPath,
+				}},
+				bypassMode: ModeHeadersURL,
+			})
 
 			// Fourth variant: full URL with parent path
 			if strings.Contains(strings.ToLower(headerURL), "url") ||
 				strings.Contains(strings.ToLower(headerURL), "refer") {
 				fullURL := baseURL + parentPath
-				if !seen[headerURL+fullURL] {
-					seen[headerURL+fullURL] = true
-					jobs <- PayloadJob{
-						method: "GET",
-						url:    targetURL,
-						headers: []Header{{
-							Key:   headerURL,
-							Value: fullURL,
-						}},
-						bypassMode: ModeHeadersURL,
-					}
-				}
+				allJobs = append(allJobs, PayloadJob{
+					method: "GET",
+					url:    targetURL,
+					headers: []Header{{
+						Key:   headerURL,
+						Value: fullURL,
+					}},
+					bypassMode: ModeHeadersURL,
+				})
 			}
 		}
+	}
+
+	LogYellow("[headers_url] Generated %d payloads for %s", len(allJobs), targetURL)
+	for _, job := range allJobs {
+		jobs <- job
 	}
 }
 
@@ -442,27 +468,29 @@ func generateHeaderPortJobs(targetURL string, jobs chan<- PayloadJob) {
 		return
 	}
 
-	seen := make(map[string]bool)
+	allJobs := make([]PayloadJob, 0)
 
 	for _, headerPort := range headerPorts {
-		// Skip empty lines
 		if headerPort == "" {
 			continue
 		}
 
+		// Handle internal ports
 		for _, port := range internalPorts {
-			if !seen[headerPort+port] {
-				seen[headerPort+port] = true
-				jobs <- PayloadJob{
-					method: "GET",
-					url:    targetURL,
-					headers: []Header{{
-						Key:   headerPort,
-						Value: port,
-					}},
-					bypassMode: ModeHeadersPort,
-				}
-			}
+			allJobs = append(allJobs, PayloadJob{
+				method: "GET",
+				url:    targetURL,
+				headers: []Header{{
+					Key:   headerPort,
+					Value: port,
+				}},
+				bypassMode: ModeHeadersPort,
+			})
 		}
+	}
+
+	LogYellow("[headers_port] Generated %d payloads for %s", len(allJobs), targetURL)
+	for _, job := range allJobs {
+		jobs <- job
 	}
 }

@@ -34,7 +34,6 @@ func validateURL(rawURL string) error {
 }
 
 func main() {
-	// Define flags
 	flags := []multiFlag{
 		{name: "u,url", usage: "Target URL (example: https://cms.facebook.com/login)", value: &config.URL},
 		{name: "l,urls-file", usage: "File containing list of target URLs (one per line)", value: &config.URLsFile},
@@ -44,6 +43,8 @@ func main() {
 		{name: "t,threads", usage: "Number of concurrent threads)", value: &config.Threads, defVal: 20},
 		{name: "T,timeout", usage: "Timeout in seconds", value: &config.Timeout, defVal: 15},
 		{name: "v,verbose", usage: "Verbose output", value: &config.Verbose, defVal: false},
+		{name: "d,debug", usage: "Debug mode with request canaries", value: &config.Debug, defVal: false},
+		{name: "http2", usage: "Force attempt requests on HTTP2", value: &config.ForceHTTP2, defVal: false},
 		{name: "x,proxy", usage: "Proxy URL (format: http://proxy:port)", value: &config.Proxy},
 		{name: "mc,match-status-code", usage: "Only save results matching these HTTP status codes (example: -mc 200,301,500). Default: 200", value: &config.MatchStatusCodesStr},
 	}
@@ -244,6 +245,8 @@ func main() {
 	fmt.Printf("  Timeout: %d seconds\n", config.Timeout)
 	fmt.Printf("  Filtering HTTP Status Codes: %v\n", config.MatchStatusCodes)
 	fmt.Printf("  Verbose mode: %v\n", config.Verbose)
+	fmt.Printf("  Debug mode: %v\n", config.Debug)
+	fmt.Printf("  Force HTTP/2: %v\n", config.ForceHTTP2)
 	if config.Proxy != "" {
 		fmt.Printf("  Using proxy: %s\n", config.Proxy)
 	}

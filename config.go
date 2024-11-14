@@ -12,7 +12,7 @@ var (
 )
 
 const (
-	VERSION = "0.1.0"
+	VERSION = "0.2.0"
 )
 
 type Config struct {
@@ -28,6 +28,8 @@ type Config struct {
 	ParsedProxy         *url.URL
 	MatchStatusCodesStr string
 	MatchStatusCodes    []int
+	Debug               bool
+	ForceHTTP2          bool
 }
 
 type Result struct {
@@ -61,9 +63,9 @@ const (
 	ModeHeadersMethod    = "http_headers_method"
 	ModeHeadersScheme    = "http_headers_scheme" // done
 	ModeHeadersIP        = "http_headers_ip"     // done
-	ModeHeadersPort      = "http_headers_port"
-	ModeHeadersURL       = "http_headers_url" // done
-	ModeUserAgent        = "user_agent"       // waste of time
+	ModeHeadersPort      = "http_headers_port"   // done
+	ModeHeadersURL       = "http_headers_url"    // done
+	ModeUserAgent        = "user_agent"          // waste of time
 )
 
 // Other Constants
