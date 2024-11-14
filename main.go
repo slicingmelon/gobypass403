@@ -39,15 +39,17 @@ func main() {
 		{name: "u,url", usage: "Target URL (example: https://cms.facebook.com/login)", value: &config.URL},
 		{name: "l,urls-file", usage: "File containing list of target URLs (one per line)", value: &config.URLsFile},
 		{name: "shf,substitute-hosts-file", usage: "File containing a list of hosts to substitute target URL's hostname (mostly used in CDN bypasses by providing a list of CDNs)", value: &config.SubstituteHostsFile},
-		{name: "m,mode", usage: "Bypass mode (all, http_methods, headers, paths, etc)", value: &config.Mode, defVal: "all"},
+		{name: "m,mode", usage: "Bypass mode (all, mid_paths, end_paths, case_substitution, char_encode, http_headers_scheme, http_headers_ip, http_headers_port, http_headers_url)", value: &config.Mode, defVal: "all"},
 		{name: "o,outdir", usage: "Output directory", value: &config.OutDir},
 		{name: "t,threads", usage: "Number of concurrent threads)", value: &config.Threads, defVal: 20},
 		{name: "T,timeout", usage: "Timeout in seconds", value: &config.Timeout, defVal: 15},
 		{name: "v,verbose", usage: "Verbose output", value: &config.Verbose, defVal: false},
 		{name: "d,debug", usage: "Debug mode with request canaries", value: &config.Debug, defVal: false},
+		{name: "mc,match-status-code", usage: "Only save results matching these HTTP status codes (example: -mc 200,301,500). Default: 200", value: &config.MatchStatusCodesStr},
 		{name: "http2", usage: "Force attempt requests on HTTP2", value: &config.ForceHTTP2, defVal: false},
 		{name: "x,proxy", usage: "Proxy URL (format: http://proxy:port)", value: &config.Proxy},
-		{name: "mc,match-status-code", usage: "Only save results matching these HTTP status codes (example: -mc 200,301,500). Default: 200", value: &config.MatchStatusCodesStr},
+		{name: "spoof-header", usage: "Add more headers used to spoof IPs (example: X-SecretIP-Header,X-GO-IP)", value: &config.SpoofHeader},
+		{name: "spoof-ip", usage: "Add more spoof IPs (example: 10.10.20.20,172.16.30.10)", value: &config.SpoofIP},
 	}
 
 	// Usage helper
@@ -268,6 +270,12 @@ func main() {
 	fmt.Printf("  Verbose mode: %v\n", config.Verbose)
 	fmt.Printf("  Debug mode: %v\n", config.Debug)
 	fmt.Printf("  Force HTTP/2: %v\n", config.ForceHTTP2)
+	if config.SpoofHeader != "" {
+		fmt.Printf("  Custom IP Spoofing Headers: %s\n", config.SpoofHeader)
+	}
+	if config.SpoofIP != "" {
+		fmt.Printf("  Custom Spoofing IPs: %s\n", config.SpoofIP)
+	}
 	if config.Proxy != "" {
 		fmt.Printf("  Using proxy: %s\n", config.Proxy)
 	}

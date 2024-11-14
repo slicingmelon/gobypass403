@@ -141,10 +141,34 @@ func generateHeaderIPJobs(targetURL string, jobs chan<- PayloadJob) {
 		return
 	}
 
+	// Add custom headers (cli -spoof-header)
+	if config.SpoofHeader != "" {
+		customHeaders := strings.Split(config.SpoofHeader, ",")
+		for _, header := range customHeaders {
+			header = strings.TrimSpace(header)
+			if header != "" {
+				headerNames = append(headerNames, header)
+			}
+		}
+		LogDebug("Added [%s] custom headers from -spoof-header\n", strings.Join(customHeaders, ","))
+	}
+
 	ips, err := readPayloadsFile("payloads/internal_ip_hosts.lst")
 	if err != nil {
 		LogError("Failed to read IPs: %v", err)
 		return
+	}
+
+	// Add custom spoof IPs (cli -spoof-ip)
+	if config.SpoofIP != "" {
+		customIPs := strings.Split(config.SpoofIP, ",")
+		for _, ip := range customIPs {
+			ip = strings.TrimSpace(ip)
+			if ip != "" {
+				ips = append(ips, ip)
+			}
+		}
+		LogDebug("Added [%s] custom IPs from -spoof-ip\n", strings.Join(customIPs, ","))
 	}
 
 	allJobs := make([]PayloadJob, 0)

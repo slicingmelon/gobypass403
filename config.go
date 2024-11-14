@@ -12,7 +12,7 @@ var (
 )
 
 const (
-	VERSION = "0.2.1"
+	VERSION = "0.2.2"
 )
 
 type Config struct {
@@ -30,6 +30,8 @@ type Config struct {
 	MatchStatusCodes    []int
 	Debug               bool
 	ForceHTTP2          bool
+	SpoofIP             string
+	SpoofHeader         string
 }
 
 type Result struct {
