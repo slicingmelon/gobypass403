@@ -2,6 +2,7 @@
 package main
 
 import (
+	"encoding/json"
 	"flag"
 	"fmt"
 	"log"
@@ -219,6 +220,25 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Initialize findings.json file
+	outputFile := filepath.Join(config.OutDir, "findings.json")
+	initialJSON := struct {
+		Scans []interface{} `json:"scans"`
+	}{
+		Scans: make([]interface{}, 0),
+	}
+
+	jsonData, err := json.MarshalIndent(initialJSON, "", "  ")
+	if err != nil {
+		LogError("Failed to create initial JSON structure: %v\n", err)
+		os.Exit(1)
+	}
+
+	if err := os.WriteFile(outputFile, jsonData, 0644); err != nil {
+		LogError("Failed to initialize findings.json: %v\n", err)
+		os.Exit(1)
+	}
+
 	// Proxy
 	if config.Proxy != "" {
 		parsedProxy, err := url.Parse(config.Proxy)
@@ -241,6 +261,7 @@ func main() {
 	fmt.Printf("  Using Substitute Hosts File: %s\n", config.SubstituteHostsFile)
 	fmt.Printf("  Mode: %s\n", config.Mode)
 	fmt.Printf("  Output Directory: %s\n", config.OutDir)
+	fmt.Printf("  Output Findings File: %s\n", outputFile)
 	fmt.Printf("  Threads: %d\n", config.Threads)
 	fmt.Printf("  Timeout: %d seconds\n", config.Timeout)
 	fmt.Printf("  Filtering HTTP Status Codes: %v\n", config.MatchStatusCodes)
@@ -274,6 +295,12 @@ func main() {
 				PrintTableRow(result)
 			}
 			fmt.Printf("\n")
+
+			// Save results to JSON
+			if err := SaveResultsToJSON(config.OutDir, url, config.Mode, findings); err != nil {
+				LogError("Failed to save JSON results: %v", err)
+			}
+			LogGreen("[+] Results saved to %s\n", outputFile)
 		} else {
 			fmt.Printf("\n%sSorry, no bypasses found for %s%s\n\n", colorRed, url, colorReset)
 		}

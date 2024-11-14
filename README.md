@@ -39,7 +39,7 @@ So, be like me, use curl as a backend, it's gonna be just fine.
 # Installation
 
 ```bash
-git clone https://github.com/slicingmelon/go-bypass-403
+git clone https://github.com/slicingmelon/go-bypass-403.git
 go get
 go build
 ```

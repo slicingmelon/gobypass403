@@ -2,9 +2,13 @@
 package main
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
+	"html"
 	"log"
 	"os"
+	"path/filepath"
 	"regexp"
 	"runtime"
 	"strings"
@@ -202,6 +206,67 @@ func PrintTableRow(result *Result) {
 		colorCyan, title, colorReset,
 		colorWhite, formatValue(result.ServerInfo), colorReset,
 		colorRed, formatValue(result.RedirectURL), colorReset)
+}
+
+// Helper function to save results to JSON file
+func SaveResultsToJSON(outputDir string, url string, mode string, findings []*Result) error {
+	outputFile := filepath.Join(outputDir, "findings.json")
+
+	// Read existing JSON file
+	fileData, err := os.ReadFile(outputFile)
+	if err != nil {
+		return fmt.Errorf("failed to read JSON file: %v", err)
+	}
+
+	var data struct {
+		Scans []interface{} `json:"scans"`
+	}
+
+	if err := json.Unmarshal(fileData, &data); err != nil {
+		return fmt.Errorf("failed to parse existing JSON: %v", err)
+	}
+
+	// Clean up
+	cleanFindings := make([]*Result, len(findings))
+	for i, result := range findings {
+		// Create a copy of the result
+		cleanResult := *result
+
+		cleanResult.ResponsePreview = html.UnescapeString(cleanResult.ResponsePreview)
+
+		cleanFindings[i] = &cleanResult
+	}
+
+	// Add new scan results
+	scan := struct {
+		URL         string    `json:"url"`
+		BypassModes string    `json:"bypass_modes"`
+		ResultsPath string    `json:"results_path"`
+		Results     []*Result `json:"results"`
+	}{
+		URL:         url,
+		BypassModes: mode,
+		ResultsPath: outputDir,
+		Results:     cleanFindings,
+	}
+
+	data.Scans = append(data.Scans, scan)
+
+	// Use custom encoder to fix unicode escapes
+	buffer := &bytes.Buffer{}
+	encoder := json.NewEncoder(buffer)
+	encoder.SetEscapeHTML(false)
+	encoder.SetIndent("", "  ")
+
+	if err := encoder.Encode(data); err != nil {
+		return fmt.Errorf("failed to marshal JSON: %v", err)
+	}
+
+	if err := os.WriteFile(outputFile, buffer.Bytes(), 0644); err != nil {
+		return fmt.Errorf("failed to write JSON file: %v", err)
+	}
+
+	return nil
 }
 
 // Helper function to convert a slice of Header structs to a map
