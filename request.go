@@ -2,15 +2,12 @@
 package main
 
 import (
-	"crypto/tls"
 	"fmt"
-	"net"
-	"net/http"
-	"net/http/httputil"
-	"net/url"
+	"io"
 	"strings"
 	"time"
 
+	"github.com/projectdiscovery/rawhttp"
 	"github.com/slicingmelon/go-rawurlparser"
 )
 
@@ -21,49 +18,14 @@ type Header struct {
 
 type ResponseDetails struct {
 	StatusCode      int
-	ResponsePreview string // First 200 chars of response body
+	ResponsePreview string
 	ResponseHeaders string
 	ContentType     string
-	ContentLength   int64  // From Content-Length header
-	ServerInfo      string // Server header information
+	ContentLength   int64
+	ServerInfo      string
 	RedirectURL     string
-	ResponseBytes   int // Size of response body only
+	ResponseBytes   int
 	Title           string
-}
-
-/*
-Custom function to send raw requests
-Currently working only for HTTP/1.1 requests and partially for HTTP/2 requests
-Do not use golang to write pentest tools!
-*/
-func NewRawRequest(method string, parsedURL *rawurlparser.URL) (*http.Request, error) {
-	if method == "" {
-		method = "GET"
-	}
-
-	// LogDebug("Creating raw request for URL: scheme=%s, host=%s, path=%s, query=%s",
-	// 	parsedURL.Scheme, parsedURL.Host, parsedURL.Path, parsedURL.Query)
-
-	// Create URL structure that preserves raw path
-	httpURL := &url.URL{
-		Scheme:   parsedURL.Scheme,
-		Host:     parsedURL.Host,
-		Opaque:   "//" + parsedURL.Host + parsedURL.Path,
-		RawQuery: parsedURL.Query,
-	}
-
-	// Create the request
-	req := &http.Request{
-		Method: method,
-		URL:    httpURL,
-		Header: make(http.Header),
-		Host:   parsedURL.Host,
-	}
-
-	// LogDebug("Created request: method=%s, url=%s, host=%s, opaque=%s, query=%s",
-	// 	req.Method, req.URL.String(), req.Host, req.URL.Opaque, req.URL.RawQuery)
-
-	return req, nil
 }
 
 func sendRequest(method, rawURL string, headers []Header, bypassMode string) (*ResponseDetails, error) {
@@ -71,115 +33,135 @@ func sendRequest(method, rawURL string, headers []Header, bypassMode string) (*R
 		method = "GET"
 	}
 
-	// Generate canary if debug mode is enabled
+	parsedURL, err := rawurlparser.RawURLParseWithError(rawURL)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse URL: %v", err)
+	}
+
+	LogDebug("[sendRequest] [%s] Parsed URL: scheme=%s, host=%s, path=%s, query=%s\n",
+		bypassMode, parsedURL.Scheme, parsedURL.Host, parsedURL.Path, parsedURL.Query)
+
+	// Headers stuff
 	var canary string
+	headerMap := make(map[string][]string)
+	for _, h := range headers {
+		headerMap[h.Key] = []string{h.Value}
+	}
+	if _, exists := headerMap["Host"]; !exists {
+		headerMap["Host"] = []string{parsedURL.Host}
+	}
+	if _, exists := headerMap["User-Agent"]; !exists {
+		headerMap["User-Agent"] = []string{defaultUserAgent}
+	}
+	// Add debug canary
 	if config.Debug {
 		canary = generateRandomString(18)
+		headerMap["X-Go-Bypass-403"] = []string{canary}
 	}
 
-	transport := &http.Transport{
-		TLSClientConfig: &tls.Config{
-			InsecureSkipVerify: true,
-		},
-		DialContext: (&net.Dialer{
-			Timeout:   time.Duration(config.Timeout) * time.Second,
-			KeepAlive: 30 * time.Second,
-		}).DialContext,
-		MaxIdleConns:          100,
-		IdleConnTimeout:       90 * time.Second,
-		TLSHandshakeTimeout:   10 * time.Second,
-		ExpectContinueTimeout: 1 * time.Second,
-		ForceAttemptHTTP2:     config.ForceHTTP2,
+	// Configure options for rawhttp
+	options := &rawhttp.Options{
+		Timeout:                time.Duration(config.Timeout) * time.Second,
+		FollowRedirects:        false,
+		MaxRedirects:           0,
+		AutomaticHostHeader:    false,
+		AutomaticContentLength: true,
+		ForceReadAllBody:       true,
 	}
 
-	if config.ParsedProxy != nil {
-		transport.Proxy = http.ProxyURL(config.ParsedProxy)
+	if config.Proxy != "" {
+		if !strings.HasPrefix(config.Proxy, "http://") && !strings.HasPrefix(config.Proxy, "https://") {
+			config.Proxy = "http://" + config.Proxy
+		}
+		options.Proxy = config.Proxy
+		options.ProxyDialTimeout = 10 * time.Second
 	}
 
-	client := &http.Client{
-		Transport: transport,
-		// disable redirects
-		CheckRedirect: func(req *http.Request, via []*http.Request) error {
-			return http.ErrUseLastResponse
-		},
-	}
+	// Create client
+	client := rawhttp.NewClient(options)
+	defer client.Close()
 
-	//LogDebug("[%s] Parsing URL: %s", bypassMode, rawURL)
-	parsedURL := rawurlparser.RawURLParse(rawURL)
-	if parsedURL == nil {
-		return nil, fmt.Errorf("failed to parse URL")
-	}
+	// target URL
+	target := fmt.Sprintf("%s://%s", parsedURL.Scheme, parsedURL.Host)
 
-	//LogDebug("[%s] Creating raw request for: %s with path: %s", bypassMode, rawURL, parsedURL.Path)
-	req, err := NewRawRequest(method, parsedURL)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %v", err)
-	}
-
-	req.Close = true
-
-	// Add headers
-	for _, header := range headers {
-		LogDebug("[%s] Adding header: %s: %s", bypassMode, header.Key, header.Value)
-		req.Header.Add(header.Key, header.Value)
-	}
-
-	if req.Header.Get("User-Agent") == "" {
-		req.Header.Set("User-Agent", defaultUserAgent)
-	}
-
-	if config.Debug {
-		req.Header.Add("X-Go-Bypass-403", canary)
+	// Construct full path with query
+	fullPath := parsedURL.Path
+	if parsedURL.Query != "" {
+		fullPath += "?" + parsedURL.Query
 	}
 
 	// Official logging final
 	if config.Debug {
-		// If debug mode (-d) include canary
-		LogPurple("[%s] [%s] Sending request: %s%s", bypassMode, canary, req.URL, formatHeaders(headers))
+		requestLine := fmt.Sprintf("%s://%s%s", parsedURL.Scheme, parsedURL.Host, fullPath)
+		LogPurple("[%s] [%s] Sending request: %s [Headers: %s]\n",
+			bypassMode,
+			canary,
+			requestLine,
+			formatHeaders(headers))
 	} else if isVerbose {
-		// Just verbose (-v)
-		LogDebug("[%s] Sending request: %s%s", bypassMode, req.URL, formatHeaders(headers))
+		LogDebug("[%s] Sending request: %s%s [Headers: %s]\n",
+			bypassMode,
+			target,
+			fullPath,
+			formatHeaders(headers))
 	}
 
-	res, err := client.Do(req)
+	if config.Debug {
+		rawBytes, err := rawhttp.DumpRequestRaw(method, target, fullPath, headerMap, nil, options)
+		if err != nil {
+			LogError("[%s] Failed to dump request: %v", bypassMode, err)
+		} else {
+			LogPurple("[sendRequest] [%s] Raw request:\n%s", bypassMode, string(rawBytes))
+		}
+	}
+
+	// Send request using rawhttp
+	resp, err := client.DoRaw(method, target, fullPath, headerMap, nil)
 	if err != nil {
-		LogError("[%s] Request failed: %v", bypassMode, err)
+		if strings.Contains(err.Error(), "proxy") {
+			LogError("[%s] Proxy error: %v", bypassMode, err)
+		} else if strings.Contains(err.Error(), "tls") {
+			LogError("[%s] TLS error: %v", bypassMode, err)
+		} else {
+			LogError("[%s] Request error: %v", bypassMode, err)
+		}
+		// Log the request details even on error when verbose
+		if isVerbose {
+			LogDebug("[%s] Failed request details: %s %s", bypassMode, method, target+fullPath)
+		}
 		return nil, fmt.Errorf("request failed: %v", err)
 	}
-	//LogDebug("[%s] Got response with status: %d", bypassMode, res.StatusCode)
-	defer res.Body.Close()
 
-	respBytes, err := httputil.DumpResponse(res, true)
+	// Read headers and a small preview of response body
+	var bodyPreview string
+	previewSize := 100 // Limit to 100 bytes
+
+	limitReader := io.LimitReader(resp.Body, int64(previewSize))
+	previewBytes, err := io.ReadAll(limitReader)
 	if err != nil {
-		return nil, fmt.Errorf("failed to dump response: %v", err)
+		return nil, fmt.Errorf("failed to read response preview: %v", err)
+	}
+	defer resp.Body.Close()
+
+	// Get raw response headers
+	var headerBuilder strings.Builder
+	err = resp.Header.Write(&headerBuilder)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get response headers: %v", err)
 	}
 
-	// Rest of the response handling remains the same
-	responseStr := string(respBytes)
-	headerEnd := strings.Index(responseStr, "\r\n\r\n")
-	body := responseStr[headerEnd+4:]
-
-	// Limit preview to first 200 characters
-	bodyPreview := body
-	if len(bodyPreview) > 200 {
-		bodyPreview = bodyPreview[:200]
-	}
+	bodyPreview = string(previewBytes)
 
 	details := &ResponseDetails{
-		StatusCode:      res.StatusCode,
+		StatusCode:      resp.StatusCode,
 		ResponsePreview: bodyPreview,
-		ResponseHeaders: responseStr[:headerEnd],
-		ContentType:     res.Header.Get("Content-Type"),
-		ContentLength:   res.ContentLength,
-		ServerInfo:      res.Header.Get("Server"),
-		RedirectURL:     res.Header.Get("Location"),
-		ResponseBytes:   int(res.ContentLength), // Use Content-Length if available
-		Title:           extractTitle(body),
-	}
-
-	// If Content-Length header is missing, calculate from body
-	if res.ContentLength < 0 {
-		details.ResponseBytes = len(body)
+		ResponseHeaders: headerBuilder.String(),
+		ContentType:     resp.Header.Get("Content-Type"),
+		ContentLength:   resp.ContentLength,
+		ServerInfo:      resp.Header.Get("Server"),
+		RedirectURL:     resp.Header.Get("Location"),
+		ResponseBytes:   len(previewBytes),
+		Title:           extractTitle(bodyPreview),
 	}
 
 	return details, nil

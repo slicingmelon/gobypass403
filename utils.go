@@ -102,9 +102,14 @@ func readPayloadsFile(filename string) ([]string, error) {
 		return nil, err
 	}
 
-	payloads := strings.Split(strings.TrimSpace(string(content)), "\n")
-
-	LogYellow("\n[+] Read %d payloads from file %s", len(payloads), filename)
+	var payloads []string
+	for _, line := range strings.Split(string(content), "\n") {
+		// Trim both spaces and \r\n
+		line = strings.TrimSpace(line)
+		if line != "" {
+			payloads = append(payloads, line)
+		}
+	}
 
 	return payloads, nil
 }
@@ -164,7 +169,7 @@ func PrintTableHeader(targetURL string) {
 		colorCyan,
 		colorReset)
 
-	fmt.Printf("%s[bypass]%s [%scurl poc%s] ======================================> %s[status]%s [%sresp bytes%s] [%stitle%s] [%sserver%s] [%sredirect%s]\n",
+	fmt.Printf("%s[bypass]%s [%scurl poc%s] ======================================> %s[status]%s [%scontent-length%s] [%stitle%s] [%sserver%s] [%sredirect%s]\n",
 		colorBlue, // bypass
 		colorReset,
 		colorYellow, // curl poc
@@ -197,12 +202,11 @@ func PrintTableRow(result *Result) {
 		title = title[:27] + "..."
 	}
 
-	// Format the row with colors matching the header
 	fmt.Printf("%s[%s]%s [%s%s%s] => %s[%d]%s [%s%s%s] [%s%s%s] [%s%s%s] [%s%s%s]\n",
 		colorBlue, result.BypassMode, colorReset,
 		colorYellow, result.CurlPocCommand, colorReset,
 		colorGreen, result.StatusCode, colorReset,
-		colorPurple, formatBytes(int64(result.ResponseBytes)), colorReset,
+		colorPurple, formatBytes(result.ContentLength), colorReset,
 		colorCyan, title, colorReset,
 		colorWhite, formatValue(result.ServerInfo), colorReset,
 		colorRed, formatValue(result.RedirectURL), colorReset)

@@ -3,6 +3,7 @@ package main
 
 import (
 	"sync"
+	"time"
 
 	"github.com/slicingmelon/go-rawurlparser"
 )
@@ -49,7 +50,8 @@ func RunAllBypasses(targetURL string) chan *Result {
 }
 
 func runMidPathsBypass(targetURL string, results chan<- *Result) {
-	jobs := make(chan PayloadJob, 100)
+	jobBuffer := config.Threads * 30
+	jobs := make(chan PayloadJob, jobBuffer)
 	var wg sync.WaitGroup
 
 	// Start workers first
@@ -68,7 +70,8 @@ func runMidPathsBypass(targetURL string, results chan<- *Result) {
 }
 
 func runHeaderIPBypass(targetURL string, results chan<- *Result) {
-	jobs := make(chan PayloadJob, 100)
+	jobBuffer := config.Threads * 5
+	jobs := make(chan PayloadJob, jobBuffer)
 	var wg sync.WaitGroup
 
 	// Start workers
@@ -87,7 +90,8 @@ func runHeaderIPBypass(targetURL string, results chan<- *Result) {
 }
 
 func runEndPathsBypass(targetURL string, results chan<- *Result) {
-	jobs := make(chan PayloadJob, 100)
+	jobBuffer := config.Threads * 5
+	jobs := make(chan PayloadJob, jobBuffer)
 	var wg sync.WaitGroup
 
 	// Start workers
@@ -106,7 +110,8 @@ func runEndPathsBypass(targetURL string, results chan<- *Result) {
 }
 
 func runCaseSubstitutionBypass(targetURL string, results chan<- *Result) {
-	jobs := make(chan PayloadJob, 100)
+	jobBuffer := config.Threads * 5
+	jobs := make(chan PayloadJob, jobBuffer)
 	var wg sync.WaitGroup
 
 	for i := 0; i < config.Threads; i++ {
@@ -123,7 +128,8 @@ func runCaseSubstitutionBypass(targetURL string, results chan<- *Result) {
 }
 
 func runCharEncodeBypass(targetURL string, results chan<- *Result) {
-	jobs := make(chan PayloadJob, 100)
+	jobBuffer := config.Threads * 5
+	jobs := make(chan PayloadJob, jobBuffer)
 	var wg sync.WaitGroup
 
 	for i := 0; i < config.Threads; i++ {
@@ -140,7 +146,8 @@ func runCharEncodeBypass(targetURL string, results chan<- *Result) {
 }
 
 func runHeaderSchemeBypass(targetURL string, results chan<- *Result) {
-	jobs := make(chan PayloadJob, 100)
+	jobBuffer := config.Threads * 5
+	jobs := make(chan PayloadJob, jobBuffer)
 	var wg sync.WaitGroup
 
 	// Start workers
@@ -159,7 +166,8 @@ func runHeaderSchemeBypass(targetURL string, results chan<- *Result) {
 }
 
 func runHeaderURLBypass(targetURL string, results chan<- *Result) {
-	jobs := make(chan PayloadJob, 100)
+	jobBuffer := config.Threads * 5
+	jobs := make(chan PayloadJob, jobBuffer)
 	var wg sync.WaitGroup
 
 	// Start workers
@@ -178,7 +186,8 @@ func runHeaderURLBypass(targetURL string, results chan<- *Result) {
 }
 
 func runHeaderPortBypass(targetURL string, results chan<- *Result) {
-	jobs := make(chan PayloadJob, 100)
+	jobBuffer := config.Threads * 5
+	jobs := make(chan PayloadJob, jobBuffer)
 	var wg sync.WaitGroup
 
 	// Start workers
@@ -198,7 +207,9 @@ func runHeaderPortBypass(targetURL string, results chan<- *Result) {
 
 func worker(wg *sync.WaitGroup, jobs <-chan PayloadJob, results chan<- *Result) {
 	defer wg.Done()
+	limiter := time.Tick(time.Millisecond * 100) // Add rate limiting
 	for job := range jobs {
+		<-limiter // Wait for rate limit
 		details, err := sendRequest(job.method, job.url, job.headers, job.bypassMode)
 		if err == nil {
 			for _, allowedCode := range config.MatchStatusCodes {
