@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -23,31 +24,57 @@ type multiFlag struct {
 	defVal interface{}
 }
 
-func validateURL(rawURL string) error {
-	parsedURL, err := url.Parse(rawURL)
-	if err != nil {
-		return fmt.Errorf("invalid URL format: %v", err)
+// get bypass modes quickly
+func getAvailableModes() map[string]bool {
+	modes := make(map[string]bool)
+	for key, mode := range AvailableModes {
+		if mode.Enabled {
+			modes[key] = true
+		}
 	}
-	if parsedURL.Scheme == "" {
-		return fmt.Errorf("URL must include scheme (http:// or https://)")
+	return modes
+}
+
+// validate bypass mode
+func validateMode(mode string) error {
+	availableModes := getAvailableModes()
+	modes := strings.Split(mode, ",")
+
+	for _, m := range modes {
+		m = strings.TrimSpace(m)
+		if !availableModes[m] {
+			// Create a sorted list of available modes
+			var modeList []string
+			for mode := range availableModes {
+				modeList = append(modeList, mode)
+			}
+			sort.Strings(modeList)
+
+			LogOrange("\nInvalid bypass mode: %s\nAvailable modes: %s\n",
+				m, strings.Join(modeList, ", "))
+			return fmt.Errorf("")
+		}
 	}
 	return nil
 }
 
+// Main Function //
 func main() {
 	flags := []multiFlag{
 		{name: "u,url", usage: "Target URL (example: https://cms.facebook.com/login)", value: &config.URL},
 		{name: "l,urls-file", usage: "File containing list of target URLs (one per line)", value: &config.URLsFile},
 		{name: "shf,substitute-hosts-file", usage: "File containing a list of hosts to substitute target URL's hostname (mostly used in CDN bypasses by providing a list of CDNs)", value: &config.SubstituteHostsFile},
-		{name: "m,mode", usage: "Bypass mode (all, http_methods, headers, paths, etc)", value: &config.Mode, defVal: "all"},
+		{name: "m,mode", usage: "Bypass mode (all, mid_paths, end_paths, case_substitution, char_encode, http_headers_scheme, http_headers_ip, http_headers_port, http_headers_url)", value: &config.Mode, defVal: "all"},
 		{name: "o,outdir", usage: "Output directory", value: &config.OutDir},
 		{name: "t,threads", usage: "Number of concurrent threads)", value: &config.Threads, defVal: 20},
 		{name: "T,timeout", usage: "Timeout in seconds", value: &config.Timeout, defVal: 15},
 		{name: "v,verbose", usage: "Verbose output", value: &config.Verbose, defVal: false},
 		{name: "d,debug", usage: "Debug mode with request canaries", value: &config.Debug, defVal: false},
+		{name: "mc,match-status-code", usage: "Only save results matching these HTTP status codes (example: -mc 200,301,500). Default: 200", value: &config.MatchStatusCodesStr},
 		{name: "http2", usage: "Force attempt requests on HTTP2", value: &config.ForceHTTP2, defVal: false},
 		{name: "x,proxy", usage: "Proxy URL (format: http://proxy:port)", value: &config.Proxy},
-		{name: "mc,match-status-code", usage: "Only save results matching these HTTP status codes (example: -mc 200,301,500). Default: 200", value: &config.MatchStatusCodesStr},
+		{name: "spoof-header", usage: "Add more headers used to spoof IPs (example: X-SecretIP-Header,X-GO-IP)", value: &config.SpoofHeader},
+		{name: "spoof-ip", usage: "Add more spoof IPs (example: 10.10.20.20,172.16.30.10)", value: &config.SpoofIP},
 	}
 
 	// Usage helper
@@ -113,6 +140,13 @@ func main() {
 	// Set verbose mode for logger
 	SetVerbose(config.Verbose)
 
+	// Validate bypass mode
+	if err := validateMode(config.Mode); err != nil {
+		//fmt.Println("Error:", err)
+		//flag.Usage()
+		os.Exit(1)
+	}
+
 	// Validate input URL(s)
 	if config.URL == "" && config.URLsFile == "" {
 		fmt.Println("Error: Either Target URL (-u) or URLs file (-l) is required")
@@ -133,73 +167,156 @@ func main() {
 		}
 	}
 
+	// list of urls to be scanned
 	var urls []string
 
-	// First add the original URL if provided
+	// First handle the direct URL if provided
 	if config.URL != "" {
+		// Basic validation first
 		if err := validateURL(config.URL); err != nil {
 			LogError("Invalid target URL: %v\n", err)
 			os.Exit(1)
 		}
-		urls = append(urls, config.URL)
-	}
 
-	if config.SubstituteHostsFile != "" {
-		// Parse original URL to preserve path and query
-		originalURL := rawurlparser.RawURLParse(config.URL)
-		if originalURL == nil {
+		parsedURL := rawurlparser.RawURLParse(config.URL)
+		if parsedURL == nil {
 			LogError("Failed to parse target URL\n")
 			os.Exit(1)
 		}
 
-		content, err := os.ReadFile(config.SubstituteHostsFile)
+		// base url
+		baseURL := fmt.Sprintf("%s://%s", parsedURL.Scheme, parsedURL.Host)
+
+		// Combine path and query
+		originalPathAndQuery := parsedURL.Path
+		if parsedURL.Query != "" {
+			originalPathAndQuery += "?" + parsedURL.Query
+		}
+
+		// Validate base URL with httpx
+		validBaseURLs, err := ValidateURLsWithHttpx([]string{baseURL})
 		if err != nil {
-			LogError("Failed to read substitute hosts file: %v\n", err)
+			LogError("Failed to validate URL with httpx: %v\n", err)
 			os.Exit(1)
 		}
 
-		hosts := strings.Split(strings.TrimSpace(string(content)), "\n")
-		for _, host := range hosts {
-			if host = strings.TrimSpace(host); host == "" {
-				continue
-			}
-
-			// Parse the host to check for scheme
-			parsedHost := rawurlparser.RawURLParse(host)
-			if parsedHost == nil {
-				LogError("Invalid host in substitute file - %s\n", host)
-				continue
-			}
-
-			var newURL string
-			if parsedHost.Scheme != "" {
-				// Use scheme and host from file, but keep original path and query
-				newURL = fmt.Sprintf("%s://%s%s", parsedHost.Scheme, parsedHost.Host, originalURL.Path)
-			} else {
-				// Use original scheme but substitute host
-				newURL = fmt.Sprintf("%s://%s%s", originalURL.Scheme, host, originalURL.Path)
-			}
-
-			urls = append(urls, newURL)
+		// Append original path and query to each valid base URL
+		for _, validBaseURL := range validBaseURLs {
+			urls = append(urls, validBaseURL+originalPathAndQuery) // Add directly to urls instead of tempURLs
 		}
 	}
 
-	// Finally add URLs from file if provided
+	// Handle URLs from file
 	if config.URLsFile != "" {
 		content, err := os.ReadFile(config.URLsFile)
 		if err != nil {
 			LogError("Failed to read URLs file: %v\n", err)
 			os.Exit(1)
 		}
-		rawURLs := strings.Split(strings.TrimSpace(string(content)), "\n")
-		for _, u := range rawURLs {
+
+		fileURLs := strings.Split(strings.TrimSpace(string(content)), "\n")
+		for _, u := range fileURLs {
 			if u = strings.TrimSpace(u); u != "" {
+				// Basic validation first
 				if err := validateURL(u); err != nil {
 					LogError("Invalid URL in file - %s: %v\n", u, err)
 					os.Exit(1)
 				}
-				urls = append(urls, u)
+
+				// Parse URL to separate base URL and path+query
+				parsedURL := rawurlparser.RawURLParse(u)
+				if parsedURL == nil {
+					LogError("Failed to parse URL: %s\n", u)
+					continue
+				}
+
+				// Extract base URL (scheme + host)
+				baseURL := fmt.Sprintf("%s://%s", parsedURL.Scheme, parsedURL.Host)
+
+				// Combine path and query
+				originalPathAndQuery := parsedURL.Path
+				if parsedURL.Query != "" {
+					originalPathAndQuery += "?" + parsedURL.Query
+				}
+
+				// Validate base URL with httpx
+				validBaseURLs, err := ValidateURLsWithHttpx([]string{baseURL})
+				if err != nil {
+					LogError("Failed to validate URL with httpx: %v\n", err)
+					continue
+				}
+
+				// Append original path and query to each valid base URL
+				for _, validBaseURL := range validBaseURLs {
+					urls = append(urls, validBaseURL+originalPathAndQuery)
+				}
 			}
+		}
+	}
+
+	// Handle substitute hosts file
+	if config.SubstituteHostsFile != "" {
+		// Parse original URL
+		originalURL := rawurlparser.RawURLParse(config.URL)
+		if originalURL == nil {
+			LogError("Failed to parse target URL\n")
+			os.Exit(1)
+		}
+
+		// Get original path and query
+		originalPathAndQuery := originalURL.Path
+		if originalURL.Query != "" {
+			originalPathAndQuery += "?" + originalURL.Query
+		}
+
+		baseURL := fmt.Sprintf("%s://%s", originalURL.Scheme, originalURL.Host)
+		_, err := ValidateURLsWithHttpx([]string{baseURL})
+		if err != nil {
+			LogError("Failed to validate original URL with httpx: %v\n", err)
+			os.Exit(1)
+		}
+
+		// Read hosts file
+		content, err := os.ReadFile(config.SubstituteHostsFile)
+		if err != nil {
+			LogError("Failed to read substitute hosts file: %v\n", err)
+			os.Exit(1)
+		}
+
+		// Process and validate hosts
+		var hostsToCheck []string
+		for _, host := range strings.Split(strings.TrimSpace(string(content)), "\n") {
+			host = strings.TrimSpace(host)
+			if host == "" {
+				continue
+			}
+
+			// If it's already a URL (has scheme), extract the host
+			if strings.Contains(host, "://") {
+				if parsed := rawurlparser.RawURLParse(host); parsed != nil {
+					host = parsed.Host
+				}
+			}
+
+			// Validate if it's a domain or IP (with optional port)
+			if IsIP(host) || IsDNSName(host) {
+				hostsToCheck = append(hostsToCheck, host)
+			} else {
+				LogError("Invalid host in substitute file: %s\n", host)
+				continue
+			}
+		}
+
+		// Validate hosts with httpx
+		validHosts, err := ValidateURLsWithHttpx(hostsToCheck)
+		if err != nil {
+			LogError("Failed to validate hosts with httpx: %v\n", err)
+			os.Exit(1)
+		}
+
+		// Append original path and query to each valid host
+		for _, validHost := range validHosts {
+			urls = append(urls, validHost+originalPathAndQuery) // Add directly to urls instead of tempURLs
 		}
 	}
 
@@ -268,12 +385,37 @@ func main() {
 	fmt.Printf("  Verbose mode: %v\n", config.Verbose)
 	fmt.Printf("  Debug mode: %v\n", config.Debug)
 	fmt.Printf("  Force HTTP/2: %v\n", config.ForceHTTP2)
+	if config.SpoofHeader != "" {
+		fmt.Printf("  Custom IP Spoofing Headers: %s\n", config.SpoofHeader)
+	}
+	if config.SpoofIP != "" {
+		fmt.Printf("  Custom Spoofing IPs: %s\n", config.SpoofIP)
+	}
 	if config.Proxy != "" {
 		fmt.Printf("  Using proxy: %s\n", config.Proxy)
 	}
 	fmt.Print("\n")
 
 	// Process URLs
+	if len(urls) == 0 {
+		LogError("No valid URLs found to scan\n")
+		os.Exit(1)
+	} else if len(urls) > 0 {
+		// Create a map for deduplication
+		urlMap := make(map[string]bool)
+		var uniqueURLs []string
+
+		for _, u := range urls {
+			if !urlMap[u] {
+				urlMap[u] = true
+				uniqueURLs = append(uniqueURLs, u)
+			}
+		}
+
+		urls = uniqueURLs
+	}
+
+	// Process filtered URLs and start scanning
 	for _, url := range urls {
 		config.URL = url
 		fmt.Printf("%s[+] Scanning %s ...%s\n", colorCyan, url, colorReset)
