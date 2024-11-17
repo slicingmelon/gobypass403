@@ -35,7 +35,7 @@ func sendRequest(method, rawURL string, headers []Header, bypassMode string) (*R
 
 	parsedURL, err := rawurlparser.RawURLParseWithError(rawURL)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse URL: %v", err)
+		return nil, fmt.Errorf("failed to parse URL %s: %v", rawURL, err)
 	}
 
 	LogDebug("[sendRequest] [%s] Parsed URL: scheme=%s, host=%s, path=%s, query=%s\n",
@@ -90,6 +90,8 @@ func sendRequest(method, rawURL string, headers []Header, bypassMode string) (*R
 		fullPath += "?" + parsedURL.Query
 	}
 
+	targetFullURL := target + fullPath
+
 	// Official logging final
 	if config.Debug {
 		requestLine := fmt.Sprintf("%s://%s%s", parsedURL.Scheme, parsedURL.Host, fullPath)
@@ -109,7 +111,7 @@ func sendRequest(method, rawURL string, headers []Header, bypassMode string) (*R
 	if config.Debug {
 		rawBytes, err := rawhttp.DumpRequestRaw(method, target, fullPath, headerMap, nil, options)
 		if err != nil {
-			LogError("[%s] Failed to dump request: %v", bypassMode, err)
+			LogError("[%s] Failed to dump request %s -- Error: %v", bypassMode, targetFullURL, err)
 		} else {
 			LogPurple("[sendRequest] [%s] Raw request:\n%s", bypassMode, string(rawBytes))
 		}
@@ -119,17 +121,17 @@ func sendRequest(method, rawURL string, headers []Header, bypassMode string) (*R
 	resp, err := client.DoRaw(method, target, fullPath, headerMap, nil)
 	if err != nil {
 		if strings.Contains(err.Error(), "proxy") {
-			LogError("[%s] Proxy error: %v", bypassMode, err)
+			LogError("[%s] Proxy error for %s: %v", bypassMode, targetFullURL, err)
 		} else if strings.Contains(err.Error(), "tls") {
-			LogError("[%s] TLS error: %v", bypassMode, err)
+			LogError("[%s] TLS error for %s: %v", bypassMode, targetFullURL, err)
 		} else {
-			LogError("[%s] Request error: %v", bypassMode, err)
+			LogError("[%s] Request error for %s: %v", bypassMode, targetFullURL, err)
 		}
 		// Log the request details even on error when verbose
 		if isVerbose {
-			LogDebug("[%s] Failed request details: %s %s", bypassMode, method, target+fullPath)
+			LogDebug("[%s] Failed to send raw request: %s", bypassMode, targetFullURL)
 		}
-		return nil, fmt.Errorf("request failed: %v", err)
+		return nil, fmt.Errorf("[%s] request failed for %s: %v", bypassMode, targetFullURL, err)
 	}
 
 	// Read headers and a small preview of response body
@@ -139,7 +141,7 @@ func sendRequest(method, rawURL string, headers []Header, bypassMode string) (*R
 	limitReader := io.LimitReader(resp.Body, int64(previewSize))
 	previewBytes, err := io.ReadAll(limitReader)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read response preview: %v", err)
+		return nil, fmt.Errorf("[%s] failed to read response preview for %s -- Error: %v", bypassMode, targetFullURL, err)
 	}
 	defer resp.Body.Close()
 
@@ -147,7 +149,7 @@ func sendRequest(method, rawURL string, headers []Header, bypassMode string) (*R
 	var headerBuilder strings.Builder
 	err = resp.Header.Write(&headerBuilder)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get response headers: %v", err)
+		return nil, fmt.Errorf("[%s] failed to get response headers for %s -- Error: %v", bypassMode, targetFullURL, err)
 	}
 
 	bodyPreview = string(previewBytes)
