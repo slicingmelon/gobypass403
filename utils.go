@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"html"
 	"log"
+	"net"
+	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -14,6 +16,9 @@ import (
 	"strings"
 
 	"math/rand"
+
+	"github.com/projectdiscovery/goflags"
+	"github.com/projectdiscovery/httpx/runner"
 )
 
 func init() {
@@ -343,4 +348,87 @@ func ReplaceNth(s, old, new string, n int) string {
 
 	// Replace the nth occurrence
 	return s[:pos] + new + s[pos+len(old):]
+}
+
+// RFC 1035
+var rxDNSName = regexp.MustCompile(`^([a-zA-Z0-9_]{1}[a-zA-Z0-9\-._]{0,61}[a-zA-Z0-9]{1}\.)*` +
+	`([a-zA-Z0-9_]{1}[a-zA-Z0-9\-._]{0,61}[a-zA-Z0-9]{1}\.?)$`)
+
+func IsIP(str string) bool {
+	// Split host and port
+	host, _, err := net.SplitHostPort(str)
+	if err != nil {
+		// No port, check if it's just an IP
+		return net.ParseIP(str) != nil
+	}
+	// Check the host part
+	return net.ParseIP(host) != nil
+}
+
+func IsDNSName(str string) bool {
+	// Split host and port
+	host, _, err := net.SplitHostPort(str)
+	if err != nil {
+		// No port, use the original string
+		host = str
+	}
+
+	if host == "" || len(strings.Replace(host, ".", "", -1)) > 255 {
+		return false
+	}
+	return !IsIP(host) && rxDNSName.MatchString(host)
+}
+
+func validateURL(rawURL string) error {
+	parsedURL, err := url.Parse(rawURL)
+	if err != nil {
+		return fmt.Errorf("invalid URL format: %v", err)
+	}
+	if parsedURL.Scheme == "" {
+		return fmt.Errorf("URL must include scheme (http:// or https://)")
+	}
+	return nil
+}
+
+// util func to validate input urls with httpx and extend the scope a bit (http/https)
+func ValidateURLsWithHttpx(urls []string) ([]string, error) {
+	// Create a channel to collect valid URLs
+	validURLs := make([]string, 0)
+
+	// Configure httpx options
+	options := runner.Options{
+		Methods:          "GET",
+		InputTargetHost:  goflags.StringSlice(urls),
+		NoFallback:       true, // -no-fallback
+		NoFallbackScheme: true, // -no-fallback-scheme
+		OnResult: func(r runner.Result) {
+			if r.Err != nil {
+				LogDebug("[Httpx] Error for %s: %s", r.Input, r.Err)
+				return
+			}
+
+			// Build the URL with scheme, host and port
+			url := r.URL
+			if url != "" {
+				validURLs = append(validURLs, url)
+			}
+		},
+	}
+
+	// Validate options
+	if err := options.ValidateOptions(); err != nil {
+		return nil, fmt.Errorf("invalid httpx options: %v", err)
+	}
+
+	// Create new runner
+	httpxRunner, err := runner.New(&options)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create httpx runner: %v", err)
+	}
+	defer httpxRunner.Close()
+
+	// Run
+	httpxRunner.RunEnumeration()
+
+	return validURLs, nil
 }

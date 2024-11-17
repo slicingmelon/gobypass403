@@ -2,6 +2,7 @@
 package main
 
 import (
+	"strings"
 	"sync"
 	"time"
 
@@ -19,34 +20,53 @@ func RunAllBypasses(targetURL string) chan *Result {
 	}
 
 	go func() {
-		if config.Mode == ModeAll || config.Mode == ModeMidPaths {
-			runMidPathsBypass(targetURL, results)
-		}
-		if config.Mode == ModeAll || config.Mode == ModeEndPaths {
-			runEndPathsBypass(targetURL, results)
-		}
-		if config.Mode == ModeAll || config.Mode == ModeCaseSubstitution {
-			runCaseSubstitutionBypass(targetURL, results)
-		}
-		if config.Mode == ModeAll || config.Mode == ModeCharEncode {
-			runCharEncodeBypass(targetURL, results)
-		}
-		if config.Mode == ModeAll || config.Mode == ModeHeadersIP {
-			runHeaderIPBypass(targetURL, results)
-		}
-		if config.Mode == ModeAll || config.Mode == ModeHeadersScheme {
-			runHeaderSchemeBypass(targetURL, results)
-		}
-		if config.Mode == ModeAll || config.Mode == ModeHeadersURL {
-			runHeaderURLBypass(targetURL, results)
-		}
-		if config.Mode == ModeAll || config.Mode == ModeHeadersPort {
-			runHeaderPortBypass(targetURL, results)
+		modes := strings.Split(config.Mode, ",")
+		for _, mode := range modes {
+			mode = strings.TrimSpace(mode)
+
+			// Skip if mode is not enabled in AvailableModes
+			if !AvailableModes[mode].Enabled && mode != "all" {
+				continue
+			}
+
+			// Run the appropriate bypass based on mode
+			switch mode {
+			case "all":
+				// Run all enabled modes
+				for modeName, modeConfig := range AvailableModes {
+					if modeConfig.Enabled && modeName != "all" {
+						runBypassForMode(modeName, targetURL, results)
+					}
+				}
+			default:
+				runBypassForMode(mode, targetURL, results)
+			}
 		}
 		close(results)
 	}()
 
 	return results
+}
+
+func runBypassForMode(mode string, targetURL string, results chan<- *Result) {
+	switch mode {
+	case "mid_paths":
+		runMidPathsBypass(targetURL, results)
+	case "end_paths":
+		runEndPathsBypass(targetURL, results)
+	case "case_substitution":
+		runCaseSubstitutionBypass(targetURL, results)
+	case "char_encode":
+		runCharEncodeBypass(targetURL, results)
+	case "http_headers_ip":
+		runHeaderIPBypass(targetURL, results)
+	case "http_headers_scheme":
+		runHeaderSchemeBypass(targetURL, results)
+	case "http_headers_url":
+		runHeaderURLBypass(targetURL, results)
+	case "http_headers_port":
+		runHeaderPortBypass(targetURL, results)
+	}
 }
 
 func runMidPathsBypass(targetURL string, results chan<- *Result) {
