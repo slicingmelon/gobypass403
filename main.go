@@ -431,6 +431,10 @@ func main() {
 	// Process filtered URLs and start scanning
 	LogYellow("[+] Total URLs to be scanned: %d\n", len(urls))
 
+	// Initialize client
+	initRawHTTPClient()
+	defer globalRawClient.Close()
+
 	// Process filtered URLs and start scanning
 	for _, url := range urls {
 		config.URL = url

@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"strings"
-	"time"
 
 	"github.com/projectdiscovery/rawhttp"
 	"github.com/slicingmelon/go-rawurlparser"
@@ -59,36 +58,13 @@ func sendRequest(method, rawURL string, headers []Header, bypassMode string) (*R
 		headerMap["X-Go-Bypass-403"] = []string{canary}
 	}
 
-	// i can't believe i am doing this
-	// Add after line 54 (after User-Agent header check)
+	// raw requests boys..
 	if _, exists := headerMap["Accept"]; !exists {
 		headerMap["Accept"] = []string{"*/*"}
 	}
 	if _, exists := headerMap["Accept-Encoding"]; !exists {
 		headerMap["Accept-Encoding"] = []string{"gzip, deflate, br"}
 	}
-
-	// Configure options for rawhttp
-	options := &rawhttp.Options{
-		Timeout:                time.Duration(config.Timeout) * time.Second,
-		FollowRedirects:        false,
-		MaxRedirects:           0,
-		AutomaticHostHeader:    false,
-		AutomaticContentLength: true,
-		ForceReadAllBody:       true,
-	}
-
-	if config.Proxy != "" {
-		if !strings.HasPrefix(config.Proxy, "http://") && !strings.HasPrefix(config.Proxy, "https://") {
-			config.Proxy = "http://" + config.Proxy
-		}
-		options.Proxy = config.Proxy
-		options.ProxyDialTimeout = 10 * time.Second
-	}
-
-	// Create client
-	client := rawhttp.NewClient(options)
-	defer client.Close()
 
 	// target URL
 	target := fmt.Sprintf("%s://%s", parsedURL.Scheme, parsedURL.Host)
@@ -117,8 +93,9 @@ func sendRequest(method, rawURL string, headers []Header, bypassMode string) (*R
 			formatHeaders(headers))
 	}
 
+	// Debug logging
 	if config.Debug {
-		rawBytes, err := rawhttp.DumpRequestRaw(method, target, fullPath, headerMap, nil, options)
+		rawBytes, err := rawhttp.DumpRequestRaw(method, target, fullPath, headerMap, nil, globalRawClient.Options)
 		if err != nil {
 			LogError("[%s] Failed to dump request %s -- Error: %v", bypassMode, targetFullURL, err)
 		} else {
@@ -126,15 +103,16 @@ func sendRequest(method, rawURL string, headers []Header, bypassMode string) (*R
 		}
 	}
 
-	// Send request using rawhttp
-	resp, err := client.DoRawWithOptions(method, target, fullPath, headerMap, nil, options)
+	// Use global client
+	resp, err := globalRawClient.DoRawWithOptions(method, target, fullPath, headerMap, nil, globalRawClient.Options)
+
 	if err != nil {
 		if strings.Contains(err.Error(), "proxy") {
-			LogError("[%s] Proxy error for %s: %v", bypassMode, targetFullURL, err)
+			LogError("[%s] Proxy error for %s: %v\n", bypassMode, targetFullURL, err)
 		} else if strings.Contains(err.Error(), "tls") {
-			LogError("[%s] TLS error for %s: %v", bypassMode, targetFullURL, err)
+			LogError("[%s] TLS error for %s: %v\n", bypassMode, targetFullURL, err)
 		} else {
-			LogError("[%s] Request error for %s: %v", bypassMode, targetFullURL, err)
+			LogError("[%s] Request error for %s: %v\n", bypassMode, targetFullURL, err)
 		}
 		// Log the request details even on error when verbose
 		if isVerbose {

@@ -3,8 +3,12 @@ package main
 
 import (
 	"net/url"
+	"strings"
 	"sync"
 	"time"
+
+	"github.com/projectdiscovery/fastdialer/fastdialer"
+	"github.com/projectdiscovery/rawhttp"
 )
 
 var (
@@ -141,11 +145,6 @@ type ProgressCounter struct {
 	mu      sync.Mutex
 }
 
-// Other Vars and stuff
-var (
-	globalRateLimiter *time.Ticker
-)
-
 // Other Constants
 const (
 	defaultUserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
@@ -153,3 +152,47 @@ const (
 	ltmaxIdleConns   = 100
 	jobBufferSize    = 1000
 )
+
+// Other Vars and stuff
+// global rawhttpclient
+var (
+	globalRawClient *rawhttp.Client
+)
+
+// initRawHTTPClient -- initializes the rawhttp client
+func initRawHTTPClient() {
+	// Override some fastdialer default options
+	fastdialerOpts := fastdialer.DefaultOptions
+	fastdialerOpts.DialerTimeout = time.Duration(10) * time.Second
+	fastdialerOpts.MaxRetries = 3 // lower number of retries
+	fastdialerOpts.CacheType = fastdialer.Disk
+	fastdialerOpts.WithCleanup = true
+	fastdialerOpts.CacheMemoryMaxItems = 200
+
+	// Use fastdialer
+	dialer, err := fastdialer.NewDialer(fastdialerOpts)
+	if err != nil {
+		LogError("[initRawHTTPClient] Failed to create dialer: %v\n", err)
+		return
+	}
+
+	options := &rawhttp.Options{
+		Timeout:                time.Duration(config.Timeout) * time.Second,
+		FollowRedirects:        false,
+		MaxRedirects:           0,
+		AutomaticHostHeader:    false,
+		AutomaticContentLength: true,
+		ForceReadAllBody:       true,
+		FastDialer:             dialer,
+	}
+
+	if config.Proxy != "" {
+		if !strings.HasPrefix(config.Proxy, "http://") && !strings.HasPrefix(config.Proxy, "https://") {
+			config.Proxy = "http://" + config.Proxy
+		}
+		options.Proxy = config.Proxy
+		options.ProxyDialTimeout = 10 * time.Second
+	}
+
+	globalRawClient = rawhttp.NewClient(options)
+}

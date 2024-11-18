@@ -3,6 +3,7 @@ module go-bypass-403
 go 1.23.3
 
 require (
+	github.com/projectdiscovery/fastdialer v0.2.9
 	github.com/projectdiscovery/goflags v0.1.65
 	github.com/projectdiscovery/httpx v1.6.9
 	github.com/projectdiscovery/rawhttp v0.1.74
@@ -86,7 +87,6 @@ require (
 	github.com/projectdiscovery/cdncheck v1.1.0 // indirect
 	github.com/projectdiscovery/clistats v0.1.1 // indirect
 	github.com/projectdiscovery/dsl v0.2.5 // indirect
-	github.com/projectdiscovery/fastdialer v0.2.9 // indirect
 	github.com/projectdiscovery/fdmax v0.0.4 // indirect
 	github.com/projectdiscovery/freeport v0.0.7 // indirect
 	github.com/projectdiscovery/goconfig v0.0.1 // indirect
