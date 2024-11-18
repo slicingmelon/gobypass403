@@ -59,6 +59,15 @@ func sendRequest(method, rawURL string, headers []Header, bypassMode string) (*R
 		headerMap["X-Go-Bypass-403"] = []string{canary}
 	}
 
+	// i can't believe i am doing this
+	// Add after line 54 (after User-Agent header check)
+	if _, exists := headerMap["Accept"]; !exists {
+		headerMap["Accept"] = []string{"*/*"}
+	}
+	if _, exists := headerMap["Accept-Encoding"]; !exists {
+		headerMap["Accept-Encoding"] = []string{"gzip, deflate, br"}
+	}
+
 	// Configure options for rawhttp
 	options := &rawhttp.Options{
 		Timeout:                time.Duration(config.Timeout) * time.Second,
@@ -118,7 +127,7 @@ func sendRequest(method, rawURL string, headers []Header, bypassMode string) (*R
 	}
 
 	// Send request using rawhttp
-	resp, err := client.DoRaw(method, target, fullPath, headerMap, nil)
+	resp, err := client.DoRawWithOptions(method, target, fullPath, headerMap, nil, options)
 	if err != nil {
 		if strings.Contains(err.Error(), "proxy") {
 			LogError("[%s] Proxy error for %s: %v", bypassMode, targetFullURL, err)

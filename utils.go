@@ -54,25 +54,25 @@ func LogDebug(format string, v ...interface{}) {
 	}
 }
 
-// LogError (red)
+// Red
 func LogError(format string, v ...interface{}) {
-	fmt.Printf("\033[31m[ERROR] "+format+"\033[0m\n", v...) // Red
+	fmt.Printf("\n"+colorRed+"[ERROR] "+format+colorReset+"\n", v...)
 }
 
 func LogGreen(format string, v ...interface{}) {
-	fmt.Printf("\033[32m"+format+"\033[0m\n", v...) // Green
+	fmt.Printf("\n\033[32m"+format+"\033[0m\n", v...) // Green
 }
 
 func LogBlue(format string, v ...interface{}) {
-	fmt.Printf("\033[34m"+format+"\033[0m\n", v...) // Blue
+	fmt.Printf("\n\033[34m"+format+"\033[0m\n", v...) // Blue
 }
 
 func LogYellow(format string, v ...interface{}) {
-	fmt.Printf("\033[93m"+format+"\033[0m\n", v...) // Yellow
+	fmt.Printf("\n\033[93m"+format+"\033[0m\n", v...) // Yellow
 }
 
 func LogRed(format string, v ...interface{}) {
-	fmt.Printf("\033[91m"+format+"\033[0m\n", v...) // Red
+	fmt.Printf("\n\033[91m"+format+"\033[0m\n", v...) // Red
 }
 
 func LogPurple(format string, v ...interface{}) {
@@ -431,4 +431,43 @@ func ValidateURLsWithHttpx(urls []string) ([]string, error) {
 	httpxRunner.RunEnumeration()
 
 	return validURLs, nil
+}
+
+// ProgressCounter
+// Custom function to show progress on the current bypass mode
+func (pc *ProgressCounter) increment() {
+	pc.mu.Lock()
+	pc.current++
+
+	// Calculate percentage
+	percentage := float64(pc.current) / float64(pc.total) * 100
+
+	// Color for current count based on progress
+	var currentColor string
+	switch {
+	case percentage <= 25:
+		currentColor = colorRed
+	case percentage <= 50:
+		currentColor = colorOrange
+	case percentage <= 75:
+		currentColor = colorYellow
+	default:
+		currentColor = colorGreen
+	}
+
+	// Print URL only once at the start
+	if pc.current == 1 {
+		fmt.Printf("%s[+] Scanning %s ...%s\n", colorCyan, config.URL, colorReset)
+	}
+
+	// Print progress on same line with your color scheme
+	fmt.Printf("\r%s[%s]%s %sProgress:%s %s%d%s/%s%d%s (%s%.1f%%%s)",
+		colorCyan, pc.mode, colorReset,
+		colorTeal, colorReset,
+		currentColor, pc.current, colorReset,
+		colorGreen, pc.total, colorReset,
+		currentColor, percentage, colorReset,
+	)
+
+	pc.mu.Unlock()
 }

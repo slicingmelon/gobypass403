@@ -3,6 +3,7 @@ package main
 
 import (
 	"net/url"
+	"sync"
 	"time"
 )
 
@@ -32,6 +33,7 @@ type Config struct {
 	ForceHTTP2          bool
 	SpoofIP             string
 	SpoofHeader         string
+	Delay               int
 }
 
 type Result struct {
@@ -131,11 +133,23 @@ var AvailableModes = map[string]ModesConfig{
 	},
 }
 
-// Constants
-//
+// Needed by ProgressCounter
+type ProgressCounter struct {
+	total   int
+	current int
+	mode    string
+	mu      sync.Mutex
+}
+
+// Other Vars and stuff
+var (
+	globalRateLimiter *time.Ticker
+)
+
 // Other Constants
 const (
 	defaultUserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
 	defaultTimeout   = 30 * time.Second
-	maxIdleConns     = 100
+	ltmaxIdleConns   = 100
+	jobBufferSize    = 1000
 )

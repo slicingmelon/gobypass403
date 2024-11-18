@@ -68,6 +68,7 @@ func main() {
 		{name: "o,outdir", usage: "Output directory", value: &config.OutDir},
 		{name: "t,threads", usage: "Number of concurrent threads)", value: &config.Threads, defVal: 20},
 		{name: "T,timeout", usage: "Timeout in seconds", value: &config.Timeout, defVal: 15},
+		{name: "delay", usage: "Delay between requests in milliseconds (Default: 150ms)", value: &config.Delay, defVal: 150},
 		{name: "v,verbose", usage: "Verbose output", value: &config.Verbose, defVal: false},
 		{name: "d,debug", usage: "Debug mode with request canaries", value: &config.Debug, defVal: false},
 		{name: "mc,match-status-code", usage: "Only save results matching these HTTP status codes (example: -mc 200,301,500). Default: 200", value: &config.MatchStatusCodesStr},
@@ -79,7 +80,7 @@ func main() {
 
 	// Usage helper
 	flag.Usage = func() {
-		fmt.Fprintf(os.Stderr, "Go-Bypass-403:\n")
+		fmt.Fprintf(os.Stderr, "Go-Bypass-403: v%s\n", VERSION)
 		for _, f := range flags {
 			names := strings.Split(f.name, ",")
 			if len(names) > 1 {
@@ -87,7 +88,13 @@ func main() {
 			} else {
 				fmt.Fprintf(os.Stderr, "  -%s\n", names[0])
 			}
-			fmt.Fprintf(os.Stderr, "        %s\n", f.usage)
+
+			// Add default value if it exists
+			if f.defVal != nil {
+				fmt.Fprintf(os.Stderr, "        %s (Default: %v)\n", f.usage, f.defVal)
+			} else {
+				fmt.Fprintf(os.Stderr, "        %s\n", f.usage)
+			}
 		}
 	}
 
@@ -120,6 +127,11 @@ func main() {
 
 	// Parse flags
 	flag.Parse()
+
+	// Set up a small delay between requests
+	if config.Delay <= 0 {
+		config.Delay = 150 // Default to 150s if set invalid
+	}
 
 	if config.MatchStatusCodesStr == "" {
 		config.MatchStatusCodes = []int{200}
@@ -381,6 +393,7 @@ func main() {
 	fmt.Printf("  Output Findings File: %s\n", outputFile)
 	fmt.Printf("  Threads: %d\n", config.Threads)
 	fmt.Printf("  Timeout: %d seconds\n", config.Timeout)
+	fmt.Printf("  Request Delay: %dms\n", config.Delay)
 	fmt.Printf("  Filtering HTTP Status Codes: %v\n", config.MatchStatusCodes)
 	fmt.Printf("  Verbose mode: %v\n", config.Verbose)
 	fmt.Printf("  Debug mode: %v\n", config.Debug)
@@ -416,9 +429,12 @@ func main() {
 	}
 
 	// Process filtered URLs and start scanning
+	LogYellow("[+] Total URLs to be scanned: %d\n", len(urls))
+
+	// Process filtered URLs and start scanning
 	for _, url := range urls {
 		config.URL = url
-		fmt.Printf("%s[+] Scanning %s ...%s\n", colorCyan, url, colorReset)
+		//fmt.Printf("%s[+] Scanning %s ...%s\n", colorCyan, url, colorReset)
 
 		LogDebug("Processing URL: %s", url)
 
