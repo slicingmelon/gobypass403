@@ -330,13 +330,12 @@ func worker(wg *sync.WaitGroup, jobs <-chan PayloadJob, results chan<- *Result, 
 					job.bypassMode, job.url, err)
 
 				if progress != nil {
-					progress.markAsCancelled() // New method to indicate cancellation
+					progress.markAsCancelled() // Update progress to cancelled
 				}
 
 				// Drain the jobs channel without updating progress
 				go func() {
 					for range jobs {
-						// Just drain, don't increment
 					}
 				}()
 				return // Stop this worker

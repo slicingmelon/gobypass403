@@ -83,7 +83,7 @@ func initRawHTTPClient() (*GO403BYPASS, error) {
 
 		// Error handling
 		MaxTemporaryErrors:              30,
-		MaxTemporaryToPermanentDuration: 2 * time.Minute, // Our custom value (default was 1 minute)
+		MaxTemporaryToPermanentDuration: 1 * time.Minute, // Our custom value (default was 1 minute)
 	}
 
 	// Use fastdialer
@@ -141,21 +141,14 @@ func (b *GO403BYPASS) IsInitialized() bool {
 // Error Handling //
 // ---------------------------------//
 var (
-	// Permanent errors
-	ErrConnectionForciblyClosedPermanent = errkit.New("connection forcibly closed by remote host").
-						SetKind(errkit.ErrKindNetworkPermanent).
-						Build()
-
-	// Temporary errors
+	// Temporary errors that can become permanent
 	ErrConnectionForciblyClosedTemp = errkit.New("connection forcibly closed by remote host").
 					SetKind(errkit.ErrKindNetworkTemporary).
 					Build()
-	ErrTLSHandshakeTemp = errkit.New("tls handshake error").
-				SetKind(errkit.ErrKindNetworkTemporary).
-				Build()
-	ErrProxyTemp = errkit.New("proxy connection error").
-			SetKind(errkit.ErrKindNetworkTemporary).
-			Build()
+
+	// Other temporary that i'll might implement later
+	ErrTLSHandshakeTemp = errkit.New("tls handshake error").Build()
+	ErrProxyTemp        = errkit.New("proxy connection error").Build()
 )
 
 // ErrorHandler manages error states and client lifecycle
@@ -175,7 +168,7 @@ func NewErrorHandler() *ErrorHandler {
 		lastErrorTime: gcache.New[string, time.Time](1000).
 			ARC().
 			Build(),
-		maxErrors:        10,
+		maxErrors:        15,
 		maxErrorDuration: 1 * time.Minute,
 	}
 }
@@ -317,15 +310,23 @@ func sendRequest(method, rawURL string, headers []Header, bypassMode string) (*R
 
 	if err != nil {
 		if strings.Contains(err.Error(), "forcibly closed by the remote host") {
+			// Only this error should be tracked for potential conversion to permanent
 			err = errkit.Join(ErrConnectionForciblyClosedTemp, err)
 		} else if strings.Contains(err.Error(), "tls") {
+			// Let TLS errors through for fastdialer's ZTls fallback
 			err = errkit.Join(ErrTLSHandshakeTemp, err)
 		} else if strings.Contains(err.Error(), "proxy") {
+			// These errors stay temporary
 			err = errkit.Join(ErrProxyTemp, err)
+			return nil, err // Only proxy errors return directly
 		}
 
-		// Let the error handler process it
-		err = globalErrorHandler.HandleError(err, parsedURL.Host)
+		// Only connection forcibly closed errors go through the error handler
+		if errkit.IsKind(err, errkit.ErrKindNetworkTemporary) &&
+			strings.Contains(err.Error(), "forcibly closed") {
+			err = globalErrorHandler.HandleError(err, parsedURL.Host)
+		}
+
 		if errkit.IsKind(err, errkit.ErrKindNetworkPermanent) {
 			LogError("[%s] Permanent error detected for %s: %v\n",
 				bypassMode, targetFullURL, err)

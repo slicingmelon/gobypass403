@@ -501,6 +501,4 @@ func (pc *ProgressCounter) increment() {
 		colorGreen, pc.total, colorReset,
 		currentColor, percentage, colorReset,
 	)
-
-	pc.mu.Unlock()
 }

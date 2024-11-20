@@ -432,20 +432,17 @@ func main() {
 	// Process filtered URLs and start scanning
 	LogYellow("[+] Total URLs to be scanned: %d\n", len(urls))
 
-	// Initialize the client
-	bypassClient, err := initRawHTTPClient()
-	if err != nil {
-		LogError("Failed to initialize client: %v", err)
-		os.Exit(1)
-	}
-	defer bypassClient.Close()
-
 	// Process filtered URLs and start scanning
 	for _, url := range urls {
 		config.URL = url
-		//fmt.Printf("%s[+] Scanning %s ...%s\n", colorCyan, url, colorReset)
-
 		LogVerbose("Processing URL: %s", url)
+
+		// Initialize new client for each URL
+		bypassClient, err := initRawHTTPClient()
+		if err != nil {
+			LogError("Failed to initialize client for %s: %v\n", url, err)
+			continue
+		}
 
 		results := RunAllBypasses(url)
 		var findings []*Result
@@ -454,6 +451,9 @@ func main() {
 		for result := range results {
 			findings = append(findings, result)
 		}
+
+		// Clean up client after URL is processed
+		bypassClient.Close()
 
 		// Print table header and findings
 		if len(findings) > 0 {
@@ -469,7 +469,7 @@ func main() {
 			}
 			LogGreen("[+] Results saved to %s\n", outputFile)
 		} else {
-			fmt.Printf("\n%sSorry, no bypasses found for %s%s\n\n", colorRed, url, colorReset)
+			LogOrange("[!] Sorry, no bypasses found for %s\n", url)
 		}
 	}
 }
