@@ -38,6 +38,7 @@ type Config struct {
 	SpoofIP             string
 	SpoofHeader         string
 	Delay               int
+	FollowRedirects     bool
 }
 
 type Result struct {
@@ -54,6 +55,17 @@ type Result struct {
 	ServerInfo      string `json:"response_server_info"`
 	RedirectURL     string `json:"response_redirect_url"`
 	HTMLFilename    string `json:"response_html_filename"`
+}
+
+type ScanResult struct {
+	URL         string    `json:"url"`
+	BypassModes string    `json:"bypass_modes"`
+	ResultsPath string    `json:"results_path"`
+	Results     []*Result `json:"results"`
+}
+
+type JSONData struct {
+	Scans []ScanResult `json:"scans"`
 }
 
 // ModesConfig -- all bypass modes and their status
@@ -161,13 +173,40 @@ var (
 
 // initRawHTTPClient -- initializes the rawhttp client
 func initRawHTTPClient() {
-	// Override some fastdialer default options
-	fastdialerOpts := fastdialer.DefaultOptions
-	fastdialerOpts.DialerTimeout = time.Duration(10) * time.Second
-	fastdialerOpts.MaxRetries = 3 // lower number of retries
-	fastdialerOpts.CacheType = fastdialer.Disk
-	fastdialerOpts.WithCleanup = true
-	fastdialerOpts.CacheMemoryMaxItems = 200
+	// Set fastdialer options from scratch
+	fastdialerOpts := fastdialer.Options{
+		BaseResolvers: []string{
+			"1.1.1.1:53",
+			"1.0.0.1:53",
+			"9.9.9.10:53",
+			"8.8.4.4:53",
+		},
+		MaxRetries:    5,
+		HostsFile:     true,
+		ResolversFile: true,
+		CacheType:     fastdialer.Disk,
+		DiskDbType:    fastdialer.LevelDB,
+
+		// Timeouts
+		DialerTimeout:   10 * time.Second,
+		DialerKeepAlive: 10 * time.Second,
+
+		// Cache settings
+		CacheMemoryMaxItems: 200,
+		WithDialerHistory:   true,
+		WithCleanup:         true,
+
+		// TLS settings
+		WithZTLS:            true,
+		DisableZtlsFallback: false,
+
+		// Fallback settings
+		EnableFallback: true,
+
+		// Error handling
+		MaxTemporaryErrors:              15,
+		MaxTemporaryToPermanentDuration: 2 * time.Minute, // Our custom value (default was 1 minute)
+	}
 
 	// Use fastdialer
 	dialer, err := fastdialer.NewDialer(fastdialerOpts)
@@ -178,8 +217,8 @@ func initRawHTTPClient() {
 
 	options := &rawhttp.Options{
 		Timeout:                time.Duration(config.Timeout) * time.Second,
-		FollowRedirects:        false,
-		MaxRedirects:           0,
+		FollowRedirects:        config.FollowRedirects,
+		MaxRedirects:           map[bool]int{false: 0, true: 10}[config.FollowRedirects],
 		AutomaticHostHeader:    false,
 		AutomaticContentLength: true,
 		ForceReadAllBody:       true,

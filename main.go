@@ -76,6 +76,7 @@ func main() {
 		{name: "x,proxy", usage: "Proxy URL (format: http://proxy:port)", value: &config.Proxy},
 		{name: "spoof-header", usage: "Add more headers used to spoof IPs (example: X-SecretIP-Header,X-GO-IP)", value: &config.SpoofHeader},
 		{name: "spoof-ip", usage: "Add more spoof IPs (example: 10.10.20.20,172.16.30.10)", value: &config.SpoofIP},
+		{name: "fr,follow-redirects", usage: "Follow HTTP redirects", value: &config.FollowRedirects, defVal: false},
 	}
 
 	// Usage helper
@@ -351,10 +352,8 @@ func main() {
 
 	// Initialize findings.json file
 	outputFile := filepath.Join(config.OutDir, "findings.json")
-	initialJSON := struct {
-		Scans []interface{} `json:"scans"`
-	}{
-		Scans: make([]interface{}, 0),
+	initialJSON := JSONData{
+		Scans: make([]ScanResult, 0),
 	}
 
 	jsonData, err := json.MarshalIndent(initialJSON, "", "  ")
@@ -363,6 +362,7 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Write the initial JSON structure to file
 	if err := os.WriteFile(outputFile, jsonData, 0644); err != nil {
 		LogError("Failed to initialize findings.json: %v\n", err)
 		os.Exit(1)
@@ -398,6 +398,7 @@ func main() {
 	fmt.Printf("  Verbose mode: %v\n", config.Verbose)
 	fmt.Printf("  Debug mode: %v\n", config.Debug)
 	fmt.Printf("  Force HTTP/2: %v\n", config.ForceHTTP2)
+	fmt.Printf("  Follow Redirects: %v\n", config.FollowRedirects) // Add this line
 	if config.SpoofHeader != "" {
 		fmt.Printf("  Custom IP Spoofing Headers: %s\n", config.SpoofHeader)
 	}
@@ -440,7 +441,7 @@ func main() {
 		config.URL = url
 		//fmt.Printf("%s[+] Scanning %s ...%s\n", colorCyan, url, colorReset)
 
-		LogDebug("Processing URL: %s", url)
+		LogVerbose("Processing URL: %s", url)
 
 		results := RunAllBypasses(url)
 		var findings []*Result

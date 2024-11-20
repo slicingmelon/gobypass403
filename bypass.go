@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/projectdiscovery/utils/errkit"
 	"github.com/slicingmelon/go-rawurlparser"
 )
 
@@ -303,36 +304,85 @@ func runHeaderPortBypass(targetURL string, results chan<- *Result) {
 	fmt.Println()
 }
 
+type ScannerError struct {
+	*errkit.ErrorX
+	Host       string
+	BypassMode string
+}
+
+func MonitorScannerError(err error, targetURL, bypassMode string) *ScannerError {
+	// Check if error is already permanent
+	if errkit.IsKind(err, errkit.ErrKindNetworkPermanent) {
+		LogError("[ErrorMonitor] Permanent error detected for %s", targetURL)
+	}
+
+	parsedURL, parseErr := rawurlparser.RawURLParseWithError(targetURL)
+	if parseErr != nil {
+		return &ScannerError{
+			ErrorX:     errkit.FromError(err),
+			Host:       targetURL,
+			BypassMode: bypassMode,
+		}
+	}
+
+	return &ScannerError{
+		ErrorX:     errkit.FromError(err),
+		Host:       parsedURL.Host,
+		BypassMode: bypassMode,
+	}
+}
+
+func (se *ScannerError) IsPermanentError() bool {
+	isPermanent := se.Kind() == errkit.ErrKindNetworkPermanent
+	if isPermanent {
+		LogError("[ErrorMonitor] Permanent error detected for host %s in mode %s",
+			se.Host, se.BypassMode)
+	}
+	return isPermanent
+}
+
 func worker(wg *sync.WaitGroup, jobs <-chan PayloadJob, results chan<- *Result, progress *ProgressCounter) {
 	defer wg.Done()
 
-	// Create per-worker rate limiter
 	workerLimiter := time.NewTicker(time.Duration(config.Delay) * time.Millisecond)
 	defer workerLimiter.Stop()
 
 	for job := range jobs {
-		<-workerLimiter.C // Wait for next tick (default config.Delay -> cli -delay X ms)
+		<-workerLimiter.C
 		details, err := sendRequest(job.method, job.url, job.headers, job.bypassMode)
 		if progress != nil {
 			progress.increment()
 		}
-		if err == nil {
-			for _, allowedCode := range config.MatchStatusCodes {
-				if details.StatusCode == allowedCode {
-					results <- &Result{
-						TargetURL:       job.url,
-						StatusCode:      details.StatusCode,
-						ResponsePreview: details.ResponsePreview,
-						ResponseHeaders: details.ResponseHeaders,
-						CurlPocCommand:  buildCurlCmd(job.method, job.url, headersToMap(job.headers)),
-						BypassMode:      job.bypassMode,
-						ContentType:     details.ContentType,
-						ContentLength:   details.ContentLength,
-						ResponseBytes:   details.ResponseBytes,
-						Title:           details.Title,
-						ServerInfo:      details.ServerInfo,
-						RedirectURL:     details.RedirectURL,
-					}
+
+		if err != nil {
+			scanErr := MonitorScannerError(err, job.url, job.bypassMode)
+			if scanErr != nil && scanErr.IsPermanentError() {
+				LogError("[ErrorMonitorService] => Stopping current bypass mode [%s] -- Permanent error for %s: errKind=%s [address=%s] %v",
+					job.bypassMode, job.url, scanErr.Kind(), scanErr.Host, err)
+				return // Stop this worker on permanent error
+			}
+
+			LogError("[%s] Request error for %s: %v",
+				job.bypassMode, job.url, err)
+			continue
+		}
+
+		// Process successful response
+		for _, allowedCode := range config.MatchStatusCodes {
+			if details.StatusCode == allowedCode {
+				results <- &Result{
+					TargetURL:       job.url,
+					StatusCode:      details.StatusCode,
+					ResponsePreview: details.ResponsePreview,
+					ResponseHeaders: details.ResponseHeaders,
+					CurlPocCommand:  buildCurlCmd(job.method, job.url, headersToMap(job.headers)),
+					BypassMode:      job.bypassMode,
+					ContentType:     details.ContentType,
+					ContentLength:   details.ContentLength,
+					ResponseBytes:   details.ResponseBytes,
+					Title:           details.Title,
+					ServerInfo:      details.ServerInfo,
+					RedirectURL:     details.RedirectURL,
 				}
 			}
 		}
