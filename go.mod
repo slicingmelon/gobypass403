@@ -4,6 +4,7 @@ go 1.23.3
 
 require (
 	github.com/projectdiscovery/fastdialer v0.2.9
+	github.com/projectdiscovery/gcache v0.0.0-20241015120333-12546c6e3f4c
 	github.com/projectdiscovery/goflags v0.1.65
 	github.com/projectdiscovery/httpx v1.6.9
 	github.com/projectdiscovery/rawhttp v0.1.74

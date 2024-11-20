@@ -10,7 +10,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Mzack9999/gcache"
+	"github.com/projectdiscovery/fastdialer/fastdialer"
+	"github.com/projectdiscovery/gcache"
 	"github.com/projectdiscovery/httpx/common/httpx"
 	"github.com/projectdiscovery/rawhttp"
 	"github.com/projectdiscovery/utils/errkit"
@@ -34,6 +35,114 @@ type ResponseDetails struct {
 	Title           string
 }
 
+type GO403BYPASS struct {
+	rawClient    *rawhttp.Client
+	errorHandler *ErrorHandler
+	dialer       *fastdialer.Dialer
+}
+
+var (
+	globalRawClient    *rawhttp.Client
+	globalErrorHandler *ErrorHandler
+	globalDialer       *fastdialer.Dialer
+)
+
+// initRawHTTPClient -- initializes the rawhttp client
+func initRawHTTPClient() (*GO403BYPASS, error) {
+	httpclient := &GO403BYPASS{}
+
+	// Set fastdialer options from scratch
+	fastdialerOpts := fastdialer.Options{
+		BaseResolvers: []string{
+			"1.1.1.1:53",
+			"1.0.0.1:53",
+			"9.9.9.10:53",
+			"8.8.4.4:53",
+		},
+		MaxRetries:    5,
+		HostsFile:     true,
+		ResolversFile: true,
+		CacheType:     fastdialer.Disk,
+		DiskDbType:    fastdialer.LevelDB,
+
+		// Timeouts
+		DialerTimeout:   10 * time.Second,
+		DialerKeepAlive: 10 * time.Second,
+
+		// Cache settings
+		CacheMemoryMaxItems: 200,
+		WithDialerHistory:   true,
+		WithCleanup:         true,
+
+		// TLS settings
+		WithZTLS:            true,
+		DisableZtlsFallback: false,
+
+		// Fallback settings
+		EnableFallback: true,
+
+		// Error handling
+		MaxTemporaryErrors:              15,
+		MaxTemporaryToPermanentDuration: 2 * time.Minute, // Our custom value (default was 1 minute)
+	}
+
+	// Use fastdialer
+	var err error
+	httpclient.dialer, err = fastdialer.NewDialer(fastdialerOpts)
+	if err != nil {
+		return nil, fmt.Errorf("could not create dialer: %v", err)
+	}
+
+	options := &rawhttp.Options{
+		Timeout:                time.Duration(config.Timeout) * time.Second,
+		FollowRedirects:        config.FollowRedirects,
+		MaxRedirects:           map[bool]int{false: 0, true: 10}[config.FollowRedirects],
+		AutomaticHostHeader:    false,
+		AutomaticContentLength: true,
+		ForceReadAllBody:       true,
+		FastDialer:             httpclient.dialer,
+	}
+
+	if config.Proxy != "" {
+		if !strings.HasPrefix(config.Proxy, "http://") && !strings.HasPrefix(config.Proxy, "https://") {
+			config.Proxy = "http://" + config.Proxy
+		}
+		options.Proxy = config.Proxy
+		options.ProxyDialTimeout = 10 * time.Second
+	}
+
+	httpclient.errorHandler = NewErrorHandler()
+	httpclient.rawClient = rawhttp.NewClient(options)
+
+	// Set globals
+	globalRawClient = httpclient.rawClient
+	globalErrorHandler = httpclient.errorHandler
+	globalDialer = httpclient.dialer
+
+	return httpclient, nil
+}
+
+// Close cleans up resources
+func (b *GO403BYPASS) Close() {
+	if b.rawClient != nil {
+		b.rawClient.Close()
+	}
+	if b.dialer != nil {
+		b.dialer.Close()
+	}
+	if b.errorHandler != nil {
+		b.errorHandler.Purge()
+	}
+}
+
+// Add a method to check if client is properly initialized
+func (b *GO403BYPASS) IsInitialized() bool {
+	return b.rawClient != nil && b.errorHandler != nil && b.dialer != nil
+}
+
+// ----------------------------------//
+// Error Handling //
+// ---------------------------------//
 var (
 	// Permanent errors
 	ErrConnectionForciblyClosedPermanent = errkit.New("connection forcibly closed by remote host").

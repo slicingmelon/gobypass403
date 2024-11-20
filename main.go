@@ -432,6 +432,14 @@ func main() {
 	// Process filtered URLs and start scanning
 	LogYellow("[+] Total URLs to be scanned: %d\n", len(urls))
 
+	// Initialize the client
+	bypassClient, err := initRawHTTPClient()
+	if err != nil {
+		LogError("Failed to initialize client: %v", err)
+		os.Exit(1)
+	}
+	defer bypassClient.Close()
+
 	// Process filtered URLs and start scanning
 	for _, url := range urls {
 		config.URL = url
