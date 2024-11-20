@@ -3,7 +3,6 @@ package main
 
 import (
 	"net/url"
-	"sync"
 	"time"
 )
 
@@ -143,14 +142,6 @@ var AvailableModes = map[string]ModesConfig{
 		Enabled:     false, // waste of time
 		Description: "Test User-Agent based bypasses",
 	},
-}
-
-// Needed by ProgressCounter
-type ProgressCounter struct {
-	total   int
-	current int
-	mode    string
-	mu      sync.Mutex
 }
 
 // Other Constants

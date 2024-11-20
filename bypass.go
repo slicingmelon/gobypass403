@@ -329,13 +329,14 @@ func worker(wg *sync.WaitGroup, jobs <-chan PayloadJob, results chan<- *Result, 
 				LogError("[ErrorMonitorService] => Stopping current bypass mode [%s] -- Permanent error for %s: %v",
 					job.bypassMode, job.url, err)
 
-				// Drain the jobs channel to prevent deadlock
+				if progress != nil {
+					progress.markAsCancelled() // New method to indicate cancellation
+				}
+
+				// Drain the jobs channel without updating progress
 				go func() {
 					for range jobs {
-						// Drain remaining jobs
-						if progress != nil {
-							progress.increment()
-						}
+						// Just drain, don't increment
 					}
 				}()
 				return // Stop this worker

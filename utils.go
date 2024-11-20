@@ -14,6 +14,7 @@ import (
 	"regexp"
 	"runtime"
 	"strings"
+	"sync"
 
 	"math/rand"
 
@@ -349,6 +350,10 @@ func ReplaceNth(s, old, new string, n int) string {
 	return s[:pos] + new + s[pos+len(old):]
 }
 
+// ----------------------------------------------------------------//
+// URL Validation Stuff//
+// Custom URL Validation, HTTPX probes and more //
+
 // RFC 1035
 var rxDNSName = regexp.MustCompile(`^([a-zA-Z0-9_]{1}[a-zA-Z0-9\-._]{0,61}[a-zA-Z0-9]{1}\.)*` +
 	`([a-zA-Z0-9_]{1}[a-zA-Z0-9\-._]{0,61}[a-zA-Z0-9]{1}\.?)$`)
@@ -432,10 +437,39 @@ func ValidateURLsWithHttpx(urls []string) ([]string, error) {
 	return validURLs, nil
 }
 
-// ProgressCounter
-// Custom function to show progress on the current bypass mode
+// ----------------------------------------------------------------//
+// ProgressCounter //
+// Custom code to show progress on the current bypass mode
+type ProgressCounter struct {
+	total     int
+	current   int
+	mode      string
+	mu        sync.Mutex
+	cancelled bool
+}
+
+func (pc *ProgressCounter) markAsCancelled() {
+	pc.mu.Lock()
+	pc.cancelled = true
+	fmt.Printf("\r%s[%s]%s %sCancelled at:%s %s%d%s/%s%d%s (%s%.1f%%%s) - Permanent error detected%s\n",
+		colorCyan, pc.mode, colorReset,
+		colorRed, colorReset,
+		colorRed, pc.current, colorReset,
+		colorGreen, pc.total, colorReset,
+		colorRed, float64(pc.current)/float64(pc.total)*100, colorReset,
+		colorReset,
+	)
+	pc.mu.Unlock()
+}
+
 func (pc *ProgressCounter) increment() {
 	pc.mu.Lock()
+	defer pc.mu.Unlock()
+
+	if pc.cancelled {
+		return
+	}
+
 	pc.current++
 
 	// Calculate percentage

@@ -82,7 +82,7 @@ func initRawHTTPClient() (*GO403BYPASS, error) {
 		EnableFallback: true,
 
 		// Error handling
-		MaxTemporaryErrors:              15,
+		MaxTemporaryErrors:              30,
 		MaxTemporaryToPermanentDuration: 2 * time.Minute, // Our custom value (default was 1 minute)
 	}
 
@@ -125,10 +125,7 @@ func initRawHTTPClient() (*GO403BYPASS, error) {
 // Close cleans up resources
 func (b *GO403BYPASS) Close() {
 	if b.rawClient != nil {
-		b.rawClient.Close()
-	}
-	if b.dialer != nil {
-		b.dialer.Close()
+		b.rawClient.Close() // This also closes the dialer
 	}
 	if b.errorHandler != nil {
 		b.errorHandler.Purge()
@@ -137,7 +134,7 @@ func (b *GO403BYPASS) Close() {
 
 // Add a method to check if client is properly initialized
 func (b *GO403BYPASS) IsInitialized() bool {
-	return b.rawClient != nil && b.errorHandler != nil && b.dialer != nil
+	return b.rawClient != nil && b.errorHandler != nil
 }
 
 // ----------------------------------//
