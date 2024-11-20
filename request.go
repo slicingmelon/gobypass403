@@ -8,7 +8,9 @@ import (
 	"net/http/httputil"
 	"strconv"
 	"strings"
+	"time"
 
+	"github.com/Mzack9999/gcache"
 	"github.com/projectdiscovery/httpx/common/httpx"
 	"github.com/projectdiscovery/rawhttp"
 	"github.com/projectdiscovery/utils/errkit"
@@ -30,6 +32,98 @@ type ResponseDetails struct {
 	RedirectURL     string
 	ResponseBytes   int
 	Title           string
+}
+
+var (
+	// Permanent errors
+	ErrConnectionForciblyClosedPermanent = errkit.New("connection forcibly closed by remote host").
+						SetKind(errkit.ErrKindNetworkPermanent).
+						Build()
+
+	// Temporary errors
+	ErrConnectionForciblyClosedTemp = errkit.New("connection forcibly closed by remote host").
+					SetKind(errkit.ErrKindNetworkTemporary).
+					Build()
+	ErrTLSHandshakeTemp = errkit.New("tls handshake error").
+				SetKind(errkit.ErrKindNetworkTemporary).
+				Build()
+	ErrProxyTemp = errkit.New("proxy connection error").
+			SetKind(errkit.ErrKindNetworkTemporary).
+			Build()
+)
+
+// ErrorHandler manages error states and client lifecycle
+type ErrorHandler struct {
+	hostErrors       gcache.Cache[string, int]
+	lastErrorTime    gcache.Cache[string, time.Time]
+	maxErrors        int
+	maxErrorDuration time.Duration
+}
+
+// NewErrorHandler creates a new error handler
+func NewErrorHandler() *ErrorHandler {
+	return &ErrorHandler{
+		hostErrors: gcache.New[string, int](1000).
+			ARC(). // Adaptive Replacement Cache
+			Build(),
+		lastErrorTime: gcache.New[string, time.Time](1000).
+			ARC().
+			Build(),
+		maxErrors:        10,
+		maxErrorDuration: 1 * time.Minute,
+	}
+}
+
+// HandleError processes errors and determines if they're permanent
+func (h *ErrorHandler) HandleError(err error, host string) error {
+	if err == nil {
+		return nil
+	}
+
+	// Get the error as errkit.ErrorX
+	errx := errkit.FromError(err)
+
+	// If it's already permanent, return as is
+	if errx.Kind() == errkit.ErrKindNetworkPermanent {
+		return errx
+	}
+
+	// Only handle temporary errors
+	if errx.Kind() == errkit.ErrKindNetworkTemporary {
+		now := time.Now()
+
+		errorCount, _ := h.hostErrors.GetIFPresent(host)
+		errorCount++
+		_ = h.hostErrors.Set(host, errorCount)
+
+		lastTime, _ := h.lastErrorTime.GetIFPresent(host)
+
+		// Check if we're within the error window
+		if !lastTime.IsZero() && now.Sub(lastTime) <= h.maxErrorDuration {
+			if errorCount >= h.maxErrors {
+				// Convert to permanent error
+				errx.ResetKind().SetKind(errkit.ErrKindNetworkPermanent)
+				return errkit.WithMessagef(errx.Build(),
+					"max errors (%d) reached within %v for host %s",
+					h.maxErrors, h.maxErrorDuration, host)
+			}
+		} else {
+			// Reset counter if we're outside the window
+			errorCount = 1
+			_ = h.hostErrors.Set(host, errorCount)
+		}
+
+		// Update last error time
+		_ = h.lastErrorTime.Set(host, now)
+	}
+
+	return errx.Build()
+}
+
+// Purge cleans up the caches
+func (h *ErrorHandler) Purge() {
+	h.hostErrors.Purge()
+	h.lastErrorTime.Purge()
 }
 
 func sendRequest(method, rawURL string, headers []Header, bypassMode string) (*ResponseDetails, error) {
@@ -116,24 +210,24 @@ func sendRequest(method, rawURL string, headers []Header, bypassMode string) (*R
 	resp, err := globalRawClient.DoRawWithOptions(method, target, fullPath, headerMap, nil, globalRawClient.Options)
 
 	if err != nil {
-		if strings.Contains(err.Error(), "proxy") {
-			LogError("[%s] Proxy error for %s: %v\n", bypassMode, targetFullURL, err)
+		if strings.Contains(err.Error(), "forcibly closed by the remote host") {
+			err = errkit.Join(ErrConnectionForciblyClosedTemp, err)
 		} else if strings.Contains(err.Error(), "tls") {
-			LogError("[%s] TLS error for %s: %v\n", bypassMode, targetFullURL, err)
-		} else if strings.Contains(err.Error(), "forcibly closed by the remote host") {
-			// Let fastdialer handle the error counting by wrapping with temporary kind
-			errx := errkit.New("connection forcibly closed by the remote host").
-				SetKind(errkit.ErrKindNetworkTemporary).
-				Build()
-
-			LogError("[%s] Network error for %s: errKind=%s %v\n",
-				bypassMode, targetFullURL, errkit.ErrKindNetworkTemporary, err)
-
-			return nil, errx
-		} else {
-			LogError("[%s] Request error for %s: %v\n", bypassMode, targetFullURL, err)
-			return nil, err
+			err = errkit.Join(ErrTLSHandshakeTemp, err)
+		} else if strings.Contains(err.Error(), "proxy") {
+			err = errkit.Join(ErrProxyTemp, err)
 		}
+
+		// Let the error handler process it
+		err = globalErrorHandler.HandleError(err, parsedURL.Host)
+		if errkit.IsKind(err, errkit.ErrKindNetworkPermanent) {
+			LogError("[%s] Permanent error detected for %s: %v\n",
+				bypassMode, targetFullURL, err)
+		} else {
+			LogError("[%s] Temporary network error for %s: %v\n",
+				bypassMode, targetFullURL, err)
+		}
+		return nil, err
 	}
 	// Keep a copy of headers for safety and for GetResponseBodyRaw later
 	headersCopy := resp.Header.Clone()

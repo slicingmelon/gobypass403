@@ -3,12 +3,8 @@ package main
 
 import (
 	"net/url"
-	"strings"
 	"sync"
 	"time"
-
-	"github.com/projectdiscovery/fastdialer/fastdialer"
-	"github.com/projectdiscovery/rawhttp"
 )
 
 var (
@@ -164,74 +160,3 @@ const (
 	maxIdleConns     = 100
 	jobBufferSize    = 1000
 )
-
-// Other Vars and stuff
-// global rawhttpclient
-var (
-	globalRawClient *rawhttp.Client
-)
-
-// initRawHTTPClient -- initializes the rawhttp client
-func initRawHTTPClient() {
-	// Set fastdialer options from scratch
-	fastdialerOpts := fastdialer.Options{
-		BaseResolvers: []string{
-			"1.1.1.1:53",
-			"1.0.0.1:53",
-			"9.9.9.10:53",
-			"8.8.4.4:53",
-		},
-		MaxRetries:    5,
-		HostsFile:     true,
-		ResolversFile: true,
-		CacheType:     fastdialer.Disk,
-		DiskDbType:    fastdialer.LevelDB,
-
-		// Timeouts
-		DialerTimeout:   10 * time.Second,
-		DialerKeepAlive: 10 * time.Second,
-
-		// Cache settings
-		CacheMemoryMaxItems: 200,
-		WithDialerHistory:   true,
-		WithCleanup:         true,
-
-		// TLS settings
-		WithZTLS:            true,
-		DisableZtlsFallback: false,
-
-		// Fallback settings
-		EnableFallback: true,
-
-		// Error handling
-		MaxTemporaryErrors:              15,
-		MaxTemporaryToPermanentDuration: 2 * time.Minute, // Our custom value (default was 1 minute)
-	}
-
-	// Use fastdialer
-	dialer, err := fastdialer.NewDialer(fastdialerOpts)
-	if err != nil {
-		LogError("[initRawHTTPClient] Failed to create dialer: %v\n", err)
-		return
-	}
-
-	options := &rawhttp.Options{
-		Timeout:                time.Duration(config.Timeout) * time.Second,
-		FollowRedirects:        config.FollowRedirects,
-		MaxRedirects:           map[bool]int{false: 0, true: 10}[config.FollowRedirects],
-		AutomaticHostHeader:    false,
-		AutomaticContentLength: true,
-		ForceReadAllBody:       true,
-		FastDialer:             dialer,
-	}
-
-	if config.Proxy != "" {
-		if !strings.HasPrefix(config.Proxy, "http://") && !strings.HasPrefix(config.Proxy, "https://") {
-			config.Proxy = "http://" + config.Proxy
-		}
-		options.Proxy = config.Proxy
-		options.ProxyDialTimeout = 10 * time.Second
-	}
-
-	globalRawClient = rawhttp.NewClient(options)
-}
