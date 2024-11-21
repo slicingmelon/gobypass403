@@ -383,30 +383,30 @@ func main() {
 	fmt.Printf("\r\033[1;97;45mGo-Bypass-403 v%s\033[0m\n", VERSION)
 	fmt.Print("\n")
 
-	// Print configuration
-	fmt.Println("Configuration:")
-	fmt.Printf("  URL: %s\n", config.URL)
-	fmt.Printf("  Using Input File: %s\n", config.URLsFile)
-	fmt.Printf("  Using Substitute Hosts File: %s\n", config.SubstituteHostsFile)
-	fmt.Printf("  Mode: %s\n", config.Mode)
-	fmt.Printf("  Output Directory: %s\n", config.OutDir)
-	fmt.Printf("  Output Findings File: %s\n", outputFile)
-	fmt.Printf("  Threads: %d\n", config.Threads)
-	fmt.Printf("  Timeout: %d seconds\n", config.Timeout)
-	fmt.Printf("  Request Delay: %dms\n", config.Delay)
-	fmt.Printf("  Filtering HTTP Status Codes: %v\n", config.MatchStatusCodes)
-	fmt.Printf("  Verbose mode: %v\n", config.Verbose)
-	fmt.Printf("  Debug mode: %v\n", config.Debug)
-	fmt.Printf("  Force HTTP/2: %v\n", config.ForceHTTP2)
-	fmt.Printf("  Follow Redirects: %v\n", config.FollowRedirects) // Add this line
+	// Print configuration with colors - no terminal manipulation, just simple printing
+	fmt.Printf("%sConfiguration:%s\n", colorPink, colorReset)
+	fmt.Printf("  %sURL:%s %s%s%s\n", colorCyan, colorReset, colorYellow, config.URL, colorReset)
+	fmt.Printf("  %sUsing Input File:%s %s%s%s\n", colorCyan, colorReset, colorYellow, config.URLsFile, colorReset)
+	fmt.Printf("  %sUsing Substitute Hosts File:%s %s%s%s\n", colorCyan, colorReset, colorYellow, config.SubstituteHostsFile, colorReset)
+	fmt.Printf("  %sMode:%s %s%s%s\n", colorCyan, colorReset, colorYellow, config.Mode, colorReset)
+	fmt.Printf("  %sOutput Directory:%s %s%s%s\n", colorCyan, colorReset, colorYellow, config.OutDir, colorReset)
+	fmt.Printf("  %sOutput Findings File:%s %s%s%s\n", colorCyan, colorReset, colorYellow, outputFile, colorReset)
+	fmt.Printf("  %sThreads:%s %s%d%s\n", colorCyan, colorReset, colorYellow, config.Threads, colorReset)
+	fmt.Printf("  %sTimeout:%s %s%d seconds%s\n", colorCyan, colorReset, colorYellow, config.Timeout, colorReset)
+	fmt.Printf("  %sRequest Delay:%s %s%dms%s\n", colorCyan, colorReset, colorYellow, config.Delay, colorReset)
+	fmt.Printf("  %sFiltering HTTP Status Codes:%s %s%v%s\n", colorCyan, colorReset, colorYellow, config.MatchStatusCodes, colorReset)
+	fmt.Printf("  %sVerbose mode:%s %s%v%s\n", colorCyan, colorReset, colorYellow, config.Verbose, colorReset)
+	fmt.Printf("  %sDebug mode:%s %s%v%s\n", colorCyan, colorReset, colorYellow, config.Debug, colorReset)
+	fmt.Printf("  %sForce HTTP/2:%s %s%v%s\n", colorCyan, colorReset, colorYellow, config.ForceHTTP2, colorReset)
+	fmt.Printf("  %sFollow Redirects:%s %s%v%s\n", colorCyan, colorReset, colorYellow, config.FollowRedirects, colorReset)
 	if config.SpoofHeader != "" {
-		fmt.Printf("  Custom IP Spoofing Headers: %s\n", config.SpoofHeader)
+		fmt.Printf("  %sCustom IP Spoofing Headers:%s %s%s%s\n", colorCyan, colorReset, colorYellow, config.SpoofHeader, colorReset)
 	}
 	if config.SpoofIP != "" {
-		fmt.Printf("  Custom Spoofing IPs: %s\n", config.SpoofIP)
+		fmt.Printf("  %sCustom Spoofing IPs:%s %s%s%s\n", colorCyan, colorReset, colorYellow, config.SpoofIP, colorReset)
 	}
 	if config.Proxy != "" {
-		fmt.Printf("  Using proxy: %s\n", config.Proxy)
+		fmt.Printf("  %sUsing proxy:%s %s%s%s\n", colorCyan, colorReset, colorYellow, config.Proxy, colorReset)
 	}
 	fmt.Print("\n")
 
@@ -463,11 +463,13 @@ func main() {
 			}
 			fmt.Printf("\n")
 
-			// Save results to JSON
-			if err := SaveResultsToJSON(config.OutDir, url, config.Mode, findings); err != nil {
+			// Save results to JSON immediately after processing each URL
+			outputFile := filepath.Join(config.OutDir, "findings.json")
+			if err := AppendResultsToJSON(outputFile, url, config.Mode, findings); err != nil {
 				LogError("Failed to save JSON results: %v", err)
+			} else {
+				LogGreen("[+] Results appended to %s\n", outputFile)
 			}
-			LogGreen("[+] Results saved to %s\n", outputFile)
 		} else {
 			LogOrange("[!] Sorry, no bypasses found for %s\n", url)
 		}
