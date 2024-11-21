@@ -4,9 +4,11 @@ go 1.23.3
 
 require (
 	github.com/projectdiscovery/fastdialer v0.2.9
+	github.com/projectdiscovery/gcache v0.0.0-20241015120333-12546c6e3f4c
 	github.com/projectdiscovery/goflags v0.1.65
 	github.com/projectdiscovery/httpx v1.6.9
 	github.com/projectdiscovery/rawhttp v0.1.74
+	github.com/projectdiscovery/utils v0.2.19
 	github.com/slicingmelon/go-rawurlparser v0.2.1
 )
 
@@ -101,7 +103,6 @@ require (
 	github.com/projectdiscovery/retryablehttp-go v1.0.86 // indirect
 	github.com/projectdiscovery/tlsx v1.1.7 // indirect
 	github.com/projectdiscovery/useragent v0.0.69 // indirect
-	github.com/projectdiscovery/utils v0.2.18 // indirect
 	github.com/projectdiscovery/wappalyzergo v0.1.22 // indirect
 	github.com/refraction-networking/utls v1.6.7 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect

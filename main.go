@@ -66,7 +66,7 @@ func main() {
 		{name: "shf,substitute-hosts-file", usage: "File containing a list of hosts to substitute target URL's hostname (mostly used in CDN bypasses by providing a list of CDNs)", value: &config.SubstituteHostsFile},
 		{name: "m,mode", usage: "Bypass mode (all, mid_paths, end_paths, case_substitution, char_encode, http_headers_scheme, http_headers_ip, http_headers_port, http_headers_url)", value: &config.Mode, defVal: "all"},
 		{name: "o,outdir", usage: "Output directory", value: &config.OutDir},
-		{name: "t,threads", usage: "Number of concurrent threads)", value: &config.Threads, defVal: 20},
+		{name: "t,threads", usage: "Number of concurrent threads)", value: &config.Threads, defVal: 15},
 		{name: "T,timeout", usage: "Timeout in seconds", value: &config.Timeout, defVal: 15},
 		{name: "delay", usage: "Delay between requests in milliseconds (Default: 150ms)", value: &config.Delay, defVal: 150},
 		{name: "v,verbose", usage: "Verbose output", value: &config.Verbose, defVal: false},
@@ -76,6 +76,7 @@ func main() {
 		{name: "x,proxy", usage: "Proxy URL (format: http://proxy:port)", value: &config.Proxy},
 		{name: "spoof-header", usage: "Add more headers used to spoof IPs (example: X-SecretIP-Header,X-GO-IP)", value: &config.SpoofHeader},
 		{name: "spoof-ip", usage: "Add more spoof IPs (example: 10.10.20.20,172.16.30.10)", value: &config.SpoofIP},
+		{name: "fr,follow-redirects", usage: "Follow HTTP redirects", value: &config.FollowRedirects, defVal: false},
 	}
 
 	// Usage helper
@@ -351,10 +352,8 @@ func main() {
 
 	// Initialize findings.json file
 	outputFile := filepath.Join(config.OutDir, "findings.json")
-	initialJSON := struct {
-		Scans []interface{} `json:"scans"`
-	}{
-		Scans: make([]interface{}, 0),
+	initialJSON := JSONData{
+		Scans: make([]ScanResult, 0),
 	}
 
 	jsonData, err := json.MarshalIndent(initialJSON, "", "  ")
@@ -363,6 +362,7 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Write the initial JSON structure to file
 	if err := os.WriteFile(outputFile, jsonData, 0644); err != nil {
 		LogError("Failed to initialize findings.json: %v\n", err)
 		os.Exit(1)
@@ -398,6 +398,7 @@ func main() {
 	fmt.Printf("  Verbose mode: %v\n", config.Verbose)
 	fmt.Printf("  Debug mode: %v\n", config.Debug)
 	fmt.Printf("  Force HTTP/2: %v\n", config.ForceHTTP2)
+	fmt.Printf("  Follow Redirects: %v\n", config.FollowRedirects) // Add this line
 	if config.SpoofHeader != "" {
 		fmt.Printf("  Custom IP Spoofing Headers: %s\n", config.SpoofHeader)
 	}
@@ -431,16 +432,17 @@ func main() {
 	// Process filtered URLs and start scanning
 	LogYellow("[+] Total URLs to be scanned: %d\n", len(urls))
 
-	// Initialize client
-	initRawHTTPClient()
-	defer globalRawClient.Close()
-
 	// Process filtered URLs and start scanning
 	for _, url := range urls {
 		config.URL = url
-		//fmt.Printf("%s[+] Scanning %s ...%s\n", colorCyan, url, colorReset)
+		LogVerbose("Processing URL: %s", url)
 
-		LogDebug("Processing URL: %s", url)
+		// Initialize new client for each URL
+		bypassClient, err := initRawHTTPClient()
+		if err != nil {
+			LogError("Failed to initialize client for %s: %v\n", url, err)
+			continue
+		}
 
 		results := RunAllBypasses(url)
 		var findings []*Result
@@ -449,6 +451,9 @@ func main() {
 		for result := range results {
 			findings = append(findings, result)
 		}
+
+		// Clean up client after URL is processed
+		bypassClient.Close()
 
 		// Print table header and findings
 		if len(findings) > 0 {
@@ -464,7 +469,7 @@ func main() {
 			}
 			LogGreen("[+] Results saved to %s\n", outputFile)
 		} else {
-			fmt.Printf("\n%sSorry, no bypasses found for %s%s\n\n", colorRed, url, colorReset)
+			LogOrange("[!] Sorry, no bypasses found for %s\n", url)
 		}
 	}
 }

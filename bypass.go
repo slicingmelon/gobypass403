@@ -7,8 +7,37 @@ import (
 	"sync"
 	"time"
 
+	"github.com/projectdiscovery/utils/errkit"
 	"github.com/slicingmelon/go-rawurlparser"
 )
+
+type WorkerContext struct {
+	mode     string
+	progress *ProgressCounter
+	cancel   chan struct{}
+	wg       *sync.WaitGroup
+	once     sync.Once
+}
+
+func NewWorkerContext(mode string, total int) *WorkerContext {
+	return &WorkerContext{
+		mode: mode,
+		progress: &ProgressCounter{
+			total: total,
+			mode:  mode,
+		},
+		cancel: make(chan struct{}),
+		wg:     &sync.WaitGroup{},
+		once:   sync.Once{},
+	}
+}
+
+func (w *WorkerContext) Stop() {
+	w.once.Do(func() {
+		close(w.cancel)
+		w.progress.markAsCancelled()
+	})
+}
 
 // Core Function
 func RunAllBypasses(targetURL string) chan *Result {
@@ -73,250 +102,280 @@ func runBypassForMode(mode string, targetURL string, results chan<- *Result) {
 
 func runMidPathsBypass(targetURL string, results chan<- *Result) {
 	jobs := make(chan PayloadJob, jobBufferSize)
-	var wg sync.WaitGroup
-
-	// Get all jobs upfront
 	allJobs := generateMidPathsJobs(targetURL)
 
-	// Create progress counter
-	progress := &ProgressCounter{
-		total: len(allJobs),
-		mode:  "mid_paths",
-	}
+	// Create WorkerContext
+	ctx := NewWorkerContext("mid_paths", len(allJobs))
 
 	// Start workers
 	for i := 0; i < config.Threads; i++ {
-		wg.Add(1)
-		go worker(&wg, jobs, results, progress)
+		ctx.wg.Add(1)
+		go worker(ctx, jobs, results)
 	}
 
-	// Send jobs
 	for _, job := range allJobs {
-		jobs <- job
-	}
-	close(jobs)
+		select {
+		case <-ctx.cancel:
 
-	wg.Wait()
+			close(jobs)
+			ctx.wg.Wait()
+			return
+		case jobs <- job:
+		}
+	}
+
+	close(jobs)
+	ctx.wg.Wait()
 	fmt.Println()
 }
 
 func runEndPathsBypass(targetURL string, results chan<- *Result) {
 	jobs := make(chan PayloadJob, jobBufferSize)
-	var wg sync.WaitGroup
-
-	// Get all jobs upfront
 	allJobs := generateEndPathsJobs(targetURL)
 
-	// Create progress counter
-	progress := &ProgressCounter{
-		total: len(allJobs),
-		mode:  "end_paths",
-	}
+	// Create WorkerContext
+	ctx := NewWorkerContext("end_paths", len(allJobs))
 
-	// Start workers with progress counter
+	// Start workers
 	for i := 0; i < config.Threads; i++ {
-		wg.Add(1)
-		go worker(&wg, jobs, results, progress)
+		ctx.wg.Add(1)
+		go worker(ctx, jobs, results)
 	}
 
-	// Send jobs
 	for _, job := range allJobs {
-		jobs <- job
-	}
-	close(jobs)
+		select {
+		case <-ctx.cancel:
 
-	wg.Wait()
+			close(jobs)
+			ctx.wg.Wait()
+			return
+		case jobs <- job:
+		}
+	}
+
+	close(jobs)
+	ctx.wg.Wait()
 	fmt.Println()
 }
 
 func runHeaderIPBypass(targetURL string, results chan<- *Result) {
 	jobs := make(chan PayloadJob, jobBufferSize)
-	var wg sync.WaitGroup
-
-	// Get all jobs upfront
 	allJobs := generateHeaderIPJobs(targetURL)
 
-	// Create progress counter
-	progress := &ProgressCounter{
-		total: len(allJobs),
-		mode:  "http_headers_ip",
-	}
+	// Create WorkerContext
+	ctx := NewWorkerContext("http_headers_ip", len(allJobs))
 
-	// Start workers with progress counter
+	// Start workers with ctx
 	for i := 0; i < config.Threads; i++ {
-		wg.Add(1)
-		go worker(&wg, jobs, results, progress)
+		ctx.wg.Add(1)
+		go worker(ctx, jobs, results)
 	}
 
-	// Send jobs
 	for _, job := range allJobs {
-		jobs <- job
-	}
-	close(jobs)
+		select {
+		case <-ctx.cancel:
 
-	wg.Wait()
+			close(jobs)
+			ctx.wg.Wait()
+			return
+		case jobs <- job:
+		}
+	}
+
+	close(jobs)
+	ctx.wg.Wait()
 	fmt.Println()
 }
 
 func runCaseSubstitutionBypass(targetURL string, results chan<- *Result) {
 	jobs := make(chan PayloadJob, jobBufferSize)
-	var wg sync.WaitGroup
-
-	// Get all jobs upfront
 	allJobs := generateCaseSubstitutionJobs(targetURL)
 
-	// Create progress counter
-	progress := &ProgressCounter{
-		total: len(allJobs),
-		mode:  "case_substitution",
-	}
+	// Create WorkerContext
+	ctx := NewWorkerContext("case_substitution", len(allJobs))
 
-	// Start workers with progress counter
+	// Start workers with ctx
 	for i := 0; i < config.Threads; i++ {
-		wg.Add(1)
-		go worker(&wg, jobs, results, progress)
+		ctx.wg.Add(1)
+		go worker(ctx, jobs, results)
 	}
 
-	// Send jobs
 	for _, job := range allJobs {
-		jobs <- job
-	}
-	close(jobs)
+		select {
+		case <-ctx.cancel:
 
-	wg.Wait()
+			close(jobs)
+			ctx.wg.Wait()
+			return
+		case jobs <- job:
+		}
+	}
+
+	close(jobs)
+	ctx.wg.Wait()
 	fmt.Println()
 }
 
 func runCharEncodeBypass(targetURL string, results chan<- *Result) {
 	jobs := make(chan PayloadJob, jobBufferSize)
-	var wg sync.WaitGroup
-
-	// Get all jobs upfront
 	allJobs := generateCharEncodeJobs(targetURL)
 
-	// Create progress counter
-	progress := &ProgressCounter{
-		total: len(allJobs),
-		mode:  "char_encode",
-	}
+	// Create WorkerContext
+	ctx := NewWorkerContext("char_encode", len(allJobs))
 
-	// Start workers with progress counter
+	// Start workers with ctx
 	for i := 0; i < config.Threads; i++ {
-		wg.Add(1)
-		go worker(&wg, jobs, results, progress)
+		ctx.wg.Add(1)
+		go worker(ctx, jobs, results)
 	}
 
-	// Send jobs
 	for _, job := range allJobs {
-		jobs <- job
-	}
-	close(jobs)
+		select {
+		case <-ctx.cancel:
 
-	wg.Wait()
+			close(jobs)
+			ctx.wg.Wait()
+			return
+		case jobs <- job:
+		}
+	}
+
+	close(jobs)
+	ctx.wg.Wait()
 	fmt.Println()
 }
 
 func runHeaderSchemeBypass(targetURL string, results chan<- *Result) {
 	jobs := make(chan PayloadJob, jobBufferSize)
-	var wg sync.WaitGroup
-
-	// Get all jobs upfront
 	allJobs := generateHeaderSchemeJobs(targetURL)
 
-	// Create progress counter
-	progress := &ProgressCounter{
-		total: len(allJobs),
-		mode:  "http_headers_scheme",
-	}
+	// Create WorkerContext
+	ctx := NewWorkerContext("http_headers_scheme", len(allJobs))
 
-	// Start workers with progress counter
+	// Start workers with ctx
 	for i := 0; i < config.Threads; i++ {
-		wg.Add(1)
-		go worker(&wg, jobs, results, progress)
+		ctx.wg.Add(1)
+		go worker(ctx, jobs, results)
 	}
 
-	// Send jobs
 	for _, job := range allJobs {
-		jobs <- job
-	}
-	close(jobs)
+		select {
+		case <-ctx.cancel:
 
-	wg.Wait()
+			close(jobs)
+			ctx.wg.Wait()
+			return
+		case jobs <- job:
+		}
+	}
+
+	close(jobs)
+	ctx.wg.Wait()
 	fmt.Println()
 }
 
 func runHeaderURLBypass(targetURL string, results chan<- *Result) {
 	jobs := make(chan PayloadJob, jobBufferSize)
-	var wg sync.WaitGroup
-
-	// Get all jobs upfront
 	allJobs := generateHeaderURLJobs(targetURL)
 
-	// Create progress counter
-	progress := &ProgressCounter{
-		total: len(allJobs),
-		mode:  "http_headers_url",
-	}
+	// Create WorkerContext
+	ctx := NewWorkerContext("http_headers_url", len(allJobs))
 
-	// Start workers with progress counter
+	// Start workers with ctx
 	for i := 0; i < config.Threads; i++ {
-		wg.Add(1)
-		go worker(&wg, jobs, results, progress)
+		ctx.wg.Add(1)
+		go worker(ctx, jobs, results)
 	}
 
-	// Send jobs
 	for _, job := range allJobs {
-		jobs <- job
-	}
-	close(jobs)
+		select {
+		case <-ctx.cancel:
 
-	wg.Wait()
+			close(jobs)
+			ctx.wg.Wait()
+			return
+		case jobs <- job:
+		}
+	}
+
+	close(jobs)
+	ctx.wg.Wait()
 	fmt.Println()
 }
 
 func runHeaderPortBypass(targetURL string, results chan<- *Result) {
 	jobs := make(chan PayloadJob, jobBufferSize)
-	var wg sync.WaitGroup
-
-	// Get all jobs upfront
 	allJobs := generateHeaderPortJobs(targetURL)
 
-	// Create progress counter
-	progress := &ProgressCounter{
-		total: len(allJobs),
-		mode:  "http_headers_port",
-	}
+	// Create WorkerContext
+	ctx := NewWorkerContext("http_headers_port", len(allJobs))
 
-	// Start workers with progress counter
+	// Start workers with ctx
 	for i := 0; i < config.Threads; i++ {
-		wg.Add(1)
-		go worker(&wg, jobs, results, progress)
+		ctx.wg.Add(1)
+		go worker(ctx, jobs, results)
 	}
 
-	// Send jobs
 	for _, job := range allJobs {
-		jobs <- job
-	}
-	close(jobs)
+		select {
+		case <-ctx.cancel:
 
-	wg.Wait()
+			close(jobs)
+			ctx.wg.Wait()
+			return
+		case jobs <- job:
+		}
+	}
+
+	close(jobs)
+	ctx.wg.Wait()
 	fmt.Println()
 }
 
-func worker(wg *sync.WaitGroup, jobs <-chan PayloadJob, results chan<- *Result, progress *ProgressCounter) {
-	defer wg.Done()
+func worker(ctx *WorkerContext, jobs <-chan PayloadJob, results chan<- *Result) {
+	defer ctx.wg.Done()
 
-	// Create per-worker rate limiter
+	// Add panic recovery
+	defer func() {
+		if r := recover(); r != nil {
+			LogError("[%s] Worker panic recovered: %v", ctx.mode, r)
+			ctx.Stop()
+		}
+	}()
+
 	workerLimiter := time.NewTicker(time.Duration(config.Delay) * time.Millisecond)
 	defer workerLimiter.Stop()
 
 	for job := range jobs {
-		<-workerLimiter.C // Wait for next tick (default config.Delay -> cli -delay X ms)
-		details, err := sendRequest(job.method, job.url, job.headers, job.bypassMode)
-		if progress != nil {
-			progress.increment()
-		}
-		if err == nil {
+		select {
+		case <-ctx.cancel:
+			return
+		case <-workerLimiter.C:
+			details, err := sendRequest(job.method, job.url, job.headers, job.bypassMode)
+			ctx.progress.increment()
+
+			if err != nil {
+				_, parseErr := rawurlparser.RawURLParseWithError(job.url)
+				if parseErr != nil {
+					LogError("[%s] Failed to parse URL: %s", job.bypassMode, job.url)
+					continue
+				}
+
+				if errkit.IsKind(err, ErrKindGo403BypassFatal) {
+					if isVerbose {
+						LogError("[ErrorMonitorService] => Stopping current bypass mode [%s] -- Permanent error for %s: %v",
+							job.bypassMode, job.url, err)
+					}
+					ctx.Stop()
+					return
+				}
+
+				LogError("[%s] Request error for %s: %v",
+					job.bypassMode, job.url, err)
+				continue
+			}
+
+			// Process successful response
 			for _, allowedCode := range config.MatchStatusCodes {
 				if details.StatusCode == allowedCode {
 					results <- &Result{

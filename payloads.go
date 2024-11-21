@@ -24,7 +24,7 @@ func generateMidPathsJobs(targetURL string) []PayloadJob {
 		return jobs // Return empty slice instead of nil
 	}
 
-	LogDebug("Starting MidPaths payload generation for: %s", targetURL)
+	LogVerbose("Starting MidPaths payload generation for: %s", targetURL)
 
 	payloads, err := readPayloadsFile("payloads/internal_midpaths.lst")
 	if err != nil {
@@ -87,7 +87,7 @@ func generateEndPathsJobs(targetURL string) []PayloadJob {
 	_bypassMode := "end_paths"
 	var jobs []PayloadJob
 
-	LogDebug("Starting EndPaths payload generation for: %s", targetURL)
+	LogVerbose("Starting EndPaths payload generation for: %s", targetURL)
 
 	parsedURL := rawurlparser.RawURLParse(targetURL)
 	if parsedURL == nil {
@@ -149,7 +149,7 @@ func generateHeaderIPJobs(targetURL string) []PayloadJob {
 	_bypassMode := "http_headers_ip"
 	var allJobs []PayloadJob
 
-	LogDebug("Starting HeadersIP payload generation for: %s", targetURL)
+	LogVerbose("Starting HeadersIP payload generation for: %s", targetURL)
 
 	headerNames, err := readPayloadsFile("payloads/header_ip_hosts.lst")
 	if err != nil {
@@ -241,7 +241,7 @@ func generateCaseSubstitutionJobs(targetURL string) []PayloadJob {
 	_bypassMode := "case_substitution"
 	var allJobs []PayloadJob
 
-	LogDebug("Starting CaseSubstitution payload generation for: %s", targetURL)
+	LogVerbose("Starting CaseSubstitution payload generation for: %s", targetURL)
 
 	parsedURL := rawurlparser.RawURLParse(targetURL)
 	if parsedURL == nil {
@@ -279,7 +279,7 @@ func generateCaseSubstitutionJobs(targetURL string) []PayloadJob {
 func generateCharEncodeJobs(targetURL string) []PayloadJob {
 	var allJobs []PayloadJob
 
-	LogDebug("Starting CharEncode payload generation for: %s", targetURL)
+	LogVerbose("Starting CharEncode payload generation for: %s", targetURL)
 
 	parsedURL := rawurlparser.RawURLParse(targetURL)
 	if parsedURL == nil {
@@ -328,7 +328,7 @@ func generateHeaderSchemeJobs(targetURL string) []PayloadJob {
 	_bypassMode := "http_headers_scheme"
 	var allJobs []PayloadJob
 
-	LogDebug("Starting HeadersScheme payload generation for: %s", targetURL)
+	LogVerbose("Starting HeadersScheme payload generation for: %s", targetURL)
 
 	headerSchemes, err := readPayloadsFile("payloads/header_proto_schemes.lst")
 	if err != nil {
@@ -392,7 +392,7 @@ func generateHeaderURLJobs(targetURL string) []PayloadJob {
 	_bypassMode := "http_headers_url"
 	var allJobs []PayloadJob
 
-	LogDebug("Starting HeadersURL payload generation for: %s", targetURL)
+	LogVerbose("Starting HeadersURL payload generation for: %s", targetURL)
 
 	parsedURL := rawurlparser.RawURLParse(targetURL)
 	if parsedURL == nil {
@@ -481,7 +481,7 @@ func generateHeaderPortJobs(targetURL string) []PayloadJob {
 	_bypassMode := "http_headers_port"
 	var allJobs []PayloadJob
 
-	LogDebug("Starting HeadersPort payload generation for: %s", targetURL)
+	LogVerbose("Starting HeadersPort payload generation for: %s", targetURL)
 
 	headerPorts, err := readPayloadsFile("payloads/header_ports.lst")
 	if err != nil {

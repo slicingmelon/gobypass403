@@ -14,6 +14,7 @@ import (
 	"regexp"
 	"runtime"
 	"strings"
+	"sync"
 
 	"math/rand"
 
@@ -47,10 +48,17 @@ func LogInfo(format string, v ...interface{}) {
 	fmt.Printf("[INFO] "+format+"\n", v...)
 }
 
-// LogDebug (only if -v and color cyan)
-func LogDebug(format string, v ...interface{}) {
+// LogVe
+func LogVerbose(format string, v ...interface{}) {
 	if isVerbose {
-		fmt.Printf("\033[36m[DEBUG] "+format+"\033[0m\n", v...) // Cyan
+		fmt.Printf("\n"+colorCyan+format+colorReset+"\n", v...) // Cyan
+	}
+}
+
+// LogDebug (only if -d and color purple)
+func LogDebug(format string, v ...interface{}) {
+	if config.Debug {
+		fmt.Printf("\n"+colorPurple+format+colorReset+"\n", v...) // Purple
 	}
 }
 
@@ -174,14 +182,16 @@ func PrintTableHeader(targetURL string) {
 		colorCyan,
 		colorReset)
 
-	fmt.Printf("%s[bypass]%s [%scurl poc%s] ======================================> %s[status]%s [%scontent-length%s] [%stitle%s] [%sserver%s] [%sredirect%s]\n",
+	fmt.Printf("%s[bypass]%s [%scurl poc%s] ======================================> %s[status]%s [%scontent-length%s] [%scontent-type%s] [%stitle%s] [%sserver%s] [%sredirect%s]\n",
 		colorBlue, // bypass
 		colorReset,
 		colorYellow, // curl poc
 		colorReset,
 		colorGreen, // status
 		colorReset,
-		colorPurple, // bytes
+		colorPurple, // content-length
+		colorReset,
+		colorOrange, // content-type (new)
 		colorReset,
 		colorCyan, // title
 		colorReset,
@@ -207,11 +217,12 @@ func PrintTableRow(result *Result) {
 		title = title[:27] + "..."
 	}
 
-	fmt.Printf("%s[%s]%s [%s%s%s] => %s[%d]%s [%s%s%s] [%s%s%s] [%s%s%s] [%s%s%s]\n",
+	fmt.Printf("%s[%s]%s [%s%s%s] => %s[%d]%s [%s%s%s] [%s%s%s] [%s%s%s] [%s%s%s] [%s%s%s]\n",
 		colorBlue, result.BypassMode, colorReset,
 		colorYellow, result.CurlPocCommand, colorReset,
 		colorGreen, result.StatusCode, colorReset,
 		colorPurple, formatBytes(result.ContentLength), colorReset,
+		colorOrange, formatValue(result.ContentType), colorReset,
 		colorCyan, title, colorReset,
 		colorWhite, formatValue(result.ServerInfo), colorReset,
 		colorRed, formatValue(result.RedirectURL), colorReset)
@@ -227,32 +238,21 @@ func SaveResultsToJSON(outputDir string, url string, mode string, findings []*Re
 		return fmt.Errorf("failed to read JSON file: %v", err)
 	}
 
-	var data struct {
-		Scans []interface{} `json:"scans"`
-	}
-
+	var data JSONData
 	if err := json.Unmarshal(fileData, &data); err != nil {
 		return fmt.Errorf("failed to parse existing JSON: %v", err)
 	}
 
-	// Clean up
+	// Clean up findings
 	cleanFindings := make([]*Result, len(findings))
 	for i, result := range findings {
-		// Create a copy of the result
 		cleanResult := *result
-
 		cleanResult.ResponsePreview = html.UnescapeString(cleanResult.ResponsePreview)
-
 		cleanFindings[i] = &cleanResult
 	}
 
 	// Add new scan results
-	scan := struct {
-		URL         string    `json:"url"`
-		BypassModes string    `json:"bypass_modes"`
-		ResultsPath string    `json:"results_path"`
-		Results     []*Result `json:"results"`
-	}{
+	scan := ScanResult{
 		URL:         url,
 		BypassModes: mode,
 		ResultsPath: outputDir,
@@ -350,6 +350,10 @@ func ReplaceNth(s, old, new string, n int) string {
 	return s[:pos] + new + s[pos+len(old):]
 }
 
+// ----------------------------------------------------------------//
+// URL Validation Stuff//
+// Custom URL Validation, HTTPX probes and more //
+
 // RFC 1035
 var rxDNSName = regexp.MustCompile(`^([a-zA-Z0-9_]{1}[a-zA-Z0-9\-._]{0,61}[a-zA-Z0-9]{1}\.)*` +
 	`([a-zA-Z0-9_]{1}[a-zA-Z0-9\-._]{0,61}[a-zA-Z0-9]{1}\.?)$`)
@@ -403,7 +407,7 @@ func ValidateURLsWithHttpx(urls []string) ([]string, error) {
 		NoFallbackScheme: true, // -no-fallback-scheme
 		OnResult: func(r runner.Result) {
 			if r.Err != nil {
-				LogDebug("[Httpx] Error for %s: %s", r.Input, r.Err)
+				LogVerbose("[Httpx] Error for %s: %s", r.Input, r.Err)
 				return
 			}
 
@@ -433,10 +437,39 @@ func ValidateURLsWithHttpx(urls []string) ([]string, error) {
 	return validURLs, nil
 }
 
-// ProgressCounter
-// Custom function to show progress on the current bypass mode
+// ----------------------------------------------------------------//
+// ProgressCounter //
+// Custom code to show progress on the current bypass mode
+type ProgressCounter struct {
+	total     int
+	current   int
+	mode      string
+	mu        sync.Mutex
+	cancelled bool
+}
+
+func (pc *ProgressCounter) markAsCancelled() {
+	pc.mu.Lock()
+	pc.cancelled = true
+	fmt.Printf("\r%s[%s]%s %sCancelled at:%s %s%d%s/%s%d%s (%s%.1f%%%s) - %s%s%s\n",
+		colorCyan, pc.mode, colorReset,
+		colorRed, colorReset,
+		colorRed, pc.current, colorReset,
+		colorGreen, pc.total, colorReset,
+		colorRed, float64(pc.current)/float64(pc.total)*100, colorReset,
+		colorYellow, "Permanent error detected - Skipping current job", colorReset,
+	)
+	pc.mu.Unlock()
+}
+
 func (pc *ProgressCounter) increment() {
 	pc.mu.Lock()
+	defer pc.mu.Unlock()
+
+	if pc.cancelled {
+		return
+	}
+
 	pc.current++
 
 	// Calculate percentage
@@ -468,6 +501,10 @@ func (pc *ProgressCounter) increment() {
 		colorGreen, pc.total, colorReset,
 		currentColor, percentage, colorReset,
 	)
+}
 
-	pc.mu.Unlock()
+func (pc *ProgressCounter) isCancelled() bool {
+	pc.mu.Lock()
+	defer pc.mu.Unlock()
+	return pc.cancelled
 }

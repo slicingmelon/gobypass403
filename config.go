@@ -3,12 +3,7 @@ package main
 
 import (
 	"net/url"
-	"strings"
-	"sync"
 	"time"
-
-	"github.com/projectdiscovery/fastdialer/fastdialer"
-	"github.com/projectdiscovery/rawhttp"
 )
 
 var (
@@ -17,7 +12,7 @@ var (
 )
 
 const (
-	VERSION = "0.2.3"
+	VERSION = "0.2.4"
 )
 
 type Config struct {
@@ -38,6 +33,7 @@ type Config struct {
 	SpoofIP             string
 	SpoofHeader         string
 	Delay               int
+	FollowRedirects     bool
 }
 
 type Result struct {
@@ -54,6 +50,17 @@ type Result struct {
 	ServerInfo      string `json:"response_server_info"`
 	RedirectURL     string `json:"response_redirect_url"`
 	HTMLFilename    string `json:"response_html_filename"`
+}
+
+type ScanResult struct {
+	URL         string    `json:"url"`
+	BypassModes string    `json:"bypass_modes"`
+	ResultsPath string    `json:"results_path"`
+	Results     []*Result `json:"results"`
+}
+
+type JSONData struct {
+	Scans []ScanResult `json:"scans"`
 }
 
 // ModesConfig -- all bypass modes and their status
@@ -137,14 +144,6 @@ var AvailableModes = map[string]ModesConfig{
 	},
 }
 
-// Needed by ProgressCounter
-type ProgressCounter struct {
-	total   int
-	current int
-	mode    string
-	mu      sync.Mutex
-}
-
 // Other Constants
 const (
 	defaultUserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
@@ -152,47 +151,3 @@ const (
 	maxIdleConns     = 100
 	jobBufferSize    = 1000
 )
-
-// Other Vars and stuff
-// global rawhttpclient
-var (
-	globalRawClient *rawhttp.Client
-)
-
-// initRawHTTPClient -- initializes the rawhttp client
-func initRawHTTPClient() {
-	// Override some fastdialer default options
-	fastdialerOpts := fastdialer.DefaultOptions
-	fastdialerOpts.DialerTimeout = time.Duration(10) * time.Second
-	fastdialerOpts.MaxRetries = 3 // lower number of retries
-	fastdialerOpts.CacheType = fastdialer.Disk
-	fastdialerOpts.WithCleanup = true
-	fastdialerOpts.CacheMemoryMaxItems = 200
-
-	// Use fastdialer
-	dialer, err := fastdialer.NewDialer(fastdialerOpts)
-	if err != nil {
-		LogError("[initRawHTTPClient] Failed to create dialer: %v\n", err)
-		return
-	}
-
-	options := &rawhttp.Options{
-		Timeout:                time.Duration(config.Timeout) * time.Second,
-		FollowRedirects:        false,
-		MaxRedirects:           0,
-		AutomaticHostHeader:    false,
-		AutomaticContentLength: true,
-		ForceReadAllBody:       true,
-		FastDialer:             dialer,
-	}
-
-	if config.Proxy != "" {
-		if !strings.HasPrefix(config.Proxy, "http://") && !strings.HasPrefix(config.Proxy, "https://") {
-			config.Proxy = "http://" + config.Proxy
-		}
-		options.Proxy = config.Proxy
-		options.ProxyDialTimeout = 10 * time.Second
-	}
-
-	globalRawClient = rawhttp.NewClient(options)
-}
