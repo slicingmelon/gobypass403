@@ -66,7 +66,7 @@ func main() {
 		{name: "shf,substitute-hosts-file", usage: "File containing a list of hosts to substitute target URL's hostname (mostly used in CDN bypasses by providing a list of CDNs)", value: &config.SubstituteHostsFile},
 		{name: "m,mode", usage: "Bypass mode (all, mid_paths, end_paths, case_substitution, char_encode, http_headers_scheme, http_headers_ip, http_headers_port, http_headers_url)", value: &config.Mode, defVal: "all"},
 		{name: "o,outdir", usage: "Output directory", value: &config.OutDir},
-		{name: "t,threads", usage: "Number of concurrent threads)", value: &config.Threads, defVal: 20},
+		{name: "t,threads", usage: "Number of concurrent threads)", value: &config.Threads, defVal: 15},
 		{name: "T,timeout", usage: "Timeout in seconds", value: &config.Timeout, defVal: 15},
 		{name: "delay", usage: "Delay between requests in milliseconds (Default: 150ms)", value: &config.Delay, defVal: 150},
 		{name: "v,verbose", usage: "Verbose output", value: &config.Verbose, defVal: false},
