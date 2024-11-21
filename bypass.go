@@ -362,8 +362,10 @@ func worker(ctx *WorkerContext, jobs <-chan PayloadJob, results chan<- *Result) 
 				}
 
 				if errkit.IsKind(err, ErrKindGo403BypassFatal) {
-					LogError("[ErrorMonitorService] => Stopping current bypass mode [%s] -- Permanent error for %s: %v",
-						job.bypassMode, job.url, err)
+					if isVerbose {
+						LogError("[ErrorMonitorService] => Stopping current bypass mode [%s] -- Permanent error for %s: %v",
+							job.bypassMode, job.url, err)
+					}
 					ctx.Stop()
 					return
 				}

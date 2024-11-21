@@ -10,12 +10,13 @@ import (
 )
 
 // ----------------------------------//
-// Ctustom Error Handling 			//
+// Custom Error Handling 			//
 // ---------------------------------//
 var (
 	globalErrorHandler *ErrorHandler
 )
 
+// Define custom error kinds to not interfere with other pkgs such as fastdialer
 var (
 	ErrKindGo403BypassFatal = errkit.NewPrimitiveErrKind(
 		"error-go-403-bypass-fatal",
@@ -30,7 +31,14 @@ var (
 	)
 )
 
-// Helper function to identify temporary errors specific to go-403-bypass
+// Define custom errors
+var (
+	ErrForciblyClosed = errkit.New("connection forcibly closed by remote host").
+		SetKind(ErrKindGo403Temporary).
+		Build()
+)
+
+// Helper function to identify temporary errors
 func isGo403TemporaryErr(err *errkit.ErrorX) bool {
 	if err.Cause() == nil {
 		return false
@@ -39,14 +47,7 @@ func isGo403TemporaryErr(err *errkit.ErrorX) bool {
 	return strings.Contains(v, "forcibly closed by the remote host")
 }
 
-// Define our custom errors
-var (
-	ErrForciblyClosed = errkit.New("connection forcibly closed by remote host").
-		SetKind(ErrKindGo403Temporary).
-		Build()
-)
-
-// ErrorHandler manages error states and client lifecycle
+// ErrorHandler struct
 type ErrorHandler struct {
 	hostErrors       gcache.Cache[string, int]
 	lastErrorTime    gcache.Cache[string, time.Time]
@@ -54,7 +55,7 @@ type ErrorHandler struct {
 	maxErrorDuration time.Duration
 }
 
-// NewErrorHandler creates a new error handler
+// NewErrorHandler -- init func
 func NewErrorHandler() *ErrorHandler {
 	return &ErrorHandler{
 		hostErrors: gcache.New[string, int](1000).
@@ -68,7 +69,7 @@ func NewErrorHandler() *ErrorHandler {
 	}
 }
 
-// HandleError processes errors and determines if they're permanent
+// HandleError -> New custom error handler
 func (h *ErrorHandler) HandleError(err error, host string) error {
 	if err == nil {
 		return nil
@@ -103,8 +104,14 @@ func (h *ErrorHandler) HandleError(err error, host string) error {
 	return errx.Build()
 }
 
-// Purge cleans up the caches
+// Purge cache
 func (h *ErrorHandler) Purge() {
 	h.hostErrors.Purge()
 	h.lastErrorTime.Purge()
+}
+
+// ResetErrorCount
+func (h *ErrorHandler) ResetErrorCount(host string) {
+	h.hostErrors.Remove(host)
+	h.lastErrorTime.Remove(host)
 }

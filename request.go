@@ -13,7 +13,6 @@ import (
 	"github.com/projectdiscovery/fastdialer/fastdialer"
 	"github.com/projectdiscovery/httpx/common/httpx"
 	"github.com/projectdiscovery/rawhttp"
-	"github.com/projectdiscovery/utils/errkit"
 	"github.com/slicingmelon/go-rawurlparser"
 )
 
@@ -222,14 +221,8 @@ func sendRequest(method, rawURL string, headers []Header, bypassMode string) (*R
 		// Only handle "forcibly closed" errors with our custom logic
 		if strings.Contains(err.Error(), "forcibly closed by the remote host") {
 			err = globalErrorHandler.HandleError(ErrForciblyClosed, parsedURL.Host)
-		}
-
-		// Log based on error kind
-		if errkit.IsKind(err, ErrKindGo403BypassFatal) {
-			LogError("[%s] Fatal bypass error detected for %s: %v\n",
-				bypassMode, targetFullURL, err)
 		} else {
-			LogError("[sendRequest] [%s] Error for %s: %v\n",
+			LogError("[sendRequest] [%s] Request Error on %s: %v\n",
 				bypassMode, targetFullURL, err)
 		}
 

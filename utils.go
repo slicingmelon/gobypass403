@@ -451,13 +451,13 @@ type ProgressCounter struct {
 func (pc *ProgressCounter) markAsCancelled() {
 	pc.mu.Lock()
 	pc.cancelled = true
-	fmt.Printf("\r%s[%s]%s %sCancelled at:%s %s%d%s/%s%d%s (%s%.1f%%%s) - Permanent error detected%s\n",
+	fmt.Printf("\r%s[%s]%s %sCancelled at:%s %s%d%s/%s%d%s (%s%.1f%%%s) - %s%s%s\n",
 		colorCyan, pc.mode, colorReset,
 		colorRed, colorReset,
 		colorRed, pc.current, colorReset,
 		colorGreen, pc.total, colorReset,
 		colorRed, float64(pc.current)/float64(pc.total)*100, colorReset,
-		colorReset,
+		colorYellow, "Permanent error detected - Skipping current job", colorReset,
 	)
 	pc.mu.Unlock()
 }
