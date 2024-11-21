@@ -502,3 +502,9 @@ func (pc *ProgressCounter) increment() {
 		currentColor, percentage, colorReset,
 	)
 }
+
+func (pc *ProgressCounter) isCancelled() bool {
+	pc.mu.Lock()
+	defer pc.mu.Unlock()
+	return pc.cancelled
+}

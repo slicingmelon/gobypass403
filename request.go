@@ -42,8 +42,7 @@ type GO403BYPASS struct {
 
 var (
 	globalRawClient *rawhttp.Client
-
-	globalDialer *fastdialer.Dialer
+	globalDialer    *fastdialer.Dialer
 )
 
 // initRawHTTPClient -- initializes the rawhttp client
@@ -124,7 +123,7 @@ func initRawHTTPClient() (*GO403BYPASS, error) {
 // Close cleans up resources
 func (b *GO403BYPASS) Close() {
 	if b.rawClient != nil {
-		b.rawClient.Close() // This also closes the dialer
+		b.rawClient.Close()
 	}
 	if b.errorHandler != nil {
 		b.errorHandler.Purge()
