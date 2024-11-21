@@ -11,6 +11,24 @@ import (
 	"github.com/slicingmelon/go-rawurlparser"
 )
 
+type bypassCleanup struct {
+	sync.Mutex
+	cleanups map[string]*sync.Once
+}
+
+var modeCleanup = &bypassCleanup{
+	cleanups: make(map[string]*sync.Once),
+}
+
+func (bc *bypassCleanup) getOnce(mode string) *sync.Once {
+	bc.Lock()
+	defer bc.Unlock()
+	if _, exists := bc.cleanups[mode]; !exists {
+		bc.cleanups[mode] = &sync.Once{}
+	}
+	return bc.cleanups[mode]
+}
+
 // Core Function
 func RunAllBypasses(targetURL string) chan *Result {
 	results := make(chan *Result)
@@ -307,6 +325,23 @@ func runHeaderPortBypass(targetURL string, results chan<- *Result) {
 func worker(wg *sync.WaitGroup, jobs <-chan PayloadJob, results chan<- *Result, progress *ProgressCounter) {
 	defer wg.Done()
 
+	// Add panic recovery
+	defer func() {
+		if r := recover(); r != nil {
+			modeCleanup.getOnce(progress.mode).Do(func() {
+				LogError("[%s] Worker panic recovered: %v", progress.mode, r)
+				if progress != nil {
+					progress.markAsCancelled()
+				}
+				// Drain jobs
+				go func() {
+					for range jobs {
+					}
+				}()
+			})
+		}
+	}()
+
 	workerLimiter := time.NewTicker(time.Duration(config.Delay) * time.Millisecond)
 	defer workerLimiter.Stop()
 
@@ -325,20 +360,22 @@ func worker(wg *sync.WaitGroup, jobs <-chan PayloadJob, results chan<- *Result, 
 			}
 
 			// Check if it's a permanent error
-			if errkit.IsKind(err, errkit.ErrKindNetworkPermanent) {
-				LogError("[ErrorMonitorService] => Stopping current bypass mode [%s] -- Permanent error for %s: %v",
-					job.bypassMode, job.url, err)
+			if errkit.IsKind(err, ErrKindGo403BypassFatal) {
+				modeCleanup.getOnce(progress.mode).Do(func() {
+					LogError("[ErrorMonitorService] => Stopping current bypass mode [%s] -- Permanent error for %s: %v",
+						job.bypassMode, job.url, err)
 
-				if progress != nil {
-					progress.markAsCancelled() // Update progress to cancelled
-				}
-
-				// Drain the jobs channel without updating progress
-				go func() {
-					for range jobs {
+					if progress != nil {
+						progress.markAsCancelled()
 					}
-				}()
-				return // Stop this worker
+
+					// Drain the jobs channel
+					go func() {
+						for range jobs {
+						}
+					}()
+				})
+				return // stop worker
 			}
 
 			LogError("[%s] Request error for %s: %v",

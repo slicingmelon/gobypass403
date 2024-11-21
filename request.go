@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/projectdiscovery/fastdialer/fastdialer"
-	"github.com/projectdiscovery/gcache"
 	"github.com/projectdiscovery/httpx/common/httpx"
 	"github.com/projectdiscovery/rawhttp"
 	"github.com/projectdiscovery/utils/errkit"
@@ -42,9 +41,9 @@ type GO403BYPASS struct {
 }
 
 var (
-	globalRawClient    *rawhttp.Client
-	globalErrorHandler *ErrorHandler
-	globalDialer       *fastdialer.Dialer
+	globalRawClient *rawhttp.Client
+
+	globalDialer *fastdialer.Dialer
 )
 
 // initRawHTTPClient -- initializes the rawhttp client
@@ -137,94 +136,6 @@ func (b *GO403BYPASS) IsInitialized() bool {
 	return b.rawClient != nil && b.errorHandler != nil
 }
 
-// ----------------------------------//
-// Error Handling //
-// ---------------------------------//
-var (
-	// Temporary errors that can become permanent
-	ErrConnectionForciblyClosedTemp = errkit.New("connection forcibly closed by remote host").
-					SetKind(errkit.ErrKindNetworkTemporary).
-					Build()
-
-	// Other temporary that i'll might implement later
-	ErrTLSHandshakeTemp = errkit.New("tls handshake error").Build()
-	ErrProxyTemp        = errkit.New("proxy connection error").Build()
-)
-
-// ErrorHandler manages error states and client lifecycle
-type ErrorHandler struct {
-	hostErrors       gcache.Cache[string, int]
-	lastErrorTime    gcache.Cache[string, time.Time]
-	maxErrors        int
-	maxErrorDuration time.Duration
-}
-
-// NewErrorHandler creates a new error handler
-func NewErrorHandler() *ErrorHandler {
-	return &ErrorHandler{
-		hostErrors: gcache.New[string, int](1000).
-			ARC(). // Adaptive Replacement Cache
-			Build(),
-		lastErrorTime: gcache.New[string, time.Time](1000).
-			ARC().
-			Build(),
-		maxErrors:        15,
-		maxErrorDuration: 1 * time.Minute,
-	}
-}
-
-// HandleError processes errors and determines if they're permanent
-func (h *ErrorHandler) HandleError(err error, host string) error {
-	if err == nil {
-		return nil
-	}
-
-	// Get the error as errkit.ErrorX
-	errx := errkit.FromError(err)
-
-	// If it's already permanent, return as is
-	if errx.Kind() == errkit.ErrKindNetworkPermanent {
-		return errx
-	}
-
-	// Only handle temporary errors
-	if errx.Kind() == errkit.ErrKindNetworkTemporary {
-		now := time.Now()
-
-		errorCount, _ := h.hostErrors.GetIFPresent(host)
-		errorCount++
-		_ = h.hostErrors.Set(host, errorCount)
-
-		lastTime, _ := h.lastErrorTime.GetIFPresent(host)
-
-		// Check if we're within the error window
-		if !lastTime.IsZero() && now.Sub(lastTime) <= h.maxErrorDuration {
-			if errorCount >= h.maxErrors {
-				// Convert to permanent error
-				errx.ResetKind().SetKind(errkit.ErrKindNetworkPermanent)
-				return errkit.WithMessagef(errx.Build(),
-					"max errors (%d) reached within %v for host %s",
-					h.maxErrors, h.maxErrorDuration, host)
-			}
-		} else {
-			// Reset counter if we're outside the window
-			errorCount = 1
-			_ = h.hostErrors.Set(host, errorCount)
-		}
-
-		// Update last error time
-		_ = h.lastErrorTime.Set(host, now)
-	}
-
-	return errx.Build()
-}
-
-// Purge cleans up the caches
-func (h *ErrorHandler) Purge() {
-	h.hostErrors.Purge()
-	h.lastErrorTime.Purge()
-}
-
 func sendRequest(method, rawURL string, headers []Header, bypassMode string) (*ResponseDetails, error) {
 	if method == "" {
 		method = "GET"
@@ -282,7 +193,7 @@ func sendRequest(method, rawURL string, headers []Header, bypassMode string) (*R
 	// Official logging final
 	if config.Debug {
 		requestLine := fmt.Sprintf("%s://%s%s", parsedURL.Scheme, parsedURL.Host, fullPath)
-		LogDebug("[%s] [Canary:%s] Sending request: %s [Headers: %s]\n",
+		LogDebug("[%s] [Canary: %s] Sending request: %s [Headers: %s]\n",
 			bypassMode,
 			canary,
 			requestLine,
@@ -299,9 +210,9 @@ func sendRequest(method, rawURL string, headers []Header, bypassMode string) (*R
 	if config.Debug {
 		rawBytes, err := rawhttp.DumpRequestRaw(method, target, fullPath, headerMap, nil, globalRawClient.Options)
 		if err != nil {
-			LogError("[%s] Failed to dump request %s -- Error: %v", bypassMode, targetFullURL, err)
+			LogError("[DumpRequestRaw] [%s] Failed to dump request %s -- Error: %v", bypassMode, targetFullURL, err)
 		} else {
-			LogDebug("[sendRequest] [%s] Raw request:\n%s", bypassMode, string(rawBytes))
+			LogDebug("[DumpRequestRaw] [%s] Raw request:\n%s", bypassMode, string(rawBytes))
 		}
 	}
 
@@ -309,31 +220,20 @@ func sendRequest(method, rawURL string, headers []Header, bypassMode string) (*R
 	resp, err := globalRawClient.DoRawWithOptions(method, target, fullPath, headerMap, nil, globalRawClient.Options)
 
 	if err != nil {
+		// Only handle "forcibly closed" errors with our custom logic
 		if strings.Contains(err.Error(), "forcibly closed by the remote host") {
-			// Only this error should be tracked for potential conversion to permanent
-			err = errkit.Join(ErrConnectionForciblyClosedTemp, err)
-		} else if strings.Contains(err.Error(), "tls") {
-			// Let TLS errors through for fastdialer's ZTls fallback
-			err = errkit.Join(ErrTLSHandshakeTemp, err)
-		} else if strings.Contains(err.Error(), "proxy") {
-			// These errors stay temporary
-			err = errkit.Join(ErrProxyTemp, err)
-			return nil, err // Only proxy errors return directly
+			err = globalErrorHandler.HandleError(ErrForciblyClosed, parsedURL.Host)
 		}
 
-		// Only connection forcibly closed errors go through the error handler
-		if errkit.IsKind(err, errkit.ErrKindNetworkTemporary) &&
-			strings.Contains(err.Error(), "forcibly closed") {
-			err = globalErrorHandler.HandleError(err, parsedURL.Host)
-		}
-
-		if errkit.IsKind(err, errkit.ErrKindNetworkPermanent) {
-			LogError("[%s] Permanent error detected for %s: %v\n",
+		// Log based on error kind
+		if errkit.IsKind(err, ErrKindGo403BypassFatal) {
+			LogError("[%s] Fatal bypass error detected for %s: %v\n",
 				bypassMode, targetFullURL, err)
 		} else {
-			LogError("[%s] Temporary network error for %s: %v\n",
+			LogError("[sendRequest] [%s] Error for %s: %v\n",
 				bypassMode, targetFullURL, err)
 		}
+
 		return nil, err
 	}
 	// Keep a copy of headers for safety and for GetResponseBodyRaw later
