@@ -16,7 +16,7 @@ type WorkerContext struct {
 	progress *ProgressCounter
 	cancel   chan struct{}
 	wg       *sync.WaitGroup
-	once     sync.Once // Add this
+	once     sync.Once
 }
 
 func NewWorkerContext(mode string, total int) *WorkerContext {
@@ -28,7 +28,7 @@ func NewWorkerContext(mode string, total int) *WorkerContext {
 		},
 		cancel: make(chan struct{}),
 		wg:     &sync.WaitGroup{},
-		once:   sync.Once{}, // Initialize once
+		once:   sync.Once{},
 	}
 }
 
@@ -104,21 +104,27 @@ func runMidPathsBypass(targetURL string, results chan<- *Result) {
 	jobs := make(chan PayloadJob, jobBufferSize)
 	allJobs := generateMidPathsJobs(targetURL)
 
-	// Create WorkerContext instead of separate progress and wg
+	// Create WorkerContext
 	ctx := NewWorkerContext("mid_paths", len(allJobs))
 
-	// Start workers with ctx
+	// Start workers
 	for i := 0; i < config.Threads; i++ {
 		ctx.wg.Add(1)
 		go worker(ctx, jobs, results)
 	}
 
-	// Send jobs
 	for _, job := range allJobs {
-		jobs <- job
-	}
-	close(jobs)
+		select {
+		case <-ctx.cancel:
 
+			close(jobs)
+			ctx.wg.Wait()
+			return
+		case jobs <- job:
+		}
+	}
+
+	close(jobs)
 	ctx.wg.Wait()
 	fmt.Println()
 }
@@ -130,18 +136,24 @@ func runEndPathsBypass(targetURL string, results chan<- *Result) {
 	// Create WorkerContext
 	ctx := NewWorkerContext("end_paths", len(allJobs))
 
-	// Start workers with ctx
+	// Start workers
 	for i := 0; i < config.Threads; i++ {
 		ctx.wg.Add(1)
 		go worker(ctx, jobs, results)
 	}
 
-	// Send jobs
 	for _, job := range allJobs {
-		jobs <- job
-	}
-	close(jobs)
+		select {
+		case <-ctx.cancel:
 
+			close(jobs)
+			ctx.wg.Wait()
+			return
+		case jobs <- job:
+		}
+	}
+
+	close(jobs)
 	ctx.wg.Wait()
 	fmt.Println()
 }
@@ -159,12 +171,18 @@ func runHeaderIPBypass(targetURL string, results chan<- *Result) {
 		go worker(ctx, jobs, results)
 	}
 
-	// Send jobs
 	for _, job := range allJobs {
-		jobs <- job
-	}
-	close(jobs)
+		select {
+		case <-ctx.cancel:
 
+			close(jobs)
+			ctx.wg.Wait()
+			return
+		case jobs <- job:
+		}
+	}
+
+	close(jobs)
 	ctx.wg.Wait()
 	fmt.Println()
 }
@@ -182,12 +200,18 @@ func runCaseSubstitutionBypass(targetURL string, results chan<- *Result) {
 		go worker(ctx, jobs, results)
 	}
 
-	// Send jobs
 	for _, job := range allJobs {
-		jobs <- job
-	}
-	close(jobs)
+		select {
+		case <-ctx.cancel:
 
+			close(jobs)
+			ctx.wg.Wait()
+			return
+		case jobs <- job:
+		}
+	}
+
+	close(jobs)
 	ctx.wg.Wait()
 	fmt.Println()
 }
@@ -205,12 +229,18 @@ func runCharEncodeBypass(targetURL string, results chan<- *Result) {
 		go worker(ctx, jobs, results)
 	}
 
-	// Send jobs
 	for _, job := range allJobs {
-		jobs <- job
-	}
-	close(jobs)
+		select {
+		case <-ctx.cancel:
 
+			close(jobs)
+			ctx.wg.Wait()
+			return
+		case jobs <- job:
+		}
+	}
+
+	close(jobs)
 	ctx.wg.Wait()
 	fmt.Println()
 }
@@ -228,12 +258,18 @@ func runHeaderSchemeBypass(targetURL string, results chan<- *Result) {
 		go worker(ctx, jobs, results)
 	}
 
-	// Send jobs
 	for _, job := range allJobs {
-		jobs <- job
-	}
-	close(jobs)
+		select {
+		case <-ctx.cancel:
 
+			close(jobs)
+			ctx.wg.Wait()
+			return
+		case jobs <- job:
+		}
+	}
+
+	close(jobs)
 	ctx.wg.Wait()
 	fmt.Println()
 }
@@ -251,12 +287,18 @@ func runHeaderURLBypass(targetURL string, results chan<- *Result) {
 		go worker(ctx, jobs, results)
 	}
 
-	// Send jobs
 	for _, job := range allJobs {
-		jobs <- job
-	}
-	close(jobs)
+		select {
+		case <-ctx.cancel:
 
+			close(jobs)
+			ctx.wg.Wait()
+			return
+		case jobs <- job:
+		}
+	}
+
+	close(jobs)
 	ctx.wg.Wait()
 	fmt.Println()
 }
@@ -274,12 +316,18 @@ func runHeaderPortBypass(targetURL string, results chan<- *Result) {
 		go worker(ctx, jobs, results)
 	}
 
-	// Send jobs
 	for _, job := range allJobs {
-		jobs <- job
-	}
-	close(jobs)
+		select {
+		case <-ctx.cancel:
 
+			close(jobs)
+			ctx.wg.Wait()
+			return
+		case jobs <- job:
+		}
+	}
+
+	close(jobs)
 	ctx.wg.Wait()
 	fmt.Println()
 }
