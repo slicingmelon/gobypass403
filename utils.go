@@ -2,6 +2,7 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/json"
 	"fmt"
@@ -273,6 +274,78 @@ func SaveResultsToJSON(outputDir string, url string, mode string, findings []*Re
 
 	if err := os.WriteFile(outputFile, buffer.Bytes(), 0644); err != nil {
 		return fmt.Errorf("failed to write JSON file: %v", err)
+	}
+
+	return nil
+}
+
+func AppendResultsToJSON(outputFile, url, mode string, findings []*Result) error {
+	fileLock := &sync.Mutex{}
+	fileLock.Lock()
+	defer fileLock.Unlock()
+
+	var data JSONData
+
+	// Try to read existing file
+	fileData, err := os.ReadFile(outputFile)
+	if err != nil {
+		if !os.IsNotExist(err) {
+			return fmt.Errorf("failed to read JSON file: %v", err)
+		}
+		// File doesn't exist, initialize new data structure
+		data = JSONData{
+			Scans: make([]ScanResult, 0),
+		}
+		LogVerbose("[JSON] Initializing new JSON file")
+	} else {
+		// File exists, parse it
+		if err := json.Unmarshal(fileData, &data); err != nil {
+			return fmt.Errorf("failed to parse existing JSON: %v", err)
+		}
+		LogVerbose("[JSON] Read existing JSON file with %d scans", len(data.Scans))
+	}
+
+	// Clean up findings
+	cleanFindings := make([]*Result, len(findings))
+	for i, result := range findings {
+		cleanResult := *result
+		cleanResult.ResponsePreview = html.UnescapeString(cleanResult.ResponsePreview)
+		cleanFindings[i] = &cleanResult
+	}
+
+	// Add new scan results
+	scan := ScanResult{
+		URL:         url,
+		BypassModes: mode,
+		ResultsPath: config.OutDir,
+		Results:     cleanFindings,
+	}
+
+	data.Scans = append(data.Scans, scan)
+	LogVerbose("[JSON] Updated JSON now has %d scans", len(data.Scans))
+
+	// Open file with write permissions
+	file, err := os.OpenFile(outputFile, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
+	if err != nil {
+		return fmt.Errorf("failed to open JSON file: %v", err)
+	}
+	defer file.Close()
+
+	// Create a buffered writer
+	writer := bufio.NewWriter(file)
+
+	// Use custom encoder with the buffered writer
+	encoder := json.NewEncoder(writer)
+	encoder.SetEscapeHTML(false)
+	encoder.SetIndent("", "  ")
+
+	if err := encoder.Encode(data); err != nil {
+		return fmt.Errorf("failed to encode JSON: %v", err)
+	}
+
+	// Flush the buffer to ensure all data is written
+	if err := writer.Flush(); err != nil {
+		return fmt.Errorf("failed to flush writer: %v", err)
 	}
 
 	return nil
