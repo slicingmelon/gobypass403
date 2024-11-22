@@ -2,10 +2,14 @@
 package main
 
 import (
+	"context"
+	"crypto/tls"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httputil"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -13,7 +17,9 @@ import (
 	"github.com/projectdiscovery/fastdialer/fastdialer"
 	"github.com/projectdiscovery/httpx/common/httpx"
 	"github.com/projectdiscovery/rawhttp"
+	"github.com/projectdiscovery/retryablehttp-go"
 	"github.com/slicingmelon/go-rawurlparser"
+	"golang.org/x/net/http2"
 )
 
 type Header struct {
@@ -34,20 +40,20 @@ type ResponseDetails struct {
 }
 
 type GO403BYPASS struct {
-	rawClient    *rawhttp.Client
+	client       *retryablehttp.Client
+	client2      *http.Client
 	errorHandler *ErrorHandler
 	dialer       *fastdialer.Dialer
+	Config       *Config
 }
 
 var (
-	globalRawClient *rawhttp.Client
-	globalDialer    *fastdialer.Dialer
+	globalRawClient GO403BYPASS.client
+	globalDialer    GO403BYPASS.dialer
 )
 
 // initRawHTTPClient -- initializes the rawhttp client
-func initRawHTTPClient() (*GO403BYPASS, error) {
-	httpclient := &GO403BYPASS{}
-
+func New() (*GO403BYPASS, error) {
 	// Set fastdialer options from scratch
 	fastdialerOpts := fastdialer.Options{
 		BaseResolvers: []string{
@@ -62,68 +68,121 @@ func initRawHTTPClient() (*GO403BYPASS, error) {
 		CacheType:     fastdialer.Disk,
 		DiskDbType:    fastdialer.LevelDB,
 
-		// Timeouts
-		//DialerTimeout:   10 * time.Second,
 		DialerTimeout:   time.Duration(config.Timeout) * time.Second,
 		DialerKeepAlive: 10 * time.Second,
 
-		// Cache settings
 		CacheMemoryMaxItems: 200,
 		WithDialerHistory:   true,
 		WithCleanup:         true,
 
-		// TLS settings
 		WithZTLS:            true,
 		DisableZtlsFallback: false,
+		EnableFallback:      true,
 
-		// Fallback settings
-		EnableFallback: true,
-
-		// Error handling
 		MaxTemporaryErrors:              30,
 		MaxTemporaryToPermanentDuration: 1 * time.Minute,
 	}
 
-	// Use fastdialer
-	var err error
-	httpclient.dialer, err = fastdialer.NewDialer(fastdialerOpts)
+	dialer, err := fastdialer.NewDialer(fastdialerOpts)
 	if err != nil {
 		return nil, fmt.Errorf("could not create dialer: %v", err)
 	}
 
-	options := &rawhttp.Options{
-		Timeout:                time.Duration(config.Timeout) * time.Second,
-		FollowRedirects:        config.FollowRedirects,
-		MaxRedirects:           map[bool]int{false: 0, true: 10}[config.FollowRedirects],
-		AutomaticHostHeader:    false,
-		AutomaticContentLength: true,
-		ForceReadAllBody:       true,
-		FastDialer:             httpclient.dialer,
+	// Configure transport with fastdialer
+	transport := &http.Transport{
+		DialContext: dialer.Dial,
+		DialTLSContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+			return dialer.DialTLS(ctx, network, addr)
+		},
+		DisableKeepAlives:   true,
+		MaxIdleConnsPerHost: -1,
+		TLSClientConfig: &tls.Config{
+			InsecureSkipVerify: true,
+			MinVersion:         tls.VersionTLS10,
+		},
 	}
 
-	if config.Proxy != "" {
-		if !strings.HasPrefix(config.Proxy, "http://") && !strings.HasPrefix(config.Proxy, "https://") {
-			config.Proxy = "http://" + config.Proxy
-		}
-		options.Proxy = config.Proxy
-		options.ProxyDialTimeout = 10 * time.Second
+	if !config.ForceHTTP2 {
+		os.Setenv("GODEBUG", "http2client=0")
+		transport.TLSNextProto = map[string]func(string, *tls.Conn) http.RoundTripper{}
 	}
 
-	httpclient.errorHandler = NewErrorHandler()
-	httpclient.rawClient = rawhttp.NewClient(options)
+	transport2 := &http2.Transport{
+		TLSClientConfig: &tls.Config{
+			InsecureSkipVerify: true,
+			MinVersion:         tls.VersionTLS10,
+		},
+		AllowHTTP:          true,
+		DisableCompression: true,
+	}
 
-	// Set globals
-	globalRawClient = httpclient.rawClient
-	globalErrorHandler = httpclient.errorHandler
-	globalDialer = httpclient.dialer
+	// Add proxy if configured
+	if config.ParsedProxy != nil {
+		transport.Proxy = http.ProxyURL(config.ParsedProxy)
+	}
 
-	return httpclient, nil
+	// Configure retryablehttp client
+	retryOpts := retryablehttp.DefaultOptionsSpraying
+	retryOpts.RetryMax = 5
+	retryOpts.Timeout = time.Duration(config.Timeout) * time.Second
+	retryOpts.KillIdleConn = true
+
+	// Create HTTP clients
+	httpClient := &http.Client{
+		Transport: transport,
+		Timeout:   retryOpts.Timeout,
+	}
+
+	http2Client := &http.Client{
+		Transport: transport2,
+		Timeout:   retryOpts.Timeout,
+	}
+
+	// Create retryablehttp client
+	client := retryablehttp.NewWithHTTPClient(httpClient, retryOpts)
+
+	return &GO403BYPASS{
+		client:       client,
+		client2:      http2Client,
+		dialer:       dialer,
+		errorHandler: NewErrorHandler(),
+		Config:       &config,
+	}, nil
+}
+
+// SendRawRequestWithOptions sends a raw HTTP request with the given options
+func (b *GO403BYPASS) SendRawRequestWithOptions(method, target, path string, headers map[string][]string, body io.Reader) (*http.Response, error) {
+	// Convert headers map to http.Header
+	httpHeaders := make(http.Header)
+	for k, v := range headers {
+		httpHeaders[k] = v
+	}
+
+	// Use rawhttp options
+	options := rawhttp.DefaultOptions
+	options.Timeout = time.Duration(b.Config.Timeout) * time.Second
+
+	// Use the dialer from our client
+	options.FastDialer = b.dialer
+
+	// Add proxy if configured
+	if b.Config.ParsedProxy != nil {
+		options.Proxy = b.Config.ParsedProxy.String()
+	}
+
+	return rawhttp.DoRawWithOptions(method, target, path, httpHeaders, body, options)
 }
 
 // Close cleans up resources
 func (b *GO403BYPASS) Close() {
-	if b.rawClient != nil {
-		b.rawClient.Close()
+	if b.client != nil && b.client.HTTPClient != nil {
+		b.client.HTTPClient.CloseIdleConnections()
+	}
+	if b.client2 != nil {
+		b.client2.CloseIdleConnections()
+	}
+	if b.dialer != nil {
+		b.dialer.Close()
 	}
 	if b.errorHandler != nil {
 		b.errorHandler.Purge()
@@ -132,10 +191,15 @@ func (b *GO403BYPASS) Close() {
 
 // Add a method to check if client is properly initialized
 func (b *GO403BYPASS) IsInitialized() bool {
-	return b.rawClient != nil && b.errorHandler != nil
+	return b.client != nil && b.errorHandler != nil
 }
 
 func sendRequest(method, rawURL string, headers []Header, bypassMode string) (*ResponseDetails, error) {
+	client := GetInstance()
+	if !client.IsInitialized() {
+		return nil, fmt.Errorf("client not initialized")
+	}
+
 	if method == "" {
 		method = "GET"
 	}
@@ -211,8 +275,8 @@ func sendRequest(method, rawURL string, headers []Header, bypassMode string) (*R
 		}
 	}
 
-	// Use global client
-	resp, err := globalRawClient.DoRawWithOptions(method, target, fullPath, headerMap, nil, globalRawClient.Options)
+	// Use our new SendRawRequestWithOptions instead of global client
+	resp, err := client.SendRawRequestWithOptions(method, target, fullPath, headerMap, nil)
 
 	if err != nil {
 		// Only handle "forcibly closed" errors with our custom logic
