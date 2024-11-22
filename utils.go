@@ -561,13 +561,14 @@ func (pc *ProgressCounter) increment() {
 		currentColor = colorGreen
 	}
 
-	// Print URL only once at the start
+	// Print URL only once at the start and ensure it's on a new line
 	if pc.current == 1 {
-		fmt.Printf("%s[+] Scanning %s ...%s\n", colorCyan, config.URL, colorReset)
+		// Add extra newline to ensure separation from configuration
+		fmt.Printf("\n%s[+] Scanning %s ...%s\n", colorCyan, config.URL, colorReset)
 	}
 
-	// Print progress on same line with your color scheme
-	fmt.Printf("\r%s[%s]%s %sProgress:%s %s%d%s/%s%d%s (%s%.1f%%%s)",
+	// Move cursor to start of line and clear it
+	fmt.Printf("\033[2K\r%s[%s]%s %sProgress:%s %s%d%s/%s%d%s (%s%.1f%%%s)",
 		colorCyan, pc.mode, colorReset,
 		colorTeal, colorReset,
 		currentColor, pc.current, colorReset,

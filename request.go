@@ -166,15 +166,8 @@ func sendRequest(method, rawURL string, headers []Header, bypassMode string) (*R
 	}
 
 	// raw requests boys..
-	// if _, exists := headerMap["Accept"]; !exists {
-	// 	headerMap["Accept"] = []string{"*/*"}
-	// }
-	if _, exists := headerMap["Accept-Encoding"]; !exists {
-		headerMap["Accept-Encoding"] = []string{"gzip"} // Removed br as we don't handle brotli yet
-	}
-
-	if _, exists := headerMap["Accept-Charset"]; !exists {
-		headerMap["Accept-Charset"] = []string{"utf-8"}
+	if _, exists := headerMap["Connection"]; !exists {
+		headerMap["Connection"] = []string{"close"}
 	}
 
 	// target URL

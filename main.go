@@ -409,6 +409,9 @@ func main() {
 		fmt.Printf("  %sUsing proxy:%s %s%s%s\n", colorCyan, colorReset, colorYellow, config.Proxy, colorReset)
 	}
 	fmt.Print("\n")
+	fmt.Println(strings.Repeat("=", 80))
+	fmt.Print("\n")
+	os.Stdout.Sync()
 
 	// Process URLs
 	if len(urls) == 0 {
@@ -471,7 +474,7 @@ func main() {
 				LogGreen("[+] Results appended to %s\n", outputFile)
 			}
 		} else {
-			LogOrange("[!] Sorry, no bypasses found for %s\n", url)
+			LogOrange("\n[!] Sorry, no bypasses found for %s\n", url)
 		}
 	}
 }
