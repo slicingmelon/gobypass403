@@ -219,10 +219,14 @@ func sendRequest(method, rawURL string, headers []Header, bypassMode string) (*R
 		if strings.Contains(err.Error(), "forcibly closed by the remote host") {
 			err = globalErrorHandler.HandleError(ErrForciblyClosed, parsedURL.Host)
 		} else {
-			LogError("[sendRequest] [%s] Request Error on %s: %v\n",
-				bypassMode, targetFullURL, err)
+			if config.Debug {
+				LogError("[sendRequest] [Canary: %s] [%s] Request Error on %s: %v\n",
+					canary, bypassMode, targetFullURL, err)
+			} else {
+				LogError("[sendRequest] [%s] Request Error on %s: %v\n",
+					bypassMode, targetFullURL, err)
+			}
 		}
-
 		return nil, err
 	}
 	// Keep a copy of headers for safety and for GetResponseBodyRaw later
