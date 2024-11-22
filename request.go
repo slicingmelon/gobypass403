@@ -47,11 +47,6 @@ type GO403BYPASS struct {
 	Config       *Config
 }
 
-var (
-	globalRawClient GO403BYPASS.client
-	globalDialer    GO403BYPASS.dialer
-)
-
 // initRawHTTPClient -- initializes the rawhttp client
 func New() (*GO403BYPASS, error) {
 	// Set fastdialer options from scratch
@@ -121,25 +116,31 @@ func New() (*GO403BYPASS, error) {
 		transport.Proxy = http.ProxyURL(config.ParsedProxy)
 	}
 
-	// Configure retryablehttp client
-	retryOpts := retryablehttp.DefaultOptionsSpraying
-	retryOpts.RetryMax = 5
-	retryOpts.Timeout = time.Duration(config.Timeout) * time.Second
-	retryOpts.KillIdleConn = true
-
-	// Create HTTP clients
+	// Create base HTTP client with our custom transport
 	httpClient := &http.Client{
 		Transport: transport,
-		Timeout:   retryOpts.Timeout,
+		Timeout:   time.Duration(config.Timeout) * time.Second,
 	}
 
 	http2Client := &http.Client{
 		Transport: transport2,
-		Timeout:   retryOpts.Timeout,
+		Timeout:   time.Duration(config.Timeout) * time.Second,
+	}
+
+	// Configure retryablehttp options
+	retryOpts := retryablehttp.Options{
+		RetryWaitMin:    1 * time.Second,
+		RetryWaitMax:    30 * time.Second,
+		Timeout:         time.Duration(config.Timeout) * time.Second,
+		RetryMax:        5,
+		RespReadLimit:   4096,
+		KillIdleConn:    true,
+		NoAdjustTimeout: true,
+		HttpClient:      httpClient, // Use our custom client with fastdialer
 	}
 
 	// Create retryablehttp client
-	client := retryablehttp.NewWithHTTPClient(httpClient, retryOpts)
+	client := retryablehttp.NewClient(retryOpts)
 
 	return &GO403BYPASS{
 		client:       client,
@@ -194,9 +195,8 @@ func (b *GO403BYPASS) IsInitialized() bool {
 	return b.client != nil && b.errorHandler != nil
 }
 
-func sendRequest(method, rawURL string, headers []Header, bypassMode string) (*ResponseDetails, error) {
-	client := GetInstance()
-	if !client.IsInitialized() {
+func (b *GO403BYPASS) sendRequest(method, rawURL string, headers []Header, bypassMode string) (*ResponseDetails, error) {
+	if !b.IsInitialized() {
 		return nil, fmt.Errorf("client not initialized")
 	}
 
@@ -208,6 +208,12 @@ func sendRequest(method, rawURL string, headers []Header, bypassMode string) (*R
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse URL %s: %v", rawURL, err)
 	}
+
+	// // Create retryablehttp request
+	// req, err := retryablehttp.NewRequest(method, rawURL, nil)
+	// if err != nil {
+	// 	return nil, fmt.Errorf("failed to create request: %v", err)
+	// }
 
 	LogVerbose("[sendRequest] [%s] Parsed URL: scheme=%s, host=%s, path=%s, query=%s\n",
 		bypassMode, parsedURL.Scheme, parsedURL.Host, parsedURL.Path, parsedURL.Query)
@@ -231,13 +237,6 @@ func sendRequest(method, rawURL string, headers []Header, bypassMode string) (*R
 	}
 
 	// raw requests boys..
-	// if _, exists := headerMap["Accept"]; !exists {
-	// 	headerMap["Accept"] = []string{"*/*"}
-	// }
-	// if _, exists := headerMap["Accept-Encoding"]; !exists {
-	// 	headerMap["Accept-Encoding"] = []string{"gzip"} // Removed br as we don't handle brotli yet
-	// }
-
 	// target URL
 	target := fmt.Sprintf("%s://%s", parsedURL.Scheme, parsedURL.Host)
 
@@ -267,21 +266,20 @@ func sendRequest(method, rawURL string, headers []Header, bypassMode string) (*R
 
 	// Debug logging
 	if config.Debug {
-		rawBytes, err := rawhttp.DumpRequestRaw(method, target, fullPath, headerMap, nil, globalRawClient.Options)
-		if err != nil {
+		if rawBytes, err := rawhttp.DumpRequestRaw(method, target, fullPath, headerMap, nil, rawhttp.DefaultOptions); err != nil {
 			LogError("[DumpRequestRaw] [%s] Failed to dump request %s -- Error: %v", bypassMode, targetFullURL, err)
-		} else {
+		} else if rawBytes != nil {
 			LogDebug("[DumpRequestRaw] [%s] Raw request:\n%s", bypassMode, string(rawBytes))
 		}
 	}
 
 	// Use our new SendRawRequestWithOptions instead of global client
-	resp, err := client.SendRawRequestWithOptions(method, target, fullPath, headerMap, nil)
+	resp, err := b.SendRawRequestWithOptions(method, target, fullPath, headerMap, nil)
 
 	if err != nil {
 		// Only handle "forcibly closed" errors with our custom logic
 		if strings.Contains(err.Error(), "forcibly closed by the remote host") {
-			err = globalErrorHandler.HandleError(ErrForciblyClosed, parsedURL.Host)
+			err = b.errorHandler.HandleError(ErrForciblyClosed, parsedURL.Host)
 		} else {
 			if config.Debug {
 				LogError("[sendRequest] [Canary: %s] [%s] Request Error on %s: %v\n",

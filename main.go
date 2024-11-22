@@ -437,13 +437,6 @@ func main() {
 		config.URL = url
 		LogVerbose("Processing URL: %s", url)
 
-		// Initialize new client for each URL
-		bypassClient, err := initRawHTTPClient()
-		if err != nil {
-			LogError("Failed to initialize client for %s: %v\n", url, err)
-			continue
-		}
-
 		results := RunAllBypasses(url)
 		var findings []*Result
 
@@ -451,9 +444,6 @@ func main() {
 		for result := range results {
 			findings = append(findings, result)
 		}
-
-		// Clean up client after URL is processed
-		bypassClient.Close()
 
 		// Print table header and findings
 		if len(findings) > 0 {

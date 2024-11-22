@@ -17,9 +17,16 @@ type WorkerContext struct {
 	cancel   chan struct{}
 	wg       *sync.WaitGroup
 	once     sync.Once
+	client   *GO403BYPASS // Add client reference
 }
 
-func NewWorkerContext(mode string, total int) *WorkerContext {
+func NewWorkerContext(mode string, total int) (*WorkerContext, error) {
+	// Create new client instance
+	client, err := New()
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize client: %v", err)
+	}
+
 	return &WorkerContext{
 		mode: mode,
 		progress: &ProgressCounter{
@@ -29,13 +36,18 @@ func NewWorkerContext(mode string, total int) *WorkerContext {
 		cancel: make(chan struct{}),
 		wg:     &sync.WaitGroup{},
 		once:   sync.Once{},
-	}
+		client: client,
+	}, nil
 }
 
+// Add cleanup to Stop method
 func (w *WorkerContext) Stop() {
 	w.once.Do(func() {
 		close(w.cancel)
 		w.progress.markAsCancelled()
+		if w.client != nil {
+			w.client.Close()
+		}
 	})
 }
 
@@ -105,8 +117,11 @@ func runMidPathsBypass(targetURL string, results chan<- *Result) {
 	allJobs := generateMidPathsJobs(targetURL)
 
 	// Create WorkerContext
-	ctx := NewWorkerContext("mid_paths", len(allJobs))
-
+	ctx, err := NewWorkerContext("mid_paths", len(allJobs))
+	if err != nil {
+		LogError("Failed to initialize client for mid_paths bypass: %v", err)
+		return
+	}
 	// Start workers
 	for i := 0; i < config.Threads; i++ {
 		ctx.wg.Add(1)
@@ -134,8 +149,11 @@ func runEndPathsBypass(targetURL string, results chan<- *Result) {
 	allJobs := generateEndPathsJobs(targetURL)
 
 	// Create WorkerContext
-	ctx := NewWorkerContext("end_paths", len(allJobs))
-
+	ctx, err := NewWorkerContext("end_paths", len(allJobs))
+	if err != nil {
+		LogError("Failed to initialize client for mid_paths bypass: %v", err)
+		return
+	}
 	// Start workers
 	for i := 0; i < config.Threads; i++ {
 		ctx.wg.Add(1)
@@ -163,8 +181,11 @@ func runHeaderIPBypass(targetURL string, results chan<- *Result) {
 	allJobs := generateHeaderIPJobs(targetURL)
 
 	// Create WorkerContext
-	ctx := NewWorkerContext("http_headers_ip", len(allJobs))
-
+	ctx, err := NewWorkerContext("http_headers_ip", len(allJobs))
+	if err != nil {
+		LogError("Failed to initialize client for mid_paths bypass: %v", err)
+		return
+	}
 	// Start workers with ctx
 	for i := 0; i < config.Threads; i++ {
 		ctx.wg.Add(1)
@@ -192,8 +213,11 @@ func runCaseSubstitutionBypass(targetURL string, results chan<- *Result) {
 	allJobs := generateCaseSubstitutionJobs(targetURL)
 
 	// Create WorkerContext
-	ctx := NewWorkerContext("case_substitution", len(allJobs))
-
+	ctx, err := NewWorkerContext("case_substitution", len(allJobs))
+	if err != nil {
+		LogError("Failed to initialize client for mid_paths bypass: %v", err)
+		return
+	}
 	// Start workers with ctx
 	for i := 0; i < config.Threads; i++ {
 		ctx.wg.Add(1)
@@ -221,8 +245,11 @@ func runCharEncodeBypass(targetURL string, results chan<- *Result) {
 	allJobs := generateCharEncodeJobs(targetURL)
 
 	// Create WorkerContext
-	ctx := NewWorkerContext("char_encode", len(allJobs))
-
+	ctx, err := NewWorkerContext("char_encode", len(allJobs))
+	if err != nil {
+		LogError("Failed to initialize client for mid_paths bypass: %v", err)
+		return
+	}
 	// Start workers with ctx
 	for i := 0; i < config.Threads; i++ {
 		ctx.wg.Add(1)
@@ -250,8 +277,11 @@ func runHeaderSchemeBypass(targetURL string, results chan<- *Result) {
 	allJobs := generateHeaderSchemeJobs(targetURL)
 
 	// Create WorkerContext
-	ctx := NewWorkerContext("http_headers_scheme", len(allJobs))
-
+	ctx, err := NewWorkerContext("http_headers_scheme", len(allJobs))
+	if err != nil {
+		LogError("Failed to initialize client for mid_paths bypass: %v", err)
+		return
+	}
 	// Start workers with ctx
 	for i := 0; i < config.Threads; i++ {
 		ctx.wg.Add(1)
@@ -279,8 +309,11 @@ func runHeaderURLBypass(targetURL string, results chan<- *Result) {
 	allJobs := generateHeaderURLJobs(targetURL)
 
 	// Create WorkerContext
-	ctx := NewWorkerContext("http_headers_url", len(allJobs))
-
+	ctx, err := NewWorkerContext("http_headers_url", len(allJobs))
+	if err != nil {
+		LogError("Failed to initialize client for mid_paths bypass: %v", err)
+		return
+	}
 	// Start workers with ctx
 	for i := 0; i < config.Threads; i++ {
 		ctx.wg.Add(1)
@@ -308,8 +341,11 @@ func runHeaderPortBypass(targetURL string, results chan<- *Result) {
 	allJobs := generateHeaderPortJobs(targetURL)
 
 	// Create WorkerContext
-	ctx := NewWorkerContext("http_headers_port", len(allJobs))
-
+	ctx, err := NewWorkerContext("http_headers_port", len(allJobs))
+	if err != nil {
+		LogError("Failed to initialize client for mid_paths bypass: %v", err)
+		return
+	}
 	// Start workers with ctx
 	for i := 0; i < config.Threads; i++ {
 		ctx.wg.Add(1)
@@ -351,7 +387,7 @@ func worker(ctx *WorkerContext, jobs <-chan PayloadJob, results chan<- *Result) 
 		case <-ctx.cancel:
 			return
 		case <-workerLimiter.C:
-			details, err := sendRequest(job.method, job.url, job.headers, job.bypassMode)
+			details, err := ctx.client.sendRequest(job.method, job.url, job.headers, job.bypassMode)
 			ctx.progress.increment()
 
 			if err != nil {
