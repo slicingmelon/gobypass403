@@ -63,7 +63,8 @@ func initRawHTTPClient() (*GO403BYPASS, error) {
 		DiskDbType:    fastdialer.LevelDB,
 
 		// Timeouts
-		DialerTimeout:   10 * time.Second,
+		//DialerTimeout:   10 * time.Second,
+		DialerTimeout:   time.Duration(config.Timeout) * time.Second,
 		DialerKeepAlive: 10 * time.Second,
 
 		// Cache settings
@@ -80,7 +81,7 @@ func initRawHTTPClient() (*GO403BYPASS, error) {
 
 		// Error handling
 		MaxTemporaryErrors:              30,
-		MaxTemporaryToPermanentDuration: 1 * time.Minute, // Our custom value (default was 1 minute)
+		MaxTemporaryToPermanentDuration: 1 * time.Minute,
 	}
 
 	// Use fastdialer
@@ -169,13 +170,9 @@ func sendRequest(method, rawURL string, headers []Header, bypassMode string) (*R
 	// if _, exists := headerMap["Accept"]; !exists {
 	// 	headerMap["Accept"] = []string{"*/*"}
 	// }
-	if _, exists := headerMap["Accept-Encoding"]; !exists {
-		headerMap["Accept-Encoding"] = []string{"gzip"} // Removed br as we don't handle brotli yet
-	}
-
-	if _, exists := headerMap["Accept-Charset"]; !exists {
-		headerMap["Accept-Charset"] = []string{"utf-8"}
-	}
+	// if _, exists := headerMap["Accept-Encoding"]; !exists {
+	// 	headerMap["Accept-Encoding"] = []string{"gzip"} // Removed br as we don't handle brotli yet
+	// }
 
 	// target URL
 	target := fmt.Sprintf("%s://%s", parsedURL.Scheme, parsedURL.Host)

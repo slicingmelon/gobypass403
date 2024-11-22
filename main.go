@@ -471,7 +471,7 @@ func main() {
 				LogGreen("[+] Results appended to %s\n", outputFile)
 			}
 		} else {
-			LogOrange("[!] Sorry, no bypasses found for %s\n", url)
+			LogOrange("\n[!] Sorry, no bypasses found for %s\n", url)
 		}
 	}
 }
