@@ -20,7 +20,10 @@ import (
 	"math/rand"
 
 	"github.com/projectdiscovery/goflags"
+	"github.com/projectdiscovery/gologger"
+	"github.com/projectdiscovery/gologger/levels"
 	"github.com/projectdiscovery/httpx/runner"
+	"github.com/slicingmelon/go-rawurlparser"
 )
 
 func init() {
@@ -467,28 +470,60 @@ func validateURL(rawURL string) error {
 	return nil
 }
 
-// util func to validate input urls with httpx and extend the scope a bit (http/https)
-func ValidateURLsWithHttpx(urls []string) ([]string, error) {
-	// Create a channel to collect valid URLs
-	validURLs := make([]string, 0)
+// HttpxResult represents detailed information about a probed URL
+type HttpxResult struct {
+	URL      string   // Full URL including scheme, host, port, path
+	Scheme   string   // http or https
+	Hostname string   // Domain name or IP
+	Port     string   // Port number (if specified)
+	IPv4     []string // List of IPv4 addresses
+	IPv6     []string // List of IPv6 addresses
+	CNAMEs   []string // List of CNAMEs (if any)
+}
+
+// ValidateURLsWithHttpx probes URLs and returns detailed information
+func ValidateURLsWithHttpx(urls []string) ([]HttpxResult, error) {
+	results := make([]HttpxResult, 0)
+
+	// internal httpx logger
+	gologger.DefaultLogger.SetMaxLevel(levels.LevelSilent)
 
 	// Configure httpx options
 	options := runner.Options{
 		Methods:          "GET",
 		InputTargetHost:  goflags.StringSlice(urls),
-		NoFallback:       true, // -no-fallback
-		NoFallbackScheme: true, // -no-fallback-scheme
+		NoFallback:       true,
+		NoFallbackScheme: true,
+		Threads:          20,
+		ProbeAllIPS:      true,
+		OutputIP:         true,
 		OnResult: func(r runner.Result) {
 			if r.Err != nil {
 				LogVerbose("[Httpx] Error for %s: %s", r.Input, r.Err)
 				return
 			}
 
-			// Build the URL with scheme, host and port
-			url := r.URL
-			if url != "" {
-				validURLs = append(validURLs, url)
+			if r.URL == "" {
+				return
 			}
+
+			// Parse the URL to extract components
+			parsedURL, err := rawurlparser.RawURLParseWithError(r.URL)
+			if err != nil {
+				LogVerbose("[Httpx] Failed to parse URL %s: %v", r.URL, err)
+				return
+			}
+
+			result := HttpxResult{
+				URL:      r.URL,
+				Scheme:   r.Scheme,             // Use httpx's scheme
+				Hostname: parsedURL.Hostname(), // Keep using rawurlparser for hostname
+				Port:     r.Port,               // Use httpx's port
+				IPv4:     r.A,
+				IPv6:     r.AAAA,
+				CNAMEs:   r.CNAMEs,
+			}
+			results = append(results, result)
 		},
 	}
 
@@ -507,7 +542,7 @@ func ValidateURLsWithHttpx(urls []string) ([]string, error) {
 	// Run
 	httpxRunner.RunEnumeration()
 
-	return validURLs, nil
+	return results, nil
 }
 
 // ----------------------------------------------------------------//
@@ -561,14 +596,13 @@ func (pc *ProgressCounter) increment() {
 		currentColor = colorGreen
 	}
 
-	// Print URL only once at the start and ensure it's on a new line
+	// Print URL only once at the start
 	if pc.current == 1 {
-		// Add extra newline to ensure separation from configuration
-		fmt.Printf("\n%s[+] Scanning %s ...%s\n", colorCyan, config.URL, colorReset)
+		fmt.Printf("%s[+] Scanning %s ...%s\n", colorCyan, config.URL, colorReset)
 	}
 
-	// Move cursor to start of line and clear it
-	fmt.Printf("\033[2K\r%s[%s]%s %sProgress:%s %s%d%s/%s%d%s (%s%.1f%%%s)",
+	// Print progress on same line with your color scheme
+	fmt.Printf("\r%s[%s]%s %sProgress:%s %s%d%s/%s%d%s (%s%.1f%%%s)",
 		colorCyan, pc.mode, colorReset,
 		colorTeal, colorReset,
 		currentColor, pc.current, colorReset,

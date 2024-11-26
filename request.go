@@ -63,7 +63,7 @@ func initRawHTTPClient() (*GO403BYPASS, error) {
 		DiskDbType:    fastdialer.LevelDB,
 
 		// Timeouts
-		DialerTimeout:   10 * time.Second,
+		DialerTimeout:   time.Duration(config.Timeout) * time.Second,
 		DialerKeepAlive: 10 * time.Second,
 
 		// Cache settings
@@ -165,7 +165,7 @@ func sendRequest(method, rawURL string, headers []Header, bypassMode string) (*R
 		headerMap["X-Go-Bypass-403"] = []string{canary}
 	}
 
-	// raw requests boys..
+	// Add Connection header, up to the standards of HTTP/1
 	if _, exists := headerMap["Connection"]; !exists {
 		headerMap["Connection"] = []string{"close"}
 	}
@@ -207,6 +207,7 @@ func sendRequest(method, rawURL string, headers []Header, bypassMode string) (*R
 		}
 	}
 
+	// raw requests boys..
 	// Use global client
 	resp, err := globalRawClient.DoRawWithOptions(method, target, fullPath, headerMap, nil, globalRawClient.Options)
 
@@ -215,8 +216,13 @@ func sendRequest(method, rawURL string, headers []Header, bypassMode string) (*R
 		if strings.Contains(err.Error(), "forcibly closed by the remote host") {
 			err = globalErrorHandler.HandleError(ErrForciblyClosed, parsedURL.Host)
 		} else {
-			LogError("[sendRequest] [%s] Request Error on %s: %v\n",
-				bypassMode, targetFullURL, err)
+			if config.Debug {
+				LogError("[sendRequest] [Canary: %s] [%s] Request Error on %s: %v\n",
+					canary, bypassMode, targetFullURL, err)
+			} else {
+				LogError("[sendRequest] [%s] Request Error on %s: %v\n",
+					bypassMode, targetFullURL, err)
+			}
 		}
 
 		return nil, err

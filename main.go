@@ -155,10 +155,57 @@ func main() {
 
 	// Validate bypass mode
 	if err := validateMode(config.Mode); err != nil {
-		//fmt.Println("Error:", err)
-		//flag.Usage()
 		os.Exit(1)
 	}
+
+	// Setup logging
+	if config.Verbose {
+		log.SetFlags(log.Ltime | log.Lmicroseconds)
+	} else {
+		log.SetFlags(0)
+	}
+
+	// Create output directory in tmp if not specified
+	if config.OutDir == "" {
+		config.OutDir = filepath.Join(os.TempDir(), fmt.Sprintf("go-bypass-403-%x", time.Now().UnixNano()))
+	}
+
+	// Initialize findings.json file
+	outputFile := filepath.Join(config.OutDir, "findings.json")
+	initialJSON := JSONData{
+		Scans: make([]ScanResult, 0),
+	}
+
+	if err := os.MkdirAll(config.OutDir, 0755); err != nil {
+		LogError("Failed to create output directory: %v\n", err)
+		os.Exit(1)
+	}
+
+	jsonData, err := json.MarshalIndent(initialJSON, "", "  ")
+	if err != nil {
+		LogError("Failed to create initial JSON structure: %v\n", err)
+		os.Exit(1)
+	}
+
+	// Write the initial JSON structure to file
+	if err := os.WriteFile(outputFile, jsonData, 0644); err != nil {
+		LogError("Failed to initialize findings.json: %v\n", err)
+		os.Exit(1)
+	}
+
+	// Proxy
+	if config.Proxy != "" {
+		parsedProxy, err := url.Parse(config.Proxy)
+		if err != nil {
+			LogError("Failed to parse proxy URL: %v", err)
+		} else {
+			config.ParsedProxy = parsedProxy
+		}
+	}
+
+	fmt.Print("\n")
+	fmt.Printf("\033[1;97;45mGo-Bypass-403 v%s\033[0m\n", VERSION)
+	fmt.Print("\n")
 
 	// Validate input URL(s)
 	if config.URL == "" && config.URLsFile == "" {
@@ -207,15 +254,24 @@ func main() {
 		}
 
 		// Validate base URL with httpx
-		validBaseURLs, err := ValidateURLsWithHttpx([]string{baseURL})
+		validResults, err := ValidateURLsWithHttpx([]string{baseURL})
 		if err != nil {
 			LogError("Failed to validate URL with httpx: %v\n", err)
 			os.Exit(1)
 		}
 
-		// Append original path and query to each valid base URL
-		for _, validBaseURL := range validBaseURLs {
-			urls = append(urls, validBaseURL+originalPathAndQuery) // Add directly to urls instead of tempURLs
+		// Append original path and query to each valid result
+		for _, result := range validResults {
+			urls = append(urls, result.URL+originalPathAndQuery)
+
+			if config.Verbose {
+				LogVerbose("[Httpx] Found target: %s", result.URL)
+				LogVerbose("[Httpx] IPv4: %v", result.IPv4)
+				LogVerbose("[Httpx] IPv6: %v", result.IPv6)
+				if len(result.CNAMEs) > 0 {
+					LogVerbose("[Httpx] CNAMEs: %v", result.CNAMEs)
+				}
+			}
 		}
 	}
 
@@ -253,15 +309,24 @@ func main() {
 				}
 
 				// Validate base URL with httpx
-				validBaseURLs, err := ValidateURLsWithHttpx([]string{baseURL})
+				validResults, err := ValidateURLsWithHttpx([]string{baseURL})
 				if err != nil {
 					LogError("Failed to validate URL with httpx: %v\n", err)
 					continue
 				}
 
-				// Append original path and query to each valid base URL
-				for _, validBaseURL := range validBaseURLs {
-					urls = append(urls, validBaseURL+originalPathAndQuery)
+				// Append original path and query to each valid result
+				for _, result := range validResults {
+					urls = append(urls, result.URL+originalPathAndQuery)
+
+					if config.Debug {
+						LogVerbose("[Httpx] Found target: %s", result.URL)
+						LogVerbose("[Httpx] IPv4: %v", result.IPv4)
+						LogVerbose("[Httpx] IPv6: %v", result.IPv6)
+						if len(result.CNAMEs) > 0 {
+							LogVerbose("[Httpx] CNAMEs: %v", result.CNAMEs)
+						}
+					}
 				}
 			}
 		}
@@ -280,13 +345,6 @@ func main() {
 		originalPathAndQuery := originalURL.Path
 		if originalURL.Query != "" {
 			originalPathAndQuery += "?" + originalURL.Query
-		}
-
-		baseURL := fmt.Sprintf("%s://%s", originalURL.Scheme, originalURL.Host)
-		_, err := ValidateURLsWithHttpx([]string{baseURL})
-		if err != nil {
-			LogError("Failed to validate original URL with httpx: %v\n", err)
-			os.Exit(1)
 		}
 
 		// Read hosts file
@@ -321,69 +379,47 @@ func main() {
 		}
 
 		// Validate hosts with httpx
-		validHosts, err := ValidateURLsWithHttpx(hostsToCheck)
+		validResults, err := ValidateURLsWithHttpx(hostsToCheck)
 		if err != nil {
 			LogError("Failed to validate hosts with httpx: %v\n", err)
 			os.Exit(1)
 		}
 
 		// Append original path and query to each valid host
-		for _, validHost := range validHosts {
-			urls = append(urls, validHost+originalPathAndQuery) // Add directly to urls instead of tempURLs
+		for _, result := range validResults {
+			urls = append(urls, result.URL+originalPathAndQuery)
+
+			if config.Verbose {
+				LogVerbose("[Httpx] Found target: %s", result.URL)
+				LogVerbose("[Httpx] IPv4: %v", result.IPv4)
+				LogVerbose("[Httpx] IPv6: %v", result.IPv6)
+				if len(result.CNAMEs) > 0 {
+					LogVerbose("[Httpx] CNAMEs: %v", result.CNAMEs)
+				}
+			}
 		}
 	}
 
-	// Setup logging
-	if config.Verbose {
-		log.SetFlags(log.Ltime | log.Lmicroseconds)
-	} else {
-		log.SetFlags(0)
-	}
-
-	// Create output directory in tmp if not specified
-	if config.OutDir == "" {
-		config.OutDir = filepath.Join(os.TempDir(), fmt.Sprintf("go-bypass-403-%x", time.Now().UnixNano()))
-	}
-
-	if err := os.MkdirAll(config.OutDir, 0755); err != nil {
-		LogError("Failed to create output directory: %v\n", err)
+	// Process URLs
+	if len(urls) == 0 {
+		LogError("No valid URLs found to scan\n")
 		os.Exit(1)
-	}
+	} else if len(urls) > 0 {
+		// Create a map for deduplication
+		urlMap := make(map[string]bool)
+		var uniqueURLs []string
 
-	// Initialize findings.json file
-	outputFile := filepath.Join(config.OutDir, "findings.json")
-	initialJSON := JSONData{
-		Scans: make([]ScanResult, 0),
-	}
-
-	jsonData, err := json.MarshalIndent(initialJSON, "", "  ")
-	if err != nil {
-		LogError("Failed to create initial JSON structure: %v\n", err)
-		os.Exit(1)
-	}
-
-	// Write the initial JSON structure to file
-	if err := os.WriteFile(outputFile, jsonData, 0644); err != nil {
-		LogError("Failed to initialize findings.json: %v\n", err)
-		os.Exit(1)
-	}
-
-	// Proxy
-	if config.Proxy != "" {
-		parsedProxy, err := url.Parse(config.Proxy)
-		if err != nil {
-			LogError("Failed to parse proxy URL: %v", err)
-		} else {
-			config.ParsedProxy = parsedProxy
+		for _, u := range urls {
+			if !urlMap[u] {
+				urlMap[u] = true
+				uniqueURLs = append(uniqueURLs, u)
+			}
 		}
+
+		urls = uniqueURLs
 	}
 
-	// Banner
-	fmt.Print("\n")
-	fmt.Printf("\r\033[1;97;45mGo-Bypass-403 v%s\033[0m\n", VERSION)
-	fmt.Print("\n")
-
-	// Print configuration with colors - no terminal manipulation, just simple printing
+	// Print complete configuration block
 	fmt.Printf("%sConfiguration:%s\n", colorPink, colorReset)
 	fmt.Printf("  %sURL:%s %s%s%s\n", colorCyan, colorReset, colorYellow, config.URL, colorReset)
 	fmt.Printf("  %sUsing Input File:%s %s%s%s\n", colorCyan, colorReset, colorYellow, config.URLsFile, colorReset)
@@ -411,26 +447,6 @@ func main() {
 	fmt.Print("\n")
 	fmt.Println(strings.Repeat("=", 80))
 	fmt.Print("\n")
-	os.Stdout.Sync()
-
-	// Process URLs
-	if len(urls) == 0 {
-		LogError("No valid URLs found to scan\n")
-		os.Exit(1)
-	} else if len(urls) > 0 {
-		// Create a map for deduplication
-		urlMap := make(map[string]bool)
-		var uniqueURLs []string
-
-		for _, u := range urls {
-			if !urlMap[u] {
-				urlMap[u] = true
-				uniqueURLs = append(uniqueURLs, u)
-			}
-		}
-
-		urls = uniqueURLs
-	}
 
 	// Process filtered URLs and start scanning
 	LogYellow("[+] Total URLs to be scanned: %d\n", len(urls))
