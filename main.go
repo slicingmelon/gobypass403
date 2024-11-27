@@ -209,7 +209,7 @@ func main() {
 
 	// Validate input URL(s)
 	if config.URL == "" && config.URLsFile == "" {
-		fmt.Println("Error: Either Target URL (-u) or URLs file (-l) is required")
+		LogError("Either Target URL (-u) or URLs file (-l) is required\n")
 		flag.Usage()
 		os.Exit(1)
 	}
@@ -233,14 +233,9 @@ func main() {
 	// First handle the direct URL if provided
 	if config.URL != "" {
 		// Basic validation first
-		if err := validateURL(config.URL); err != nil {
-			LogError("Invalid target URL: %v\n", err)
-			os.Exit(1)
-		}
-
-		parsedURL := rawurlparser.RawURLParse(config.URL)
-		if parsedURL == nil {
-			LogError("Failed to parse target URL\n")
+		parsedURL, err := rawurlparser.RawURLParseWithError(config.URL)
+		if err != nil {
+			LogError("Invalid URL: %s -- %v\n", config.URL, err)
 			os.Exit(1)
 		}
 
@@ -286,16 +281,10 @@ func main() {
 		fileURLs := strings.Split(strings.TrimSpace(string(content)), "\n")
 		for _, u := range fileURLs {
 			if u = strings.TrimSpace(u); u != "" {
-				// Basic validation first
-				if err := validateURL(u); err != nil {
+				// Parse and validate URL
+				parsedURL, err := rawurlparser.RawURLParseWithError(u)
+				if err != nil {
 					LogError("Invalid URL in file - %s: %v\n", u, err)
-					os.Exit(1)
-				}
-
-				// Parse URL to separate base URL and path+query
-				parsedURL := rawurlparser.RawURLParse(u)
-				if parsedURL == nil {
-					LogError("Failed to parse URL: %s\n", u)
 					continue
 				}
 
@@ -335,9 +324,13 @@ func main() {
 	// Handle substitute hosts file
 	if config.SubstituteHostsFile != "" {
 		// Parse original URL
-		originalURL := rawurlparser.RawURLParse(config.URL)
-		if originalURL == nil {
-			LogError("Failed to parse target URL\n")
+		originalURL, err := rawurlparser.RawURLParseWithError(config.URL)
+		if err != nil {
+			LogError("Invalid target URL: %v\n", err)
+			os.Exit(1)
+		}
+		if originalURL.Scheme == "" {
+			LogError("URL must include scheme (http:// or https://)\n")
 			os.Exit(1)
 		}
 
@@ -347,7 +340,7 @@ func main() {
 			originalPathAndQuery += "?" + originalURL.Query
 		}
 
-		// Read hosts file
+		// Read SubstituteHostsFile hosts file
 		content, err := os.ReadFile(config.SubstituteHostsFile)
 		if err != nil {
 			LogError("Failed to read substitute hosts file: %v\n", err)
