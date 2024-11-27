@@ -64,7 +64,7 @@ func main() {
 		{name: "u,url", usage: "Target URL (example: https://cms.facebook.com/login)", value: &config.URL},
 		{name: "l,urls-file", usage: "File containing list of target URLs (one per line)", value: &config.URLsFile},
 		{name: "shf,substitute-hosts-file", usage: "File containing a list of hosts to substitute target URL's hostname (mostly used in CDN bypasses by providing a list of CDNs)", value: &config.SubstituteHostsFile},
-		{name: "m,mode", usage: "Bypass mode (all, mid_paths, end_paths, case_substitution, char_encode, http_headers_scheme, http_headers_ip, http_headers_port, http_headers_url)", value: &config.Mode, defVal: "all"},
+		{name: "m,mode", usage: "Bypass mode (all, mid_paths, end_paths, case_substitution, char_encode, http_headers_scheme, http_headers_ip, http_headers_port, http_headers_url, http_host)", value: &config.Mode, defVal: "all"},
 		{name: "o,outdir", usage: "Output directory", value: &config.OutDir},
 		{name: "t,threads", usage: "Number of concurrent threads)", value: &config.Threads, defVal: 15},
 		{name: "T,timeout", usage: "Timeout in seconds", value: &config.Timeout, defVal: 15},
@@ -257,15 +257,14 @@ func main() {
 
 		// Append original path and query to each valid result
 		for _, result := range validResults {
+			globalHttpxResults.Store(result.URL, &result)
 			urls = append(urls, result.URL+originalPathAndQuery)
 
 			if config.Verbose {
 				LogVerbose("[Httpx] Found target: %s", result.URL)
 				LogVerbose("[Httpx] IPv4: %v", result.IPv4)
 				LogVerbose("[Httpx] IPv6: %v", result.IPv6)
-				if len(result.CNAMEs) > 0 {
-					LogVerbose("[Httpx] CNAMEs: %v", result.CNAMEs)
-				}
+				LogVerbose("[Httpx] CNAMEs: %v", result.CNAMEs)
 			}
 		}
 	}
@@ -306,15 +305,14 @@ func main() {
 
 				// Append original path and query to each valid result
 				for _, result := range validResults {
+					globalHttpxResults.Store(result.URL, &result) // stored httpx results in cache
 					urls = append(urls, result.URL+originalPathAndQuery)
 
-					if config.Debug {
+					if config.Verbose {
 						LogVerbose("[Httpx] Found target: %s", result.URL)
 						LogVerbose("[Httpx] IPv4: %v", result.IPv4)
 						LogVerbose("[Httpx] IPv6: %v", result.IPv6)
-						if len(result.CNAMEs) > 0 {
-							LogVerbose("[Httpx] CNAMEs: %v", result.CNAMEs)
-						}
+						LogVerbose("[Httpx] CNAMEs: %v", result.CNAMEs)
 					}
 				}
 			}
@@ -380,15 +378,14 @@ func main() {
 
 		// Append original path and query to each valid host
 		for _, result := range validResults {
+			globalHttpxResults.Store(result.URL, &result)
 			urls = append(urls, result.URL+originalPathAndQuery)
 
 			if config.Verbose {
 				LogVerbose("[Httpx] Found target: %s", result.URL)
 				LogVerbose("[Httpx] IPv4: %v", result.IPv4)
 				LogVerbose("[Httpx] IPv6: %v", result.IPv6)
-				if len(result.CNAMEs) > 0 {
-					LogVerbose("[Httpx] CNAMEs: %v", result.CNAMEs)
-				}
+				LogVerbose("[Httpx] CNAMEs: %v", result.CNAMEs)
 			}
 		}
 	}
@@ -441,6 +438,9 @@ func main() {
 	fmt.Println(strings.Repeat("=", 80))
 	fmt.Print("\n")
 
+	// close httpxresults cache
+	defer globalHttpxResults.Close()
+
 	// Process filtered URLs and start scanning
 	LogYellow("[+] Total URLs to be scanned: %d\n", len(urls))
 
@@ -466,6 +466,7 @@ func main() {
 
 		// Clean up client after URL is processed
 		bypassClient.Close()
+		globalHttpxResults.Delete(url)
 
 		// Print table header and findings
 		if len(findings) > 0 {

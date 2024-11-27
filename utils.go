@@ -474,7 +474,7 @@ func ValidateURLsWithHttpx(urls []string) ([]HttpxResult, error) {
 	results := make([]HttpxResult, 0)
 
 	// internal httpx logger
-	gologger.DefaultLogger.SetMaxLevel(levels.LevelDebug)
+	gologger.DefaultLogger.SetMaxLevel(levels.LevelSilent)
 
 	// Configure httpx options
 	options := runner.Options{

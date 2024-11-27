@@ -78,6 +78,8 @@ func initRawHTTPClient() (*GO403BYPASS, error) {
 		// Fallback settings
 		EnableFallback: true,
 
+		SNIName: "", // ??
+
 		// Error handling
 		MaxTemporaryErrors:              30,
 		MaxTemporaryToPermanentDuration: 1 * time.Minute, // Our custom value (default was 1 minute)
@@ -144,30 +146,64 @@ func sendRequest(method, rawURL string, headers []Header, bypassMode string) (*R
 		return nil, fmt.Errorf("failed to parse URL %s: %v", rawURL, err)
 	}
 
-	LogVerbose("[sendRequest] [%s] Parsed URL: scheme=%s, host=%s, path=%s, query=%s\n",
+	LogVerbose("[sendRequest] [%s] Parsed URL==> scheme:%s, host:%s, path:%s, query:%s\n",
 		bypassMode, parsedURL.Scheme, parsedURL.Host, parsedURL.Path, parsedURL.Query)
 
 	// Headers stuff
-	var canary string
-	headerMap := make(map[string][]string)
+	canary := generateRandomString(18)
+	orderedHeaders := make([]Header, 0)
+
+	// Prioritize Host header if provided
 	for _, h := range headers {
-		headerMap[h.Key] = []string{h.Value}
-	}
-	if _, exists := headerMap["Host"]; !exists {
-		headerMap["Host"] = []string{parsedURL.Host}
-	}
-	if _, exists := headerMap["User-Agent"]; !exists {
-		headerMap["User-Agent"] = []string{defaultUserAgent}
-	}
-	// Add debug canary
-	if config.Debug {
-		canary = generateRandomString(18)
-		headerMap["X-Go-Bypass-403"] = []string{canary}
+		if strings.EqualFold(h.Key, "Host") {
+			orderedHeaders = append(orderedHeaders, h)
+			break
+		}
 	}
 
-	// Add Connection header, up to the standards of HTTP/1
-	if _, exists := headerMap["Connection"]; !exists {
-		headerMap["Connection"] = []string{"close"}
+	// Set default Host if not provided
+	if !containsHeader(orderedHeaders, "Host") {
+		orderedHeaders = append(orderedHeaders, Header{
+			Key:   "Host",
+			Value: parsedURL.Host,
+		})
+	}
+
+	// Add remaining headers, skipping duplicates
+	for _, h := range headers {
+		if !containsHeader(orderedHeaders, h.Key) {
+			orderedHeaders = append(orderedHeaders, h)
+		}
+	}
+
+	// Ensure User-Agent
+	if !containsHeader(orderedHeaders, "User-Agent") {
+		orderedHeaders = append(orderedHeaders, Header{
+			Key:   "User-Agent",
+			Value: defaultUserAgent,
+		})
+	}
+
+	// Add X-Go-Bypass header with canary when debug is enabled
+	if config.Debug {
+		orderedHeaders = append(orderedHeaders, Header{
+			Key:   "X-Go-Bypass-403",
+			Value: canary,
+		})
+	}
+
+	// Always add Connection: close at the end
+	// if !containsHeader(orderedHeaders, "Connection") {
+	// 	orderedHeaders = append(orderedHeaders, Header{
+	// 		Key:   "Connection",
+	// 		Value: "close",
+	// 	})
+	// }
+
+	// Convert to map for rawhttp
+	headerMap := make(map[string][]string)
+	for _, h := range orderedHeaders {
+		headerMap[h.Key] = []string{h.Value}
 	}
 
 	// target URL
@@ -188,22 +224,22 @@ func sendRequest(method, rawURL string, headers []Header, bypassMode string) (*R
 			bypassMode,
 			canary,
 			requestLine,
-			formatHeaders(headers))
+			formatHeaders(orderedHeaders))
 	} else if isVerbose {
 		LogVerbose("[%s] Sending request: %s%s [Headers: %s]\n",
 			bypassMode,
 			target,
 			fullPath,
-			formatHeaders(headers))
+			formatHeaders(orderedHeaders))
 	}
 
 	// Debug logging
 	if config.Debug {
 		rawBytes, err := rawhttp.DumpRequestRaw(method, target, fullPath, headerMap, nil, globalRawClient.Options)
 		if err != nil {
-			LogError("[DumpRequestRaw] [%s] Failed to dump request %s -- Error: %v", bypassMode, targetFullURL, err)
+			LogError("[DumpRequestRaw] [%s] Failed to dump request: %v\n", bypassMode, err)
 		} else {
-			LogDebug("[DumpRequestRaw] [%s] Raw request:\n%s", bypassMode, string(rawBytes))
+			LogDebug("[DumpRequestRaw] [%s] Raw request:\n%s\n", bypassMode, string(rawBytes))
 		}
 	}
 
@@ -360,6 +396,30 @@ func GetResponseBodyRaw(resp *http.Response, headersCopy http.Header, maxBytes i
 func contains(codes []int, code int) bool {
 	for _, c := range codes {
 		if c == code {
+			return true
+		}
+	}
+	return false
+}
+
+func containsHeader(headers []Header, key string, sensitive ...bool) bool {
+	isCaseSensitive := false
+	if len(sensitive) > 0 {
+		isCaseSensitive = sensitive[0]
+	}
+
+	if isCaseSensitive {
+		for _, h := range headers {
+			if h.Key == key {
+				return true
+			}
+		}
+		return false
+	}
+
+	lowercaseKey := strings.ToLower(key)
+	for _, h := range headers {
+		if strings.ToLower(h.Key) == lowercaseKey {
 			return true
 		}
 	}
