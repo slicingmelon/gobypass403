@@ -404,6 +404,13 @@ func worker(ctx *WorkerContext, jobs <-chan PayloadJob, results chan<- *Result) 
 		}
 	}()
 
+	client, err := New(&config, ctx.mode)
+	if err != nil {
+		LogError("Failed to create client for mode %s: %v", ctx.mode, err)
+		return
+	}
+	defer client.Close()
+
 	workerLimiter := time.NewTicker(time.Duration(config.Delay) * time.Millisecond)
 	defer workerLimiter.Stop()
 
@@ -412,7 +419,7 @@ func worker(ctx *WorkerContext, jobs <-chan PayloadJob, results chan<- *Result) 
 		case <-ctx.cancel:
 			return
 		case <-workerLimiter.C:
-			details, err := sendRequest(job.method, job.url, job.headers, job.bypassMode)
+			details, err := client.sendRequest(job.method, job.url, job.headers)
 			ctx.progress.increment()
 
 			if err != nil {
