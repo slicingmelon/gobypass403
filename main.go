@@ -71,6 +71,7 @@ func main() {
 		{name: "delay", usage: "Delay between requests in milliseconds (Default: 150ms)", value: &config.Delay, defVal: 150},
 		{name: "v,verbose", usage: "Verbose output", value: &config.Verbose, defVal: false},
 		{name: "d,debug", usage: "Debug mode with request canaries", value: &config.Debug, defVal: false},
+		{name: "trace", usage: "Trace HTTP requests", value: &config.TraceRequests, defVal: false},
 		{name: "mc,match-status-code", usage: "Only save results matching these HTTP status codes (example: -mc 200,301,500). Default: 200", value: &config.MatchStatusCodesStr},
 		{name: "http2", usage: "Force attempt requests on HTTP2", value: &config.ForceHTTP2, defVal: false},
 		{name: "x,proxy", usage: "Proxy URL (format: http://proxy:port)", value: &config.Proxy},
@@ -423,6 +424,7 @@ func main() {
 	fmt.Printf("  %sFiltering HTTP Status Codes:%s %s%v%s\n", colorCyan, colorReset, colorYellow, config.MatchStatusCodes, colorReset)
 	fmt.Printf("  %sVerbose mode:%s %s%v%s\n", colorCyan, colorReset, colorYellow, config.Verbose, colorReset)
 	fmt.Printf("  %sDebug mode:%s %s%v%s\n", colorCyan, colorReset, colorYellow, config.Debug, colorReset)
+	fmt.Printf("  %sTrace Requests:%s %s%v%s\n", colorCyan, colorReset, colorYellow, config.TraceRequests, colorReset)
 	fmt.Printf("  %sForce HTTP/2:%s %s%v%s\n", colorCyan, colorReset, colorYellow, config.ForceHTTP2, colorReset)
 	fmt.Printf("  %sFollow Redirects:%s %s%v%s\n", colorCyan, colorReset, colorYellow, config.FollowRedirects, colorReset)
 	if config.SpoofHeader != "" {

@@ -35,6 +35,7 @@ type Config struct {
 	SpoofHeader         string
 	Delay               int
 	FollowRedirects     bool
+	TraceRequests       bool
 }
 
 type Result struct {
