@@ -95,6 +95,11 @@ func New(cfg *Config, bypassMode string) (*GO403BYPASS, error) {
 		DisableKeepAlives: true,
 	}
 
+	// Add proxy if configured
+	if cfg.ParsedProxy != nil {
+		transport.Proxy = http.ProxyURL(cfg.ParsedProxy)
+	}
+
 	// Disable HTTP/2 if not forced
 	if !cfg.ForceHTTP2 {
 		os.Setenv("GODEBUG", "http2client=0")
@@ -148,10 +153,22 @@ func (b *GO403BYPASS) NewRawRequestFromURLWithContext(ctx context.Context, metho
 	}
 
 	if b.config.Debug {
-		LogDebug("[NewRawRequestFromURLWithContext] [%s] Original URL: %s, Processed URL: %s",
+		LogTeal("[NewRawRequestFromURLWithContext] [%s] URL Components:\n"+
+			"Original: %s\n"+
+			"Scheme: %s\n"+
+			"Host: %s\n"+
+			"Path: %s\n"+
+			"RawPath: %s\n"+
+			"Query: %s\n"+
+			"RawQuery: %s",
 			b.bypassMode,
-			urlx.Original, // This preserves the exact original URL
-			urlx.String()) // This is the processed/normalized version
+			urlx.Original,
+			urlx.Scheme,
+			urlx.Host,
+			urlx.Path,
+			urlx.RawPath,
+			urlx.RawQuery,
+			urlx.Params.Encode())
 	}
 	// Create request using retryablehttp
 	req, err := retryablehttp.NewRequestFromURLWithContext(ctx, method, urlx, nil)

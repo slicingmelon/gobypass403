@@ -1,16 +1,17 @@
 # Ignore everything
 *
 
-# Except
+# Except Go files and modules
 !*.go
 !go.mod
 !go.sum
 
+# Include payloads and images directories
 !payloads/
 !payloads/**
 !images/
 !images/**
 
-!.git/
+# Include key files and metadata
 !.gitignore
 !README.md
