@@ -1,6 +1,5 @@
 # Ignore everything
 *
-
 # Except Go files and modules
 !*.go
 !go.mod
