@@ -51,7 +51,7 @@ type GO403BYPASS struct {
 	bypassMode   string // Track current bypass mode
 }
 
-// New creates a new GO403BYPASS instance
+// New creates a new GO403BYPASS instance -- for the test new
 func New(cfg *Config, bypassMode string) (*GO403BYPASS, error) {
 	client := &GO403BYPASS{
 		config:     cfg,
