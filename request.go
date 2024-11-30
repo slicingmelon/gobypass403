@@ -2,17 +2,22 @@
 package main
 
 import (
+	"context"
+	"crypto/tls"
 	"fmt"
 	"io"
 	"net/http"
+	"net/http/httptrace"
 	"net/http/httputil"
-	"strconv"
+	"os"
 	"strings"
 	"time"
 
 	"github.com/projectdiscovery/fastdialer/fastdialer"
 	"github.com/projectdiscovery/httpx/common/httpx"
 	"github.com/projectdiscovery/rawhttp"
+	"github.com/projectdiscovery/retryablehttp-go"
+	urlutil "github.com/projectdiscovery/utils/url"
 	"github.com/slicingmelon/go-rawurlparser"
 )
 
@@ -33,213 +38,218 @@ type ResponseDetails struct {
 	Title           string
 }
 
-type GO403BYPASS struct {
-	rawClient    *rawhttp.Client
-	errorHandler *ErrorHandler
-	dialer       *fastdialer.Dialer
-}
-
 var (
 	globalRawClient *rawhttp.Client
 	globalDialer    *fastdialer.Dialer
 )
 
-// initRawHTTPClient -- initializes the rawhttp client
-func initRawHTTPClient() (*GO403BYPASS, error) {
-	httpclient := &GO403BYPASS{}
+type GO403BYPASS struct {
+	retryClient  *retryablehttp.Client
+	errorHandler *ErrorHandler
+	dialer       *fastdialer.Dialer
+	config       *Config
+	bypassMode   string // Track current bypass mode
+}
 
-	// Set fastdialer options from scratch
-	fastdialerOpts := fastdialer.Options{
-		BaseResolvers: []string{
-			"1.1.1.1:53",
-			"1.0.0.1:53",
-			"9.9.9.10:53",
-			"8.8.4.4:53",
-		},
-		MaxRetries:    5,
-		HostsFile:     true,
-		ResolversFile: true,
-		CacheType:     fastdialer.Disk,
-		DiskDbType:    fastdialer.LevelDB,
-
-		// Timeouts
-		DialerTimeout:   10 * time.Second,
-		DialerKeepAlive: 10 * time.Second,
-
-		// Cache settings
-		CacheMemoryMaxItems: 200,
-		WithDialerHistory:   true,
-		WithCleanup:         true,
-
-		// TLS settings
-		WithZTLS:            true,
-		DisableZtlsFallback: false,
-
-		// Fallback settings
-		EnableFallback: true,
-
-		// Error handling
-		MaxTemporaryErrors:              30,
-		MaxTemporaryToPermanentDuration: 1 * time.Minute, // Our custom value (default was 1 minute)
+// New creates a new GO403BYPASS instance
+func New(cfg *Config, bypassMode string) (*GO403BYPASS, error) {
+	client := &GO403BYPASS{
+		config:     cfg,
+		bypassMode: bypassMode,
 	}
 
-	// Use fastdialer
+	// Initialize error handler
+	client.errorHandler = NewErrorHandler()
+
+	// Initialize fastdialer
+	fastdialerOpts := fastdialer.Options{
+		BaseResolvers: []string{
+			"1.1.1.1:53", "1.0.0.1:53",
+			"9.9.9.10:53", "8.8.4.4:53",
+		},
+		MaxRetries:     5,
+		HostsFile:      true,
+		ResolversFile:  true,
+		CacheType:      fastdialer.Disk,
+		DiskDbType:     fastdialer.LevelDB,
+		DialerTimeout:  time.Duration(cfg.Timeout) * time.Second,
+		WithZTLS:       true,
+		EnableFallback: true,
+	}
+
 	var err error
-	httpclient.dialer, err = fastdialer.NewDialer(fastdialerOpts)
+	client.dialer, err = fastdialer.NewDialer(fastdialerOpts)
 	if err != nil {
 		return nil, fmt.Errorf("could not create dialer: %v", err)
 	}
 
-	options := &rawhttp.Options{
-		Timeout:                time.Duration(config.Timeout) * time.Second,
-		FollowRedirects:        config.FollowRedirects,
-		MaxRedirects:           map[bool]int{false: 0, true: 10}[config.FollowRedirects],
-		AutomaticHostHeader:    false,
-		AutomaticContentLength: true,
-		ForceReadAllBody:       true,
-		FastDialer:             httpclient.dialer,
+	// Create transport with our dialer
+	transport := &http.Transport{
+		DialContext:         client.dialer.Dial,
+		DialTLSContext:      client.dialer.DialTLS,
+		MaxIdleConnsPerHost: -1,
+		TLSClientConfig: &tls.Config{
+			InsecureSkipVerify: true,
+			MinVersion:         tls.VersionTLS10,
+		},
+		DisableKeepAlives: true,
 	}
 
-	if config.Proxy != "" {
-		if !strings.HasPrefix(config.Proxy, "http://") && !strings.HasPrefix(config.Proxy, "https://") {
-			config.Proxy = "http://" + config.Proxy
-		}
-		options.Proxy = config.Proxy
-		options.ProxyDialTimeout = 10 * time.Second
+	// Add proxy if configured
+	if cfg.ParsedProxy != nil {
+		transport.Proxy = http.ProxyURL(cfg.ParsedProxy)
 	}
 
-	httpclient.errorHandler = NewErrorHandler()
-	httpclient.rawClient = rawhttp.NewClient(options)
+	// Disable HTTP/2 if not forced
+	if !cfg.ForceHTTP2 {
+		os.Setenv("GODEBUG", "http2client=0")
+		transport.TLSNextProto = map[string]func(string, *tls.Conn) http.RoundTripper{}
+	}
 
-	// Set globals
-	globalRawClient = httpclient.rawClient
-	globalErrorHandler = httpclient.errorHandler
-	globalDialer = httpclient.dialer
+	// Create retryablehttp client with tracing enabled if debug mode is on
+	retryOpts := retryablehttp.Options{
+		RetryWaitMin: 1 * time.Second,
+		RetryWaitMax: 30 * time.Second,
+		RetryMax:     5,
+		Timeout:      time.Duration(cfg.Timeout) * time.Second,
+		KillIdleConn: true,
+		HttpClient: &http.Client{
+			Transport: transport,
+			Timeout:   time.Duration(cfg.Timeout) * time.Second,
+			CheckRedirect: func(req *http.Request, via []*http.Request) error {
+				if !cfg.FollowRedirects {
+					return http.ErrUseLastResponse
+				}
+				if len(via) >= 10 {
+					return fmt.Errorf("stopped after 10 redirects")
+				}
+				return nil
+			},
+		},
+		Trace: cfg.TraceRequests, // Enable tracing if debug is enabled
+	}
 
-	return httpclient, nil
+	client.retryClient = retryablehttp.NewClient(retryOpts)
+
+	return client, nil
 }
 
 // Close cleans up resources
 func (b *GO403BYPASS) Close() {
-	if b.rawClient != nil {
-		b.rawClient.Close()
+	if b.retryClient != nil {
+		b.retryClient.HTTPClient.CloseIdleConnections()
 	}
-	if b.errorHandler != nil {
-		b.errorHandler.Purge()
+	if b.dialer != nil {
+		b.dialer.Close()
 	}
 }
 
-// Add a method to check if client is properly initialized
-func (b *GO403BYPASS) IsInitialized() bool {
-	return b.rawClient != nil && b.errorHandler != nil
-}
-
-func sendRequest(method, rawURL string, headers []Header, bypassMode string) (*ResponseDetails, error) {
-	if method == "" {
-		method = "GET"
+// NewRawRequestFromURLWithContext creates a request with optional tracing while preserving raw paths
+func (b *GO403BYPASS) NewRawRequestFromURLWithContext(ctx context.Context, method, targetURL string) (*retryablehttp.Request, error) {
+	// Parse URL using urlutil with unsafe mode to preserve raw paths
+	urlx, err := urlutil.ParseURL(targetURL, true)
+	if err != nil {
+		return nil, err
 	}
 
+	if b.config.Debug {
+		LogTeal("[NewRawRequestFromURLWithContext] [%s] URL Components:\n"+
+			"Original: %s\n"+
+			"Scheme: %s\n"+
+			"Host: %s\n"+
+			"Path: %s\n"+
+			"RawPath: %s\n"+
+			"Query: %s\n"+
+			"RawQuery: %s",
+			b.bypassMode,
+			urlx.Original,
+			urlx.Scheme,
+			urlx.Host,
+			urlx.Path,
+			urlx.RawPath,
+			urlx.RawQuery,
+			urlx.Params.Encode())
+	}
+	// Create request using retryablehttp
+	req, err := retryablehttp.NewRequestFromURLWithContext(ctx, method, urlx, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewRawRequestFromURL is a convenience wrapper around NewRawRequestFromURLWithContext
+func (b *GO403BYPASS) NewRawRequestFromURL(method, targetURL string) (*retryablehttp.Request, error) {
+	return b.NewRawRequestFromURLWithContext(context.Background(), method, targetURL)
+}
+
+// sendRequest sends an HTTP request using retryablehttp
+func (b *GO403BYPASS) sendRequest(method, rawURL string, headers []Header) (*ResponseDetails, error) {
 	parsedURL, err := rawurlparser.RawURLParseWithError(rawURL)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse URL %s: %v", rawURL, err)
 	}
 
-	LogVerbose("[sendRequest] [%s] Parsed URL: scheme=%s, host=%s, path=%s, query=%s\n",
-		bypassMode, parsedURL.Scheme, parsedURL.Host, parsedURL.Path, parsedURL.Query)
+	LogVerbose("[sendRequest] [%s] RawURLParsed URL==> scheme:%s, host:%s, path:%s, query:%s\n",
+		b.bypassMode, parsedURL.Scheme, parsedURL.Host, parsedURL.Path, parsedURL.Query)
 
-	// Headers stuff
-	var canary string
-	headerMap := make(map[string][]string)
-	for _, h := range headers {
-		headerMap[h.Key] = []string{h.Value}
-	}
-	if _, exists := headerMap["Host"]; !exists {
-		headerMap["Host"] = []string{parsedURL.Host}
-	}
-	if _, exists := headerMap["User-Agent"]; !exists {
-		headerMap["User-Agent"] = []string{defaultUserAgent}
-	}
-	// Add debug canary
-	if config.Debug {
-		canary = generateRandomString(18)
-		headerMap["X-Go-Bypass-403"] = []string{canary}
+	rawURLString := fmt.Sprintf("%s://%s%s%s", parsedURL.Scheme, parsedURL.Host, parsedURL.Path, parsedURL.Query)
+
+	if b.config.Debug {
+		// Log the exact URL before and after retryablehttp processing
+		LogDebug("[sendRequest] [%s] Original URL: %s", b.bypassMode, rawURLString)
 	}
 
-	// raw requests boys..
-	// if _, exists := headerMap["Accept"]; !exists {
-	// 	headerMap["Accept"] = []string{"*/*"}
-	// }
-	if _, exists := headerMap["Accept-Encoding"]; !exists {
-		headerMap["Accept-Encoding"] = []string{"gzip"} // Removed br as we don't handle brotli yet
-	}
-
-	if _, exists := headerMap["Accept-Charset"]; !exists {
-		headerMap["Accept-Charset"] = []string{"utf-8"}
-	}
-
-	// target URL
-	target := fmt.Sprintf("%s://%s", parsedURL.Scheme, parsedURL.Host)
-
-	// Construct full path with query
-	fullPath := parsedURL.Path
-	if parsedURL.Query != "" {
-		fullPath += "?" + parsedURL.Query
-	}
-
-	targetFullURL := target + fullPath
-
-	// Official logging final
-	if config.Debug {
-		requestLine := fmt.Sprintf("%s://%s%s", parsedURL.Scheme, parsedURL.Host, fullPath)
-		LogDebug("[%s] [Canary: %s] Sending request: %s [Headers: %s]\n",
-			bypassMode,
-			canary,
-			requestLine,
-			formatHeaders(headers))
-	} else if isVerbose {
-		LogVerbose("[%s] Sending request: %s%s [Headers: %s]\n",
-			bypassMode,
-			target,
-			fullPath,
-			formatHeaders(headers))
-	}
-
-	// Debug logging
-	if config.Debug {
-		rawBytes, err := rawhttp.DumpRequestRaw(method, target, fullPath, headerMap, nil, globalRawClient.Options)
-		if err != nil {
-			LogError("[DumpRequestRaw] [%s] Failed to dump request %s -- Error: %v", bypassMode, targetFullURL, err)
-		} else {
-			LogDebug("[DumpRequestRaw] [%s] Raw request:\n%s", bypassMode, string(rawBytes))
-		}
-	}
-
-	// Use global client
-	resp, err := globalRawClient.DoRawWithOptions(method, target, fullPath, headerMap, nil, globalRawClient.Options)
-
+	// Create request
+	req, err := b.NewRawRequestFromURL(method, rawURLString)
 	if err != nil {
-		// Only handle "forcibly closed" errors with our custom logic
-		if strings.Contains(err.Error(), "forcibly closed by the remote host") {
-			err = globalErrorHandler.HandleError(ErrForciblyClosed, parsedURL.Host)
-		} else {
-			LogError("[sendRequest] [%s] Request Error on %s: %v\n",
-				bypassMode, targetFullURL, err)
-		}
+		return nil, fmt.Errorf("failed to create request: %v", err)
+	}
 
+	if !containsHeader(headers, "User-Agent") {
+		req.Header.Set("User-Agent", defaultUserAgent)
+	}
+
+	// Debug canary
+	if b.config.Debug {
+		canary := generateRandomString(18)
+		req.Header.Set("X-Go-Bypass-403", canary)
+		LogDebug("[sendRequest] [%s] [Canary: %s] Sending request: %s [Headers: %s]\n",
+			b.bypassMode,
+			canary,
+			rawURLString,
+			formatHeaders(headers),
+		)
+	}
+
+	// Add the rest of HTTP headers
+	for _, h := range headers {
+		req.Header.Set(h.Key, h.Value)
+	}
+
+	// Send request
+	resp, err := b.retryClient.Do(req)
+	if err != nil {
 		return nil, err
 	}
-	// Keep a copy of headers for safety and for GetResponseBodyRaw later
+	defer resp.Body.Close()
+
+	// Log trace info if debug is enabled
+	if b.config.TraceRequests && req.TraceInfo != nil {
+		logTraceInfo(b.bypassMode, req.TraceInfo)
+	}
+
+	// Process response
 	headersCopy := resp.Header.Clone()
 
-	// Skip processing if HTTP status code doesn't match cli input
-	if !contains(config.MatchStatusCodes, resp.StatusCode) {
-		resp.Body.Close()
+	// Skip if status code doesn't match
+	if !contains(b.config.MatchStatusCodes, resp.StatusCode) {
 		return &ResponseDetails{
 			StatusCode: resp.StatusCode,
 		}, nil
 	}
 
-	// Initialize ResponseDetails immediately
 	details := &ResponseDetails{
 		StatusCode:    resp.StatusCode,
 		ContentType:   resp.Header.Get("Content-Type"),
@@ -248,63 +258,32 @@ func sendRequest(method, rawURL string, headers []Header, bypassMode string) (*R
 		RedirectURL:   resp.Header.Get("Location"),
 	}
 
-	// Get raw response headers first
+	// Get raw headers
 	respHeaders, err := GetResponseHeadersRaw(resp)
 	if err != nil {
-		LogVerbose("[%s] Failed to dump response headers for %s: %v", bypassMode, targetFullURL, err)
+		LogVerbose("[%s] Failed to dump response headers: %v", b.bypassMode, err)
 	} else {
 		details.ResponseHeaders = string(respHeaders)
-		// Try to get content type from raw headers if not found in normalized headers
-		if details.ContentType == "" {
-			// Simple case-insensitive search in raw headers
-			rawHeaders := strings.ToLower(string(respHeaders))
-			if idx := strings.Index(rawHeaders, "content-type:"); idx >= 0 {
-				endIdx := strings.Index(rawHeaders[idx:], "\r\n")
-				if endIdx > 0 {
-					ct := rawHeaders[idx+13 : idx+endIdx]
-					details.ContentType = strings.TrimSpace(ct)
-				}
-			}
-		}
 	}
 
-	// Don't read body for certain status codes
+	// Read body for applicable status codes
 	if resp.StatusCode != http.StatusSwitchingProtocols &&
 		resp.StatusCode != http.StatusNotModified &&
 		resp.StatusCode != http.StatusMovedPermanently {
 
 		bodyBytes, err := GetResponseBodyRaw(resp, headersCopy, 1024)
 		if err != nil {
-			LogVerbose("[%s] Failed to read response body for %s: %v", bypassMode, targetFullURL, err)
 			details.ResponsePreview = "<failed to read response body>"
 			details.ResponseBytes = 0
 		} else {
 			details.ResponseBytes = len(bodyBytes)
-
-			// Set preview to raw bytes even if decoding failed
 			details.ResponsePreview = string(bodyBytes)
-
-			// Handle Content-Length separately from ResponseBytes
-			if cl := headersCopy.Get("Content-Length"); cl != "" {
-				if clInt, err := strconv.ParseInt(cl, 10, 64); err == nil {
-					details.ContentLength = clInt
-				}
-			}
-
-			if details.ContentLength <= 0 {
-				details.ContentLength = resp.ContentLength
-			}
 		}
 	}
 
-	// Close body after reading
-	if closeErr := resp.Body.Close(); closeErr != nil {
-		LogVerbose("[%s] Failed to close response body for %s: %v", bypassMode, targetFullURL, closeErr)
-	}
-
 	// Debug logging
-	if config.Verbose {
-		LogYellow("=====> Response Details for URL %s\n", targetFullURL)
+	if b.config.Verbose {
+		LogYellow("=====> Response Details for URL %s\n", rawURLString)
 		LogYellow("Status: %d %s\n", resp.StatusCode, resp.Status)
 		LogYellow("Headers:\n%s\n", details.ResponseHeaders)
 		LogYellow("Body (%d bytes):\n%s\n", details.ResponseBytes, details.ResponsePreview)
@@ -365,4 +344,93 @@ func contains(codes []int, code int) bool {
 		}
 	}
 	return false
+}
+
+func containsHeader(headers []Header, key string, sensitive ...bool) bool {
+	isCaseSensitive := false
+	if len(sensitive) > 0 {
+		isCaseSensitive = sensitive[0]
+	}
+
+	if isCaseSensitive {
+		for _, h := range headers {
+			if h.Key == key {
+				return true
+			}
+		}
+		return false
+	}
+
+	lowercaseKey := strings.ToLower(key)
+	for _, h := range headers {
+		if strings.ToLower(h.Key) == lowercaseKey {
+			return true
+		}
+	}
+	return false
+}
+
+func (b *GO403BYPASS) validateRequest(req *retryablehttp.Request) error {
+	// Verify URL structure preservation
+	// Check header ordering if critical
+	// Validate any bypass-specific requirements
+	return nil
+}
+
+func logTraceInfo(bypassMode string, traceInfo *retryablehttp.TraceInfo) {
+	if traceInfo.GetConn.Time.IsZero() {
+		return
+	}
+
+	var trace strings.Builder
+	trace.WriteString(fmt.Sprintf("[Trace] [%s] Connection Details:\n", bypassMode))
+
+	// Connection Info
+	if info, ok := traceInfo.GotConn.Info.(httptrace.GotConnInfo); ok {
+		trace.WriteString(fmt.Sprintf("  Connection: Reused=%v, WasIdle=%v, IdleTime=%v\n",
+			info.Reused, info.WasIdle, info.IdleTime))
+	}
+
+	// DNS Info
+	if info, ok := traceInfo.DNSDone.Info.(httptrace.DNSDoneInfo); ok {
+		trace.WriteString(fmt.Sprintf("  DNS: Addresses=%v, Coalesced=%v, Err=%v\n",
+			info.Addrs, info.Coalesced, info.Err))
+	}
+
+	// Connection Details
+	if info, ok := traceInfo.ConnectStart.Info.(struct{ Network, Addr string }); ok {
+		trace.WriteString(fmt.Sprintf("  Network: %s, Remote Address: %s\n",
+			info.Network, info.Addr))
+	}
+
+	// TLS Info
+	if info, ok := traceInfo.TLSHandshakeDone.Info.(struct {
+		ConnectionState tls.ConnectionState
+		Error           error
+	}); ok {
+		trace.WriteString(fmt.Sprintf("  TLS: Version=%x, CipherSuite=%x, ServerName=%s\n",
+			info.ConnectionState.Version,
+			info.ConnectionState.CipherSuite,
+			info.ConnectionState.ServerName))
+	}
+
+	// Request Write Info
+	if info, ok := traceInfo.WroteRequest.Info.(httptrace.WroteRequestInfo); ok && info.Err != nil {
+		trace.WriteString(fmt.Sprintf("  Request Write Error: %v\n", info.Err))
+	}
+
+	// Timing Info
+	dnsTime := traceInfo.DNSDone.Time.Sub(traceInfo.DNSStart.Time)
+	connTime := traceInfo.ConnectDone.Time.Sub(traceInfo.ConnectStart.Time)
+	tlsTime := traceInfo.TLSHandshakeDone.Time.Sub(traceInfo.TLSHandshakeStart.Time)
+	responseTime := traceInfo.GotFirstResponseByte.Time.Sub(traceInfo.WroteRequest.Time)
+
+	trace.WriteString("  Timing: ")
+	trace.WriteString(fmt.Sprintf("DNS=%v, Connect=%v", dnsTime, connTime))
+	if tlsTime > 0 {
+		trace.WriteString(fmt.Sprintf(", TLS=%v", tlsTime))
+	}
+	trace.WriteString(fmt.Sprintf(", TTFB=%v\n", responseTime))
+
+	LogDebug(trace.String())
 }

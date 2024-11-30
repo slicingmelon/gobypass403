@@ -80,6 +80,9 @@ func RunAllBypasses(targetURL string) chan *Result {
 }
 
 func runBypassForMode(mode string, targetURL string, results chan<- *Result) {
+	// First run the dumb check
+	runDumbCheck(targetURL, results)
+
 	switch mode {
 	case "mid_paths":
 		runMidPathsBypass(targetURL, results)
@@ -97,7 +100,37 @@ func runBypassForMode(mode string, targetURL string, results chan<- *Result) {
 		runHeaderURLBypass(targetURL, results)
 	case "http_headers_port":
 		runHeaderPortBypass(targetURL, results)
+	case "http_host":
+		runHostHeaderBypass(targetURL, results)
 	}
+}
+
+func runDumbCheck(targetURL string, results chan<- *Result) {
+	jobs := make(chan PayloadJob, jobBufferSize)
+	allJobs := generateDumbJob(targetURL)
+
+	// Create WorkerContext
+	ctx := NewWorkerContext("dumb_check", len(allJobs))
+
+	// Start workers
+	for i := 0; i < config.Threads; i++ {
+		ctx.wg.Add(1)
+		go worker(ctx, jobs, results)
+	}
+
+	for _, job := range allJobs {
+		select {
+		case <-ctx.cancel:
+			close(jobs)
+			ctx.wg.Wait()
+			return
+		case jobs <- job:
+		}
+	}
+
+	close(jobs)
+	ctx.wg.Wait()
+	fmt.Println()
 }
 
 func runMidPathsBypass(targetURL string, results chan<- *Result) {
@@ -332,6 +365,34 @@ func runHeaderPortBypass(targetURL string, results chan<- *Result) {
 	fmt.Println()
 }
 
+func runHostHeaderBypass(targetURL string, results chan<- *Result) {
+	jobs := make(chan PayloadJob, jobBufferSize)
+	allJobs := generateHostHeaderJobs(targetURL)
+
+	// Create WorkerContext
+	ctx := NewWorkerContext("http_host", len(allJobs))
+
+	// Start workers
+	for i := 0; i < config.Threads; i++ {
+		ctx.wg.Add(1)
+		go worker(ctx, jobs, results)
+	}
+
+	for _, job := range allJobs {
+		select {
+		case <-ctx.cancel:
+			close(jobs)
+			ctx.wg.Wait()
+			return
+		case jobs <- job:
+		}
+	}
+
+	close(jobs)
+	ctx.wg.Wait()
+	fmt.Println()
+}
+
 func worker(ctx *WorkerContext, jobs <-chan PayloadJob, results chan<- *Result) {
 	defer ctx.wg.Done()
 
@@ -343,6 +404,13 @@ func worker(ctx *WorkerContext, jobs <-chan PayloadJob, results chan<- *Result) 
 		}
 	}()
 
+	client, err := New(&config, ctx.mode)
+	if err != nil {
+		LogError("Failed to create client for mode %s: %v", ctx.mode, err)
+		return
+	}
+	defer client.Close()
+
 	workerLimiter := time.NewTicker(time.Duration(config.Delay) * time.Millisecond)
 	defer workerLimiter.Stop()
 
@@ -351,7 +419,7 @@ func worker(ctx *WorkerContext, jobs <-chan PayloadJob, results chan<- *Result) 
 		case <-ctx.cancel:
 			return
 		case <-workerLimiter.C:
-			details, err := sendRequest(job.method, job.url, job.headers, job.bypassMode)
+			details, err := client.sendRequest(job.method, job.url, job.headers)
 			ctx.progress.increment()
 
 			if err != nil {

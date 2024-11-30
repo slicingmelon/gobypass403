@@ -9,7 +9,6 @@ import (
 	"html"
 	"log"
 	"net"
-	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -20,7 +19,10 @@ import (
 	"math/rand"
 
 	"github.com/projectdiscovery/goflags"
+	"github.com/projectdiscovery/gologger"
+	"github.com/projectdiscovery/gologger/levels"
 	"github.com/projectdiscovery/httpx/runner"
+	"github.com/slicingmelon/go-rawurlparser"
 )
 
 func init() {
@@ -456,39 +458,60 @@ func IsDNSName(str string) bool {
 	return !IsIP(host) && rxDNSName.MatchString(host)
 }
 
-func validateURL(rawURL string) error {
-	parsedURL, err := url.Parse(rawURL)
-	if err != nil {
-		return fmt.Errorf("invalid URL format: %v", err)
-	}
-	if parsedURL.Scheme == "" {
-		return fmt.Errorf("URL must include scheme (http:// or https://)")
-	}
-	return nil
+// HttpxResult represents detailed information about a probed URL
+type HttpxResult struct {
+	URL    string   // Full URL (including scheme, host, port, path .. if supplied)
+	Scheme string   // http or https
+	Host   string   // Hostname which includes port too if specified
+	Port   string   // Port number (returned by httpx)
+	IPv4   []string // List of IPv4 addresses
+	IPv6   []string // List of IPv6 addresses
+	CNAMEs []string // List of CNAMEs (if any)
 }
 
-// util func to validate input urls with httpx and extend the scope a bit (http/https)
-func ValidateURLsWithHttpx(urls []string) ([]string, error) {
-	// Create a channel to collect valid URLs
-	validURLs := make([]string, 0)
+// ValidateURLsWithHttpx probes URLs and returns detailed information
+func ValidateURLsWithHttpx(urls []string) ([]HttpxResult, error) {
+	results := make([]HttpxResult, 0)
+
+	// internal httpx logger
+	gologger.DefaultLogger.SetMaxLevel(levels.LevelSilent)
 
 	// Configure httpx options
 	options := runner.Options{
 		Methods:          "GET",
 		InputTargetHost:  goflags.StringSlice(urls),
-		NoFallback:       true, // -no-fallback
-		NoFallbackScheme: true, // -no-fallback-scheme
+		NoFallback:       true,
+		NoFallbackScheme: true,
+		Threads:          20,
+		ProbeAllIPS:      true,
+		OutputIP:         false,
 		OnResult: func(r runner.Result) {
 			if r.Err != nil {
 				LogVerbose("[Httpx] Error for %s: %s", r.Input, r.Err)
 				return
 			}
 
-			// Build the URL with scheme, host and port
-			url := r.URL
-			if url != "" {
-				validURLs = append(validURLs, url)
+			if r.URL == "" {
+				return
 			}
+
+			result := HttpxResult{
+				URL:    r.URL,
+				Scheme: r.Scheme, // Use httpx's scheme
+				Port:   r.Port,   // Use httpx's port
+				IPv4:   r.A,
+				IPv6:   r.AAAA,
+				CNAMEs: r.CNAMEs,
+			}
+
+			// Parse httpx probed URLs and update httpxresults with the host
+			if parsedURL, err := rawurlparser.RawURLParseWithError(r.URL); err == nil {
+				result.Host = parsedURL.Host
+			} else {
+				LogVerbose("[Httpx] Failed to parse URL %s: %v", r.URL, err)
+			}
+
+			results = append(results, result)
 		},
 	}
 
@@ -507,7 +530,7 @@ func ValidateURLsWithHttpx(urls []string) ([]string, error) {
 	// Run
 	httpxRunner.RunEnumeration()
 
-	return validURLs, nil
+	return results, nil
 }
 
 // ----------------------------------------------------------------//

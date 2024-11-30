@@ -15,6 +15,23 @@ type PayloadJob struct {
 	bypassMode string
 }
 
+func generateDumbJob(targetURL string) []PayloadJob {
+	_bypassMode := "dumb_check"
+	var allJobs []PayloadJob
+
+	LogVerbose("Starting DumbCheck payload generation for: %s", targetURL)
+
+	// Just one job with the original URL
+	allJobs = append(allJobs, PayloadJob{
+		method:     "GET",
+		url:        targetURL,
+		bypassMode: _bypassMode,
+	})
+
+	LogYellow("\n[%s] Generated 1 payload for %s\n", _bypassMode, targetURL)
+	return allJobs
+}
+
 func generateMidPathsJobs(targetURL string) []PayloadJob {
 	_bypassMode := "mid_paths"
 	var jobs []PayloadJob
@@ -512,6 +529,71 @@ func generateHeaderPortJobs(targetURL string) []PayloadJob {
 				bypassMode: _bypassMode,
 			})
 		}
+	}
+
+	LogYellow("\n[%s] Generated %d payloads for %s\n", _bypassMode, len(allJobs), targetURL)
+	return allJobs
+}
+
+func generateHostHeaderJobs(targetURL string) []PayloadJob {
+	_bypassMode := "http_host"
+	var allJobs []PayloadJob
+
+	LogVerbose("Starting HostHeader payload generation for: %s", targetURL)
+
+	parsedURL := rawurlparser.RawURLParse(targetURL)
+	if parsedURL == nil {
+		LogError("Failed to parse URL")
+		return allJobs
+	}
+
+	// Extract base URL components
+	baseURL := fmt.Sprintf("%s://%s", parsedURL.Scheme, parsedURL.Host)
+	pathAndQuery := parsedURL.Path
+	if parsedURL.Query != "" {
+		pathAndQuery += "?" + parsedURL.Query
+	}
+
+	// Get IP information from cache
+	if httpxResult, exists := globalHttpxResults.Get(baseURL); exists && len(httpxResult.IPv4) > 0 {
+		// Variation 1: URL with IP, Host header with original host
+		for _, ip := range httpxResult.IPv4 {
+			ipURL := fmt.Sprintf("%s://%s%s", parsedURL.Scheme, ip, pathAndQuery)
+			allJobs = append(allJobs, PayloadJob{
+				method: "GET",
+				url:    ipURL,
+				headers: []Header{{
+					Key:   "Host",
+					Value: parsedURL.Host,
+				}},
+				bypassMode: _bypassMode,
+			})
+		}
+
+		// Variation 2: Original URL, Host header with IP
+		for _, ip := range httpxResult.IPv4 {
+			allJobs = append(allJobs, PayloadJob{
+				method: "GET",
+				url:    targetURL,
+				headers: []Header{{
+					Key:   "Host",
+					Value: ip,
+				}},
+				bypassMode: _bypassMode,
+			})
+		}
+
+		// Variation 3: URL with IP, no Host header
+		for _, ip := range httpxResult.IPv4 {
+			ipURL := fmt.Sprintf("%s://%s%s", parsedURL.Scheme, ip, pathAndQuery)
+			allJobs = append(allJobs, PayloadJob{
+				method:     "GET",
+				url:        ipURL,
+				bypassMode: _bypassMode,
+			})
+		}
+	} else {
+		LogError("No IPv4 addresses found in cache for %s", targetURL)
 	}
 
 	LogYellow("\n[%s] Generated %d payloads for %s\n", _bypassMode, len(allJobs), targetURL)

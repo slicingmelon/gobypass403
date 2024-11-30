@@ -3,6 +3,7 @@ package main
 
 import (
 	"net/url"
+	"sync"
 	"time"
 )
 
@@ -12,7 +13,7 @@ var (
 )
 
 const (
-	VERSION = "0.2.5"
+	VERSION = "0.2.7"
 )
 
 type Config struct {
@@ -34,6 +35,7 @@ type Config struct {
 	SpoofHeader         string
 	Delay               int
 	FollowRedirects     bool
+	TraceRequests       bool
 }
 
 type Result struct {
@@ -89,7 +91,7 @@ var AvailableModes = map[string]ModesConfig{
 	},
 	"http_host": {
 		Name:        "http_host",
-		Enabled:     false,
+		Enabled:     true,
 		Description: "Test HTTP Host header bypasses",
 	},
 	"http_methods": {
@@ -144,7 +146,50 @@ var AvailableModes = map[string]ModesConfig{
 	},
 }
 
-// Other Constants
+// HttpxResultsCache is a cache for the probing phase, containing httpx results
+type HttpxResultsCache struct {
+	sync.RWMutex
+	results map[string]*HttpxResult // key is URL
+}
+
+var globalHttpxResults = &HttpxResultsCache{
+	results: make(map[string]*HttpxResult),
+}
+
+func (c *HttpxResultsCache) Store(url string, result *HttpxResult) {
+	c.Lock()
+	defer c.Unlock()
+	c.results[url] = result
+}
+
+func (c *HttpxResultsCache) Get(url string) (*HttpxResult, bool) {
+	c.RLock()
+	defer c.RUnlock()
+	result, exists := c.results[url]
+	return result, exists
+}
+
+func (c *HttpxResultsCache) Purge() {
+	c.Lock()
+	defer c.Unlock()
+	// Clear the map
+	c.results = make(map[string]*HttpxResult)
+}
+
+func (c *HttpxResultsCache) Delete(url string) {
+	c.Lock()
+	defer c.Unlock()
+	delete(c.results, url)
+}
+
+func (c *HttpxResultsCache) Close() {
+	c.Lock()
+	defer c.Unlock()
+	// Clear the map and set to nil to help GC
+	c.results = nil
+}
+
+// Other Constants //
 const (
 	defaultUserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
 	defaultTimeout   = 30 * time.Second

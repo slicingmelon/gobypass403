@@ -64,13 +64,14 @@ func main() {
 		{name: "u,url", usage: "Target URL (example: https://cms.facebook.com/login)", value: &config.URL},
 		{name: "l,urls-file", usage: "File containing list of target URLs (one per line)", value: &config.URLsFile},
 		{name: "shf,substitute-hosts-file", usage: "File containing a list of hosts to substitute target URL's hostname (mostly used in CDN bypasses by providing a list of CDNs)", value: &config.SubstituteHostsFile},
-		{name: "m,mode", usage: "Bypass mode (all, mid_paths, end_paths, case_substitution, char_encode, http_headers_scheme, http_headers_ip, http_headers_port, http_headers_url)", value: &config.Mode, defVal: "all"},
+		{name: "m,mode", usage: "Bypass mode (all, mid_paths, end_paths, case_substitution, char_encode, http_headers_scheme, http_headers_ip, http_headers_port, http_headers_url, http_host)", value: &config.Mode, defVal: "all"},
 		{name: "o,outdir", usage: "Output directory", value: &config.OutDir},
 		{name: "t,threads", usage: "Number of concurrent threads)", value: &config.Threads, defVal: 15},
 		{name: "T,timeout", usage: "Timeout in seconds", value: &config.Timeout, defVal: 15},
 		{name: "delay", usage: "Delay between requests in milliseconds (Default: 150ms)", value: &config.Delay, defVal: 150},
 		{name: "v,verbose", usage: "Verbose output", value: &config.Verbose, defVal: false},
 		{name: "d,debug", usage: "Debug mode with request canaries", value: &config.Debug, defVal: false},
+		{name: "trace", usage: "Trace HTTP requests", value: &config.TraceRequests, defVal: false},
 		{name: "mc,match-status-code", usage: "Only save results matching these HTTP status codes (example: -mc 200,301,500). Default: 200", value: &config.MatchStatusCodesStr},
 		{name: "http2", usage: "Force attempt requests on HTTP2", value: &config.ForceHTTP2, defVal: false},
 		{name: "x,proxy", usage: "Proxy URL (format: http://proxy:port)", value: &config.Proxy},
@@ -155,14 +156,61 @@ func main() {
 
 	// Validate bypass mode
 	if err := validateMode(config.Mode); err != nil {
-		//fmt.Println("Error:", err)
-		//flag.Usage()
 		os.Exit(1)
 	}
 
+	// Setup logging
+	if config.Verbose {
+		log.SetFlags(log.Ltime | log.Lmicroseconds)
+	} else {
+		log.SetFlags(0)
+	}
+
+	// Create output directory in tmp if not specified
+	if config.OutDir == "" {
+		config.OutDir = filepath.Join(os.TempDir(), fmt.Sprintf("go-bypass-403-%x", time.Now().UnixNano()))
+	}
+
+	// Initialize findings.json file
+	outputFile := filepath.Join(config.OutDir, "findings.json")
+	initialJSON := JSONData{
+		Scans: make([]ScanResult, 0),
+	}
+
+	if err := os.MkdirAll(config.OutDir, 0755); err != nil {
+		LogError("Failed to create output directory: %v\n", err)
+		os.Exit(1)
+	}
+
+	jsonData, err := json.MarshalIndent(initialJSON, "", "  ")
+	if err != nil {
+		LogError("Failed to create initial JSON structure: %v\n", err)
+		os.Exit(1)
+	}
+
+	// Write the initial JSON structure to file
+	if err := os.WriteFile(outputFile, jsonData, 0644); err != nil {
+		LogError("Failed to initialize findings.json: %v\n", err)
+		os.Exit(1)
+	}
+
+	// Proxy
+	if config.Proxy != "" {
+		parsedProxy, err := url.Parse(config.Proxy)
+		if err != nil {
+			LogError("Failed to parse proxy URL: %v", err)
+		} else {
+			config.ParsedProxy = parsedProxy
+		}
+	}
+
+	fmt.Print("\n")
+	fmt.Printf("\033[1;97;45mGo-Bypass-403 v%s\033[0m\n", VERSION)
+	fmt.Print("\n")
+
 	// Validate input URL(s)
 	if config.URL == "" && config.URLsFile == "" {
-		fmt.Println("Error: Either Target URL (-u) or URLs file (-l) is required")
+		LogError("Either Target URL (-u) or URLs file (-l) is required\n")
 		flag.Usage()
 		os.Exit(1)
 	}
@@ -186,14 +234,9 @@ func main() {
 	// First handle the direct URL if provided
 	if config.URL != "" {
 		// Basic validation first
-		if err := validateURL(config.URL); err != nil {
-			LogError("Invalid target URL: %v\n", err)
-			os.Exit(1)
-		}
-
-		parsedURL := rawurlparser.RawURLParse(config.URL)
-		if parsedURL == nil {
-			LogError("Failed to parse target URL\n")
+		parsedURL, err := rawurlparser.RawURLParseWithError(config.URL)
+		if err != nil {
+			LogError("Invalid URL: %s -- %v\n", config.URL, err)
 			os.Exit(1)
 		}
 
@@ -207,15 +250,23 @@ func main() {
 		}
 
 		// Validate base URL with httpx
-		validBaseURLs, err := ValidateURLsWithHttpx([]string{baseURL})
+		validResults, err := ValidateURLsWithHttpx([]string{baseURL})
 		if err != nil {
 			LogError("Failed to validate URL with httpx: %v\n", err)
 			os.Exit(1)
 		}
 
-		// Append original path and query to each valid base URL
-		for _, validBaseURL := range validBaseURLs {
-			urls = append(urls, validBaseURL+originalPathAndQuery) // Add directly to urls instead of tempURLs
+		// Append original path and query to each valid result
+		for _, result := range validResults {
+			globalHttpxResults.Store(result.URL, &result)
+			urls = append(urls, result.URL+originalPathAndQuery)
+
+			if config.Verbose {
+				LogVerbose("[Httpx] Found target: %s", result.URL)
+				LogVerbose("[Httpx] IPv4: %v", result.IPv4)
+				LogVerbose("[Httpx] IPv6: %v", result.IPv6)
+				LogVerbose("[Httpx] CNAMEs: %v", result.CNAMEs)
+			}
 		}
 	}
 
@@ -230,16 +281,10 @@ func main() {
 		fileURLs := strings.Split(strings.TrimSpace(string(content)), "\n")
 		for _, u := range fileURLs {
 			if u = strings.TrimSpace(u); u != "" {
-				// Basic validation first
-				if err := validateURL(u); err != nil {
+				// Parse and validate URL
+				parsedURL, err := rawurlparser.RawURLParseWithError(u)
+				if err != nil {
 					LogError("Invalid URL in file - %s: %v\n", u, err)
-					os.Exit(1)
-				}
-
-				// Parse URL to separate base URL and path+query
-				parsedURL := rawurlparser.RawURLParse(u)
-				if parsedURL == nil {
-					LogError("Failed to parse URL: %s\n", u)
 					continue
 				}
 
@@ -253,15 +298,23 @@ func main() {
 				}
 
 				// Validate base URL with httpx
-				validBaseURLs, err := ValidateURLsWithHttpx([]string{baseURL})
+				validResults, err := ValidateURLsWithHttpx([]string{baseURL})
 				if err != nil {
 					LogError("Failed to validate URL with httpx: %v\n", err)
 					continue
 				}
 
-				// Append original path and query to each valid base URL
-				for _, validBaseURL := range validBaseURLs {
-					urls = append(urls, validBaseURL+originalPathAndQuery)
+				// Append original path and query to each valid result
+				for _, result := range validResults {
+					globalHttpxResults.Store(result.URL, &result) // stored httpx results in cache
+					urls = append(urls, result.URL+originalPathAndQuery)
+
+					if config.Verbose {
+						LogVerbose("[Httpx] Found target: %s", result.URL)
+						LogVerbose("[Httpx] IPv4: %v", result.IPv4)
+						LogVerbose("[Httpx] IPv6: %v", result.IPv6)
+						LogVerbose("[Httpx] CNAMEs: %v", result.CNAMEs)
+					}
 				}
 			}
 		}
@@ -270,9 +323,13 @@ func main() {
 	// Handle substitute hosts file
 	if config.SubstituteHostsFile != "" {
 		// Parse original URL
-		originalURL := rawurlparser.RawURLParse(config.URL)
-		if originalURL == nil {
-			LogError("Failed to parse target URL\n")
+		originalURL, err := rawurlparser.RawURLParseWithError(config.URL)
+		if err != nil {
+			LogError("Invalid target URL: %v\n", err)
+			os.Exit(1)
+		}
+		if originalURL.Scheme == "" {
+			LogError("URL must include scheme (http:// or https://)\n")
 			os.Exit(1)
 		}
 
@@ -282,14 +339,7 @@ func main() {
 			originalPathAndQuery += "?" + originalURL.Query
 		}
 
-		baseURL := fmt.Sprintf("%s://%s", originalURL.Scheme, originalURL.Host)
-		_, err := ValidateURLsWithHttpx([]string{baseURL})
-		if err != nil {
-			LogError("Failed to validate original URL with httpx: %v\n", err)
-			os.Exit(1)
-		}
-
-		// Read hosts file
+		// Read SubstituteHostsFile hosts file
 		content, err := os.ReadFile(config.SubstituteHostsFile)
 		if err != nil {
 			LogError("Failed to read substitute hosts file: %v\n", err)
@@ -321,94 +371,25 @@ func main() {
 		}
 
 		// Validate hosts with httpx
-		validHosts, err := ValidateURLsWithHttpx(hostsToCheck)
+		validResults, err := ValidateURLsWithHttpx(hostsToCheck)
 		if err != nil {
 			LogError("Failed to validate hosts with httpx: %v\n", err)
 			os.Exit(1)
 		}
 
 		// Append original path and query to each valid host
-		for _, validHost := range validHosts {
-			urls = append(urls, validHost+originalPathAndQuery) // Add directly to urls instead of tempURLs
+		for _, result := range validResults {
+			globalHttpxResults.Store(result.URL, &result)
+			urls = append(urls, result.URL+originalPathAndQuery)
+
+			if config.Verbose {
+				LogVerbose("[Httpx] Found target: %s", result.URL)
+				LogVerbose("[Httpx] IPv4: %v", result.IPv4)
+				LogVerbose("[Httpx] IPv6: %v", result.IPv6)
+				LogVerbose("[Httpx] CNAMEs: %v", result.CNAMEs)
+			}
 		}
 	}
-
-	// Setup logging
-	if config.Verbose {
-		log.SetFlags(log.Ltime | log.Lmicroseconds)
-	} else {
-		log.SetFlags(0)
-	}
-
-	// Create output directory in tmp if not specified
-	if config.OutDir == "" {
-		config.OutDir = filepath.Join(os.TempDir(), fmt.Sprintf("go-bypass-403-%x", time.Now().UnixNano()))
-	}
-
-	if err := os.MkdirAll(config.OutDir, 0755); err != nil {
-		LogError("Failed to create output directory: %v\n", err)
-		os.Exit(1)
-	}
-
-	// Initialize findings.json file
-	outputFile := filepath.Join(config.OutDir, "findings.json")
-	initialJSON := JSONData{
-		Scans: make([]ScanResult, 0),
-	}
-
-	jsonData, err := json.MarshalIndent(initialJSON, "", "  ")
-	if err != nil {
-		LogError("Failed to create initial JSON structure: %v\n", err)
-		os.Exit(1)
-	}
-
-	// Write the initial JSON structure to file
-	if err := os.WriteFile(outputFile, jsonData, 0644); err != nil {
-		LogError("Failed to initialize findings.json: %v\n", err)
-		os.Exit(1)
-	}
-
-	// Proxy
-	if config.Proxy != "" {
-		parsedProxy, err := url.Parse(config.Proxy)
-		if err != nil {
-			LogError("Failed to parse proxy URL: %v", err)
-		} else {
-			config.ParsedProxy = parsedProxy
-		}
-	}
-
-	// Banner
-	fmt.Print("\n")
-	fmt.Printf("\r\033[1;97;45mGo-Bypass-403 v%s\033[0m\n", VERSION)
-	fmt.Print("\n")
-
-	// Print configuration with colors - no terminal manipulation, just simple printing
-	fmt.Printf("%sConfiguration:%s\n", colorPink, colorReset)
-	fmt.Printf("  %sURL:%s %s%s%s\n", colorCyan, colorReset, colorYellow, config.URL, colorReset)
-	fmt.Printf("  %sUsing Input File:%s %s%s%s\n", colorCyan, colorReset, colorYellow, config.URLsFile, colorReset)
-	fmt.Printf("  %sUsing Substitute Hosts File:%s %s%s%s\n", colorCyan, colorReset, colorYellow, config.SubstituteHostsFile, colorReset)
-	fmt.Printf("  %sMode:%s %s%s%s\n", colorCyan, colorReset, colorYellow, config.Mode, colorReset)
-	fmt.Printf("  %sOutput Directory:%s %s%s%s\n", colorCyan, colorReset, colorYellow, config.OutDir, colorReset)
-	fmt.Printf("  %sOutput Findings File:%s %s%s%s\n", colorCyan, colorReset, colorYellow, outputFile, colorReset)
-	fmt.Printf("  %sThreads:%s %s%d%s\n", colorCyan, colorReset, colorYellow, config.Threads, colorReset)
-	fmt.Printf("  %sTimeout:%s %s%d seconds%s\n", colorCyan, colorReset, colorYellow, config.Timeout, colorReset)
-	fmt.Printf("  %sRequest Delay:%s %s%dms%s\n", colorCyan, colorReset, colorYellow, config.Delay, colorReset)
-	fmt.Printf("  %sFiltering HTTP Status Codes:%s %s%v%s\n", colorCyan, colorReset, colorYellow, config.MatchStatusCodes, colorReset)
-	fmt.Printf("  %sVerbose mode:%s %s%v%s\n", colorCyan, colorReset, colorYellow, config.Verbose, colorReset)
-	fmt.Printf("  %sDebug mode:%s %s%v%s\n", colorCyan, colorReset, colorYellow, config.Debug, colorReset)
-	fmt.Printf("  %sForce HTTP/2:%s %s%v%s\n", colorCyan, colorReset, colorYellow, config.ForceHTTP2, colorReset)
-	fmt.Printf("  %sFollow Redirects:%s %s%v%s\n", colorCyan, colorReset, colorYellow, config.FollowRedirects, colorReset)
-	if config.SpoofHeader != "" {
-		fmt.Printf("  %sCustom IP Spoofing Headers:%s %s%s%s\n", colorCyan, colorReset, colorYellow, config.SpoofHeader, colorReset)
-	}
-	if config.SpoofIP != "" {
-		fmt.Printf("  %sCustom Spoofing IPs:%s %s%s%s\n", colorCyan, colorReset, colorYellow, config.SpoofIP, colorReset)
-	}
-	if config.Proxy != "" {
-		fmt.Printf("  %sUsing proxy:%s %s%s%s\n", colorCyan, colorReset, colorYellow, config.Proxy, colorReset)
-	}
-	fmt.Print("\n")
 
 	// Process URLs
 	if len(urls) == 0 {
@@ -429,6 +410,39 @@ func main() {
 		urls = uniqueURLs
 	}
 
+	// Print complete configuration block
+	fmt.Printf("%sConfiguration:%s\n", colorPink, colorReset)
+	fmt.Printf("  %sURL:%s %s%s%s\n", colorCyan, colorReset, colorYellow, config.URL, colorReset)
+	fmt.Printf("  %sUsing Input File:%s %s%s%s\n", colorCyan, colorReset, colorYellow, config.URLsFile, colorReset)
+	fmt.Printf("  %sUsing Substitute Hosts File:%s %s%s%s\n", colorCyan, colorReset, colorYellow, config.SubstituteHostsFile, colorReset)
+	fmt.Printf("  %sMode:%s %s%s%s\n", colorCyan, colorReset, colorYellow, config.Mode, colorReset)
+	fmt.Printf("  %sOutput Directory:%s %s%s%s\n", colorCyan, colorReset, colorYellow, config.OutDir, colorReset)
+	fmt.Printf("  %sOutput Findings File:%s %s%s%s\n", colorCyan, colorReset, colorYellow, outputFile, colorReset)
+	fmt.Printf("  %sThreads:%s %s%d%s\n", colorCyan, colorReset, colorYellow, config.Threads, colorReset)
+	fmt.Printf("  %sTimeout:%s %s%d seconds%s\n", colorCyan, colorReset, colorYellow, config.Timeout, colorReset)
+	fmt.Printf("  %sRequest Delay:%s %s%dms%s\n", colorCyan, colorReset, colorYellow, config.Delay, colorReset)
+	fmt.Printf("  %sFiltering HTTP Status Codes:%s %s%v%s\n", colorCyan, colorReset, colorYellow, config.MatchStatusCodes, colorReset)
+	fmt.Printf("  %sVerbose mode:%s %s%v%s\n", colorCyan, colorReset, colorYellow, config.Verbose, colorReset)
+	fmt.Printf("  %sDebug mode:%s %s%v%s\n", colorCyan, colorReset, colorYellow, config.Debug, colorReset)
+	fmt.Printf("  %sTrace Requests:%s %s%v%s\n", colorCyan, colorReset, colorYellow, config.TraceRequests, colorReset)
+	fmt.Printf("  %sForce HTTP/2:%s %s%v%s\n", colorCyan, colorReset, colorYellow, config.ForceHTTP2, colorReset)
+	fmt.Printf("  %sFollow Redirects:%s %s%v%s\n", colorCyan, colorReset, colorYellow, config.FollowRedirects, colorReset)
+	if config.SpoofHeader != "" {
+		fmt.Printf("  %sCustom IP Spoofing Headers:%s %s%s%s\n", colorCyan, colorReset, colorYellow, config.SpoofHeader, colorReset)
+	}
+	if config.SpoofIP != "" {
+		fmt.Printf("  %sCustom Spoofing IPs:%s %s%s%s\n", colorCyan, colorReset, colorYellow, config.SpoofIP, colorReset)
+	}
+	if config.Proxy != "" {
+		fmt.Printf("  %sUsing proxy:%s %s%s%s\n", colorCyan, colorReset, colorYellow, config.Proxy, colorReset)
+	}
+	fmt.Print("\n")
+	fmt.Println(strings.Repeat("=", 80))
+	fmt.Print("\n")
+
+	// close httpxresults cache
+	defer globalHttpxResults.Close()
+
 	// Process filtered URLs and start scanning
 	LogYellow("[+] Total URLs to be scanned: %d\n", len(urls))
 
@@ -436,13 +450,6 @@ func main() {
 	for _, url := range urls {
 		config.URL = url
 		LogVerbose("Processing URL: %s", url)
-
-		// Initialize new client for each URL
-		bypassClient, err := initRawHTTPClient()
-		if err != nil {
-			LogError("Failed to initialize client for %s: %v\n", url, err)
-			continue
-		}
 
 		results := RunAllBypasses(url)
 		var findings []*Result
@@ -452,8 +459,7 @@ func main() {
 			findings = append(findings, result)
 		}
 
-		// Clean up client after URL is processed
-		bypassClient.Close()
+		globalHttpxResults.Delete(url)
 
 		// Print table header and findings
 		if len(findings) > 0 {
@@ -471,7 +477,7 @@ func main() {
 				LogGreen("[+] Results appended to %s\n", outputFile)
 			}
 		} else {
-			LogOrange("[!] Sorry, no bypasses found for %s\n", url)
+			LogOrange("\n[!] Sorry, no bypasses found for %s\n", url)
 		}
 	}
 }
