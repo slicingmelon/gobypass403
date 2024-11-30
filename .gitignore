@@ -1,20 +1,17 @@
-# # Ignore everything
-# *
+# Ignore everything
+*
 
-# # Except Go files and modules
-# !*.go
-# !go.mod
-# !go.sum
+# Except Go files and modules
+!*.go
+!go.mod
+!go.sum
 
-# # Include payloads and images directories
-# !payloads/
-# !payloads/**
-# !images/
-# !images/**
+# Include payloads and images directories
+!payloads/
+!payloads/**
+!images/
+!images/**
 
-# # Include key files and metadata
-# !.gitignore
-# !README.md
-random_hosts.txt
-*.mp4
-*.exe
+# Include key files and metadata
+!.gitignore
+!README.md

@@ -29,9 +29,7 @@ class CustomHandler(SimpleHTTPRequestHandler):
         for header, value in self.headers.items():
             print(f"  {header}: {value}")
 
-        # Check if path starts with /video/
         if parsed_path.path.startswith('/video/'):
-            # Get filename and check if exists first
             _, _, filename = parsed_path.path.partition('/video/')
             file_path = os.path.join(os.getcwd(), self.VIDEOS_DIR, filename)
             
@@ -40,7 +38,6 @@ class CustomHandler(SimpleHTTPRequestHandler):
                 self.send_error(404, "File not found")
                 return
 
-            # File exists, now check the secret header
             x_ip_addr = self.headers.get('X-IP-Addr')
             if not x_ip_addr or x_ip_addr.strip() != '127.0.0.1':
                 print(f"[Response] 403 Forbidden - Invalid or missing X-IP-Addr: {x_ip_addr}")
