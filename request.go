@@ -152,24 +152,6 @@ func (b *GO403BYPASS) NewRawRequestFromURLWithContext(ctx context.Context, metho
 		return nil, err
 	}
 
-	if b.config.Debug {
-		LogTeal("[NewRawRequestFromURLWithContext] [%s] URL Components:\n"+
-			"Original: %s\n"+
-			"Scheme: %s\n"+
-			"Host: %s\n"+
-			"Path: %s\n"+
-			"RawPath: %s\n"+
-			"Query: %s\n"+
-			"RawQuery: %s",
-			b.bypassMode,
-			urlx.Original,
-			urlx.Scheme,
-			urlx.Host,
-			urlx.Path,
-			urlx.RawPath,
-			urlx.RawQuery,
-			urlx.Params.Encode())
-	}
 	// Create request using retryablehttp
 	req, err := retryablehttp.NewRequestFromURLWithContext(ctx, method, urlx, nil)
 	if err != nil {
@@ -186,25 +168,51 @@ func (b *GO403BYPASS) NewRawRequestFromURL(method, targetURL string) (*retryable
 
 // sendRequest sends an HTTP request using retryablehttp
 func (b *GO403BYPASS) sendRequest(method, rawURL string, headers []Header) (*ResponseDetails, error) {
+	// First parse with rawurlparser to preserve exact format
 	parsedURL, err := rawurlparser.RawURLParseWithError(rawURL)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse URL %s: %v", rawURL, err)
 	}
 
-	LogVerbose("[sendRequest] [%s] RawURLParsed URL==> scheme:%s, host:%s, path:%s, query:%s\n",
-		b.bypassMode, parsedURL.Scheme, parsedURL.Host, parsedURL.Path, parsedURL.Query)
-
 	rawURLString := fmt.Sprintf("%s://%s%s%s", parsedURL.Scheme, parsedURL.Host, parsedURL.Path, parsedURL.Query)
-
-	if b.config.Debug {
-		// Log the exact URL before and after retryablehttp processing
-		LogDebug("[sendRequest] [%s] Original URL: %s", b.bypassMode, rawURLString)
-	}
+	canary := generateRandomString(18)
 
 	// Create request
-	req, err := b.NewRawRequestFromURL(method, rawURLString)
+	req, err := b.NewRawRequestFromURL(method, rawURL)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %v", err)
+	}
+
+	// Log both parsed URLs in a single block
+	if b.config.Debug {
+		urlutilString := fmt.Sprintf("%s://%s%s%s", req.URL.Scheme, req.URL.Host, req.URL.Path, req.URL.RawQuery)
+
+		LogGreen("\n[URL Parsing Comparison] [%s] [Canary: %s]\n"+
+			"--------------- RawURLParser ---------------\n"+
+			"Full URL: %s\n"+
+			"Host: %s\n"+
+			"Path: %s\n"+
+			"Query: %s\n"+
+			"Opaque: %s\n",
+			b.bypassMode,
+			canary,
+			rawURLString,
+			parsedURL.Host,
+			parsedURL.Path,
+			parsedURL.Query,
+			parsedURL.Opaque)
+		LogPink("--------------- URLUtil Parser -------------\n"+
+			"Full URL: %s\n"+
+			"Host: %s\n"+
+			"Path: %s\n"+
+			"Query: %s\n"+
+			"Opaque: %s\n"+
+			"========================================\n",
+			urlutilString,
+			req.URL.Host,
+			req.URL.Path,
+			req.URL.RawQuery,
+			req.URL.Opaque)
 	}
 
 	if !containsHeader(headers, "User-Agent") {
@@ -213,14 +221,13 @@ func (b *GO403BYPASS) sendRequest(method, rawURL string, headers []Header) (*Res
 
 	// Debug canary
 	if b.config.Debug {
-		canary := generateRandomString(18)
+		//canary := generateRandomString(18)
 		req.Header.Set("X-Go-Bypass-403", canary)
-		LogDebug("[sendRequest] [%s] [Canary: %s] Sending request: %s [Headers: %s]\n",
-			b.bypassMode,
-			canary,
-			rawURLString,
-			formatHeaders(headers),
-		)
+		// LogDebug("[sendRequest] [%s] [Canary: %s] Sending request: %s [Headers: %s]\n",
+		// 	b.bypassMode,
+		// 	canary,
+		// 	rawURLString,
+		// 	formatHeaders(headers))
 	}
 
 	// Add the rest of HTTP headers
