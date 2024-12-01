@@ -49,6 +49,62 @@ type GO403BYPASS struct {
 	dialer       *fastdialer.Dialer
 	config       *Config
 	bypassMode   string // Track current bypass mode
+
+}
+
+type URLParsingLog struct {
+	BypassMode   string `json:"bypass_mode"`
+	Canary       string `json:"canary"`
+	RawUrlParser struct {
+		FullURL string `json:"full_url"`
+		Host    string `json:"host"`
+		Path    string `json:"path"`
+		Query   string `json:"query"`
+		Opaque  string `json:"opaque"`
+	} `json:"raw_parser"`
+	UtilParser struct {
+		FullURL string `json:"full_url"`
+		Host    string `json:"host"`
+		Path    string `json:"path"`
+		Query   string `json:"query"`
+		Opaque  string `json:"opaque"`
+	} `json:"util_parser"`
+}
+
+func (b *GO403BYPASS) SaveParsingLog(canary string, parsedURL *rawurlparser.URL, req *retryablehttp.Request) *URLParsingLog {
+	rawURLString := fmt.Sprintf("%s://%s%s%s", parsedURL.Scheme, parsedURL.Host, parsedURL.Path, parsedURL.Query)
+	urlutilString := fmt.Sprintf("%s://%s%s%s", req.URL.Scheme, req.URL.Host, req.URL.Path, req.URL.RawQuery)
+
+	return &URLParsingLog{
+		BypassMode: b.bypassMode,
+		Canary:     canary,
+		RawUrlParser: struct {
+			FullURL string `json:"full_url"`
+			Host    string `json:"host"`
+			Path    string `json:"path"`
+			Query   string `json:"query"`
+			Opaque  string `json:"opaque"`
+		}{
+			FullURL: rawURLString,
+			Host:    parsedURL.Host,
+			Path:    parsedURL.Path,
+			Query:   parsedURL.Query,
+			Opaque:  parsedURL.Opaque,
+		},
+		UtilParser: struct {
+			FullURL string `json:"full_url"`
+			Host    string `json:"host"`
+			Path    string `json:"path"`
+			Query   string `json:"query"`
+			Opaque  string `json:"opaque"`
+		}{
+			FullURL: urlutilString,
+			Host:    req.URL.Host,
+			Path:    req.URL.Path,
+			Query:   req.URL.RawQuery,
+			Opaque:  req.URL.Opaque,
+		},
+	}
 }
 
 // New creates a new GO403BYPASS instance
@@ -168,6 +224,10 @@ func (b *GO403BYPASS) NewRawRequestFromURL(method, targetURL string) (*retryable
 
 // sendRequest sends an HTTP request using retryablehttp
 func (b *GO403BYPASS) sendRequest(method, rawURL string, headers []Header) (*ResponseDetails, error) {
+
+	// declare parsinglog var
+	var parsingLog *URLParsingLog
+
 	// First parse with rawurlparser to preserve exact format
 	parsedURL, err := rawurlparser.RawURLParseWithError(rawURL)
 	if err != nil {
@@ -213,6 +273,7 @@ func (b *GO403BYPASS) sendRequest(method, rawURL string, headers []Header) (*Res
 			req.URL.Path,
 			req.URL.RawQuery,
 			req.URL.Opaque)
+
 	}
 
 	if !containsHeader(headers, "User-Agent") {
@@ -235,6 +296,10 @@ func (b *GO403BYPASS) sendRequest(method, rawURL string, headers []Header) (*Res
 		req.Header.Set(h.Key, h.Value)
 	}
 
+	if b.config.Debug {
+		parsingLog := b.SaveParsingLog(canary, parsedURL, req)
+		parsingLog <- parsingLog // Send to channel
+	}
 	// Send request
 	resp, err := b.retryClient.Do(req)
 	if err != nil {

@@ -2,7 +2,9 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -12,11 +14,12 @@ import (
 )
 
 type WorkerContext struct {
-	mode     string
-	progress *ProgressCounter
-	cancel   chan struct{}
-	wg       *sync.WaitGroup
-	once     sync.Once
+	mode        string
+	progress    *ProgressCounter
+	cancel      chan struct{}
+	wg          *sync.WaitGroup
+	once        sync.Once
+	parsingLogs chan *URLParsingLog
 }
 
 func NewWorkerContext(mode string, total int) *WorkerContext {
@@ -26,9 +29,10 @@ func NewWorkerContext(mode string, total int) *WorkerContext {
 			total: total,
 			mode:  mode,
 		},
-		cancel: make(chan struct{}),
-		wg:     &sync.WaitGroup{},
-		once:   sync.Once{},
+		parsingLogs: make(chan *URLParsingLog, 1000),
+		cancel:      make(chan struct{}),
+		wg:          &sync.WaitGroup{},
+		once:        sync.Once{},
 	}
 }
 
@@ -396,11 +400,40 @@ func runHostHeaderBypass(targetURL string, results chan<- *Result) {
 func worker(ctx *WorkerContext, jobs <-chan PayloadJob, results chan<- *Result) {
 	defer ctx.wg.Done()
 
+	var logs []*URLParsingLog
+
 	// Add panic recovery
 	defer func() {
 		if r := recover(); r != nil {
 			LogError("[%s] Worker panic recovered: %v", ctx.mode, r)
 			ctx.Stop()
+		}
+
+		// Write collected logs when worker exits
+		if len(logs) > 0 {
+			logsDir := "requestslog"
+			if err := os.MkdirAll(logsDir, 0755); err != nil {
+				LogError("Failed to create requestslog directory: %v", err)
+				return
+			}
+
+			filename := fmt.Sprintf("%s/parsing_logs_%s_%s.jsonl",
+				logsDir,
+				ctx.mode,
+				time.Now().Format("20060102"))
+
+			f, err := os.OpenFile(filename, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+			if err != nil {
+				LogError("Failed to open log file: %v", err)
+				return
+			}
+			defer f.Close()
+
+			for _, log := range logs {
+				if logData, err := json.Marshal(log); err == nil {
+					f.Write(append(logData, '\n'))
+				}
+			}
 		}
 	}()
 
@@ -418,6 +451,10 @@ func worker(ctx *WorkerContext, jobs <-chan PayloadJob, results chan<- *Result) 
 		select {
 		case <-ctx.cancel:
 			return
+		case log := <-ctx.parsingLogs:
+			// Collect logs from channel
+			logs = append(logs, log)
+			continue // Continue to next iteration to check for more logs
 		case <-workerLimiter.C:
 			details, err := client.sendRequest(job.method, job.url, job.headers)
 			ctx.progress.increment()
