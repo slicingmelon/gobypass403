@@ -49,7 +49,7 @@ type GO403BYPASS struct {
 	dialer       *fastdialer.Dialer
 	config       *Config
 	bypassMode   string // Track current bypass mode
-
+	parsingLogs  chan<- *URLParsingLog
 }
 
 type URLParsingLog struct {
@@ -108,10 +108,11 @@ func (b *GO403BYPASS) SaveParsingLog(canary string, parsedURL *rawurlparser.URL,
 }
 
 // New creates a new GO403BYPASS instance
-func New(cfg *Config, bypassMode string) (*GO403BYPASS, error) {
+func New(cfg *Config, bypassMode string, parsingLogs chan<- *URLParsingLog) (*GO403BYPASS, error) {
 	client := &GO403BYPASS{
-		config:     cfg,
-		bypassMode: bypassMode,
+		config:      cfg,
+		bypassMode:  bypassMode,
+		parsingLogs: parsingLogs,
 	}
 
 	// Initialize error handler
@@ -226,7 +227,7 @@ func (b *GO403BYPASS) NewRawRequestFromURL(method, targetURL string) (*retryable
 func (b *GO403BYPASS) sendRequest(method, rawURL string, headers []Header) (*ResponseDetails, error) {
 
 	// declare parsinglog var
-	var parsingLog *URLParsingLog
+	//var parsingLog *URLParsingLog
 
 	// First parse with rawurlparser to preserve exact format
 	parsedURL, err := rawurlparser.RawURLParseWithError(rawURL)
@@ -298,8 +299,9 @@ func (b *GO403BYPASS) sendRequest(method, rawURL string, headers []Header) (*Res
 
 	if b.config.Debug {
 		parsingLog := b.SaveParsingLog(canary, parsedURL, req)
-		parsingLog <- parsingLog // Send to channel
+		b.parsingLogs <- parsingLog // Send to the channel
 	}
+
 	// Send request
 	resp, err := b.retryClient.Do(req)
 	if err != nil {

@@ -437,7 +437,8 @@ func worker(ctx *WorkerContext, jobs <-chan PayloadJob, results chan<- *Result) 
 		}
 	}()
 
-	client, err := New(&config, ctx.mode)
+	// Pass the parsing logs channel to the client
+	client, err := New(&config, ctx.mode, ctx.parsingLogs)
 	if err != nil {
 		LogError("Failed to create client for mode %s: %v", ctx.mode, err)
 		return
