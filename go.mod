@@ -10,8 +10,8 @@ require (
 	github.com/projectdiscovery/httpx v1.6.9
 	github.com/projectdiscovery/rawhttp v0.1.76
 	github.com/projectdiscovery/retryablehttp-go v1.0.89
-	github.com/projectdiscovery/utils v0.3.0
-	github.com/slicingmelon/go-rawurlparser v0.2.1
+	github.com/projectdiscovery/utils v0.4.0
+	github.com/slicingmelon/go-rawurlparser v0.2.3
 )
 
 require (

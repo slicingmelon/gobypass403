@@ -35,8 +35,8 @@ func generateDumbJob(targetURL string) []PayloadJob {
 func generateMidPathsJobs(targetURL string) []PayloadJob {
 	_bypassMode := "mid_paths"
 	var jobs []PayloadJob
-	parsedURL := rawurlparser.RawURLParse(targetURL)
-	if parsedURL == nil {
+	parsedURL, err := rawurlparser.RawURLParse(targetURL)
+	if err != nil {
 		LogError("Failed to parse URL")
 		return jobs // Return empty slice instead of nil
 	}
@@ -106,8 +106,8 @@ func generateEndPathsJobs(targetURL string) []PayloadJob {
 
 	LogVerbose("Starting EndPaths payload generation for: %s", targetURL)
 
-	parsedURL := rawurlparser.RawURLParse(targetURL)
-	if parsedURL == nil {
+	parsedURL, err := rawurlparser.RawURLParse(targetURL)
+	if err != nil {
 		LogError("Failed to parse URL")
 		return jobs
 	}
@@ -260,8 +260,8 @@ func generateCaseSubstitutionJobs(targetURL string) []PayloadJob {
 
 	LogVerbose("Starting CaseSubstitution payload generation for: %s", targetURL)
 
-	parsedURL := rawurlparser.RawURLParse(targetURL)
-	if parsedURL == nil {
+	parsedURL, err := rawurlparser.RawURLParse(targetURL)
+	if err != nil {
 		LogError("Failed to parse URL")
 		return allJobs
 	}
@@ -298,8 +298,8 @@ func generateCharEncodeJobs(targetURL string) []PayloadJob {
 
 	LogVerbose("Starting CharEncode payload generation for: %s", targetURL)
 
-	parsedURL := rawurlparser.RawURLParse(targetURL)
-	if parsedURL == nil {
+	parsedURL, err := rawurlparser.RawURLParse(targetURL)
+	if err != nil {
 		LogError("Failed to parse URL")
 		return allJobs
 	}
@@ -411,8 +411,8 @@ func generateHeaderURLJobs(targetURL string) []PayloadJob {
 
 	LogVerbose("Starting HeadersURL payload generation for: %s", targetURL)
 
-	parsedURL := rawurlparser.RawURLParse(targetURL)
-	if parsedURL == nil {
+	parsedURL, err := rawurlparser.RawURLParse(targetURL)
+	if err != nil {
 		LogError("Failed to parse URL")
 		return allJobs
 	}
@@ -541,8 +541,8 @@ func generateHostHeaderJobs(targetURL string) []PayloadJob {
 
 	LogVerbose("Starting HostHeader payload generation for: %s", targetURL)
 
-	parsedURL := rawurlparser.RawURLParse(targetURL)
-	if parsedURL == nil {
+	parsedURL, err := rawurlparser.RawURLParse(targetURL)
+	if err != nil {
 		LogError("Failed to parse URL")
 		return allJobs
 	}

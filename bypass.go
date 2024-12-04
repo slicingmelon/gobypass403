@@ -48,7 +48,7 @@ func RunAllBypasses(targetURL string) chan *Result {
 	results := make(chan *Result)
 
 	// Validate URL, should remove this, it's validated already
-	if parsedURL := rawurlparser.RawURLParse(targetURL); parsedURL == nil {
+	if _, err := rawurlparser.RawURLParse(targetURL); err != nil {
 		LogError("Failed to parse URL: %s", targetURL)
 		close(results)
 		return results
@@ -461,7 +461,7 @@ func worker(ctx *WorkerContext, jobs <-chan PayloadJob, results chan<- *Result) 
 			ctx.progress.increment()
 
 			if err != nil {
-				_, parseErr := rawurlparser.RawURLParseWithError(job.url)
+				_, parseErr := rawurlparser.RawURLParse(job.url)
 				if parseErr != nil {
 					LogError("[%s] Failed to parse URL: %s", job.bypassMode, job.url)
 					continue

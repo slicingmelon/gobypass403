@@ -505,7 +505,7 @@ func ValidateURLsWithHttpx(urls []string) ([]HttpxResult, error) {
 			}
 
 			// Parse httpx probed URLs and update httpxresults with the host
-			if parsedURL, err := rawurlparser.RawURLParseWithError(r.URL); err == nil {
+			if parsedURL, err := rawurlparser.RawURLParse(r.URL); err == nil {
 				result.Host = parsedURL.Host
 			} else {
 				LogVerbose("[Httpx] Failed to parse URL %s: %v", r.URL, err)

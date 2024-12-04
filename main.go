@@ -234,7 +234,7 @@ func main() {
 	// First handle the direct URL if provided
 	if config.URL != "" {
 		// Basic validation first
-		parsedURL, err := rawurlparser.RawURLParseWithError(config.URL)
+		parsedURL, err := rawurlparser.RawURLParse(config.URL)
 		if err != nil {
 			LogError("Invalid URL: %s -- %v\n", config.URL, err)
 			os.Exit(1)
@@ -282,7 +282,7 @@ func main() {
 		for _, u := range fileURLs {
 			if u = strings.TrimSpace(u); u != "" {
 				// Parse and validate URL
-				parsedURL, err := rawurlparser.RawURLParseWithError(u)
+				parsedURL, err := rawurlparser.RawURLParse(u)
 				if err != nil {
 					LogError("Invalid URL in file - %s: %v\n", u, err)
 					continue
@@ -323,7 +323,7 @@ func main() {
 	// Handle substitute hosts file
 	if config.SubstituteHostsFile != "" {
 		// Parse original URL
-		originalURL, err := rawurlparser.RawURLParseWithError(config.URL)
+		originalURL, err := rawurlparser.RawURLParse(config.URL)
 		if err != nil {
 			LogError("Invalid target URL: %v\n", err)
 			os.Exit(1)
@@ -356,7 +356,7 @@ func main() {
 
 			// If it's already a URL (has scheme), extract the host
 			if strings.Contains(host, "://") {
-				if parsed := rawurlparser.RawURLParse(host); parsed != nil {
+				if parsed, err := rawurlparser.RawURLParse(host); err == nil {
 					host = parsed.Host
 				}
 			}

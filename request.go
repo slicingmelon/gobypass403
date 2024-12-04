@@ -71,7 +71,7 @@ type URLParsingLog struct {
 	} `json:"util_parser"`
 }
 
-func (b *GO403BYPASS) SaveParsingLog(canary string, parsedURL *rawurlparser.URL, req *retryablehttp.Request) *URLParsingLog {
+func (b *GO403BYPASS) SaveParsingLog(canary string, parsedURL *rawurlparser.RawURL, req *retryablehttp.Request) *URLParsingLog {
 	rawURLString := fmt.Sprintf("%s://%s%s%s", parsedURL.Scheme, parsedURL.Host, parsedURL.Path, parsedURL.Query)
 	urlutilString := fmt.Sprintf("%s://%s%s%s", req.URL.Scheme, req.URL.Host, req.URL.Path, req.URL.RawQuery)
 
@@ -230,7 +230,7 @@ func (b *GO403BYPASS) sendRequest(method, rawURL string, headers []Header) (*Res
 	//var parsingLog *URLParsingLog
 
 	// First parse with rawurlparser to preserve exact format
-	parsedURL, err := rawurlparser.RawURLParseWithError(rawURL)
+	parsedURL, err := rawurlparser.RawURLParse(rawURL)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse URL %s: %v", rawURL, err)
 	}
