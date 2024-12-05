@@ -16,6 +16,17 @@ import (
 // Initialize global cache
 var globalProbeURLResults = NewProbeURLResultsCache()
 
+type ProbeService struct {
+	cache *ProbeResultsCache
+}
+
+// Constructor for the probe service
+func NewProbeService() *ProbeService {
+	return &ProbeService{
+		cache: NewProbeURLResultsCache(),
+	}
+}
+
 // ProbeResult -- detailed information about a probed URL
 type ProbeResult struct {
 	Hostname string            // Clean hostname without port
@@ -109,7 +120,8 @@ func (c *ProbeResultsCache) Purge() {
 	c.hostResults.Purge()
 }
 
-func FastProbeURLs(urls []string) error {
+// Make it a method of ProbeService
+func (s *ProbeService) FastProbeURLs(urls []string) error {
 	if len(urls) == 0 {
 		return fmt.Errorf("no URLs provided for validation")
 	}
@@ -206,7 +218,7 @@ func FastProbeURLs(urls []string) error {
 				}
 			}
 
-			if err := globalProbeURLResults.UpdateHost(*result); err != nil {
+			if err := s.cache.UpdateHost(*result); err != nil {
 				LogError("[ERROR] Failed to update cache for %s: %v", hostname, err)
 			}
 		}

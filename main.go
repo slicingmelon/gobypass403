@@ -92,7 +92,7 @@ func readAndValidateHosts(hostsFile string) ([]string, error) {
 }
 
 // ProcessInputURLs handles all URL input methods and returns validated URLs
-func ProcessInputURLs() ([]string, error) {
+func ProcessInputURLs(probeService *ProbeService) ([]string, error) {
 	if config.URL == "" && config.URLsFile == "" {
 		return nil, fmt.Errorf("either Target URL (-u) or URLs file (-l) is required")
 	}
@@ -147,15 +147,15 @@ func ProcessInputURLs() ([]string, error) {
 		}
 	}
 
-	// Probe hosts with httpx
-	if err := FastProbeURLs(hostsToProbe); err != nil {
-		return nil, fmt.Errorf("httpx probing failed: %v", err)
+	// Probe hosts using the probe service
+	if err := probeService.FastProbeURLs(hostsToProbe); err != nil {
+		return nil, fmt.Errorf("URL probing failed: %v", err)
 	}
 
-	// Construct final URLs from cache results
+	// Construct final URLs from probe service cache results
 	var finalURLs []string
 	for host, path := range originalPaths {
-		if result, exists := globalProbeURLResults.Get(host); exists {
+		if result, exists := probeService.cache.Get(host); exists {
 			// Iterate through port-scheme mappings
 			for port, scheme := range result.Ports {
 				baseURL := constructBaseURL(scheme, result.Hostname, port)
@@ -165,7 +165,7 @@ func ProcessInputURLs() ([]string, error) {
 				finalURLs = append(finalURLs, finalURL)
 			}
 		} else {
-			LogDebug("[DEBUG] No httpx results found for host: %s", host)
+			LogDebug("[DEBUG] No probe results found for host: %s", host)
 		}
 	}
 
@@ -431,7 +431,11 @@ func main() {
 
 	// Validate input URL(s)
 	// Process probed URLs and start scanning
-	urls, err := ProcessInputURLs()
+
+	// Initialize the probe service
+	probeService := NewProbeService()
+
+	urls, err := ProcessInputURLs(probeService)
 	if err != nil {
 		LogError("Failed to process input URLs: %v\n", err)
 		os.Exit(1)
@@ -471,8 +475,8 @@ func main() {
 	}
 
 	// Clean up global cache
-	if globalProbeURLResults != nil {
-		globalProbeURLResults.Purge()
+	if probeService.cache != nil {
+		probeService.cache.Purge()
 	}
 
 }
