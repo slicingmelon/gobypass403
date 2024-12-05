@@ -158,10 +158,10 @@ func ProcessInputURLs() ([]string, error) {
 		if result, exists := globalHttpxResults.Get(host); exists {
 			// Iterate through port-scheme mappings
 			for port, scheme := range result.Ports {
-				baseURL := constructBaseURL(scheme, result.Host, port)
+				baseURL := constructBaseURL(scheme, result.Hostname, port)
 				finalURL := baseURL + path
 				LogDebug("[DEBUG] Constructed URL: %s (scheme=%s, host=%s, port=%s, path=%s)",
-					finalURL, scheme, result.Host, port, path)
+					finalURL, scheme, result.Hostname, port, path)
 				finalURLs = append(finalURLs, finalURL)
 			}
 		} else {
