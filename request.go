@@ -2,6 +2,8 @@
 package main
 
 import (
+	"bufio"
+	"bytes"
 	"context"
 	"crypto/tls"
 	"fmt"
@@ -39,121 +41,116 @@ type ResponseDetails struct {
 }
 
 type GO403BYPASS struct {
-	retryClient  *retryablehttp.Client
-	errorHandler *ErrorHandler
-	dialer       *fastdialer.Dialer
-	config       *Config
-	bypassMode   string
+	retryClient      *retryablehttp.Client
+	errorHandler     *ErrorHandler
+	dialer           *fastdialer.Dialer
+	config           *Config
+	bypassMode       string
+	ComparisonLogger []URLParsingLog
 }
 
 var gLogFile *os.File
 
 type URLParsingLog struct {
-	BypassMode     string `json:"bypass_mode"`
-	Canary         string `json:"canary"`
-	RawRequestLine string `json:"raw_request_line"`
-	RawUrlParser   struct {
-		FullURL string `json:"full_url"`
-		Host    string `json:"host"`
-		Path    string `json:"path"`
-		Query   string `json:"query"`
-		Opaque  string `json:"opaque"`
+	BypassMode   string `json:"bypass_mode"`
+	Canary       string `json:"canary"`
+	RawUrlParser struct {
+		FullURL    string `json:"full_url"`
+		RequestURI string `json:"request_uri"`
 	} `json:"raw_parser"`
 	UtilParser struct {
-		FullURL string `json:"full_url"`
-		Host    string `json:"host"`
-		Path    string `json:"path"`
-		Query   string `json:"query"`
-		Opaque  string `json:"opaque"`
+		FullURL    string `json:"full_url"`
+		RequestURI string `json:"request_uri"`
 	} `json:"util_parser"`
+	FinalRequest struct {
+		FullURL    string `json:"full_url"`
+		RequestURI string `json:"request_uri"`
+	} `json:"final_request"`
 }
 
-// func (b *GO403BYPASS) logURLParsing(req *http.Request, retryNumber int) {
-// 	// Only log on first attempt
-// 	// if retryNumber > 0 {
-// 	// 	return
-// 	// }
+type RawLoggingRoundTripper struct {
+	wrapped http.RoundTripper
+}
 
-// 	LogDebug("[logURLParsing] [%s] Logging URL parsing -> Retry: %d\n", b.bypassMode, retryNumber)
-// 	// Get the raw request line
-// 	rawReq, err := httputil.DumpRequestOut(req, false)
-// 	if err != nil {
-// 		return
-// 	}
+// Define custom context key type
+type contextKey string
 
-// 	// Extract first line (METHOD /path HTTP/VERSION)
-// 	rawFirstLine := strings.Split(string(rawReq), "\n")[0]
+// Define the bypass key constant
+const bypassKey contextKey = "bypass"
 
-// 	// Extract path from raw request line
-// 	parts := strings.Split(rawFirstLine, " ")
-// 	if len(parts) < 2 {
-// 		return
-// 	}
-// 	rawPath := parts[1]
+func (b *GO403BYPASS) printURLParsingLog(log URLParsingLog) {
+	LogGreen("\n[PrintAllLogs] [URL Parsing Comparison] [%s] [Canary: %s]\n"+
+		"--------------- RawURLParser ---------------\n"+
+		"Full URL: %v\n"+
+		"Request URI: %v\n"+
+		"--------------- URLUtil Parser -------------\n"+
+		"Full URL: %v\n"+
+		"Request URI: %v\n"+
+		"--------------- Final Request --------------\n"+
+		"Full URL: %v\n"+
+		"Request URI: %v\n"+
+		"========================================\n",
+		log.BypassMode,
+		log.Canary,
+		log.RawUrlParser.FullURL,
+		log.RawUrlParser.RequestURI,
+		log.UtilParser.FullURL,
+		log.UtilParser.RequestURI,
+		log.FinalRequest.FullURL,
+		log.FinalRequest.RequestURI)
+}
 
-// 	// Reconstruct raw URL
-// 	rawReqURL := fmt.Sprintf("%s://%s%s",
-// 		req.URL.Scheme,
-// 		req.Host,
-// 		rawPath)
+func (b *GO403BYPASS) PrintAllLogs() {
+	for _, log := range b.ComparisonLogger {
+		b.printURLParsingLog(log)
+	}
+}
 
-// 	// Compare with the original parsed URL from sendRequest
-// 	// This will be logged to show any differences
-// 	parsingLog := &URLParsingLog{
-// 		BypassMode:     b.bypassMode,
-// 		Canary:         req.Header.Get("X-Go-Bypass-403"),
-// 		RawRequestLine: rawFirstLine,
-// 		RawUrlParser: struct {
-// 			FullURL string `json:"full_url"`
-// 			Host    string `json:"host"`
-// 			Path    string `json:"path"`
-// 			Query   string `json:"query"`
-// 			Opaque  string `json:"opaque"`
-// 		}{
-// 			FullURL: rawReqURL,
-// 			Host:    req.Host,
-// 			Path:    rawPath,
-// 			Query:   req.URL.RawQuery,
-// 			Opaque:  req.URL.Opaque,
-// 		},
-// 		UtilParser: struct {
-// 			FullURL string `json:"full_url"`
-// 			Host    string `json:"host"`
-// 			Path    string `json:"path"`
-// 			Query   string `json:"query"`
-// 			Opaque  string `json:"opaque"`
-// 		}{
-// 			FullURL: req.URL.String(),
-// 			Host:    req.URL.Host,
-// 			Path:    req.URL.Path,
-// 			Query:   req.URL.RawQuery,
-// 			Opaque:  req.URL.Opaque,
-// 		},
-// 	}
+func (rt *RawLoggingRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	// Clone the request to avoid modifying the original
+	reqClone := req.Clone(req.Context())
 
-// 	// Log to file if enabled
-// 	if b.config.LogDebugToFile {
-// 		if logData, err := json.Marshal(parsingLog); err == nil {
-// 			gLogFile.Write(append(logData, '\n'))
-// 		}
-// 	}
+	// Get the raw request bytes BEFORE any modifications by other middleware
+	rawReq, err := httputil.DumpRequestOut(reqClone, true)
+	if err == nil {
+		LogDebug("[RAW-REQUEST-WIRE] >>>\n%s\n<<<", string(rawReq))
+	}
 
-// 	// Console debug output
-// 	if b.config.Debug {
-// 		LogGreen("\n[URL Parsing Comparison] [%s] [Canary: %s]\n"+
-// 			"--------------- Raw Request Line ---------------\n"+
-// 			"%s\n"+
-// 			"--------------- Reconstructed Raw URL ----------\n"+
-// 			"%s\n"+
-// 			"--------------- Final URL ---------------------\n"+
-// 			"%s\n",
-// 			b.bypassMode,
-// 			parsingLog.Canary,
-// 			rawFirstLine,
-// 			rawReqURL,
-// 			req.URL.String())
-// 	}
-// }
+	// Perform the actual request
+	resp, err := rt.wrapped.RoundTrip(req)
+	if err != nil {
+		return nil, err
+	}
+
+	// // Get the raw response bytes BEFORE any processing
+	// rawResp, err := httputil.DumpResponse(resp, true)
+	// if err == nil {
+	// 	LogDebug("[RAW-RESPONSE-WIRE] >>>\n%s\n<<<", string(rawResp))
+	// }
+
+	// Capture the final request details
+	finalReq, err := httputil.DumpRequestOut(req, true)
+	if err == nil {
+		relPath := getPathFromRaw(finalReq)
+		urlParsingLog := URLParsingLog{
+			FinalRequest: struct {
+				FullURL    string `json:"full_url"`
+				RequestURI string `json:"request_uri"`
+			}{
+				FullURL:    req.URL.String(),
+				RequestURI: relPath,
+			},
+		}
+		LogDebug("[FINAL-REQUEST] >>>\n%s\n<<<", string(finalReq))
+
+		// Update this line to use bypassKey instead of "bypass"
+		if bypass, ok := req.Context().Value(bypassKey).(*GO403BYPASS); ok {
+			bypass.ComparisonLogger = append(bypass.ComparisonLogger, urlParsingLog)
+		}
+	}
+
+	return resp, err
+}
 
 // New creates a new GO403BYPASS instance
 func New(cfg *Config, bypassMode string) (*GO403BYPASS, error) {
@@ -256,7 +253,12 @@ func New(cfg *Config, bypassMode string) (*GO403BYPASS, error) {
 		transport.TLSNextProto = map[string]func(string, *tls.Conn) http.RoundTripper{}
 	}
 
-	// Create retryablehttp client with tracing enabled if debug mode is on
+	// Wrap the transport with our raw logging round tripper
+	rawLoggingTransport := &RawLoggingRoundTripper{
+		wrapped: transport,
+	}
+
+	// Create retryablehttp client with the wrapped transport
 	retryOpts := retryablehttp.Options{
 		RetryWaitMin: 1 * time.Second,
 		RetryWaitMax: 30 * time.Second,
@@ -264,7 +266,7 @@ func New(cfg *Config, bypassMode string) (*GO403BYPASS, error) {
 		Timeout:      time.Duration(cfg.Timeout) * time.Second,
 		KillIdleConn: true,
 		HttpClient: &http.Client{
-			Transport: transport,
+			Transport: rawLoggingTransport, // Use our wrapped transport here
 			Timeout:   time.Duration(cfg.Timeout) * time.Second,
 			CheckRedirect: func(req *http.Request, via []*http.Request) error {
 				if !cfg.FollowRedirects {
@@ -276,14 +278,9 @@ func New(cfg *Config, bypassMode string) (*GO403BYPASS, error) {
 				return nil
 			},
 		},
-		//Trace: cfg.TraceRequests,
 	}
 
 	client.retryClient = retryablehttp.NewClient(retryOpts)
-
-	// if cfg.Debug {
-	// 	client.retryClient.RequestLogHook = client.logURLParsing
-	// }
 
 	return client, nil
 }
@@ -300,6 +297,8 @@ func (b *GO403BYPASS) Close() {
 
 // NewRawRequestFromURLWithContext creates a request with optional tracing while preserving raw paths
 func (b *GO403BYPASS) NewRawRequestFromURLWithContext(ctx context.Context, method, targetURL string) (*retryablehttp.Request, error) {
+	ctx = context.WithValue(ctx, bypassKey, b)
+
 	// Parse URL using urlutil with unsafe mode to preserve raw paths
 	urlx, err := urlutil.ParseURL(targetURL, true)
 	if err != nil {
@@ -311,6 +310,14 @@ func (b *GO403BYPASS) NewRawRequestFromURLWithContext(ctx context.Context, metho
 	if err != nil {
 		return nil, err
 	}
+
+	// Log the URL parsing
+	urlParsingLog := URLParsingLog{}
+	urlParsingLog.UtilParser.FullURL = fmt.Sprintf("%s://%s%s%s", urlx.URL.Scheme, urlx.URL.Host, urlx.URL.Path, urlx.Params.Encode())
+	urlParsingLog.UtilParser.RequestURI = req.URL.URL.RequestURI()
+
+	// Append the log to the GO403BYPASS instance
+	b.ComparisonLogger = append(b.ComparisonLogger, urlParsingLog)
 
 	return req, nil
 }
@@ -339,35 +346,35 @@ func (b *GO403BYPASS) sendRequest(method, rawURL string, headers []Header) (*Res
 
 	// Log both parsed URLs in a single block
 	if b.config.Debug {
+
+		// Log the raw URL parsing
+		urlParsingLog := URLParsingLog{
+			BypassMode: b.bypassMode,
+			Canary:     canary,
+		}
+		urlParsingLog.RawUrlParser.FullURL = rawURLString
+		urlParsingLog.RawUrlParser.RequestURI = fmt.Sprintf("%s%s", parsedURL.Path, parsedURL.Query)
+
+		b.ComparisonLogger = append(b.ComparisonLogger, urlParsingLog)
+
 		urlutilString := fmt.Sprintf("%s://%s%s%s", req.URL.Scheme, req.URL.Host, req.URL.Path, req.URL.RawQuery)
+		urlParsingLog.UtilParser.FullURL = urlutilString
+		urlParsingLog.UtilParser.RequestURI = req.URL.RequestURI()
 
 		LogGreen("\n[URL Parsing Comparison] [%s] [Canary: %s]\n"+
 			"--------------- RawURLParser ---------------\n"+
 			"Full URL: %s\n"+
-			"Host: %s\n"+
-			"Path: %s\n"+
-			"Query: %s\n"+
-			"Opaque: %s\n",
+			"Request URI: %s\n",
 			b.bypassMode,
 			canary,
 			rawURLString,
-			parsedURL.Host,
-			parsedURL.Path,
-			parsedURL.Query,
-			parsedURL.Opaque)
+			fmt.Sprintf("%s%s", parsedURL.Path, parsedURL.Query))
 		LogPink("--------------- URLUtil Parser -------------\n"+
 			"Full URL: %s\n"+
-			"Host: %s\n"+
-			"Path: %s\n"+
-			"Query: %s\n"+
-			"Opaque: %s\n"+
+			"Request URI: %s\n"+
 			"========================================\n",
 			urlutilString,
-			req.URL.Host,
-			req.URL.Path,
-			req.URL.RawQuery,
-			req.URL.Opaque)
-
+			req.URL.URL.RequestURI())
 	}
 
 	if !containsHeader(headers, "User-Agent") {
@@ -443,14 +450,14 @@ func (b *GO403BYPASS) sendRequest(method, rawURL string, headers []Header) (*Res
 		}
 	}
 
-	// Debug logging
-	if b.config.Verbose {
-		LogYellow("=====> Response Details for URL %s\n", rawURLString)
-		LogYellow("Status: %d %s\n", resp.StatusCode, resp.Status)
-		LogYellow("Headers:\n%s\n", details.ResponseHeaders)
-		LogYellow("Body (%d bytes):\n%s\n", details.ResponseBytes, details.ResponsePreview)
-		LogYellow("=====> End of Response Details\n")
-	}
+	// // Debug logging
+	// if b.config.Verbose {
+	// 	LogYellow("=====> Response Details for URL %s\n", rawURLString)
+	// 	LogYellow("Status: %d %s\n", resp.StatusCode, resp.Status)
+	// 	LogYellow("Headers:\n%s\n", details.ResponseHeaders)
+	// 	LogYellow("Body (%d bytes):\n%s\n", details.ResponseBytes, details.ResponsePreview)
+	// 	LogYellow("=====> End of Response Details\n")
+	// }
 
 	return details, nil
 }
@@ -595,4 +602,21 @@ func logTraceInfo(bypassMode string, traceInfo *retryablehttp.TraceInfo) {
 	trace.WriteString(fmt.Sprintf(", TTFB=%v\n", responseTime))
 
 	LogDebug(trace.String())
+}
+
+func getPathFromRaw(bin []byte) (relpath string) {
+	buff := bufio.NewReader(bytes.NewReader(bin))
+readline:
+	line, err := buff.ReadString('\n')
+	if err != nil {
+		return
+	}
+	if strings.Contains(line, "HTTP/1.1") {
+		parts := strings.Split(line, " ")
+		if len(parts) == 3 {
+			relpath = parts[1]
+			return
+		}
+	}
+	goto readline
 }

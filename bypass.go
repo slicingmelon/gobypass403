@@ -410,7 +410,11 @@ func worker(ctx *WorkerContext, jobs <-chan PayloadJob, results chan<- *Result) 
 		LogError("Failed to create client for mode %s: %v", ctx.mode, err)
 		return
 	}
-	defer client.Close()
+	defer func() {
+		// Print all URL parsing logs before closing the client
+		client.PrintAllLogs()
+		client.Close()
+	}()
 
 	workerLimiter := time.NewTicker(time.Duration(config.Delay) * time.Millisecond)
 	defer workerLimiter.Stop()
