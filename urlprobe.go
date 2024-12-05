@@ -6,6 +6,7 @@ import (
 
 	"github.com/projectdiscovery/gcache"
 	"github.com/projectdiscovery/goflags"
+	customport "github.com/projectdiscovery/httpx/common/customports"
 	"github.com/projectdiscovery/httpx/runner"
 	"github.com/slicingmelon/go-rawurlparser"
 )
@@ -66,51 +67,36 @@ func (c *HttpxResultsCache) UpdateHost(r runner.Result) error {
 		result = &HttpxResult{
 			Hostname: hostname,
 			Ports:    make(map[string]string),
-			Schemes:  []string{r.Scheme},
+			Schemes:  make([]string, 0),
 			IPv4:     r.A,
 			IPv6:     r.AAAA,
 			CNAMEs:   r.CNAMEs,
 		}
-		// Add port-scheme mapping if port is provided
-		if r.Port != "" {
-			result.Ports[r.Port] = r.Scheme
-			LogVerbose("[VERBOSE] Added port mapping %s -> %s", r.Port, r.Scheme)
-		}
-	} else {
-		// Update existing result
-		// Add scheme if it doesn't exist
-		if !validateScheme(result.Schemes, r.Scheme) {
-			LogVerbose("[VERBOSE] Adding new scheme %s for host %s", r.Scheme, hostname)
-			result.Schemes = append(result.Schemes, r.Scheme)
-		}
-
-		// Update port-scheme mapping
-		if r.Port != "" {
-			if existingScheme, ok := result.Ports[r.Port]; ok {
-				if existingScheme != r.Scheme {
-					LogVerbose("[VERBOSE] Port %s scheme updated: %s -> %s",
-						r.Port, existingScheme, r.Scheme)
-				}
-			} else {
-				LogVerbose("[VERBOSE] Added new port mapping %s -> %s", r.Port, r.Scheme)
-			}
-			result.Ports[r.Port] = r.Scheme
-		}
-
-		// Update IPs and CNAMEs
-		result.IPv4 = mergeUnique(result.IPv4, r.A)
-		result.IPv6 = mergeUnique(result.IPv6, r.AAAA)
-		result.CNAMEs = mergeUnique(result.CNAMEs, r.CNAMEs)
 	}
 
-	LogDebug("[DEBUG] Final cache entry for %s://%s:\n"+
-		"Host: %s\n"+
+	// Always update schemes based on port-scheme mapping
+	if r.Port != "" && r.Scheme != "" {
+		result.Ports[r.Port] = r.Scheme
+		if !validateScheme(result.Schemes, r.Scheme) {
+			result.Schemes = append(result.Schemes, r.Scheme)
+			LogVerbose("[VERBOSE] Added new scheme %s for host %s", r.Scheme, hostname)
+		}
+	}
+
+	// Update IPs and CNAMEs
+	result.IPv4 = mergeUnique(result.IPv4, r.A)
+	result.IPv6 = mergeUnique(result.IPv6, r.AAAA)
+	result.CNAMEs = mergeUnique(result.CNAMEs, r.CNAMEs)
+
+	// Fix: Changed the debug message format to be clearer
+	LogDebug("[DEBUG] Final cache entry for host %s:\n"+
+		"Hostname: %s\n"+
 		"Schemes: %v\n"+
 		"Ports: %v\n"+
 		"IPv4: %v\n"+
 		"IPv6: %v\n"+
-		"CNAMEs: %v",
-		parsedURL.Scheme+"://"+parsedURL.Host, hostname, result.Schemes, result.Ports, result.IPv4, result.IPv6, result.CNAMEs)
+		"CNAMEs: %v\n",
+		hostname, result.Hostname, result.Schemes, result.Ports, result.IPv4, result.IPv6, result.CNAMEs)
 
 	return c.hostResults.Set(hostname, result)
 }
@@ -166,92 +152,133 @@ func (c *HttpxResultsCache) Purge() {
 
 // ValidateURLsWithHttpx probes URLs and returns detailed information
 func ValidateURLsWithHttpx(urls []string) error {
-	LogDebug("[DEBUG] Starting URL validation for %d URLs", len(urls))
-
-	var wg sync.WaitGroup
-	errChan := make(chan error, len(urls))
-
-	// Process URLs in batches
-	batchSize := 5
-	for i := 0; i < len(urls); i += batchSize {
-		end := i + batchSize
-		if end > len(urls) {
-			end = len(urls)
-		}
-		batch := urls[i:end]
-
-		wg.Add(1)
-		go func(urlBatch []string) {
-			defer wg.Done()
-
-			options := runner.Options{
-				Methods:          "HEAD",
-				InputTargetHost:  goflags.StringSlice(urlBatch),
-				RandomAgent:      true,
-				NoFallback:       true,
-				NoFallbackScheme: true,
-				Threads:          1,
-				ProbeAllIPS:      false,
-				OutputIP:         true,
-				OutputCName:      true,
-				Timeout:          30,
-				Retries:          3,
-				ZTLS:             true,
-				Debug:            config.Debug,
-				Resolvers: []string{
-					"1.1.1.1:53", "1.0.0.1:53",
-					"9.9.9.10:53", "8.8.4.4:53",
-				},
-				OnResult: func(r runner.Result) {
-					if r.Err != nil || r.URL == "" {
-						LogVerbose("Skipping invalid result: %v", r.Err)
-						return
-					}
-
-					// Parse URL to get the actual hostname
-					parsedURL, err := rawurlparser.RawURLParse(r.URL)
-					if err != nil {
-						LogVerbose("[ValidateURLsWithHttpx->RawURLParse] Failed to parse URL: %v", err)
-						return
-					}
-
-					LogVerbose("[ValidateURLsWithHttpx->OnResult] Processing result:\n"+
-						"URL: %s\n"+
-						"Parsed Host: %s\n"+
-						"IP: %s\n"+
-						"Port: %s\n"+
-						"Scheme: %v\n"+
-						"IPs: %v\n"+
-						"CNAMEs: %v\n",
-						r.URL, parsedURL.Host, r.Host, r.Port, r.Scheme, r.A, r.CNAMEs)
-
-					if err := globalHttpxResults.UpdateHost(r); err != nil {
-						LogVerbose("Failed to update host cache: %v", err)
-					}
-				},
-			}
-
-			httpxRunner, err := runner.New(&options)
-			if err != nil {
-				errChan <- fmt.Errorf("failed to create httpx runner: %v", err)
-				return
-			}
-			defer httpxRunner.Close()
-
-			LogVerbose("Starting httpx enumeration for batch")
-			httpxRunner.RunEnumeration()
-		}(batch)
+	if len(urls) == 0 {
+		return fmt.Errorf("no URLs provided for validation")
 	}
 
-	// Wait for all goroutines to complete
+	LogYellow("[+] Starting URL validation for %d URLs\n", len(urls))
+	LogVerbose("[VERBOSE] URLs to probe: %v", urls)
+
+	// Create base options template
+	baseOptions := runner.Options{
+		Methods:          "HEAD",
+		RandomAgent:      true,
+		NoFallback:       false,
+		NoFallbackScheme: true,
+		Threads:          5,
+		ProbeAllIPS:      true,
+		OutputIP:         true,
+		OutputCName:      true,
+		Timeout:          30,
+		Retries:          5,
+		ZTLS:             true,
+		Debug:            config.Debug,
+		DebugRequests:    true,
+		DebugResponse:    true,
+		Resolvers: []string{
+			"1.1.1.1:53", "1.0.0.1:53",
+			"9.9.9.10:53", "8.8.4.4:53",
+		},
+	}
+
+	var wg sync.WaitGroup
+	workers := 2 // Number of concurrent workers
+	urlChan := make(chan string, len(urls))
+
+	// Error channel to collect errors from workers
+	errorChan := make(chan error, len(urls))
+
+	// Start workers
+	for i := 0; i < workers; i++ {
+		wg.Add(1)
+		go func(id int) {
+			defer wg.Done()
+
+			for url := range urlChan {
+				LogVerbose("[Worker-%d] Processing URL: %s", id, url)
+
+				// Create a new options instance for this URL
+				options := baseOptions
+
+				// Parse URL to check for custom port
+				parsedURL, err := rawurlparser.RawURLParse(url)
+				if err != nil {
+					errorChan <- fmt.Errorf("[Worker-%d] failed to parse URL %s: %v", id, url, err)
+					continue
+				}
+
+				// Initialize custom ports
+				customPorts := customport.CustomPorts{}
+				if err := customPorts.Set("http:80,https:443"); err != nil {
+					errorChan <- fmt.Errorf("[Worker-%d] failed to set default ports: %v", id, err)
+					continue
+				}
+
+				// Add custom port if present in URL
+				if parsedURL.Port() != "" {
+					if err := customPorts.Set(fmt.Sprintf("http:%s,https:%s", parsedURL.Port(), parsedURL.Port())); err != nil {
+						errorChan <- fmt.Errorf("[Worker-%d] failed to set custom port %s: %v", id, parsedURL.Port(), err)
+						continue
+					}
+				}
+
+				options.CustomPorts = customPorts
+				LogDebug("[Worker-%d] Using custom ports for %s: %v", id, url, customPorts)
+
+				options.InputTargetHost = goflags.StringSlice([]string{url})
+
+				var mu sync.Mutex
+				options.OnResult = func(r runner.Result) {
+					mu.Lock()
+					defer mu.Unlock()
+
+					if r.Err != nil {
+						LogVerbose("[WARN] Error processing %s: %v", r.URL, r.Err)
+						return
+					}
+					LogDebug("[DEBUG] Successfully processed %s", r.URL)
+
+					if err := globalHttpxResults.UpdateHost(r); err != nil {
+						LogError("[ERROR] Failed to update host cache: %v", err)
+					} else {
+						LogVerbose("[SUCCESS] Updated cache for %s", r.URL)
+					}
+				}
+
+				// Create a new runner for this URL
+				httpxRunner, err := runner.New(&options)
+				if err != nil {
+					errorChan <- fmt.Errorf("[Worker-%d] failed to create httpx runner for %s: %v", id, url, err)
+					continue
+				}
+
+				// Run enumeration for this URL
+				LogVerbose("[Worker-%d] Starting httpx enumeration for %s", id, url)
+				httpxRunner.RunEnumeration()
+				httpxRunner.Close()
+				LogVerbose("[Worker-%d] Completed httpx enumeration for %s", id, url)
+			}
+		}(i)
+	}
+
+	// Feed URLs to workers
+	for _, url := range urls {
+		urlChan <- url
+	}
+	close(urlChan)
+
+	// Wait for all workers to finish
 	wg.Wait()
-	close(errChan)
+	close(errorChan)
 
 	// Check for any errors
-	for err := range errChan {
-		if err != nil {
-			return err
-		}
+	var errors []error
+	for err := range errorChan {
+		errors = append(errors, err)
+	}
+
+	if len(errors) > 0 {
+		return fmt.Errorf("encountered %d errors during URL validation: %v", len(errors), errors)
 	}
 
 	return nil

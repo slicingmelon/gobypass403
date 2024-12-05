@@ -433,7 +433,7 @@ func main() {
 	// Process probed URLs and start scanning
 	urls, err := ProcessInputURLs()
 	if err != nil {
-		LogError("%v\n", err)
+		LogError("Failed to process input URLs: %v\n", err)
 		os.Exit(1)
 	}
 
