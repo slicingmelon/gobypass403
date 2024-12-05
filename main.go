@@ -148,14 +148,14 @@ func ProcessInputURLs() ([]string, error) {
 	}
 
 	// Probe hosts with httpx
-	if err := ValidateURLsWithHttpx(hostsToProbe); err != nil {
+	if err := FastProbeURLs(hostsToProbe); err != nil {
 		return nil, fmt.Errorf("httpx probing failed: %v", err)
 	}
 
 	// Construct final URLs from cache results
 	var finalURLs []string
 	for host, path := range originalPaths {
-		if result, exists := globalHttpxResults.Get(host); exists {
+		if result, exists := globalProbeURLResults.Get(host); exists {
 			// Iterate through port-scheme mappings
 			for port, scheme := range result.Ports {
 				baseURL := constructBaseURL(scheme, result.Hostname, port)
@@ -471,8 +471,8 @@ func main() {
 	}
 
 	// Clean up global cache
-	if globalHttpxResults != nil {
-		globalHttpxResults.Purge()
+	if globalProbeURLResults != nil {
+		globalProbeURLResults.Purge()
 	}
 
 }

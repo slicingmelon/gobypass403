@@ -555,7 +555,7 @@ func generateHostHeaderJobs(targetURL string) []PayloadJob {
 	}
 
 	// Get IP information from cache
-	if httpxResult, exists := globalHttpxResults.Get(baseURL); exists && len(httpxResult.IPv4) > 0 {
+	if httpxResult, exists := globalProbeURLResults.Get(baseURL); exists && len(httpxResult.IPv4) > 0 {
 		// Variation 1: URL with IP, Host header with original host
 		for _, ip := range httpxResult.IPv4 {
 			ipURL := fmt.Sprintf("%s://%s%s", parsedURL.Scheme, ip, pathAndQuery)
