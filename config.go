@@ -217,7 +217,7 @@ func (c *HttpxResultsCache) UpdateHost(r runner.Result) error {
 		if r.Port != "" {
 			if existingScheme, ok := result.Ports[r.Port]; ok {
 				if existingScheme != r.Scheme {
-					LogDebug("[DEBUG] Port %s  scheme updated: %s -> %s",
+					LogDebug("[DEBUG] Port %s scheme updated: %s -> %s",
 						r.Port, existingScheme, r.Scheme)
 				}
 			} else {
