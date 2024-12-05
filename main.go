@@ -156,10 +156,16 @@ func ProcessInputURLs() ([]string, error) {
 	var finalURLs []string
 	for host, path := range originalPaths {
 		if result, exists := globalHttpxResults.Get(host); exists {
-			for _, scheme := range result.Schemes {
-				baseURL := constructBaseURL(scheme, result.Host, result.Port)
-				finalURLs = append(finalURLs, baseURL+path)
+			// Iterate through port-scheme mappings
+			for port, scheme := range result.Ports {
+				baseURL := constructBaseURL(scheme, result.Host, port)
+				finalURL := baseURL + path
+				LogDebug("[DEBUG] Constructed URL: %s (scheme=%s, host=%s, port=%s, path=%s)",
+					finalURL, scheme, result.Host, port, path)
+				finalURLs = append(finalURLs, finalURL)
 			}
+		} else {
+			LogDebug("[DEBUG] No httpx results found for host: %s", host)
 		}
 	}
 
@@ -195,12 +201,15 @@ func processURLsFromFile(filename string) ([]string, map[string]string, error) {
 }
 
 func constructBaseURL(scheme, host, port string) string {
-	baseURL := fmt.Sprintf("%s://%s", scheme, host)
-	if port != "" &&
-		!((scheme == "http" && port == "80") ||
-			(scheme == "https" && port == "443")) {
-		baseURL += ":" + port
+	// Default ports should be omitted
+	if (scheme == "http" && port == "80") || (scheme == "https" && port == "443") {
+		LogVerbose("[VERBOSE] Using default port for %s://%s (port %s)", scheme, host, port)
+		return fmt.Sprintf("%s://%s", scheme, host)
 	}
+
+	// Include non-default ports in the URL
+	baseURL := fmt.Sprintf("%s://%s:%s", scheme, host, port)
+	LogVerbose("[VERBOSE] Using non-default port: %s", baseURL)
 	return baseURL
 }
 

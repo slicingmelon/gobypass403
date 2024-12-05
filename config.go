@@ -2,12 +2,14 @@
 package main
 
 import (
+	"fmt"
 	"net/url"
 	"sync"
 	"time"
 
 	"github.com/projectdiscovery/gcache"
 	"github.com/projectdiscovery/httpx/runner"
+	"github.com/slicingmelon/go-rawurlparser"
 )
 
 const (
@@ -178,37 +180,68 @@ func (c *HttpxResultsCache) UpdateHost(r runner.Result) error {
 	c.Lock()
 	defer c.Unlock()
 
-	host := r.Host
-	result, err := c.hostResults.Get(host)
+	// Parse URL to get clean hostname
+	parsedURL, err := rawurlparser.RawURLParse(r.URL)
+	if err != nil {
+		return fmt.Errorf("failed to parse URL: %v", err)
+	}
+	hostname := parsedURL.Host
+
+	LogDebug("[DEBUG] Updating cache for host: %s, scheme: %s, port: %s", hostname, r.Scheme, r.Port)
+
+	result, err := c.hostResults.Get(hostname)
 	if err != nil {
 		// Create new result if host doesn't exist
 		result = &HttpxResult{
-			Host:    host,
-			Port:    r.Port,
+			Host:    hostname,
+			Ports:   make(map[string]string),
 			Schemes: []string{r.Scheme},
 			IPv4:    r.A,
 			IPv6:    r.AAAA,
 			CNAMEs:  r.CNAMEs,
 		}
+		// Add port-scheme mapping if port is provided
+		if r.Port != "" {
+			result.Ports[r.Port] = r.Scheme
+			LogDebug("[DEBUG] Added port mapping %s -> %s", r.Port, r.Scheme)
+		}
 	} else {
 		// Update existing result
-		// Add new scheme if not present
+		// Add scheme if it doesn't exist
 		if !validateScheme(result.Schemes, r.Scheme) {
+			LogDebug("[DEBUG] Adding new scheme %s for host %s", r.Scheme, hostname)
 			result.Schemes = append(result.Schemes, r.Scheme)
 		}
 
-		// Update IPs - merge without duplicates
+		// Update port-scheme mapping
+		if r.Port != "" {
+			if existingScheme, ok := result.Ports[r.Port]; ok {
+				if existingScheme != r.Scheme {
+					LogDebug("[DEBUG] Port %s scheme updated: %s -> %s",
+						r.Port, existingScheme, r.Scheme)
+				}
+			} else {
+				LogDebug("[DEBUG] Added new port mapping %s -> %s", r.Port, r.Scheme)
+			}
+			result.Ports[r.Port] = r.Scheme
+		}
+
+		// Update IPs and CNAMEs
 		result.IPv4 = mergeUnique(result.IPv4, r.A)
 		result.IPv6 = mergeUnique(result.IPv6, r.AAAA)
 		result.CNAMEs = mergeUnique(result.CNAMEs, r.CNAMEs)
-
-		// Update port if different
-		if r.Port != "" && r.Port != result.Port {
-			result.Port = r.Port
-		}
 	}
 
-	return c.hostResults.Set(host, result)
+	LogDebug("[DEBUG] Final cache entry for %s://%s:\n"+
+		"Host: %s\n"+
+		"Schemes: %v\n"+
+		"Ports: %v\n"+
+		"IPv4: %v\n"+
+		"IPv6: %v\n"+
+		"CNAMEs: %v",
+		parsedURL.Scheme+"://"+hostname, hostname, result.Schemes, result.Ports, result.IPv4, result.IPv6, result.CNAMEs)
+
+	return c.hostResults.Set(hostname, result)
 }
 
 // Helper function to merge strings without duplicates

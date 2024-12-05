@@ -4,6 +4,7 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"html"
@@ -14,12 +15,12 @@ import (
 	"runtime"
 	"strings"
 	"sync"
+	"time"
 
 	"math/rand"
 
 	"github.com/projectdiscovery/goflags"
 	"github.com/projectdiscovery/httpx/runner"
-	"github.com/slicingmelon/go-rawurlparser"
 )
 
 const (
@@ -461,65 +462,114 @@ func IsDNSName(str string) bool {
 }
 
 // HttpxResult -- detailed information about a probed URL
+// HttpxResult -- detailed information about a probed URL
 type HttpxResult struct {
-	Host    string   // Base hostname without port
-	Port    string   // Port number if specified
-	Schemes []string // Available schemes (http, https)
-	IPv4    []string // List of IPv4 addresses
-	IPv6    []string // List of IPv6 addresses
-	CNAMEs  []string // List of CNAMEs
+	Host    string            // Base hostname without port (extracted from URL)
+	Ports   map[string]string // Map of port -> scheme (e.g., "80" -> "http", "443" -> "https")
+	Schemes []string          // Available schemes (http, https)
+	IPv4    []string          // List of IPv4 addresses
+	IPv6    []string          // List of IPv6 addresses
+	CNAMEs  []string          // List of CNAMEs
 }
 
 // ValidateURLsWithHttpx probes URLs and returns detailed information
 func ValidateURLsWithHttpx(urls []string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
+
 	LogDebug("[DEBUG] Starting URL validation for %d URLs", len(urls))
 
-	options := runner.Options{
-		Methods:          "HEAD",
-		InputTargetHost:  goflags.StringSlice(urls),
-		NoFallback:       false,
-		NoFallbackScheme: true,
-		Threads:          20,
-		ProbeAllIPS:      false,
-		OutputIP:         true,
-		OutputCName:      true,
-		Timeout:          30,
-		MaxRedirects:     3,
-		Resolvers: []string{
-			"1.1.1.1:53", "1.0.0.1:53",
-			"9.9.9.10:53", "8.8.4.4:53",
-		},
-		OnResult: func(r runner.Result) {
-			if r.Err != nil || r.URL == "" {
-				LogVerbose("Skipping invalid result: %v", r.Err)
-				return
-			}
+	var wg sync.WaitGroup
+	errChan := make(chan error, len(urls))
 
-			parsedURL, err := rawurlparser.RawURLParse(r.URL)
+	// Process URLs in batches
+	batchSize := 5
+	for i := 0; i < len(urls); i += batchSize {
+		end := i + batchSize
+		if end > len(urls) {
+			end = len(urls)
+		}
+		batch := urls[i:end]
+
+		wg.Add(1)
+		go func(urlBatch []string) {
+			defer wg.Done()
+
+			select {
+			case <-ctx.Done():
+				errChan <- ctx.Err()
+				return
+			default:
+				options := runner.Options{
+					Methods:          "HEAD",
+					InputTargetHost:  goflags.StringSlice(urlBatch),
+					RandomAgent:      true,
+					NoFallback:       true,
+					NoFallbackScheme: true,
+					Threads:          2,
+					ProbeAllIPS:      false,
+					OutputIP:         true,
+					OutputCName:      true,
+					Timeout:          30,
+					Retries:          3,
+					ZTLS:             true,
+					Debug:            config.Debug,
+					Resolvers: []string{
+						"1.1.1.1:53", "1.0.0.1:53",
+						"9.9.9.10:53", "8.8.4.4:53",
+					},
+					OnResult: func(r runner.Result) {
+						if r.Err != nil || r.URL == "" {
+							LogVerbose("Skipping invalid result: %v", r.Err)
+							return
+						}
+
+						LogVerbose("Processing result:\n"+
+							"URL: %s\n"+
+							"Host: %s\n"+
+							"Port: %s\n"+
+							"Scheme: %v\n"+
+							"IPs: %v\n"+
+							"CNAMEs: %v\n",
+							r.URL, r.Host, r.Port, r.Scheme, r.A, r.CNAMEs)
+
+						if err := globalHttpxResults.UpdateHost(r); err != nil {
+							LogVerbose("Failed to update host cache: %v", err)
+						}
+					},
+				}
+
+				httpxRunner, err := runner.New(&options)
+				if err != nil {
+					errChan <- fmt.Errorf("failed to create httpx runner: %v", err)
+					return
+				}
+				defer httpxRunner.Close()
+
+				LogVerbose("Starting httpx enumeration for batch")
+				httpxRunner.RunEnumeration()
+			}
+		}(batch)
+	}
+
+	// Wait for all goroutines to complete or context to cancel
+	done := make(chan struct{})
+	go func() {
+		wg.Wait()
+		close(done)
+	}()
+
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-done:
+		close(errChan)
+		for err := range errChan {
 			if err != nil {
-				LogVerbose("Failed to parse URL: %v", err)
-				return
+				return err
 			}
-
-			LogVerbose("Updating host cache for %s\nr.URL: %s\nr.Port: %s\nr.Scheme: %v\nr.A: %v\nr.AAAA: %v\nr.CNAMEs: %v\n",
-				parsedURL.Host, r.URL, r.Port, r.Scheme, r.A, r.AAAA, r.CNAMEs)
-
-			if err := globalHttpxResults.UpdateHost(r); err != nil {
-				LogVerbose("Failed to update host cache: %v", err)
-			}
-
-			LogVerbose("Updated cache for host %q", parsedURL.Host)
-		},
+		}
 	}
-
-	httpxRunner, err := runner.New(&options)
-	if err != nil {
-		return fmt.Errorf("failed to create httpx runner: %v", err)
-	}
-	defer httpxRunner.Close()
-
-	LogVerbose("Starting httpx enumeration")
-	httpxRunner.RunEnumeration()
 
 	return nil
 }
