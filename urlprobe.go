@@ -82,7 +82,14 @@ func (c *ProbeResultsCache) UpdateHost(r ProbeResult) error {
 	result.IPv6 = mergeUnique(result.IPv6, r.IPv6)
 	result.CNAMEs = mergeUnique(result.CNAMEs, r.CNAMEs)
 
-	// Fix: Changed the debug message format to be clearer
+	// Update ports and schemes
+	for port, scheme := range r.Ports {
+		result.Ports[port] = scheme
+		if !validateScheme(result.Schemes, scheme) {
+			result.Schemes = append(result.Schemes, scheme)
+		}
+	}
+
 	LogDebug("[DEBUG] Final cache entry for host %s:\n"+
 		"Hostname: %s\n"+
 		"Schemes: %v\n"+
@@ -134,14 +141,23 @@ func (s *ProbeService) FastProbeURLs(urls []string) error {
 	opts.DialerTimeout = 10 * time.Second
 	opts.DialerKeepAlive = 10 * time.Second
 	opts.MaxRetries = 3
+	opts.HostsFile = true
+	opts.ResolversFile = true
 	opts.BaseResolvers = []string{
 		"1.1.1.1:53", "1.0.0.1:53",
 		"8.8.8.8:53", "8.8.4.4:53",
 	}
 	opts.WithDialerHistory = true
 	opts.WithTLSData = true
+	opts.CacheType = fastdialer.Disk
+	opts.WithCleanup = true
+	opts.WithZTLS = false
+	opts.DisableZtlsFallback = true
 	opts.OnDialCallback = func(hostname, ip string) {
 		LogVerbose("[DIALER] Connected to %s (%s)", hostname, ip)
+	}
+	opts.OnInvalidTarget = func(hostname, ip, port string) {
+		LogDebug("[DEBUG] Invalid target: %s (%s:%s)", hostname, ip, port)
 	}
 
 	dialer, err := fastdialer.NewDialer(opts)
@@ -154,6 +170,7 @@ func (s *ProbeService) FastProbeURLs(urls []string) error {
 	errorChan := make(chan error, len(urls))
 	var wg sync.WaitGroup
 
+	// Single worker
 	// Single worker
 	wg.Add(1)
 	go func() {
@@ -181,11 +198,27 @@ func (s *ProbeService) FastProbeURLs(urls []string) error {
 				Schemes:  make([]string, 0),
 			}
 
-			// Get DNS data first
-			if dnsData, err := dialer.GetDNSData(hostname); err == nil {
+			// Handle differently based on whether it's an IP or domain
+			isIP := net.ParseIP(hostname) != nil
+
+			if !isIP {
+				// Only do DNS lookup for domains, not IPs
+				dnsData, err := dialer.GetDNSData(hostname)
+				if err != nil {
+					LogDebug("[DEBUG] DNS lookup failed for %s: %v", hostname, err)
+					continue
+				}
 				result.IPv4 = dnsData.A
 				result.IPv6 = dnsData.AAAA
 				result.CNAMEs = dnsData.CNAME
+			} else {
+				// For IPs, just add the IP to the IPv4/IPv6 list
+				ip := net.ParseIP(hostname)
+				if ip.To4() != nil {
+					result.IPv4 = []string{hostname}
+				} else {
+					result.IPv6 = []string{hostname}
+				}
 			}
 
 			portsToTry := []string{"443", "80"}
@@ -196,8 +229,11 @@ func (s *ProbeService) FastProbeURLs(urls []string) error {
 			for _, port := range portsToTry {
 				hostPort := net.JoinHostPort(hostname, port)
 
-				// Try TLS first
-				conn, err := dialer.DialTLS(ctx, "tcp", hostPort)
+				// Try TLS first with timeout context
+				dialCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+				conn, err := dialer.DialTLS(dialCtx, "tcp", hostPort)
+				cancel()
+
 				if err == nil {
 					conn.Close()
 					result.Ports[port] = "https"
@@ -207,8 +243,11 @@ func (s *ProbeService) FastProbeURLs(urls []string) error {
 					continue
 				}
 
-				// If TLS fails, try plain TCP
-				conn, err = dialer.Dial(ctx, "tcp", hostPort)
+				// If TLS fails, try plain TCP with timeout
+				dialCtx, cancel = context.WithTimeout(ctx, 5*time.Second)
+				conn, err = dialer.Dial(dialCtx, "tcp", hostPort)
+				cancel()
+
 				if err == nil {
 					conn.Close()
 					result.Ports[port] = "http"
@@ -218,8 +257,13 @@ func (s *ProbeService) FastProbeURLs(urls []string) error {
 				}
 			}
 
-			if err := s.cache.UpdateHost(*result); err != nil {
-				LogError("[ERROR] Failed to update cache for %s: %v", hostname, err)
+			// Only update cache if we found any ports
+			if len(result.Ports) > 0 {
+				if err := s.cache.UpdateHost(*result); err != nil {
+					LogError("[ERROR] Failed to update cache for %s: %v", hostname, err)
+				}
+			} else {
+				LogDebug("[DEBUG] No open ports found for %s", hostname)
 			}
 		}
 	}()
