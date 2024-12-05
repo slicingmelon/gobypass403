@@ -79,7 +79,7 @@ type contextKey string
 const bypassKey contextKey = "bypass"
 
 func (b *GO403BYPASS) printURLParsingLog(log URLParsingLog) {
-	LogGreen("\n[PrintAllLogs] [URL Parsing Comparison] [%s] [Canary: %s]\n"+
+	LogOrange("\n[PrintAllLogs] [URL Parsing Comparison] [%s] [Canary: %s]\n"+
 		"--------------- RawURLParser ---------------\n"+
 		"Full URL: %v\n"+
 		"Request URI: %v\n"+
@@ -107,46 +107,41 @@ func (b *GO403BYPASS) PrintAllLogs() {
 }
 
 func (rt *RawLoggingRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
-	// Clone the request to avoid modifying the original
-	reqClone := req.Clone(req.Context())
-
-	// Get the raw request bytes BEFORE any modifications by other middleware
-	rawReq, err := httputil.DumpRequestOut(reqClone, true)
-	if err == nil {
-		LogDebug("[RAW-REQUEST-WIRE] >>>\n%s\n<<<", string(rawReq))
+	bypass, ok := req.Context().Value(bypassKey).(*GO403BYPASS)
+	if !ok {
+		return rt.wrapped.RoundTrip(req)
 	}
 
-	// Perform the actual request
+	// Find the matching log entry using the canary
+	canary := req.Header.Get("X-Go-Bypass-403")
+	var currentLog *URLParsingLog
+	for i := range bypass.ComparisonLogger {
+		if bypass.ComparisonLogger[i].Canary == canary {
+			currentLog = &bypass.ComparisonLogger[i]
+			break
+		}
+	}
+
+	if currentLog == nil {
+		return rt.wrapped.RoundTrip(req)
+	}
+
+	// Update URLUtil parser information
+	currentLog.UtilParser.FullURL = req.URL.String()
+	currentLog.UtilParser.RequestURI = req.URL.RequestURI()
+
+	// Perform the request
 	resp, err := rt.wrapped.RoundTrip(req)
 	if err != nil {
 		return nil, err
 	}
 
-	// // Get the raw response bytes BEFORE any processing
-	// rawResp, err := httputil.DumpResponse(resp, true)
-	// if err == nil {
-	// 	LogDebug("[RAW-RESPONSE-WIRE] >>>\n%s\n<<<", string(rawResp))
-	// }
-
-	// Capture the final request details
+	// Update final request information
 	finalReq, err := httputil.DumpRequestOut(req, true)
 	if err == nil {
 		relPath := getPathFromRaw(finalReq)
-		urlParsingLog := URLParsingLog{
-			FinalRequest: struct {
-				FullURL    string `json:"full_url"`
-				RequestURI string `json:"request_uri"`
-			}{
-				FullURL:    req.URL.String(),
-				RequestURI: relPath,
-			},
-		}
-		LogDebug("[FINAL-REQUEST] >>>\n%s\n<<<", string(finalReq))
-
-		// Update this line to use bypassKey instead of "bypass"
-		if bypass, ok := req.Context().Value(bypassKey).(*GO403BYPASS); ok {
-			bypass.ComparisonLogger = append(bypass.ComparisonLogger, urlParsingLog)
-		}
+		currentLog.FinalRequest.FullURL = req.URL.String()
+		currentLog.FinalRequest.RequestURI = relPath
 	}
 
 	return resp, err
@@ -338,6 +333,20 @@ func (b *GO403BYPASS) sendRequest(method, rawURL string, headers []Header) (*Res
 	rawURLString := fmt.Sprintf("%s://%s%s%s", parsedURL.Scheme, parsedURL.Host, parsedURL.Path, parsedURL.Query)
 	canary := generateRandomString(18)
 
+	// Create and append the initial log entry
+	urlParsingLog := URLParsingLog{
+		BypassMode: b.bypassMode,
+		Canary:     canary,
+		RawUrlParser: struct {
+			FullURL    string `json:"full_url"`
+			RequestURI string `json:"request_uri"`
+		}{
+			FullURL:    rawURLString,
+			RequestURI: fmt.Sprintf("%s%s", parsedURL.Path, parsedURL.Query),
+		},
+	}
+	b.ComparisonLogger = append(b.ComparisonLogger, urlParsingLog)
+
 	// Create request
 	req, err := b.NewRawRequestFromURL(method, rawURL)
 	if err != nil {
@@ -346,17 +355,6 @@ func (b *GO403BYPASS) sendRequest(method, rawURL string, headers []Header) (*Res
 
 	// Log both parsed URLs in a single block
 	if b.config.Debug {
-
-		// Log the raw URL parsing
-		urlParsingLog := URLParsingLog{
-			BypassMode: b.bypassMode,
-			Canary:     canary,
-		}
-		urlParsingLog.RawUrlParser.FullURL = rawURLString
-		urlParsingLog.RawUrlParser.RequestURI = fmt.Sprintf("%s%s", parsedURL.Path, parsedURL.Query)
-
-		b.ComparisonLogger = append(b.ComparisonLogger, urlParsingLog)
-
 		urlutilString := fmt.Sprintf("%s://%s%s%s", req.URL.Scheme, req.URL.Host, req.URL.Path, req.URL.RawQuery)
 		urlParsingLog.UtilParser.FullURL = urlutilString
 		urlParsingLog.UtilParser.RequestURI = req.URL.RequestURI()
