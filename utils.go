@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"html"
-	"log"
 	"net"
 	"os"
 	"path/filepath"
@@ -19,16 +18,9 @@ import (
 	"math/rand"
 
 	"github.com/projectdiscovery/goflags"
-	"github.com/projectdiscovery/gologger"
-	"github.com/projectdiscovery/gologger/levels"
 	"github.com/projectdiscovery/httpx/runner"
 	"github.com/slicingmelon/go-rawurlparser"
 )
-
-func init() {
-	log.SetFlags(0)
-	log.SetOutput(os.Stderr)
-}
 
 const (
 	colorReset  = "\033[0m"
@@ -53,7 +45,7 @@ func LogInfo(format string, v ...interface{}) {
 
 // LogVe
 func LogVerbose(format string, v ...interface{}) {
-	if isVerbose {
+	if config.Verbose {
 		fmt.Printf("\n"+colorCyan+format+colorReset+"\n", v...) // Cyan
 	}
 }
@@ -104,11 +96,6 @@ func LogPink(format string, v ...interface{}) {
 
 func LogTeal(format string, v ...interface{}) {
 	fmt.Printf(colorTeal+format+colorReset+"\n", v...) // Teal
-}
-
-// SetVerbose
-func SetVerbose(verbose bool) {
-	isVerbose = verbose
 }
 
 // Helper function to read payloads from the specified file
@@ -434,103 +421,107 @@ var rxDNSName = regexp.MustCompile(`^([a-zA-Z0-9_]{1}[a-zA-Z0-9\-._]{0,61}[a-zA-
 	`([a-zA-Z0-9_]{1}[a-zA-Z0-9\-._]{0,61}[a-zA-Z0-9]{1}\.?)$`)
 
 func IsIP(str string) bool {
+	LogDebug("[DEBUG] Checking if string is IP: %q", str)
+
 	// Split host and port
-	host, _, err := net.SplitHostPort(str)
+	host, port, err := net.SplitHostPort(str)
 	if err != nil {
-		// No port, check if it's just an IP
+		LogDebug("[DEBUG] SplitHostPort failed, using full string: %v", err)
 		return net.ParseIP(str) != nil
 	}
-	// Check the host part
+
+	LogDebug("[DEBUG] Split host: %q port: %q", host, port)
 	return net.ParseIP(host) != nil
 }
 
+// Update IsDNSName with debugging
 func IsDNSName(str string) bool {
-	// Split host and port
-	host, _, err := net.SplitHostPort(str)
+	LogDebug("[DEBUG] Checking if string is DNS name: %q", str)
+
+	host, port, err := net.SplitHostPort(str)
 	if err != nil {
-		// No port, use the original string
 		host = str
+		LogDebug("[DEBUG] Using full string as hostname: %q", host)
+	} else {
+		LogDebug("[DEBUG] Split host: %q port: %q", host, port)
 	}
 
-	if host == "" || len(strings.Replace(host, ".", "", -1)) > 255 {
+	if host == "" {
+		LogDebug("[DEBUG] Empty hostname")
 		return false
 	}
+
+	if len(strings.Replace(host, ".", "", -1)) > 255 {
+		LogDebug("[DEBUG] Hostname too long (>255 chars)")
+		return false
+	}
+
+	LogDebug("[DEBUG] DNS regex match result: %v", rxDNSName.MatchString(host))
 	return !IsIP(host) && rxDNSName.MatchString(host)
 }
 
-// HttpxResult represents detailed information about a probed URL
+// HttpxResult -- detailed information about a probed URL
 type HttpxResult struct {
-	URL    string   // Full URL (including scheme, host, port, path .. if supplied)
-	Scheme string   // http or https
-	Host   string   // Hostname which includes port too if specified
-	Port   string   // Port number (returned by httpx)
-	IPv4   []string // List of IPv4 addresses
-	IPv6   []string // List of IPv6 addresses
-	CNAMEs []string // List of CNAMEs (if any)
+	Host    string   // Base hostname without port
+	Port    string   // Port number if specified
+	Schemes []string // Available schemes (http, https)
+	IPv4    []string // List of IPv4 addresses
+	IPv6    []string // List of IPv6 addresses
+	CNAMEs  []string // List of CNAMEs
 }
 
 // ValidateURLsWithHttpx probes URLs and returns detailed information
-func ValidateURLsWithHttpx(urls []string) ([]HttpxResult, error) {
-	results := make([]HttpxResult, 0)
+func ValidateURLsWithHttpx(urls []string) error {
+	LogDebug("[DEBUG] Starting URL validation for %d URLs", len(urls))
 
-	// internal httpx logger
-	gologger.DefaultLogger.SetMaxLevel(levels.LevelSilent)
-
-	// Configure httpx options
 	options := runner.Options{
-		Methods:          "GET",
+		Methods:          "HEAD",
 		InputTargetHost:  goflags.StringSlice(urls),
-		NoFallback:       true,
+		NoFallback:       false,
 		NoFallbackScheme: true,
 		Threads:          20,
-		ProbeAllIPS:      true,
-		OutputIP:         false,
+		ProbeAllIPS:      false,
+		OutputIP:         true,
+		OutputCName:      true,
+		Timeout:          30,
+		MaxRedirects:     3,
+		Resolvers: []string{
+			"1.1.1.1:53", "1.0.0.1:53",
+			"9.9.9.10:53", "8.8.4.4:53",
+		},
 		OnResult: func(r runner.Result) {
-			if r.Err != nil {
-				LogVerbose("[Httpx] Error for %s: %s", r.Input, r.Err)
+			if r.Err != nil || r.URL == "" {
+				LogVerbose("Skipping invalid result: %v", r.Err)
 				return
 			}
 
-			if r.URL == "" {
+			parsedURL, err := rawurlparser.RawURLParse(r.URL)
+			if err != nil {
+				LogVerbose("Failed to parse URL: %v", err)
 				return
 			}
 
-			result := HttpxResult{
-				URL:    r.URL,
-				Scheme: r.Scheme, // Use httpx's scheme
-				Port:   r.Port,   // Use httpx's port
-				IPv4:   r.A,
-				IPv6:   r.AAAA,
-				CNAMEs: r.CNAMEs,
+			LogVerbose("Updating host cache for %s\nr.URL: %s\nr.Port: %s\nr.Scheme: %v\nr.A: %v\nr.AAAA: %v\nr.CNAMEs: %v\n",
+				parsedURL.Host, r.URL, r.Port, r.Scheme, r.A, r.AAAA, r.CNAMEs)
+
+			if err := globalHttpxResults.UpdateHost(r); err != nil {
+				LogVerbose("Failed to update host cache: %v", err)
 			}
 
-			// Parse httpx probed URLs and update httpxresults with the host
-			if parsedURL, err := rawurlparser.RawURLParse(r.URL); err == nil {
-				result.Host = parsedURL.Host
-			} else {
-				LogVerbose("[Httpx] Failed to parse URL %s: %v", r.URL, err)
-			}
-
-			results = append(results, result)
+			LogVerbose("Updated cache for host %q", parsedURL.Host)
 		},
 	}
 
-	// Validate options
-	if err := options.ValidateOptions(); err != nil {
-		return nil, fmt.Errorf("invalid httpx options: %v", err)
-	}
-
-	// Create new runner
 	httpxRunner, err := runner.New(&options)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create httpx runner: %v", err)
+		return fmt.Errorf("failed to create httpx runner: %v", err)
 	}
 	defer httpxRunner.Close()
 
-	// Run
+	LogVerbose("Starting httpx enumeration")
 	httpxRunner.RunEnumeration()
 
-	return results, nil
+	return nil
 }
 
 // ----------------------------------------------------------------//

@@ -6,12 +6,10 @@ require (
 	github.com/projectdiscovery/fastdialer v0.2.11
 	github.com/projectdiscovery/gcache v0.0.0-20241015120333-12546c6e3f4c
 	github.com/projectdiscovery/goflags v0.1.65
-	github.com/projectdiscovery/gologger v1.1.34
 	github.com/projectdiscovery/httpx v1.6.9
-	github.com/projectdiscovery/rawhttp v0.1.76
 	github.com/projectdiscovery/retryablehttp-go v1.0.89
 	github.com/projectdiscovery/utils v0.4.0
-	github.com/slicingmelon/go-rawurlparser v0.2.3
+	github.com/slicingmelon/go-rawurlparser v0.2.5
 )
 
 require (
@@ -94,12 +92,14 @@ require (
 	github.com/projectdiscovery/fdmax v0.0.4 // indirect
 	github.com/projectdiscovery/freeport v0.0.7 // indirect
 	github.com/projectdiscovery/goconfig v0.0.1 // indirect
+	github.com/projectdiscovery/gologger v1.1.34 // indirect
 	github.com/projectdiscovery/gostruct v0.0.2 // indirect
 	github.com/projectdiscovery/hmap v0.0.68 // indirect
 	github.com/projectdiscovery/machineid v0.0.0-20240226150047-2e2c51e35983 // indirect
 	github.com/projectdiscovery/mapcidr v1.1.34 // indirect
 	github.com/projectdiscovery/networkpolicy v0.0.9 // indirect
 	github.com/projectdiscovery/ratelimit v0.0.54 // indirect
+	github.com/projectdiscovery/rawhttp v0.1.76 // indirect
 	github.com/projectdiscovery/retryabledns v1.0.86 // indirect
 	github.com/projectdiscovery/tlsx v1.1.7 // indirect
 	github.com/projectdiscovery/useragent v0.0.69 // indirect

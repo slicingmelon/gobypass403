@@ -58,6 +58,220 @@ func validateMode(mode string) error {
 	return nil
 }
 
+// readAndValidateHosts reads hosts from file and validates them
+func readAndValidateHosts(hostsFile string) ([]string, error) {
+	content, err := os.ReadFile(hostsFile)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read substitute hosts file: %v", err)
+	}
+
+	var hostsToCheck []string
+	for _, host := range strings.Split(strings.TrimSpace(string(content)), "\n") {
+		host = strings.TrimSpace(host)
+		if host == "" {
+			continue
+		}
+
+		// If it's already a URL (has scheme), extract the host
+		if strings.Contains(host, "://") {
+			if parsed, err := rawurlparser.RawURLParse(host); err == nil {
+				host = parsed.Host
+			}
+		}
+
+		// Validate if it's a domain or IP (with optional port)
+		if IsIP(host) || IsDNSName(host) {
+			hostsToCheck = append(hostsToCheck, host)
+		} else {
+			LogError("Invalid host in substitute file: %s\n", host)
+			continue
+		}
+	}
+
+	return hostsToCheck, nil
+}
+
+// ProcessInputURLs handles all URL input methods and returns validated URLs
+func ProcessInputURLs() ([]string, error) {
+	if config.URL == "" && config.URLsFile == "" {
+		return nil, fmt.Errorf("either Target URL (-u) or URLs file (-l) is required")
+	}
+
+	// Validate input combinations
+	if config.SubstituteHostsFile != "" {
+		if config.URL == "" {
+			return nil, fmt.Errorf("a target URL (-u) is required when using substitute hosts file")
+		}
+		if config.URLsFile != "" {
+			return nil, fmt.Errorf("cannot use both URLs file (-l) and substitute hosts file")
+		}
+	}
+
+	var hostsToProbe []string
+	var originalPaths = make(map[string]string) // map[host]pathAndQuery
+
+	// Process direct URL input
+	if config.URL != "" {
+		parsedURL, err := rawurlparser.RawURLParse(config.URL)
+		if err != nil {
+			return nil, fmt.Errorf("invalid URL: %v", err)
+		}
+		hostsToProbe = append(hostsToProbe, parsedURL.Host)
+		originalPaths[parsedURL.Host] = getPathAndQuery(parsedURL)
+	}
+
+	// Process URLs file
+	if config.URLsFile != "" {
+		hosts, paths, err := processURLsFromFile(config.URLsFile)
+		if err != nil {
+			return nil, err
+		}
+		hostsToProbe = append(hostsToProbe, hosts...)
+		for h, p := range paths {
+			originalPaths[h] = p
+		}
+	}
+
+	// Process substitute hosts
+	if config.SubstituteHostsFile != "" {
+		hosts, err := readAndValidateHosts(config.SubstituteHostsFile)
+		if err != nil {
+			return nil, err
+		}
+		// Use original URL's path for all substitute hosts
+		parsedURL, _ := rawurlparser.RawURLParse(config.URL)
+		path := getPathAndQuery(parsedURL)
+		hostsToProbe = append(hostsToProbe, hosts...)
+		for _, h := range hosts {
+			originalPaths[h] = path
+		}
+	}
+
+	// Probe hosts with httpx
+	if err := ValidateURLsWithHttpx(hostsToProbe); err != nil {
+		return nil, fmt.Errorf("httpx probing failed: %v", err)
+	}
+
+	// Construct final URLs from cache results
+	var finalURLs []string
+	for host, path := range originalPaths {
+		if result, exists := globalHttpxResults.Get(host); exists {
+			for _, scheme := range result.Schemes {
+				baseURL := constructBaseURL(scheme, result.Host, result.Port)
+				finalURLs = append(finalURLs, baseURL+path)
+			}
+		}
+	}
+
+	return deduplicateURLs(finalURLs), nil
+}
+
+// Helper functions
+func processURLsFromFile(filename string) ([]string, map[string]string, error) {
+	content, err := os.ReadFile(filename)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to read URLs file: %v", err)
+	}
+
+	var hosts []string
+	paths := make(map[string]string)
+
+	for _, line := range strings.Split(strings.TrimSpace(string(content)), "\n") {
+		if line = strings.TrimSpace(line); line == "" {
+			continue
+		}
+
+		parsedURL, err := rawurlparser.RawURLParse(line)
+		if err != nil {
+			LogError("Invalid URL in file: %s", line)
+			continue
+		}
+
+		hosts = append(hosts, parsedURL.Host)
+		paths[parsedURL.Host] = getPathAndQuery(parsedURL)
+	}
+
+	return hosts, paths, nil
+}
+
+func constructBaseURL(scheme, host, port string) string {
+	baseURL := fmt.Sprintf("%s://%s", scheme, host)
+	if port != "" &&
+		!((scheme == "http" && port == "80") ||
+			(scheme == "https" && port == "443")) {
+		baseURL += ":" + port
+	}
+	return baseURL
+}
+
+func getPathAndQuery(parsedURL *rawurlparser.RawURL) string {
+	pathAndQuery := parsedURL.Path
+	if parsedURL.Query != "" {
+		pathAndQuery += "?" + parsedURL.Query
+	}
+	return pathAndQuery
+}
+
+func deduplicateURLs(urls []string) []string {
+	urlMap := make(map[string]bool)
+	var uniqueURLs []string
+
+	LogVerbose("Processing URLs for deduplication:")
+	for _, u := range urls {
+		if !urlMap[u] {
+			urlMap[u] = true
+			uniqueURLs = append(uniqueURLs, u)
+			LogVerbose("Added unique URL: %s", u)
+		}
+	}
+
+	LogVerbose("Final unique URLs (%d):", len(uniqueURLs))
+	for i, u := range uniqueURLs {
+		LogVerbose("%d. %s", i+1, u)
+	}
+
+	return uniqueURLs
+}
+
+// PrintConfiguration //
+// ---//
+func PrintConfiguration() {
+	outputFile := filepath.Join(config.OutDir, "findings.json")
+
+	fmt.Printf("%sConfiguration:%s\n", colorPink, colorReset)
+	fmt.Printf("  %sURL:%s %s%s%s\n", colorCyan, colorReset, colorYellow, config.URL, colorReset)
+	fmt.Printf("  %sUsing Input File:%s %s%s%s\n", colorCyan, colorReset, colorYellow, config.URLsFile, colorReset)
+	fmt.Printf("  %sUsing Substitute Hosts File:%s %s%s%s\n", colorCyan, colorReset, colorYellow, config.SubstituteHostsFile, colorReset)
+	fmt.Printf("  %sMode:%s %s%s%s\n", colorCyan, colorReset, colorYellow, config.Mode, colorReset)
+	fmt.Printf("  %sOutput Directory:%s %s%s%s\n", colorCyan, colorReset, colorYellow, config.OutDir, colorReset)
+	fmt.Printf("  %sOutput Findings File:%s %s%s%s\n", colorCyan, colorReset, colorYellow, outputFile, colorReset)
+	fmt.Printf("  %sThreads:%s %s%d%s\n", colorCyan, colorReset, colorYellow, config.Threads, colorReset)
+	fmt.Printf("  %sTimeout:%s %s%d seconds%s\n", colorCyan, colorReset, colorYellow, config.Timeout, colorReset)
+	fmt.Printf("  %sRequest Delay:%s %s%dms%s\n", colorCyan, colorReset, colorYellow, config.Delay, colorReset)
+	fmt.Printf("  %sFiltering HTTP Status Codes:%s %s%v%s\n", colorCyan, colorReset, colorYellow, config.MatchStatusCodes, colorReset)
+	fmt.Printf("  %sVerbose mode:%s %s%v%s\n", colorCyan, colorReset, colorYellow, config.Verbose, colorReset)
+	fmt.Printf("  %sDebug mode:%s %s%v%s\n", colorCyan, colorReset, colorYellow, config.Debug, colorReset)
+	fmt.Printf("  %sTrace Requests:%s %s%v%s\n", colorCyan, colorReset, colorYellow, config.TraceRequests, colorReset)
+	fmt.Printf("  %sForce HTTP/2:%s %s%v%s\n", colorCyan, colorReset, colorYellow, config.ForceHTTP2, colorReset)
+	fmt.Printf("  %sFollow Redirects:%s %s%v%s\n", colorCyan, colorReset, colorYellow, config.FollowRedirects, colorReset)
+
+	// Optional configurations
+	if config.SpoofHeader != "" {
+		fmt.Printf("  %sCustom IP Spoofing Headers:%s %s%s%s\n", colorCyan, colorReset, colorYellow, config.SpoofHeader, colorReset)
+	}
+	if config.SpoofIP != "" {
+		fmt.Printf("  %sCustom Spoofing IPs:%s %s%s%s\n", colorCyan, colorReset, colorYellow, config.SpoofIP, colorReset)
+	}
+	if config.Proxy != "" {
+		fmt.Printf("  %sUsing proxy:%s %s%s%s\n", colorCyan, colorReset, colorYellow, config.Proxy, colorReset)
+	}
+
+	fmt.Print("\n")
+	fmt.Println(strings.Repeat("=", 80))
+	fmt.Print("\n")
+}
+
+// -------------------------------------------------------------------------------------//
 // Main Function //
 func main() {
 	flags := []multiFlag{
@@ -151,10 +365,7 @@ func main() {
 		}
 	}
 
-	// Set verbose mode for logger
-	SetVerbose(config.Verbose)
-
-	// Validate bypass mode
+	// Validate bypass mode and print helper if invalid
 	if err := validateMode(config.Mode); err != nil {
 		os.Exit(1)
 	}
@@ -204,264 +415,34 @@ func main() {
 		}
 	}
 
+	// Print Banner //
 	fmt.Print("\n")
 	fmt.Printf("\033[1;97;45mGo-Bypass-403 v%s\033[0m\n", VERSION)
 	fmt.Print("\n")
 
 	// Validate input URL(s)
-	if config.URL == "" && config.URLsFile == "" {
-		LogError("Either Target URL (-u) or URLs file (-l) is required\n")
-		flag.Usage()
+	// Process probed URLs and start scanning
+	urls, err := ProcessInputURLs()
+	if err != nil {
+		LogError("%v\n", err)
 		os.Exit(1)
 	}
 
-	if config.SubstituteHostsFile != "" {
-		if config.URL == "" {
-			fmt.Println("Error: Target URL (-u) is required when using substitute hosts file (-substitute-hosts-file/-shf)")
-			flag.Usage()
-			os.Exit(1)
-		}
-		if config.URLsFile != "" {
-			fmt.Println("Error: Cannot use both URLs file (-l) and substitute hosts file (-substitute-hosts-file/-shf)")
-			flag.Usage()
-			os.Exit(1)
-		}
-	}
+	// Print configuration
+	PrintConfiguration()
 
-	// list of urls to be scanned
-	var urls []string
-
-	// First handle the direct URL if provided
-	if config.URL != "" {
-		// Basic validation first
-		parsedURL, err := rawurlparser.RawURLParse(config.URL)
-		if err != nil {
-			LogError("Invalid URL: %s -- %v\n", config.URL, err)
-			os.Exit(1)
-		}
-
-		// base url
-		baseURL := fmt.Sprintf("%s://%s", parsedURL.Scheme, parsedURL.Host)
-
-		// Combine path and query
-		originalPathAndQuery := parsedURL.Path
-		if parsedURL.Query != "" {
-			originalPathAndQuery += "?" + parsedURL.Query
-		}
-
-		// Validate base URL with httpx
-		validResults, err := ValidateURLsWithHttpx([]string{baseURL})
-		if err != nil {
-			LogError("Failed to validate URL with httpx: %v\n", err)
-			os.Exit(1)
-		}
-
-		// Append original path and query to each valid result
-		for _, result := range validResults {
-			globalHttpxResults.Store(result.URL, &result)
-			urls = append(urls, result.URL+originalPathAndQuery)
-
-			if config.Verbose {
-				LogVerbose("[Httpx] Found target: %s", result.URL)
-				LogVerbose("[Httpx] IPv4: %v", result.IPv4)
-				LogVerbose("[Httpx] IPv6: %v", result.IPv6)
-				LogVerbose("[Httpx] CNAMEs: %v", result.CNAMEs)
-			}
-		}
-	}
-
-	// Handle URLs from file
-	if config.URLsFile != "" {
-		content, err := os.ReadFile(config.URLsFile)
-		if err != nil {
-			LogError("Failed to read URLs file: %v\n", err)
-			os.Exit(1)
-		}
-
-		fileURLs := strings.Split(strings.TrimSpace(string(content)), "\n")
-		for _, u := range fileURLs {
-			if u = strings.TrimSpace(u); u != "" {
-				// Parse and validate URL
-				parsedURL, err := rawurlparser.RawURLParse(u)
-				if err != nil {
-					LogError("Invalid URL in file - %s: %v\n", u, err)
-					continue
-				}
-
-				// Extract base URL (scheme + host)
-				baseURL := fmt.Sprintf("%s://%s", parsedURL.Scheme, parsedURL.Host)
-
-				// Combine path and query
-				originalPathAndQuery := parsedURL.Path
-				if parsedURL.Query != "" {
-					originalPathAndQuery += "?" + parsedURL.Query
-				}
-
-				// Validate base URL with httpx
-				validResults, err := ValidateURLsWithHttpx([]string{baseURL})
-				if err != nil {
-					LogError("Failed to validate URL with httpx: %v\n", err)
-					continue
-				}
-
-				// Append original path and query to each valid result
-				for _, result := range validResults {
-					globalHttpxResults.Store(result.URL, &result) // stored httpx results in cache
-					urls = append(urls, result.URL+originalPathAndQuery)
-
-					if config.Verbose {
-						LogVerbose("[Httpx] Found target: %s", result.URL)
-						LogVerbose("[Httpx] IPv4: %v", result.IPv4)
-						LogVerbose("[Httpx] IPv6: %v", result.IPv6)
-						LogVerbose("[Httpx] CNAMEs: %v", result.CNAMEs)
-					}
-				}
-			}
-		}
-	}
-
-	// Handle substitute hosts file
-	if config.SubstituteHostsFile != "" {
-		// Parse original URL
-		originalURL, err := rawurlparser.RawURLParse(config.URL)
-		if err != nil {
-			LogError("Invalid target URL: %v\n", err)
-			os.Exit(1)
-		}
-		if originalURL.Scheme == "" {
-			LogError("URL must include scheme (http:// or https://)\n")
-			os.Exit(1)
-		}
-
-		// Get original path and query
-		originalPathAndQuery := originalURL.Path
-		if originalURL.Query != "" {
-			originalPathAndQuery += "?" + originalURL.Query
-		}
-
-		// Read SubstituteHostsFile hosts file
-		content, err := os.ReadFile(config.SubstituteHostsFile)
-		if err != nil {
-			LogError("Failed to read substitute hosts file: %v\n", err)
-			os.Exit(1)
-		}
-
-		// Process and validate hosts
-		var hostsToCheck []string
-		for _, host := range strings.Split(strings.TrimSpace(string(content)), "\n") {
-			host = strings.TrimSpace(host)
-			if host == "" {
-				continue
-			}
-
-			// If it's already a URL (has scheme), extract the host
-			if strings.Contains(host, "://") {
-				if parsed, err := rawurlparser.RawURLParse(host); err == nil {
-					host = parsed.Host
-				}
-			}
-
-			// Validate if it's a domain or IP (with optional port)
-			if IsIP(host) || IsDNSName(host) {
-				hostsToCheck = append(hostsToCheck, host)
-			} else {
-				LogError("Invalid host in substitute file: %s\n", host)
-				continue
-			}
-		}
-
-		// Validate hosts with httpx
-		validResults, err := ValidateURLsWithHttpx(hostsToCheck)
-		if err != nil {
-			LogError("Failed to validate hosts with httpx: %v\n", err)
-			os.Exit(1)
-		}
-
-		// Append original path and query to each valid host
-		for _, result := range validResults {
-			globalHttpxResults.Store(result.URL, &result)
-			urls = append(urls, result.URL+originalPathAndQuery)
-
-			if config.Verbose {
-				LogVerbose("[Httpx] Found target: %s", result.URL)
-				LogVerbose("[Httpx] IPv4: %v", result.IPv4)
-				LogVerbose("[Httpx] IPv6: %v", result.IPv6)
-				LogVerbose("[Httpx] CNAMEs: %v", result.CNAMEs)
-			}
-		}
-	}
-
-	// Process URLs
-	if len(urls) == 0 {
-		LogError("No valid URLs found to scan\n")
-		os.Exit(1)
-	} else if len(urls) > 0 {
-		// Create a map for deduplication
-		urlMap := make(map[string]bool)
-		var uniqueURLs []string
-
-		for _, u := range urls {
-			if !urlMap[u] {
-				urlMap[u] = true
-				uniqueURLs = append(uniqueURLs, u)
-			}
-		}
-
-		urls = uniqueURLs
-	}
-
-	// Print complete configuration block
-	fmt.Printf("%sConfiguration:%s\n", colorPink, colorReset)
-	fmt.Printf("  %sURL:%s %s%s%s\n", colorCyan, colorReset, colorYellow, config.URL, colorReset)
-	fmt.Printf("  %sUsing Input File:%s %s%s%s\n", colorCyan, colorReset, colorYellow, config.URLsFile, colorReset)
-	fmt.Printf("  %sUsing Substitute Hosts File:%s %s%s%s\n", colorCyan, colorReset, colorYellow, config.SubstituteHostsFile, colorReset)
-	fmt.Printf("  %sMode:%s %s%s%s\n", colorCyan, colorReset, colorYellow, config.Mode, colorReset)
-	fmt.Printf("  %sOutput Directory:%s %s%s%s\n", colorCyan, colorReset, colorYellow, config.OutDir, colorReset)
-	fmt.Printf("  %sOutput Findings File:%s %s%s%s\n", colorCyan, colorReset, colorYellow, outputFile, colorReset)
-	fmt.Printf("  %sThreads:%s %s%d%s\n", colorCyan, colorReset, colorYellow, config.Threads, colorReset)
-	fmt.Printf("  %sTimeout:%s %s%d seconds%s\n", colorCyan, colorReset, colorYellow, config.Timeout, colorReset)
-	fmt.Printf("  %sRequest Delay:%s %s%dms%s\n", colorCyan, colorReset, colorYellow, config.Delay, colorReset)
-	fmt.Printf("  %sFiltering HTTP Status Codes:%s %s%v%s\n", colorCyan, colorReset, colorYellow, config.MatchStatusCodes, colorReset)
-	fmt.Printf("  %sVerbose mode:%s %s%v%s\n", colorCyan, colorReset, colorYellow, config.Verbose, colorReset)
-	fmt.Printf("  %sDebug mode:%s %s%v%s\n", colorCyan, colorReset, colorYellow, config.Debug, colorReset)
-	fmt.Printf("  %sTrace Requests:%s %s%v%s\n", colorCyan, colorReset, colorYellow, config.TraceRequests, colorReset)
-	fmt.Printf("  %sForce HTTP/2:%s %s%v%s\n", colorCyan, colorReset, colorYellow, config.ForceHTTP2, colorReset)
-	fmt.Printf("  %sFollow Redirects:%s %s%v%s\n", colorCyan, colorReset, colorYellow, config.FollowRedirects, colorReset)
-	if config.SpoofHeader != "" {
-		fmt.Printf("  %sCustom IP Spoofing Headers:%s %s%s%s\n", colorCyan, colorReset, colorYellow, config.SpoofHeader, colorReset)
-	}
-	if config.SpoofIP != "" {
-		fmt.Printf("  %sCustom Spoofing IPs:%s %s%s%s\n", colorCyan, colorReset, colorYellow, config.SpoofIP, colorReset)
-	}
-	if config.Proxy != "" {
-		fmt.Printf("  %sUsing proxy:%s %s%s%s\n", colorCyan, colorReset, colorYellow, config.Proxy, colorReset)
-	}
-	fmt.Print("\n")
-	fmt.Println(strings.Repeat("=", 80))
-	fmt.Print("\n")
-
-	// close httpxresults cache
-	defer globalHttpxResults.Close()
-
-	// Process filtered URLs and start scanning
 	LogYellow("[+] Total URLs to be scanned: %d\n", len(urls))
 
-	// Process filtered URLs and start scanning
 	for _, url := range urls {
-		config.URL = url
 		LogVerbose("Processing URL: %s", url)
 
 		results := RunAllBypasses(url)
 		var findings []*Result
-
-		// Collect all results first
 		for result := range results {
 			findings = append(findings, result)
 		}
 
-		globalHttpxResults.Delete(url)
-
-		// Print table header and findings
+		// Process and save findings
 		if len(findings) > 0 {
 			PrintTableHeader(url)
 			for _, result := range findings {
@@ -469,7 +450,6 @@ func main() {
 			}
 			fmt.Printf("\n")
 
-			// Save results to JSON immediately after processing each URL
 			outputFile := filepath.Join(config.OutDir, "findings.json")
 			if err := AppendResultsToJSON(outputFile, url, config.Mode, findings); err != nil {
 				LogError("Failed to save JSON results: %v", err)
@@ -480,4 +460,10 @@ func main() {
 			LogOrange("\n[!] Sorry, no bypasses found for %s\n", url)
 		}
 	}
+
+	// Clean up global cache
+	if globalHttpxResults != nil {
+		globalHttpxResults.Purge()
+	}
+
 }

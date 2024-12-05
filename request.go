@@ -6,6 +6,7 @@ import (
 	"crypto/tls"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptrace"
 	"net/http/httputil"
@@ -15,7 +16,6 @@ import (
 
 	"github.com/projectdiscovery/fastdialer/fastdialer"
 	"github.com/projectdiscovery/httpx/common/httpx"
-	"github.com/projectdiscovery/rawhttp"
 	"github.com/projectdiscovery/retryablehttp-go"
 	urlutil "github.com/projectdiscovery/utils/url"
 	"github.com/slicingmelon/go-rawurlparser"
@@ -38,24 +38,21 @@ type ResponseDetails struct {
 	Title           string
 }
 
-var (
-	globalRawClient *rawhttp.Client
-	globalDialer    *fastdialer.Dialer
-)
-
 type GO403BYPASS struct {
 	retryClient  *retryablehttp.Client
 	errorHandler *ErrorHandler
 	dialer       *fastdialer.Dialer
 	config       *Config
-	bypassMode   string // Track current bypass mode
-	parsingLogs  chan<- *URLParsingLog
+	bypassMode   string
 }
 
+var gLogFile *os.File
+
 type URLParsingLog struct {
-	BypassMode   string `json:"bypass_mode"`
-	Canary       string `json:"canary"`
-	RawUrlParser struct {
+	BypassMode     string `json:"bypass_mode"`
+	Canary         string `json:"canary"`
+	RawRequestLine string `json:"raw_request_line"`
+	RawUrlParser   struct {
 		FullURL string `json:"full_url"`
 		Host    string `json:"host"`
 		Path    string `json:"path"`
@@ -71,79 +68,175 @@ type URLParsingLog struct {
 	} `json:"util_parser"`
 }
 
-func (b *GO403BYPASS) SaveParsingLog(canary string, parsedURL *rawurlparser.RawURL, req *retryablehttp.Request) *URLParsingLog {
-	rawURLString := fmt.Sprintf("%s://%s%s%s", parsedURL.Scheme, parsedURL.Host, parsedURL.Path, parsedURL.Query)
-	urlutilString := fmt.Sprintf("%s://%s%s%s", req.URL.Scheme, req.URL.Host, req.URL.Path, req.URL.RawQuery)
+// func (b *GO403BYPASS) logURLParsing(req *http.Request, retryNumber int) {
+// 	// Only log on first attempt
+// 	// if retryNumber > 0 {
+// 	// 	return
+// 	// }
 
-	return &URLParsingLog{
-		BypassMode: b.bypassMode,
-		Canary:     canary,
-		RawUrlParser: struct {
-			FullURL string `json:"full_url"`
-			Host    string `json:"host"`
-			Path    string `json:"path"`
-			Query   string `json:"query"`
-			Opaque  string `json:"opaque"`
-		}{
-			FullURL: rawURLString,
-			Host:    parsedURL.Host,
-			Path:    parsedURL.Path,
-			Query:   parsedURL.Query,
-			Opaque:  parsedURL.Opaque,
-		},
-		UtilParser: struct {
-			FullURL string `json:"full_url"`
-			Host    string `json:"host"`
-			Path    string `json:"path"`
-			Query   string `json:"query"`
-			Opaque  string `json:"opaque"`
-		}{
-			FullURL: urlutilString,
-			Host:    req.URL.Host,
-			Path:    req.URL.Path,
-			Query:   req.URL.RawQuery,
-			Opaque:  req.URL.Opaque,
-		},
-	}
-}
+// 	LogDebug("[logURLParsing] [%s] Logging URL parsing -> Retry: %d\n", b.bypassMode, retryNumber)
+// 	// Get the raw request line
+// 	rawReq, err := httputil.DumpRequestOut(req, false)
+// 	if err != nil {
+// 		return
+// 	}
+
+// 	// Extract first line (METHOD /path HTTP/VERSION)
+// 	rawFirstLine := strings.Split(string(rawReq), "\n")[0]
+
+// 	// Extract path from raw request line
+// 	parts := strings.Split(rawFirstLine, " ")
+// 	if len(parts) < 2 {
+// 		return
+// 	}
+// 	rawPath := parts[1]
+
+// 	// Reconstruct raw URL
+// 	rawReqURL := fmt.Sprintf("%s://%s%s",
+// 		req.URL.Scheme,
+// 		req.Host,
+// 		rawPath)
+
+// 	// Compare with the original parsed URL from sendRequest
+// 	// This will be logged to show any differences
+// 	parsingLog := &URLParsingLog{
+// 		BypassMode:     b.bypassMode,
+// 		Canary:         req.Header.Get("X-Go-Bypass-403"),
+// 		RawRequestLine: rawFirstLine,
+// 		RawUrlParser: struct {
+// 			FullURL string `json:"full_url"`
+// 			Host    string `json:"host"`
+// 			Path    string `json:"path"`
+// 			Query   string `json:"query"`
+// 			Opaque  string `json:"opaque"`
+// 		}{
+// 			FullURL: rawReqURL,
+// 			Host:    req.Host,
+// 			Path:    rawPath,
+// 			Query:   req.URL.RawQuery,
+// 			Opaque:  req.URL.Opaque,
+// 		},
+// 		UtilParser: struct {
+// 			FullURL string `json:"full_url"`
+// 			Host    string `json:"host"`
+// 			Path    string `json:"path"`
+// 			Query   string `json:"query"`
+// 			Opaque  string `json:"opaque"`
+// 		}{
+// 			FullURL: req.URL.String(),
+// 			Host:    req.URL.Host,
+// 			Path:    req.URL.Path,
+// 			Query:   req.URL.RawQuery,
+// 			Opaque:  req.URL.Opaque,
+// 		},
+// 	}
+
+// 	// Log to file if enabled
+// 	if b.config.LogDebugToFile {
+// 		if logData, err := json.Marshal(parsingLog); err == nil {
+// 			gLogFile.Write(append(logData, '\n'))
+// 		}
+// 	}
+
+// 	// Console debug output
+// 	if b.config.Debug {
+// 		LogGreen("\n[URL Parsing Comparison] [%s] [Canary: %s]\n"+
+// 			"--------------- Raw Request Line ---------------\n"+
+// 			"%s\n"+
+// 			"--------------- Reconstructed Raw URL ----------\n"+
+// 			"%s\n"+
+// 			"--------------- Final URL ---------------------\n"+
+// 			"%s\n",
+// 			b.bypassMode,
+// 			parsingLog.Canary,
+// 			rawFirstLine,
+// 			rawReqURL,
+// 			req.URL.String())
+// 	}
+// }
 
 // New creates a new GO403BYPASS instance
-func New(cfg *Config, bypassMode string, parsingLogs chan<- *URLParsingLog) (*GO403BYPASS, error) {
+func New(cfg *Config, bypassMode string) (*GO403BYPASS, error) {
 	client := &GO403BYPASS{
-		config:      cfg,
-		bypassMode:  bypassMode,
-		parsingLogs: parsingLogs,
+		config:       cfg,
+		bypassMode:   bypassMode,
+		errorHandler: NewErrorHandler(), // Initialize here
 	}
 
-	// Initialize error handler
-	client.errorHandler = NewErrorHandler()
+	// Initialize log file if debug file logging is enabled
+	if cfg.Debug && cfg.LogDebugToFile {
+		logsDir := "requestslog"
+		if err := os.MkdirAll(logsDir, 0755); err != nil {
+			return nil, fmt.Errorf("failed to create requestslog directory: %v", err)
+		}
+
+		// Use Unix timestamp for unique filenames
+		filename := fmt.Sprintf("%s/debugrequestslog_%s_%s_%d.jsonl",
+			logsDir,
+			bypassMode,
+			time.Now().Format("20060102_150405"), // YYYYMMDD_HHMMSS
+			time.Now().Unix())
+
+		logFile, err := os.OpenFile(filename, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+		if err != nil {
+			return nil, fmt.Errorf("failed to open log file: %v", err)
+		}
+		gLogFile = logFile
+	}
 
 	// Initialize fastdialer
 	fastdialerOpts := fastdialer.Options{
 		BaseResolvers: []string{
-			"1.1.1.1:53", "1.0.0.1:53",
-			"9.9.9.10:53", "8.8.4.4:53",
+			"1.1.1.1:53",
+			"1.0.0.1:53",
+			"9.9.9.10:53",
+			"8.8.4.4:53",
 		},
-		MaxRetries:     5,
-		HostsFile:      true,
-		ResolversFile:  true,
-		CacheType:      fastdialer.Disk,
-		DiskDbType:     fastdialer.LevelDB,
-		DialerTimeout:  time.Duration(cfg.Timeout) * time.Second,
-		WithZTLS:       true,
+		MaxRetries:    5,
+		HostsFile:     true,
+		ResolversFile: true,
+		CacheType:     fastdialer.Disk,
+		DiskDbType:    fastdialer.LevelDB,
+
+		// Timeouts
+		DialerTimeout:   time.Duration(cfg.Timeout) * time.Second,
+		DialerKeepAlive: 10 * time.Second,
+
+		// Cache settings
+		CacheMemoryMaxItems: 200,
+		WithDialerHistory:   true,
+		WithCleanup:         true,
+
+		// TLS settings
+		WithZTLS:            false,
+		DisableZtlsFallback: false,
+
+		// Fallback settings
 		EnableFallback: true,
+
+		// Error handling
+		MaxTemporaryErrors:              30,
+		MaxTemporaryToPermanentDuration: 1 * time.Minute,
 	}
+
+	//LogDebug("[Debug] Starting fastdialer initialization with options: %+v", fastdialerOpts)
 
 	var err error
 	client.dialer, err = fastdialer.NewDialer(fastdialerOpts)
 	if err != nil {
-		return nil, fmt.Errorf("could not create dialer: %v", err)
+		return nil, fmt.Errorf("failed to create dialer: %v", err)
+	}
+
+	if client.dialer == nil {
+		return nil, fmt.Errorf("dialer initialization returned nil")
 	}
 
 	// Create transport with our dialer
 	transport := &http.Transport{
-		DialContext:         client.dialer.Dial,
-		DialTLSContext:      client.dialer.DialTLS,
+		DialContext: client.dialer.Dial,
+		DialTLSContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+			return client.dialer.DialTLS(ctx, network, addr)
+		},
 		MaxIdleConnsPerHost: -1,
 		TLSClientConfig: &tls.Config{
 			InsecureSkipVerify: true,
@@ -183,10 +276,14 @@ func New(cfg *Config, bypassMode string, parsingLogs chan<- *URLParsingLog) (*GO
 				return nil
 			},
 		},
-		Trace: cfg.TraceRequests, // Enable tracing if debug is enabled
+		//Trace: cfg.TraceRequests,
 	}
 
 	client.retryClient = retryablehttp.NewClient(retryOpts)
+
+	// if cfg.Debug {
+	// 	client.retryClient.RequestLogHook = client.logURLParsing
+	// }
 
 	return client, nil
 }
@@ -225,10 +322,6 @@ func (b *GO403BYPASS) NewRawRequestFromURL(method, targetURL string) (*retryable
 
 // sendRequest sends an HTTP request using retryablehttp
 func (b *GO403BYPASS) sendRequest(method, rawURL string, headers []Header) (*ResponseDetails, error) {
-
-	// declare parsinglog var
-	//var parsingLog *URLParsingLog
-
 	// First parse with rawurlparser to preserve exact format
 	parsedURL, err := rawurlparser.RawURLParse(rawURL)
 	if err != nil {
@@ -297,11 +390,6 @@ func (b *GO403BYPASS) sendRequest(method, rawURL string, headers []Header) (*Res
 		req.Header.Set(h.Key, h.Value)
 	}
 
-	if b.config.Debug {
-		parsingLog := b.SaveParsingLog(canary, parsedURL, req)
-		b.parsingLogs <- parsingLog // Send to the channel
-	}
-
 	// Send request
 	resp, err := b.retryClient.Do(req)
 	if err != nil {
@@ -318,7 +406,7 @@ func (b *GO403BYPASS) sendRequest(method, rawURL string, headers []Header) (*Res
 	headersCopy := resp.Header.Clone()
 
 	// Skip if status code doesn't match
-	if !contains(b.config.MatchStatusCodes, resp.StatusCode) {
+	if !validateStatusCode(b.config.MatchStatusCodes, resp.StatusCode) {
 		return &ResponseDetails{
 			StatusCode: resp.StatusCode,
 		}, nil
@@ -411,7 +499,7 @@ func GetResponseBodyRaw(resp *http.Response, headersCopy http.Header, maxBytes i
 	return decodedBody, nil
 }
 
-func contains(codes []int, code int) bool {
+func validateStatusCode(codes []int, code int) bool {
 	for _, c := range codes {
 		if c == code {
 			return true
@@ -444,12 +532,12 @@ func containsHeader(headers []Header, key string, sensitive ...bool) bool {
 	return false
 }
 
-func (b *GO403BYPASS) validateRequest(req *retryablehttp.Request) error {
-	// Verify URL structure preservation
-	// Check header ordering if critical
-	// Validate any bypass-specific requirements
-	return nil
-}
+// func (b *GO403BYPASS) validateRequest(req *retryablehttp.Request) error {
+// 	// Verify URL structure preservation
+// 	// Check header ordering if critical
+// 	// Validate any bypass-specific requirements
+// 	return nil
+// }
 
 func logTraceInfo(bypassMode string, traceInfo *retryablehttp.TraceInfo) {
 	if traceInfo.GetConn.Time.IsZero() {

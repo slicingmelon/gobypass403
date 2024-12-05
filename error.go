@@ -12,9 +12,6 @@ import (
 // ----------------------------------//
 // Custom Error Handling 			//
 // ---------------------------------//
-var (
-	globalErrorHandler *ErrorHandler
-)
 
 // Define custom error kinds to not interfere with other pkgs such as fastdialer
 var (

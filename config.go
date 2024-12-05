@@ -5,11 +5,9 @@ import (
 	"net/url"
 	"sync"
 	"time"
-)
 
-var (
-	isVerbose bool
-	config    Config
+	"github.com/projectdiscovery/gcache"
+	"github.com/projectdiscovery/httpx/runner"
 )
 
 const (
@@ -30,13 +28,19 @@ type Config struct {
 	MatchStatusCodesStr string
 	MatchStatusCodes    []int
 	Debug               bool
+	LogDebugToFile      bool `default:"false"`
 	ForceHTTP2          bool
 	SpoofIP             string
 	SpoofHeader         string
 	Delay               int
 	FollowRedirects     bool
-	TraceRequests       bool
+	TraceRequests       bool `default:"false"`
 }
+
+// global config
+var (
+	config Config
+)
 
 type Result struct {
 	TargetURL       string `json:"target_url"`
@@ -146,48 +150,118 @@ var AvailableModes = map[string]ModesConfig{
 	},
 }
 
-// HttpxResultsCache is a cache for the probing phase, containing httpx results
+// HttpxResultsCache is a cache for the probing phase
 type HttpxResultsCache struct {
 	sync.RWMutex
-	results map[string]*HttpxResult // key is URL
+	hostResults gcache.Cache[string, *HttpxResult]
 }
 
-var globalHttpxResults = &HttpxResultsCache{
-	results: make(map[string]*HttpxResult),
+func NewHttpxResultsCache() *HttpxResultsCache {
+	return &HttpxResultsCache{
+		hostResults: gcache.New[string, *HttpxResult](1000).
+			LRU().
+			Build(),
+	}
 }
 
-func (c *HttpxResultsCache) Store(url string, result *HttpxResult) {
+// Helper function to check if the scheme already exists
+func validateScheme(slice []string, item string) bool {
+	for _, s := range slice {
+		if s == item {
+			return true
+		}
+	}
+	return false
+}
+
+func (c *HttpxResultsCache) UpdateHost(r runner.Result) error {
 	c.Lock()
 	defer c.Unlock()
-	c.results[url] = result
+
+	host := r.Host
+	result, err := c.hostResults.Get(host)
+	if err != nil {
+		// Create new result if host doesn't exist
+		result = &HttpxResult{
+			Host:    host,
+			Port:    r.Port,
+			Schemes: []string{r.Scheme},
+			IPv4:    r.A,
+			IPv6:    r.AAAA,
+			CNAMEs:  r.CNAMEs,
+		}
+	} else {
+		// Update existing result
+		// Add new scheme if not present
+		if !validateScheme(result.Schemes, r.Scheme) {
+			result.Schemes = append(result.Schemes, r.Scheme)
+		}
+
+		// Update IPs - merge without duplicates
+		result.IPv4 = mergeUnique(result.IPv4, r.A)
+		result.IPv6 = mergeUnique(result.IPv6, r.AAAA)
+		result.CNAMEs = mergeUnique(result.CNAMEs, r.CNAMEs)
+
+		// Update port if different
+		if r.Port != "" && r.Port != result.Port {
+			result.Port = r.Port
+		}
+	}
+
+	return c.hostResults.Set(host, result)
 }
 
-func (c *HttpxResultsCache) Get(url string) (*HttpxResult, bool) {
+// Helper function to merge strings without duplicates
+func mergeUnique(existing, new []string) []string {
+	seen := make(map[string]bool)
+	merged := make([]string, 0)
+
+	// Add existing items
+	for _, item := range existing {
+		if !seen[item] {
+			seen[item] = true
+			merged = append(merged, item)
+		}
+	}
+
+	// Add new items
+	for _, item := range new {
+		if !seen[item] {
+			seen[item] = true
+			merged = append(merged, item)
+		}
+	}
+
+	return merged
+}
+
+func (c *HttpxResultsCache) Store(host string, result *HttpxResult) error {
+	c.Lock()
+	defer c.Unlock()
+	return c.hostResults.Set(host, result)
+}
+
+func (c *HttpxResultsCache) Get(host string) (*HttpxResult, bool) {
 	c.RLock()
 	defer c.RUnlock()
-	result, exists := c.results[url]
-	return result, exists
+	result, err := c.hostResults.Get(host)
+	return result, err == nil
+}
+
+func (c *HttpxResultsCache) Delete(host string) {
+	c.Lock()
+	defer c.Unlock()
+	c.hostResults.Remove(host)
 }
 
 func (c *HttpxResultsCache) Purge() {
 	c.Lock()
 	defer c.Unlock()
-	// Clear the map
-	c.results = make(map[string]*HttpxResult)
+	c.hostResults.Purge()
 }
 
-func (c *HttpxResultsCache) Delete(url string) {
-	c.Lock()
-	defer c.Unlock()
-	delete(c.results, url)
-}
-
-func (c *HttpxResultsCache) Close() {
-	c.Lock()
-	defer c.Unlock()
-	// Clear the map and set to nil to help GC
-	c.results = nil
-}
+// Initialize global cache
+var globalHttpxResults = NewHttpxResultsCache()
 
 // Other Constants //
 const (

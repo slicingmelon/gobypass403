@@ -301,8 +301,8 @@ github.com/shoenig/test v0.6.4/go.mod h1:byHiCGXqrVaflBLAMq/srcZIHynQPQgeyvkvXnj
 github.com/sirupsen/logrus v1.3.0/go.mod h1:LxeOpSwHxABJmUn/MG1IvRgCAasNZTLOkJPxbbu5VWo=
 github.com/sirupsen/logrus v1.7.0/go.mod h1:yWOB1SBYBC5VeMP7gHvWumXLIWorT60ONWic61uBYv0=
 github.com/sirupsen/logrus v1.9.3/go.mod h1:naHLuLoDiP4jHNo9R0sCBMtWGeIprob74mVsIT4qYEQ=
-github.com/slicingmelon/go-rawurlparser v0.2.3 h1:8FzYEDKTp0fZE0e5nHbcKPS2KhjKysIr7mqanC7bVvQ=
-github.com/slicingmelon/go-rawurlparser v0.2.3/go.mod h1:NoHgsXCbro1K2n/ntZ7a3mN2Ctta4zjX1UFwofxL+4M=
+github.com/slicingmelon/go-rawurlparser v0.2.5 h1:a+6y9I/bREHvLplaKXQDIS/hjL8oJfk4xRsUzo9qB0g=
+github.com/slicingmelon/go-rawurlparser v0.2.5/go.mod h1:NoHgsXCbro1K2n/ntZ7a3mN2Ctta4zjX1UFwofxL+4M=
 github.com/spaolacci/murmur3 v1.1.0 h1:7c1g84S4BPRrfL5Xrdp6fOJ206sU9y293DDHaoy0bLI=
 github.com/spaolacci/murmur3 v1.1.0/go.mod h1:JwIasOWyU6f++ZhiEuf87xNszmSA2myDM2Kzu9HwQUA=
 github.com/ssor/bom v0.0.0-20170718123548-6386211fdfcf h1:pvbZ0lM0XWPBqUKqFU8cmavspvIl9nulOYwdy6IFRRo=
