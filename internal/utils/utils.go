@@ -1,5 +1,4 @@
-// utils.go
-package main
+package utils
 
 import (
 	"bufio"

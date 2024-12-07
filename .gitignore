@@ -2,7 +2,15 @@
 *
 
 # Except
-!*.go
+
+!.git/
+!.gitignore
+
+!main.go
+
+!internal/  
+!internal/**
+
 !go.mod
 !go.sum
 
@@ -11,14 +19,9 @@
 !images/
 !images/**
 
-!.git/
-!.gitignore
 !README.md
 
-!experimental_tests/
-!experimental_tests/*.py
-
-!documentation/
-!documentation/**   
+!docs/
+!docs/**   
 
 

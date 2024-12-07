@@ -1,5 +1,4 @@
-// config.go
-package main
+package config
 
 import (
 	"net/url"
@@ -33,7 +32,7 @@ type Config struct {
 	TraceRequests       bool `default:"false"`
 }
 
-// global config
+// lobal config
 var (
 	config Config
 )

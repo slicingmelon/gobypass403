@@ -1,5 +1,4 @@
-// bypass.go
-package main
+package scanner
 
 import (
 	"fmt"
@@ -8,12 +7,14 @@ import (
 	"time"
 
 	"github.com/projectdiscovery/utils/errkit"
+	"github.com/slicingmelon/go-bypass-403/internal/config"
+	"github.com/slicingmelon/go-bypass-403/internal/utils"
 	"github.com/slicingmelon/go-rawurlparser"
 )
 
 type WorkerContext struct {
 	mode     string
-	progress *ProgressCounter
+	progress *utils.ProgressCounter
 	cancel   chan struct{}
 	wg       *sync.WaitGroup
 	once     sync.Once
@@ -22,7 +23,7 @@ type WorkerContext struct {
 func NewWorkerContext(mode string, total int) *WorkerContext {
 	return &WorkerContext{
 		mode: mode,
-		progress: &ProgressCounter{
+		progress: &utils.ProgressCounter{
 			total: total,
 			mode:  mode,
 		},

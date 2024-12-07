@@ -1,5 +1,4 @@
-// request.go
-package main
+package rawhttp
 
 import (
 	"bufio"

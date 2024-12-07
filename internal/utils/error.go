@@ -1,5 +1,4 @@
-// error.go
-package main
+package utils
 
 import (
 	"strings"

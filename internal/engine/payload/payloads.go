@@ -1,5 +1,4 @@
-// payloads.go
-package main
+package payload
 
 import (
 	"fmt"
