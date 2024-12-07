@@ -34,7 +34,7 @@ type Config struct {
 
 // lobal config
 var (
-	config Config
+	MyConfig Config
 )
 
 type Result struct {

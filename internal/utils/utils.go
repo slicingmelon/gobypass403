@@ -459,25 +459,25 @@ func IsDNSName(str string) bool {
 // ProgressCounter //
 // Custom code to show progress on the current bypass mode
 type ProgressCounter struct {
-	total     int
-	current   int
-	mode      string
-	mu        sync.Mutex
-	cancelled bool
+	Total     int
+	Current   int
+	Mode      string
+	Mu        sync.Mutex
+	Cancelled bool
 }
 
 func (pc *ProgressCounter) markAsCancelled() {
-	pc.mu.Lock()
-	pc.cancelled = true
+	pc.Mu.Lock()
+	pc.Cancelled = true
 	fmt.Printf("\r%s[%s]%s %sCancelled at:%s %s%d%s/%s%d%s (%s%.1f%%%s) - %s%s%s\n",
-		colorCyan, pc.mode, colorReset,
+		colorCyan, pc.Mode, colorReset,
 		colorRed, colorReset,
-		colorRed, pc.current, colorReset,
-		colorGreen, pc.total, colorReset,
-		colorRed, float64(pc.current)/float64(pc.total)*100, colorReset,
+		colorRed, pc.Current, colorReset,
+		colorGreen, pc.Total, colorReset,
+		colorRed, float64(pc.Current)/float64(pc.Total)*100, colorReset,
 		colorYellow, "Permanent error detected - Skipping current job", colorReset,
 	)
-	pc.mu.Unlock()
+	pc.Mu.Unlock()
 }
 
 func (pc *ProgressCounter) increment() {

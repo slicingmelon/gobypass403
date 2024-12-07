@@ -2,13 +2,13 @@ module github.com/slicingmelon/go-bypass-403
 
 go 1.21.0
 
-replace (
-	github.com/slicingmelon/go-bypass-403/internal/config => ./internal/config
-	github.com/slicingmelon/go-bypass-403/internal/engine/payload => ./internal/engine/payload
-	github.com/slicingmelon/go-bypass-403/internal/engine/rawhttp => ./internal/engine/rawhttp
-	github.com/slicingmelon/go-bypass-403/internal/engine/scanner => ./internal/engine/scanner
-	github.com/slicingmelon/go-bypass-403/internal/utils => ./internal/utils
-)
+// replace (
+// 	github.com/slicingmelon/go-bypass-403/internal/config => ./internal/config
+// 	github.com/slicingmelon/go-bypass-403/internal/engine/payload => ./internal/engine/payload
+// 	github.com/slicingmelon/go-bypass-403/internal/engine/rawhttp => ./internal/engine/rawhttp
+// 	github.com/slicingmelon/go-bypass-403/internal/engine/scanner => ./internal/engine/scanner
+// 	github.com/slicingmelon/go-bypass-403/internal/utils => ./internal/utils
+// )
 
 require (
 	github.com/projectdiscovery/fastdialer v0.2.11
