@@ -54,8 +54,8 @@ type RawURLBytes struct {
 
 // RawURLParseByte parses URL with default options and returns []byte-based struct
 // RawURLParseByte parses URL with default options and returns []byte-based struct
-func RawURLParseBytes(rawURL []byte) (*RawURLBytes, error) {
-	return RawURLParseBytesWithOptions(rawURL, DefaultOptions())
+func RawURLParseBytes(rawURLBytes []byte) (*RawURLBytes, error) {
+	return RawURLParseBytesWithOptions(rawURLBytes, DefaultOptions())
 }
 
 // RawURLParseByteWithOptions parses URL with custom options and returns []byte-based struct
