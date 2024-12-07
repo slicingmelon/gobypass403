@@ -17,3 +17,8 @@
 
 !experimental_tests/
 !experimental_tests/*.py
+
+!documentation/
+!documentation/**   
+
+
