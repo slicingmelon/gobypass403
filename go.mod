@@ -2,22 +2,14 @@ module github.com/slicingmelon/go-bypass-403
 
 go 1.21.0
 
-// replace (
-// 	github.com/slicingmelon/go-bypass-403/internal/config => ./internal/config
-// 	github.com/slicingmelon/go-bypass-403/internal/engine/payload => ./internal/engine/payload
-// 	github.com/slicingmelon/go-bypass-403/internal/engine/rawhttp => ./internal/engine/rawhttp
-// 	github.com/slicingmelon/go-bypass-403/internal/engine/scanner => ./internal/engine/scanner
-// 	github.com/slicingmelon/go-bypass-403/internal/utils => ./internal/utils
-// )
-
 require (
-	github.com/projectdiscovery/fastdialer v0.2.11
+	github.com/projectdiscovery/fastdialer v0.2.13
 	github.com/projectdiscovery/gcache v0.0.0-20241015120333-12546c6e3f4c
 	github.com/projectdiscovery/httpx v1.6.9
-	github.com/projectdiscovery/retryablehttp-go v1.0.89
-	github.com/projectdiscovery/utils v0.4.0
+	github.com/projectdiscovery/retryablehttp-go v1.0.90
+	github.com/projectdiscovery/utils v0.4.1
 	github.com/slicingmelon/go-rawurlparser v0.2.7
-	github.com/valyala/fasthttp v1.57.0
+	github.com/valyala/fasthttp v1.58.0
 )
 
 require (
@@ -58,11 +50,11 @@ require (
 	github.com/projectdiscovery/blackrock v0.0.1 // indirect
 	github.com/projectdiscovery/cdncheck v1.1.0 // indirect
 	github.com/projectdiscovery/goflags v0.1.64 // indirect
-	github.com/projectdiscovery/gologger v1.1.33 // indirect
-	github.com/projectdiscovery/hmap v0.0.68 // indirect
+	github.com/projectdiscovery/gologger v1.1.34 // indirect
+	github.com/projectdiscovery/hmap v0.0.69 // indirect
 	github.com/projectdiscovery/networkpolicy v0.0.9 // indirect
 	github.com/projectdiscovery/rawhttp v0.1.68 // indirect
-	github.com/projectdiscovery/retryabledns v1.0.86 // indirect
+	github.com/projectdiscovery/retryabledns v1.0.87 // indirect
 	github.com/projectdiscovery/tlsx v1.1.7 // indirect
 	github.com/projectdiscovery/useragent v0.0.69 // indirect
 	github.com/refraction-networking/utls v1.6.7 // indirect
@@ -85,13 +77,13 @@ require (
 	github.com/zmap/zcrypto v0.0.0-20240512203510-0fef58d9a9db // indirect
 	go.etcd.io/bbolt v1.3.10 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
-	golang.org/x/crypto v0.28.0 // indirect
+	golang.org/x/crypto v0.29.0 // indirect
 	golang.org/x/exp v0.0.0-20240506185415-9bf2ced13842 // indirect
 	golang.org/x/mod v0.17.0 // indirect
-	golang.org/x/net v0.30.0 // indirect
-	golang.org/x/sync v0.8.0 // indirect
-	golang.org/x/sys v0.26.0 // indirect
-	golang.org/x/text v0.19.0 // indirect
+	golang.org/x/net v0.31.0 // indirect
+	golang.org/x/sync v0.9.0 // indirect
+	golang.org/x/sys v0.27.0 // indirect
+	golang.org/x/text v0.20.0 // indirect
 	golang.org/x/tools v0.21.1-0.20240508182429-e35e4ccd0d2d // indirect
 	gopkg.in/djherbis/times.v1 v1.3.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
