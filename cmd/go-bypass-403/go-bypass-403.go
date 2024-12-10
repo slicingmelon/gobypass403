@@ -15,8 +15,6 @@ import (
 	"github.com/slicingmelon/go-rawurlparser"
 )
 
-//var config *config.Config
-
 // ProcessInputURLs handles all URL input methods and returns validated URLs
 func ProcessInputURLs(probeService *ProbeService) ([]string, error) {
 	if config.URL == "" && config.URLsFile == "" {

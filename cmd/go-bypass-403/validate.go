@@ -14,6 +14,22 @@ import (
 	"github.com/slicingmelon/go-rawurlparser"
 )
 
+// URLProcessor handles URL validation and processing
+type URLProcessor struct {
+	opts          *Options
+	hostsToProbe  []string
+	originalPaths map[string]string
+	probeService  *ProbeService
+}
+
+func NewURLProcessor(opts *Options) *URLProcessor {
+	return &URLProcessor{
+		opts:          opts,
+		originalPaths: make(map[string]string),
+		probeService:  NewProbeService(),
+	}
+}
+
 // ProcessAndValidate processes and validates all options after parsing
 func (o *Options) ProcessAndValidate() error {
 
@@ -127,27 +143,26 @@ func (o *Options) processProxy() error {
 }
 
 // validateAndProcessURLs handles all URL input validation and processing
+// Update existing validateAndProcessURLs to only validate
 func (o *Options) validateAndProcessURLs() error {
 	// Basic input validation
 	if err := o.validateInputs(); err != nil {
 		return err
 	}
 
-	// Process direct URL if provided
+	// Validate URL formats only, not processing
 	if o.URL != "" {
 		if err := o.validateSingleURL(o.URL); err != nil {
 			return fmt.Errorf("invalid target URL: %v", err)
 		}
 	}
 
-	// Process URLs file if provided
 	if o.URLsFile != "" {
 		if err := o.validateURLsFile(); err != nil {
 			return err
 		}
 	}
 
-	// Process substitute hosts file if provided
 	if o.SubstituteHostsFile != "" {
 		if err := o.validateSubstituteHosts(); err != nil {
 			return err
@@ -220,6 +235,22 @@ func (o *Options) validateSubstituteHosts() error {
 	}
 
 	return nil
+}
+
+// Helper methods for URL processing and validation
+func (p *URLProcessor) getPathAndQuery(parsedURL *url.URL) string {
+	path := parsedURL.Path
+	if parsedURL.RawQuery != "" {
+		path += "?" + parsedURL.RawQuery
+	}
+	return path
+}
+
+func (p *URLProcessor) constructBaseURL(scheme, host, port string) string {
+	if (scheme == "http" && port == "80") || (scheme == "https" && port == "443") {
+		return fmt.Sprintf("%s://%s", scheme, host)
+	}
+	return fmt.Sprintf("%s://%s:%s", scheme, host, port)
 }
 
 // setDefaults sets default values for options

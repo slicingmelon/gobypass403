@@ -1,84 +1,86 @@
 package utils
 
 import (
-	"fmt"
-
-	"github.com/slicingmelon/go-bypass-403/internal/config"
+	"github.com/fatih/color"
 )
 
-const (
-	colorReset  = "\033[0m"
-	colorRed    = "\033[31m"
-	colorGreen  = "\033[32m"
-	colorYellow = "\033[33m"
-	colorBlue   = "\033[34m"
-	colorPurple = "\033[35m"
-	colorCyan   = "\033[36m"
-	colorWhite  = "\033[37m"
-	colorBold   = "\033[1m"
-	colorGray   = "\033[90m"
-	colorOrange = "\033[38;5;208m"
-	colorPink   = "\033[38;5;206m"
-	colorTeal   = "\033[38;5;51m"
-	color
+var (
+	// Create color objects for reuse
+	infoColor    = color.New(color.FgWhite)
+	verboseColor = color.New(color.FgCyan)
+	debugColor   = color.New(color.FgMagenta)
+	errorColor   = color.New(color.FgRed, color.Bold)
+	greenColor   = color.New(color.FgGreen)
+	blueColor    = color.New(color.FgBlue)
+	yellowColor  = color.New(color.FgYellow)
+	purpleColor  = color.New(color.FgMagenta)
+	grayColor    = color.New(color.FgHiBlack)
+	orangeColor  = color.New(color.FgHiRed)
+	pinkColor    = color.New(color.FgHiMagenta)
+	tealColor    = color.New(color.FgHiCyan)
 )
 
 // LogInfo prints info messages (always shown)
 func LogInfo(format string, v ...interface{}) {
-	fmt.Printf("[INFO] "+format+"\n", v...)
+	infoColor.Printf("[INFO] "+format+"\n", v...)
 }
 
-// LogVe
+// LogVerbose prints verbose messages (only if -v)
 func LogVerbose(format string, v ...interface{}) {
-	if config.Verbose {
-		fmt.Printf("\n"+colorCyan+format+colorReset+"\n", v...) // Cyan
-	}
+	verboseColor.Printf("\n[VERBOSE] "+format+"\n", v...)
 }
 
-// LogDebug (only if -d and color purple)
+// LogDebug prints debug messages (only if -d)
 func LogDebug(format string, v ...interface{}) {
-	if config.Debug {
-		fmt.Printf("\n"+colorPurple+format+colorReset+"\n", v...) // Purple
-	}
+	debugColor.Printf("\n[DEBUG] "+format+"\n", v...)
 }
 
-// Red
+// LogError prints error messages
 func LogError(format string, v ...interface{}) {
-	fmt.Printf("\n"+colorRed+"[ERROR] "+format+colorReset+"\n", v...)
+	errorColor.Printf("\n[ERROR] "+format+"\n", v...)
 }
 
+// LogGreen prints green text
 func LogGreen(format string, v ...interface{}) {
-	fmt.Printf("\n\033[32m"+format+"\033[0m\n", v...) // Green
+	greenColor.Printf("\n"+format+"\n", v...)
 }
 
+// LogBlue prints blue text
 func LogBlue(format string, v ...interface{}) {
-	fmt.Printf("\n\033[34m"+format+"\033[0m\n", v...) // Blue
+	blueColor.Printf("\n"+format+"\n", v...)
 }
 
+// LogYellow prints yellow text
 func LogYellow(format string, v ...interface{}) {
-	fmt.Printf("\n\033[93m"+format+"\033[0m\n", v...) // Yellow
+	yellowColor.Printf("\n"+format+"\n", v...)
 }
 
+// LogRed prints red text
 func LogRed(format string, v ...interface{}) {
-	fmt.Printf("\n\033[91m"+format+"\033[0m\n", v...) // Red
+	errorColor.Printf("\n"+format+"\n", v...)
 }
 
+// LogPurple prints purple text
 func LogPurple(format string, v ...interface{}) {
-	fmt.Printf(colorPurple+format+colorReset+"\n", v...) // Purple
+	purpleColor.Printf(format+"\n", v...)
 }
 
+// LogGray prints gray text
 func LogGray(format string, v ...interface{}) {
-	fmt.Printf(colorGray+format+colorReset+"\n", v...) // Gray
+	grayColor.Printf(format+"\n", v...)
 }
 
+// LogOrange prints orange text
 func LogOrange(format string, v ...interface{}) {
-	fmt.Printf(colorOrange+format+colorReset+"\n", v...) // Orange
+	orangeColor.Printf(format+"\n", v...)
 }
 
+// LogPink prints pink text
 func LogPink(format string, v ...interface{}) {
-	fmt.Printf(colorPink+format+colorReset+"\n", v...) // Pink
+	pinkColor.Printf(format+"\n", v...)
 }
 
+// LogTeal prints teal text
 func LogTeal(format string, v ...interface{}) {
-	fmt.Printf(colorTeal+format+colorReset+"\n", v...) // Teal
+	tealColor.Printf(format+"\n", v...)
 }

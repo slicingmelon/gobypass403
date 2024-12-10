@@ -3,6 +3,7 @@ module github.com/slicingmelon/go-bypass-403
 go 1.21.0
 
 require (
+	github.com/fatih/color v1.18.0
 	github.com/projectdiscovery/fastdialer v0.2.13
 	github.com/projectdiscovery/gcache v0.0.0-20241015120333-12546c6e3f4c
 	github.com/projectdiscovery/httpx v1.6.9
@@ -38,6 +39,7 @@ require (
 	github.com/klauspost/compress v1.17.11 // indirect
 	github.com/klauspost/pgzip v1.2.6 // indirect
 	github.com/logrusorgru/aurora v2.0.3+incompatible // indirect
+	github.com/mattn/go-colorable v0.1.13 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/mholt/archiver/v3 v3.5.1 // indirect
 	github.com/microcosm-cc/bluemonday v1.0.27 // indirect
