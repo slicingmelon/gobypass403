@@ -1,0 +1,129 @@
+package rawhttp
+
+import (
+	"crypto/tls"
+	"sync"
+	"time"
+
+	"github.com/valyala/fasthttp"
+	"github.com/valyala/fasthttp/fasthttpproxy"
+)
+
+const (
+	userAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+)
+
+// Client represents a reusable HTTP client optimized for performance
+type Client struct {
+	client    *fasthttp.Client
+	bufPool   sync.Pool
+	userAgent []byte
+}
+
+// ClientOptions contains configuration options for the Client
+type ClientOptions struct {
+	Timeout             time.Duration
+	MaxConnsPerHost     int
+	MaxIdleConnDuration time.Duration
+	NoDefaultUserAgent  bool
+	ProxyURL            string
+	MaxResponseBodySize int
+}
+
+// DefaultOptions returns the default client options
+func DefaultOptions() *ClientOptions {
+	return &ClientOptions{
+		Timeout:             30 * time.Second,
+		MaxConnsPerHost:     512,
+		MaxIdleConnDuration: 10 * time.Second,
+		NoDefaultUserAgent:  true,
+		ProxyURL:            "",
+	}
+}
+
+// NewHTTPClient creates a new optimized HTTP client
+func NewHTTPClient(opts *ClientOptions) *Client {
+	if opts == nil {
+		opts = DefaultOptions()
+	}
+
+	// Configure dialer based on proxy settings
+	var dialer fasthttp.DialFunc
+	if opts.ProxyURL != "" {
+		dialer = fasthttpproxy.FasthttpHTTPDialerTimeout(opts.ProxyURL, opts.Timeout)
+	}
+
+	c := &Client{
+		client: &fasthttp.Client{
+			Dial:                          dialer,
+			ReadTimeout:                   opts.Timeout,
+			WriteTimeout:                  opts.Timeout,
+			MaxConnsPerHost:               opts.MaxConnsPerHost,
+			MaxIdleConnDuration:           opts.MaxIdleConnDuration,
+			DisableHeaderNamesNormalizing: true,
+			DisablePathNormalizing:        true,
+			NoDefaultUserAgentHeader:      true,
+			MaxResponseBodySize:           opts.MaxResponseBodySize,
+			TLSConfig: &tls.Config{
+				InsecureSkipVerify: true,
+				MinVersion:         tls.VersionTLS10,
+			},
+		},
+		bufPool: sync.Pool{
+			New: func() interface{} {
+				return make([]byte, 0, 32*1024) // 32KB initial buffer size
+			},
+		},
+	}
+
+	if !opts.NoDefaultUserAgent {
+		c.userAgent = []byte(userAgent)
+	}
+
+	return c
+}
+
+// AcquireBuffer gets a buffer from the pool
+func (c *Client) AcquireBuffer() []byte {
+	return c.bufPool.Get().([]byte)
+}
+
+// ReleaseBuffer returns a buffer to the pool
+func (c *Client) ReleaseBuffer(buf []byte) {
+	buf = buf[:0] // Reset buffer before returning to pool
+	c.bufPool.Put(buf)
+}
+
+// DoRaw performs a raw HTTP request with full control over the request
+func (c *Client) DoRaw(req *fasthttp.Request, resp *fasthttp.Response) error {
+	if len(c.userAgent) > 0 && len(req.Header.Peek("User-Agent")) == 0 {
+		req.Header.SetBytesV("User-Agent", c.userAgent)
+	}
+
+	return c.client.Do(req, resp)
+}
+
+// Close releases all idle connections
+func (c *Client) Close() {
+	c.client.CloseIdleConnections()
+}
+
+// AcquireRequest returns a new Request instance from pool
+func (c *Client) AcquireRequest() *fasthttp.Request {
+	return fasthttp.AcquireRequest()
+}
+
+// ReleaseRequest returns request to pool
+func (c *Client) ReleaseRequest(req *fasthttp.Request) {
+	fasthttp.ReleaseRequest(req)
+}
+
+// AcquireResponse returns a new Response instance from pool
+func (c *Client) AcquireResponse() *fasthttp.Response {
+	return fasthttp.AcquireResponse()
+}
+
+// ReleaseResponse returns response to pool
+func (c *Client) ReleaseResponse(resp *fasthttp.Response) {
+	fasthttp.ReleaseResponse(resp)
+}

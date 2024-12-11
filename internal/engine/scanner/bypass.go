@@ -1,12 +1,14 @@
 package scanner
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/slicingmelon/go-bypass-403/internal/engine/payload"
+	"github.com/slicingmelon/go-bypass-403/internal/engine/rawhttp"
 	"github.com/slicingmelon/go-bypass-403/internal/utils/logger"
 	"github.com/slicingmelon/go-rawurlparser"
 )
@@ -227,18 +229,18 @@ func worker(ctx *WorkerContext, jobs <-chan payload.PayloadJob, results chan<- *
 		}
 	}()
 
-	// Comment out client creation for now
-	/*
-	   client, err := NewClient(opts, ctx.mode)
-	   if err != nil {
-	       logger.LogError("Failed to create client for mode %s: %v", ctx.mode, err)
-	       return
-	   }
-	   defer func() {
-	       client.PrintAllLogs()
-	       client.Close()
-	   }()
-	*/
+	// Create client with options
+	clientOpts := &rawhttp.ClientOptions{
+		Timeout:             time.Duration(opts.Timeout) * time.Second,
+		MaxConnsPerHost:     512,
+		MaxIdleConnDuration: 10 * time.Second,
+		NoDefaultUserAgent:  false,
+		ProxyURL:            opts.Proxy,
+		MaxResponseBodySize: 1024 * 1024, // 1MB max response size
+	}
+
+	client := rawhttp.NewHTTPClient(clientOpts)
+	defer client.Close()
 
 	workerLimiter := time.NewTicker(time.Duration(opts.Delay) * time.Millisecond)
 	defer workerLimiter.Stop()
@@ -248,19 +250,32 @@ func worker(ctx *WorkerContext, jobs <-chan payload.PayloadJob, results chan<- *
 		case <-ctx.cancel:
 			return
 		case <-workerLimiter.C:
-			// Mock response for testing
-			details := &ResponseDetails{
-				StatusCode:      200,
-				ResponsePreview: "Test Response",
-				ResponseHeaders: "Test Headers",
-				ContentType:     "text/html",
-				ContentLength:   100,
-				ResponseBytes:   100,
-				Title:           "Test Title",
-				ServerInfo:      "Test Server",
+			// Create request with context
+			reqCtx := context.Background()
+			req := rawhttp.NewRequestWithContext(reqCtx, job.Method, job.URL, payload.HeadersToMap(job.Headers))
+
+			// Send request
+			resp, err := client.SendRequest(req)
+			ctx.progress.increment()
+
+			if err != nil {
+				logger.LogError("[%s] Request error for %s: %v",
+					job.BypassMode, job.URL, err)
+				req.Release()
+				continue
 			}
 
-			ctx.progress.increment()
+			// Extract response details
+			details := &ResponseDetails{
+				StatusCode:      resp.StatusCode(),
+				ResponsePreview: string(resp.Body()),
+				ResponseHeaders: resp.Header.String(),
+				ContentType:     string(resp.Header.ContentType()),
+				ContentLength:   int64(resp.Header.ContentLength()),
+				ResponseBytes:   len(resp.Body()),
+				//Title:           extractTitle(resp.Body()), // You'll need to implement this
+				ServerInfo: string(resp.Header.Peek("Server")),
+			}
 
 			// Process successful response
 			for _, allowedCode := range opts.MatchStatusCodes {
@@ -277,13 +292,86 @@ func worker(ctx *WorkerContext, jobs <-chan payload.PayloadJob, results chan<- *
 						ResponseBytes:   details.ResponseBytes,
 						Title:           details.Title,
 						ServerInfo:      details.ServerInfo,
-						RedirectURL:     details.RedirectURL,
+						RedirectURL:     string(resp.Header.Peek("Location")),
 					}
 				}
 			}
+
+			// Clean up
+			req.Release()
+			client.ReleaseResponse(resp)
 		}
 	}
 }
+
+// func worker(ctx *WorkerContext, jobs <-chan payload.PayloadJob, results chan<- *Result, opts *ScannerOpts) {
+// 	defer ctx.wg.Done()
+
+// 	// Add panic recovery
+// 	defer func() {
+// 		if r := recover(); r != nil {
+// 			logger.LogError("[%s] Worker panic recovered: %v", ctx.mode, r)
+// 			ctx.Stop()
+// 		}
+// 	}()
+
+// 	// Comment out client creation for now
+// 	/*
+// 	   client, err := NewClient(opts, ctx.mode)
+// 	   if err != nil {
+// 	       logger.LogError("Failed to create client for mode %s: %v", ctx.mode, err)
+// 	       return
+// 	   }
+// 	   defer func() {
+// 	       client.PrintAllLogs()
+// 	       client.Close()
+// 	   }()
+// 	*/
+
+// 	workerLimiter := time.NewTicker(time.Duration(opts.Delay) * time.Millisecond)
+// 	defer workerLimiter.Stop()
+
+// 	for job := range jobs {
+// 		select {
+// 		case <-ctx.cancel:
+// 			return
+// 		case <-workerLimiter.C:
+// 			// Mock response for testing
+// 			details := &ResponseDetails{
+// 				StatusCode:      200,
+// 				ResponsePreview: "Test Response",
+// 				ResponseHeaders: "Test Headers",
+// 				ContentType:     "text/html",
+// 				ContentLength:   100,
+// 				ResponseBytes:   100,
+// 				Title:           "Test Title",
+// 				ServerInfo:      "Test Server",
+// 			}
+
+// 			ctx.progress.increment()
+
+// 			// Process successful response
+// 			for _, allowedCode := range opts.MatchStatusCodes {
+// 				if details.StatusCode == allowedCode {
+// 					results <- &Result{
+// 						TargetURL:       job.URL,
+// 						StatusCode:      details.StatusCode,
+// 						ResponsePreview: details.ResponsePreview,
+// 						ResponseHeaders: details.ResponseHeaders,
+// 						CurlPocCommand:  BuildCurlCmd(job.Method, job.URL, payload.HeadersToMap(job.Headers)),
+// 						BypassModule:    job.BypassMode,
+// 						ContentType:     details.ContentType,
+// 						ContentLength:   details.ContentLength,
+// 						ResponseBytes:   details.ResponseBytes,
+// 						Title:           details.Title,
+// 						ServerInfo:      details.ServerInfo,
+// 						RedirectURL:     details.RedirectURL,
+// 					}
+// 				}
+// 			}
+// 		}
+// 	}
+// }
 
 // func worker(ctx *WorkerContext, jobs <-chan payload.PayloadJob, results chan<- *Result, opts *ScannerOpts) {
 // 	defer ctx.wg.Done()
