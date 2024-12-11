@@ -3,7 +3,6 @@ package helpers
 import (
 	"fmt"
 	"net"
-	"os"
 	"regexp"
 	"runtime"
 	"strings"
@@ -12,25 +11,6 @@ import (
 	//"github.com/slicingmelon/go-bypass-403/internal/config"
 	"github.com/slicingmelon/go-bypass-403/internal/utils/logger"
 )
-
-// Helper function to read payloads from the specified file
-func ReadPayloadsFile(filename string) ([]string, error) {
-	content, err := os.ReadFile(filename)
-	if err != nil {
-		return nil, err
-	}
-
-	var payloads []string
-	for _, line := range strings.Split(string(content), "\n") {
-		// Trim both spaces and \r\n
-		line = strings.TrimSpace(line)
-		if line != "" {
-			payloads = append(payloads, line)
-		}
-	}
-
-	return payloads, nil
-}
 
 // BuildCurlCmd generates a curl command string for the given request parameters
 func BuildCurlCmd(method, url string, headers map[string]string) string {
@@ -106,11 +86,6 @@ func extractTitle(body string) string {
 		return strings.TrimSpace(matches[1])
 	}
 	return ""
-}
-
-// Helper function to check if a byte is a letter
-func isLetter(c byte) bool {
-	return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')
 }
 
 // Helper function to generate random strings

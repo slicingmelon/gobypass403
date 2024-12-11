@@ -68,7 +68,7 @@ func (pc *ProgressCounter) increment() {
 
 	// Print URL only once at the start
 	if pc.Current == 1 {
-		fmt.Printf("%s[+] Scanning %s ...%s\n", colorCyan, config.URL, colorReset)
+		fmt.Printf("%s[+] Scanning %s ...%s\n", colorCyan, s.config.URL, colorReset)
 	}
 
 	// Print progress on same line with your color scheme

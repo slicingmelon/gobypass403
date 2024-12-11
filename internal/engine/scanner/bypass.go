@@ -40,7 +40,7 @@ func (w *WorkerContext) Stop() {
 }
 
 // Core Function
-func RunAllBypasses(targetURL string) chan *Result {
+func (s *Scanner) RunAllBypasses(targetURL string) chan *Result {
 	results := make(chan *Result)
 
 	// Validate URL, should remove this, it's validated already
@@ -51,7 +51,7 @@ func RunAllBypasses(targetURL string) chan *Result {
 	}
 
 	go func() {
-		modes := strings.Split(s.config.modul, ",")
+		modes := strings.Split(s.config.BypassModule, ",")
 		for _, mode := range modes {
 			mode = strings.TrimSpace(mode)
 
@@ -106,7 +106,7 @@ func runBypassForMode(mode string, targetURL string, results chan<- *Result) {
 }
 
 func runDumbCheck(targetURL string, results chan<- *Result) {
-	jobs := make(chan PayloadJob, jobBufferSize)
+	jobs := make(chan PayloadJob, 1000)
 	allJobs := generateDumbJob(targetURL)
 
 	// Create WorkerContext
@@ -134,7 +134,7 @@ func runDumbCheck(targetURL string, results chan<- *Result) {
 }
 
 func runMidPathsBypass(targetURL string, results chan<- *Result) {
-	jobs := make(chan PayloadJob, jobBufferSize)
+	jobs := make(chan PayloadJob, 1000)
 	allJobs := generateMidPathsJobs(targetURL)
 
 	// Create WorkerContext
@@ -163,7 +163,7 @@ func runMidPathsBypass(targetURL string, results chan<- *Result) {
 }
 
 func runEndPathsBypass(targetURL string, results chan<- *Result) {
-	jobs := make(chan PayloadJob, jobBufferSize)
+	jobs := make(chan PayloadJob, 1000)
 	allJobs := generateEndPathsJobs(targetURL)
 
 	// Create WorkerContext
@@ -192,7 +192,7 @@ func runEndPathsBypass(targetURL string, results chan<- *Result) {
 }
 
 func runHeaderIPBypass(targetURL string, results chan<- *Result) {
-	jobs := make(chan PayloadJob, jobBufferSize)
+	jobs := make(chan PayloadJob, 1000)
 	allJobs := generateHeaderIPJobs(targetURL)
 
 	// Create WorkerContext
@@ -221,7 +221,7 @@ func runHeaderIPBypass(targetURL string, results chan<- *Result) {
 }
 
 func runCaseSubstitutionBypass(targetURL string, results chan<- *Result) {
-	jobs := make(chan PayloadJob, jobBufferSize)
+	jobs := make(chan PayloadJob, 1000)
 	allJobs := generateCaseSubstitutionJobs(targetURL)
 
 	// Create WorkerContext
@@ -250,7 +250,7 @@ func runCaseSubstitutionBypass(targetURL string, results chan<- *Result) {
 }
 
 func runCharEncodeBypass(targetURL string, results chan<- *Result) {
-	jobs := make(chan PayloadJob, jobBufferSize)
+	jobs := make(chan PayloadJob, 1000)
 	allJobs := generateCharEncodeJobs(targetURL)
 
 	// Create WorkerContext
@@ -279,7 +279,7 @@ func runCharEncodeBypass(targetURL string, results chan<- *Result) {
 }
 
 func runHeaderSchemeBypass(targetURL string, results chan<- *Result) {
-	jobs := make(chan PayloadJob, jobBufferSize)
+	jobs := make(chan PayloadJob, 1000)
 	allJobs := generateHeaderSchemeJobs(targetURL)
 
 	// Create WorkerContext
@@ -308,7 +308,7 @@ func runHeaderSchemeBypass(targetURL string, results chan<- *Result) {
 }
 
 func runHeaderURLBypass(targetURL string, results chan<- *Result) {
-	jobs := make(chan PayloadJob, jobBufferSize)
+	jobs := make(chan PayloadJob, 1000)
 	allJobs := generateHeaderURLJobs(targetURL)
 
 	// Create WorkerContext
@@ -337,7 +337,7 @@ func runHeaderURLBypass(targetURL string, results chan<- *Result) {
 }
 
 func runHeaderPortBypass(targetURL string, results chan<- *Result) {
-	jobs := make(chan PayloadJob, jobBufferSize)
+	jobs := make(chan PayloadJob, 1000)
 	allJobs := generateHeaderPortJobs(targetURL)
 
 	// Create WorkerContext
@@ -366,7 +366,7 @@ func runHeaderPortBypass(targetURL string, results chan<- *Result) {
 }
 
 func runHostHeaderBypass(targetURL string, results chan<- *Result) {
-	jobs := make(chan PayloadJob, jobBufferSize)
+	jobs := make(chan PayloadJob, 1000)
 	allJobs := generateHostHeaderJobs(targetURL)
 
 	// Create WorkerContext
@@ -457,7 +457,7 @@ func worker(ctx *WorkerContext, jobs <-chan PayloadJob, results chan<- *Result) 
 						ResponsePreview: details.ResponsePreview,
 						ResponseHeaders: details.ResponseHeaders,
 						CurlPocCommand:  buildCurlCmd(job.method, job.url, headersToMap(job.headers)),
-						BypassMode:      job.bypassMode,
+						BypassModule:    job.bypassMode,
 						ContentType:     details.ContentType,
 						ContentLength:   details.ContentLength,
 						ResponseBytes:   details.ResponseBytes,

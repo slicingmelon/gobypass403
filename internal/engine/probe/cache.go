@@ -54,7 +54,7 @@ func (c *ProbeResultsCache) UpdateHost(r ProbeResult) error {
 	}
 	hostname := parsedURL.Hostname()
 
-	logger.Verbose("Updating cache for %s => %s", parsedURL.Host, hostname)
+	logger.LogVerbose("Updating cache for %s => %s", parsedURL.Host, hostname)
 
 	result, err := c.hostResults.Get(hostname)
 	if err != nil {
@@ -82,7 +82,7 @@ func (c *ProbeResultsCache) UpdateHost(r ProbeResult) error {
 		}
 	}
 
-	logger.Verbose("Final cache entry for host %s:\n"+
+	logger.LogVerbose("Final cache entry for host %s:\n"+
 		"Hostname: %s\n"+
 		"Schemes: %v\n"+
 		"Ports: %v\n"+

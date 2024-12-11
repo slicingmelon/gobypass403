@@ -4,8 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	//"github.com/slicingmelon/go-bypass-403/internal/config"
-	//_ "github.com/slicingmelon/go-bypass-403/internal/utils"
+	"github.com/slicingmelon/go-bypass-403/internal/utils/logger"
 	"github.com/slicingmelon/go-rawurlparser"
 )
 
@@ -20,7 +19,7 @@ func generateDumbJob(targetURL string) []PayloadJob {
 	_bypassMode := "dumb_check"
 	var allJobs []PayloadJob
 
-	LogVerbose("Starting DumbCheck payload generation for: %s", targetURL)
+	logger.LogVerbose("Starting DumbCheck payload generation for: %s", targetURL)
 
 	// Just one job with the original URL
 	allJobs = append(allJobs, PayloadJob{
@@ -29,7 +28,7 @@ func generateDumbJob(targetURL string) []PayloadJob {
 		bypassMode: _bypassMode,
 	})
 
-	LogYellow("\n[%s] Generated 1 payload for %s\n", _bypassMode, targetURL)
+	logger.LogYellow("\n[%s] Generated 1 payload for %s\n", _bypassMode, targetURL)
 	return allJobs
 }
 
@@ -38,15 +37,15 @@ func generateMidPathsJobs(targetURL string) []PayloadJob {
 	var jobs []PayloadJob
 	parsedURL, err := rawurlparser.RawURLParse(targetURL)
 	if err != nil {
-		LogError("Failed to parse URL")
+		logger.LogError("Failed to parse URL")
 		return jobs // Return empty slice instead of nil
 	}
 
-	LogVerbose("Starting MidPaths payload generation for: %s", targetURL)
+	logger.LogVerbose("Starting MidPaths payload generation for: %s", targetURL)
 
-	payloads, err := readPayloadsFile("payloads/internal_midpaths.lst")
+	payloads, err := ReadPayloadsFile("payloads/internal_midpaths.lst")
 	if err != nil {
-		LogError("Failed to read midpaths payloads: %v", err)
+		logger.LogError("Failed to read midpaths payloads: %v", err)
 		return jobs // Return empty slice instead of nil
 	}
 
@@ -87,7 +86,7 @@ func generateMidPathsJobs(targetURL string) []PayloadJob {
 		}
 	}
 
-	LogYellow("\n[%s] Generated %d payloads for %s\n", _bypassMode, len(urls), targetURL)
+	logger.LogYellow("\n[%s] Generated %d payloads for %s\n", _bypassMode, len(urls), targetURL)
 
 	// Convert URLs to PayloadJobs
 	for url := range urls {
@@ -105,17 +104,17 @@ func generateEndPathsJobs(targetURL string) []PayloadJob {
 	_bypassMode := "end_paths"
 	var jobs []PayloadJob
 
-	LogVerbose("Starting EndPaths payload generation for: %s", targetURL)
+	logger.LogVerbose("Starting EndPaths payload generation for: %s", targetURL)
 
 	parsedURL, err := rawurlparser.RawURLParse(targetURL)
 	if err != nil {
-		LogError("Failed to parse URL")
+		logger.LogError("Failed to parse URL")
 		return jobs
 	}
 
-	payloads, err := readPayloadsFile("payloads/internal_endpaths.lst")
+	payloads, err := ReadPayloadsFile("payloads/internal_endpaths.lst")
 	if err != nil {
-		LogError("Failed to read endpaths payloads: %v", err)
+		logger.LogError("Failed to read endpaths payloads: %v", err)
 		return jobs
 	}
 
@@ -149,7 +148,7 @@ func generateEndPathsJobs(targetURL string) []PayloadJob {
 		}
 	}
 
-	LogYellow("\n[%s] Generated %d payloads for %s\n", _bypassMode, len(urls), targetURL)
+	logger.LogYellow("\n[%s] Generated %d payloads for %s\n", _bypassMode, len(urls), targetURL)
 
 	// Convert URLs to jobs
 	for url := range urls {
@@ -167,11 +166,11 @@ func generateHeaderIPJobs(targetURL string) []PayloadJob {
 	_bypassMode := "http_headers_ip"
 	var allJobs []PayloadJob
 
-	LogVerbose("Starting HeadersIP payload generation for: %s", targetURL)
+	logger.LogVerbose("Starting HeadersIP payload generation for: %s", targetURL)
 
-	headerNames, err := readPayloadsFile("payloads/header_ip_hosts.lst")
+	headerNames, err := ReadPayloadsFile("payloads/header_ip_hosts.lst")
 	if err != nil {
-		LogError("Failed to read header names: %v", err)
+		logger.LogError("Failed to read header names: %v", err)
 		return allJobs
 	}
 
@@ -184,12 +183,12 @@ func generateHeaderIPJobs(targetURL string) []PayloadJob {
 				headerNames = append(headerNames, header)
 			}
 		}
-		LogYellow("[%s] Added [%s] custom headers from -spoof-header\n", _bypassMode, strings.Join(customHeaders, ","))
+		logger.LogYellow("[%s] Added [%s] custom headers from -spoof-header\n", _bypassMode, strings.Join(customHeaders, ","))
 	}
 
-	ips, err := readPayloadsFile("payloads/internal_ip_hosts.lst")
+	ips, err := ReadPayloadsFile("payloads/internal_ip_hosts.lst")
 	if err != nil {
-		LogError("Failed to read IPs: %v", err)
+		logger.LogError("Failed to read IPs: %v", err)
 		return allJobs
 	}
 
@@ -202,7 +201,7 @@ func generateHeaderIPJobs(targetURL string) []PayloadJob {
 				ips = append(ips, ip)
 			}
 		}
-		LogYellow("[%s] Added [%s] custom IPs from -spoof-ip\n", _bypassMode, strings.Join(customIPs, ","))
+		logger.LogYellow("[%s] Added [%s] custom IPs from -spoof-ip\n", _bypassMode, strings.Join(customIPs, ","))
 	}
 
 	// Special case job
@@ -231,8 +230,8 @@ func generateHeaderIPJobs(targetURL string) []PayloadJob {
 						method: "GET",
 						url:    targetURL,
 						headers: []Header{{
-							Key:   headerName,
-							Value: variation,
+							Header: headerName,
+							Value:  variation,
 						}},
 						bypassMode: _bypassMode,
 					})
@@ -242,8 +241,8 @@ func generateHeaderIPJobs(targetURL string) []PayloadJob {
 					method: "GET",
 					url:    targetURL,
 					headers: []Header{{
-						Key:   headerName,
-						Value: ip,
+						Header: headerName,
+						Value:  ip,
 					}},
 					bypassMode: _bypassMode,
 				})
@@ -251,7 +250,7 @@ func generateHeaderIPJobs(targetURL string) []PayloadJob {
 		}
 	}
 
-	LogYellow("\n[%s] Generated %d payloads for %s\n", _bypassMode, len(allJobs), targetURL)
+	logger.LogYellow("\n[%s] Generated %d payloads for %s\n", _bypassMode, len(allJobs), targetURL)
 	return allJobs
 }
 
@@ -259,11 +258,11 @@ func generateCaseSubstitutionJobs(targetURL string) []PayloadJob {
 	_bypassMode := "case_substitution"
 	var allJobs []PayloadJob
 
-	LogVerbose("Starting CaseSubstitution payload generation for: %s", targetURL)
+	logger.LogVerbose("Starting CaseSubstitution payload generation for: %s", targetURL)
 
 	parsedURL, err := rawurlparser.RawURLParse(targetURL)
 	if err != nil {
-		LogError("Failed to parse URL")
+		logger.LogError("Failed to parse URL")
 		return allJobs
 	}
 
@@ -290,18 +289,18 @@ func generateCaseSubstitutionJobs(targetURL string) []PayloadJob {
 		}
 	}
 
-	LogYellow("\n[%s] Generated %d payloads for %s\n", _bypassMode, len(allJobs), targetURL)
+	logger.LogYellow("\n[%s] Generated %d payloads for %s\n", _bypassMode, len(allJobs), targetURL)
 	return allJobs
 }
 
 func generateCharEncodeJobs(targetURL string) []PayloadJob {
 	var allJobs []PayloadJob
 
-	LogVerbose("Starting CharEncode payload generation for: %s", targetURL)
+	logger.LogVerbose("Starting CharEncode payload generation for: %s", targetURL)
 
 	parsedURL, err := rawurlparser.RawURLParse(targetURL)
 	if err != nil {
-		LogError("Failed to parse URL")
+		logger.LogError("Failed to parse URL")
 		return allJobs
 	}
 
@@ -338,7 +337,7 @@ func generateCharEncodeJobs(targetURL string) []PayloadJob {
 		}
 	}
 
-	LogYellow("\n[char_encode] Generated %d payloads for %s\n", len(allJobs), targetURL)
+	logger.LogYellow("\n[char_encode] Generated %d payloads for %s\n", len(allJobs), targetURL)
 	return allJobs
 }
 
@@ -346,17 +345,17 @@ func generateHeaderSchemeJobs(targetURL string) []PayloadJob {
 	_bypassMode := "http_headers_scheme"
 	var allJobs []PayloadJob
 
-	LogVerbose("Starting HeadersScheme payload generation for: %s", targetURL)
+	logger.LogVerbose("Starting HeadersScheme payload generation for: %s", targetURL)
 
-	headerSchemes, err := readPayloadsFile("payloads/header_proto_schemes.lst")
+	headerSchemes, err := ReadPayloadsFile("payloads/header_proto_schemes.lst")
 	if err != nil {
-		LogError("Failed to read header schemes: %v", err)
+		logger.LogError("Failed to read header schemes: %v", err)
 		return allJobs
 	}
 
-	protoSchemes, err := readPayloadsFile("payloads/internal_proto_schemes.lst")
+	protoSchemes, err := ReadPayloadsFile("payloads/internal_proto_schemes.lst")
 	if err != nil {
-		LogError("Failed to read proto schemes: %v", err)
+		logger.LogError("Failed to read proto schemes: %v", err)
 		return allJobs
 	}
 
@@ -368,8 +367,8 @@ func generateHeaderSchemeJobs(targetURL string) []PayloadJob {
 				method: "GET",
 				url:    targetURL,
 				headers: []Header{{
-					Key:   headerScheme,
-					Value: "on",
+					Header: headerScheme,
+					Value:  "on",
 				}},
 				bypassMode: _bypassMode,
 			})
@@ -383,8 +382,8 @@ func generateHeaderSchemeJobs(targetURL string) []PayloadJob {
 					method: "GET",
 					url:    targetURL,
 					headers: []Header{{
-						Key:   headerScheme,
-						Value: fmt.Sprintf("proto=%s", protoScheme),
+						Header: headerScheme,
+						Value:  fmt.Sprintf("proto=%s", protoScheme),
 					}},
 					bypassMode: _bypassMode,
 				})
@@ -393,8 +392,8 @@ func generateHeaderSchemeJobs(targetURL string) []PayloadJob {
 					method: "GET",
 					url:    targetURL,
 					headers: []Header{{
-						Key:   headerScheme,
-						Value: protoScheme,
+						Header: headerScheme,
+						Value:  protoScheme,
 					}},
 					bypassMode: _bypassMode,
 				})
@@ -402,7 +401,7 @@ func generateHeaderSchemeJobs(targetURL string) []PayloadJob {
 		}
 	}
 
-	LogYellow("\n[%s] Generated %d payloads for %s\n", _bypassMode, len(allJobs), targetURL)
+	logger.LogYellow("\n[%s] Generated %d payloads for %s\n", _bypassMode, len(allJobs), targetURL)
 	return allJobs
 }
 
@@ -410,17 +409,17 @@ func generateHeaderURLJobs(targetURL string) []PayloadJob {
 	_bypassMode := "http_headers_url"
 	var allJobs []PayloadJob
 
-	LogVerbose("Starting HeadersURL payload generation for: %s", targetURL)
+	logger.LogVerbose("Starting HeadersURL payload generation for: %s", targetURL)
 
 	parsedURL, err := rawurlparser.RawURLParse(targetURL)
 	if err != nil {
-		LogError("Failed to parse URL")
+		logger.LogError("Failed to parse URL")
 		return allJobs
 	}
 
-	headerURLs, err := readPayloadsFile("payloads/header_urls.lst")
+	headerURLs, err := ReadPayloadsFile("payloads/header_urls.lst")
 	if err != nil {
-		LogError("Failed to read header URLs: %v", err)
+		logger.LogError("Failed to read header URLs: %v", err)
 		return allJobs
 	}
 
@@ -450,8 +449,8 @@ func generateHeaderURLJobs(targetURL string) []PayloadJob {
 				method: "GET",
 				url:    baseURL + "/",
 				headers: []Header{{
-					Key:   headerURL,
-					Value: targetURL,
+					Header: headerURL,
+					Value:  targetURL,
 				}},
 				bypassMode: _bypassMode,
 			})
@@ -469,8 +468,8 @@ func generateHeaderURLJobs(targetURL string) []PayloadJob {
 				method: "GET",
 				url:    targetURL,
 				headers: []Header{{
-					Key:   headerURL,
-					Value: parentPath,
+					Header: headerURL,
+					Value:  parentPath,
 				}},
 				bypassMode: _bypassMode,
 			})
@@ -482,8 +481,8 @@ func generateHeaderURLJobs(targetURL string) []PayloadJob {
 					method: "GET",
 					url:    targetURL,
 					headers: []Header{{
-						Key:   headerURL,
-						Value: fullURL,
+						Header: headerURL,
+						Value:  fullURL,
 					}},
 					bypassMode: _bypassMode,
 				})
@@ -499,17 +498,17 @@ func generateHeaderPortJobs(targetURL string) []PayloadJob {
 	_bypassMode := "http_headers_port"
 	var allJobs []PayloadJob
 
-	LogVerbose("Starting HeadersPort payload generation for: %s", targetURL)
+	logger.LogVerbose("Starting HeadersPort payload generation for: %s", targetURL)
 
-	headerPorts, err := readPayloadsFile("payloads/header_ports.lst")
+	headerPorts, err := ReadPayloadsFile("payloads/header_ports.lst")
 	if err != nil {
-		LogError("Failed to read header ports: %v", err)
+		logger.LogError("Failed to read header ports: %v", err)
 		return allJobs
 	}
 
-	internalPorts, err := readPayloadsFile("payloads/internal_ports.lst")
+	internalPorts, err := ReadPayloadsFile("payloads/internal_ports.lst")
 	if err != nil {
-		LogError("Failed to read internal ports: %v", err)
+		logger.LogError("Failed to read internal ports: %v", err)
 		return allJobs
 	}
 
@@ -524,15 +523,15 @@ func generateHeaderPortJobs(targetURL string) []PayloadJob {
 				method: "GET",
 				url:    targetURL,
 				headers: []Header{{
-					Key:   headerPort,
-					Value: port,
+					Header: headerPort,
+					Value:  port,
 				}},
 				bypassMode: _bypassMode,
 			})
 		}
 	}
 
-	LogYellow("\n[%s] Generated %d payloads for %s\n", _bypassMode, len(allJobs), targetURL)
+	logger.LogYellow("\n[%s] Generated %d payloads for %s\n", _bypassMode, len(allJobs), targetURL)
 	return allJobs
 }
 
@@ -540,11 +539,11 @@ func generateHostHeaderJobs(targetURL string) []PayloadJob {
 	_bypassMode := "http_host"
 	var allJobs []PayloadJob
 
-	LogVerbose("Starting HostHeader payload generation for: %s", targetURL)
+	logger.LogVerbose("Starting HostHeader payload generation for: %s", targetURL)
 
 	parsedURL, err := rawurlparser.RawURLParse(targetURL)
 	if err != nil {
-		LogError("Failed to parse URL")
+		logger.LogError("Failed to parse URL")
 		return allJobs
 	}
 

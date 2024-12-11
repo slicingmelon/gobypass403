@@ -39,8 +39,8 @@ func (s *ProbeService) FastProbeURLs(urls []string) error {
 		return fmt.Errorf("no URLs provided for validation")
 	}
 
-	logger.Yellow("[+] Starting URL validation for %d URLs\n", len(urls))
-	logger.Verbose("[VERBOSE] URLs to probe: %v", urls)
+	logger.LogYellow("[+] Starting URL validation for %d URLs\n", len(urls))
+	logger.LogVerbose("[VERBOSE] URLs to probe: %v", urls)
 
 	opts := fastdialer.DefaultOptions
 	opts.EnableFallback = true
@@ -60,10 +60,10 @@ func (s *ProbeService) FastProbeURLs(urls []string) error {
 	opts.WithZTLS = false
 	opts.DisableZtlsFallback = true
 	opts.OnDialCallback = func(hostname, ip string) {
-		logger.Verbose("[DIALER] Connected to %s (%s)", hostname, ip)
+		logger.LogVerbose("[DIALER] Connected to %s (%s)", hostname, ip)
 	}
 	opts.OnInvalidTarget = func(hostname, ip, port string) {
-		logger.Debug("[DEBUG] Invalid target: %s (%s:%s)", hostname, ip, port)
+		logger.LogDebug("[DEBUG] Invalid target: %s (%s:%s)", hostname, ip, port)
 	}
 
 	dialer, err := fastdialer.NewDialer(opts)
@@ -83,7 +83,7 @@ func (s *ProbeService) FastProbeURLs(urls []string) error {
 		ctx := context.TODO()
 
 		for url := range urlChan {
-			logger.Verbose("Processing URL: %s", url)
+			logger.LogVerbose("Processing URL: %s", url)
 
 			host := url
 			if strings.Contains(url, "://") {
@@ -110,7 +110,7 @@ func (s *ProbeService) FastProbeURLs(urls []string) error {
 				// Only do DNS lookup for domains, not IPs
 				dnsData, err := dialer.GetDNSData(hostname)
 				if err != nil {
-					logger.Debug("[DEBUG] DNS lookup failed for %s: %v", hostname, err)
+					logger.LogDebug("[DEBUG] DNS lookup failed for %s: %v", hostname, err)
 					continue
 				}
 				result.IPv4 = dnsData.A
@@ -165,10 +165,10 @@ func (s *ProbeService) FastProbeURLs(urls []string) error {
 			// Only update cache if we found any ports
 			if len(result.Ports) > 0 {
 				if err := s.cache.UpdateHost(*result); err != nil {
-					logger.Error("[ERROR] Failed to update cache for %s: %v", hostname, err)
+					logger.LogError("Failed to update cache for %s: %v", hostname, err)
 				}
 			} else {
-				logger.Debug("[DEBUG] No open ports found for %s", hostname)
+				logger.LogVerbose("No open ports found for %s", hostname)
 			}
 		}
 	}()

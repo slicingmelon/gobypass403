@@ -51,7 +51,7 @@ func (s *Scanner) Run() error {
 }
 
 func (s *Scanner) scanURL(url string) error {
-	results := RunAllBypasses(url)
+	results := s.RunAllBypasses(url)
 	var findings []*Result
 
 	for result := range results {
