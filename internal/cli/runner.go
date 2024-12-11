@@ -33,11 +33,9 @@ func (r *Runner) Initialize() error {
 		return err
 	}
 	r.urls = urls
-	logger.Info("Successfully processed %d URLs", len(urls))
 
 	// Step 4: Initialize scanner with processed URLs
-	r.scanner = scanner.New(opts, urls)
-
+	r.scanner = scanner.New(opts, urls) // This will now work
 	return nil
 }
 

@@ -10,7 +10,6 @@ require (
 	github.com/projectdiscovery/retryablehttp-go v1.0.90
 	github.com/projectdiscovery/utils v0.4.1
 	github.com/slicingmelon/go-rawurlparser v0.2.7
-	github.com/valyala/fasthttp v1.58.0
 )
 
 require (
@@ -72,7 +71,6 @@ require (
 	github.com/tidwall/rtred v0.1.2 // indirect
 	github.com/tidwall/tinyqueue v0.1.1 // indirect
 	github.com/ulikunitz/xz v0.5.12 // indirect
-	github.com/valyala/bytebufferpool v1.0.0 // indirect
 	github.com/weppos/publicsuffix-go v0.30.2 // indirect
 	github.com/xi2/xz v0.0.0-20171230120015-48954b6210f8 // indirect
 	github.com/zmap/rc2 v0.0.0-20190804163417-abaa70531248 // indirect
