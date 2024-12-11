@@ -20,7 +20,7 @@ type ProbeService struct {
 	cache *ProbeResultsCache
 }
 
-// Constructor for the probe service
+// Constructor for the probe service//
 func NewProbeService() *ProbeService {
 	return &ProbeService{
 		cache: NewProbeURLResultsCache(),
