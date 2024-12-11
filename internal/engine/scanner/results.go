@@ -7,6 +7,7 @@ import (
 	"html"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 
@@ -157,4 +158,30 @@ func formatBytes(bytes int64) string {
 		return "[-]"
 	}
 	return fmt.Sprintf("%d", bytes)
+}
+
+// BuildCurlCmd generates a curl command string for the given request parameters
+func BuildCurlCmd(method, url string, headers map[string]string) string {
+	// Determine curl command based on OS
+	curlCmd := "curl"
+	if runtime.GOOS == "windows" {
+		curlCmd = "curl.exe"
+	}
+
+	parts := []string{curlCmd, "-skgi", "--path-as-is"}
+
+	// Add method if not GET
+	if method != "GET" {
+		parts = append(parts, "-X", method)
+	}
+
+	// Add headers
+	for k, v := range headers {
+		parts = append(parts, fmt.Sprintf("-H '%s: %s'", k, v))
+	}
+
+	// Add URL
+	parts = append(parts, fmt.Sprintf("'%s'", url))
+
+	return strings.Join(parts, " ")
 }

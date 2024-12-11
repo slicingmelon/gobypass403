@@ -64,7 +64,7 @@ type Header struct {
 }
 
 // Helper function to convert a slice of Header structs to a map
-func headersToMap(headers []Header) map[string]string {
+func HeadersToMap(headers []Header) map[string]string {
 	m := make(map[string]string)
 	for _, h := range headers {
 		m[h.Header] = h.Value

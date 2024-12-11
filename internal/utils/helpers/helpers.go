@@ -4,39 +4,12 @@ import (
 	"fmt"
 	"net"
 	"regexp"
-	"runtime"
 	"strings"
 
 	"math/rand"
 	//"github.com/slicingmelon/go-bypass-403/internal/config"
 	"github.com/slicingmelon/go-bypass-403/internal/utils/logger"
 )
-
-// BuildCurlCmd generates a curl command string for the given request parameters
-func BuildCurlCmd(method, url string, headers map[string]string) string {
-	// Determine curl command based on OS
-	curlCmd := "curl"
-	if runtime.GOOS == "windows" {
-		curlCmd = "curl.exe"
-	}
-
-	parts := []string{curlCmd, "-skgi", "--path-as-is"}
-
-	// Add method if not GET
-	if method != "GET" {
-		parts = append(parts, "-X", method)
-	}
-
-	// Add headers
-	for k, v := range headers {
-		parts = append(parts, fmt.Sprintf("-H '%s: %s'", k, v))
-	}
-
-	// Add URL
-	parts = append(parts, fmt.Sprintf("'%s'", url))
-
-	return strings.Join(parts, " ")
-}
 
 // Helper function to format bytes (so you can see human readable size)
 func FormatBytes(bytes int64) string {

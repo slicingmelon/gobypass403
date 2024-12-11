@@ -8,29 +8,41 @@ import (
 
 	"github.com/projectdiscovery/utils/errkit"
 	"github.com/slicingmelon/go-bypass-403/internal/engine/payload"
+	"github.com/slicingmelon/go-bypass-403/internal/utils/error"
 	"github.com/slicingmelon/go-bypass-403/internal/utils/logger"
 	"github.com/slicingmelon/go-rawurlparser"
 )
 
 // BypassModule defines the interface for all bypass modules
 type BypassModule struct {
-	Name         string
-	GenerateJobs func(targetURL string) []PayloadJob
+    Name         string
+    GenerateJobs func(targetURL string, mode string, opts *ScannerOpts) []payload.PayloadJob
 }
 
 // Registry of all bypass modules
 var bypassModules = map[string]*BypassModule{
-	"mid_paths": {
-		Name:         "mid_paths",
-		GenerateJobs: payload.GenerateMidPathsJobs,
+	// Add dumb_check to registry
+	"dumb_check": {
+		Name:         "dumb_check",
+		GenerateJobs: payload.GenerateDumbJob,
 	},
-	"end_paths": {
-		Name:         "end_paths",
-		GenerateJobs: payload.GenerateEndPathsJobs,
-	},
+    "mid_paths": {
+        Name: "mid_paths",
+        GenerateJobs: func(targetURL string, mode string, opts *ScannerOpts) []payload.PayloadJob {
+            return payload.GenerateMidPathsJobs(targetURL, mode)
+        },
+    },
+    "end_paths": {
+        Name: "end_paths",
+        GenerateJobs: func(targetURL string, mode string, opts *ScannerOpts) []payload.PayloadJob {
+            return payload.GenerateEndPathsJobs(targetURL, mode)
+        },
+    },
 	"http_headers_ip": {
 		Name:         "http_headers_ip",
-		GenerateJobs: payload.GenerateHeaderIPJobs,
+		GenerateJobs: func(targetURL string, opts *ScannerOpts) []payload.PayloadJob {
+            return payload.GenerateHeaderIPJobs(targetURL, opts.SpoofHeader, opts.SpoofIP)
+        },
 	},
 	"case_substitution": {
 		Name:         "case_substitution",
@@ -88,17 +100,14 @@ func (s *Scanner) RunAllBypasses(targetURL string) chan *Result {
 		for _, mode := range modes {
 			mode = strings.TrimSpace(mode)
 
+			// Always run dumb check first for each mode
+			runDumbCheck(targetURL, results)
+
 			if mode == "all" {
-				// Run all registered modules except dumb_check
+				// Run all registered modules
 				for modeName := range bypassModules {
 					runBypassForMode(modeName, targetURL, results)
 				}
-				continue
-			}
-
-			// Special case for dumb check
-			if mode == "dumb_check" {
-				runDumbCheck(targetURL, results)
 				continue
 			}
 
@@ -114,25 +123,48 @@ func (s *Scanner) RunAllBypasses(targetURL string) chan *Result {
 	return results
 }
 
+// runDumbCheck runs the baseline check using the same worker pattern
+func runDumbCheck(targetURL string, results chan<- *Result) {
+    jobs := make(chan payload.PayloadJob, 1000)
+    allJobs := payload.GenerateDumbJob(targetURL)
+
+    ctx := NewWorkerContext("dumb_check", len(allJobs))
+
+    // Start workers
+    for i := 0; i < s.config.Threads; i++ {
+        ctx.wg.Add(1)
+        go worker(ctx, jobs, results)
+    }
+
+    // Process jobs
+    for _, job := range allJobs {
+        select {
+        case <-ctx.cancel:
+            close(jobs)
+            ctx.wg.Wait()
+            return
+        case jobs <- job:
+        }
+    }
+
+    close(jobs)
+    ctx.wg.Wait()
+    
+
 // Generic runner that replaces all individual run*Bypass functions
-func runBypassForMode(mode string, targetURL string, results chan<- *Result) {
-	if mode == "dumb_check" {
-		runDumbCheck(targetURL, results) // Keep special case
-		return
-	}
+func (s *Scanner) runBypassForMode(module string, targetURL string, results chan<- *Result) {
+    module, exists := bypassModules[module]
+    if !exists {
+        return
+    }
 
-	module, exists := bypassModules[mode]
-	if !exists {
-		return
-	}
-
-	jobs := make(chan payload.PayloadJob, 1000)
-	allJobs := module.GenerateJobs(targetURL)
+    jobs := make(chan payload.PayloadJob, 1000)
+    allJobs := module.GenerateJobs(targetURL, mode, s.config)
 
 	ctx := NewWorkerContext(mode, len(allJobs))
 
 	// Start workers
-	for i := 0; i < 20; i++ {
+	for i := 0; i < s.config.Threads; i++ {
 		ctx.wg.Add(1)
 		go worker(ctx, jobs, results)
 	}
@@ -153,35 +185,7 @@ func runBypassForMode(mode string, targetURL string, results chan<- *Result) {
 	fmt.Println()
 }
 
-func runDumbCheck(targetURL string, results chan<- *Result) {
-	jobs := make(chan PayloadJob, 1000)
-	allJobs := generateDumbJob(targetURL)
-
-	// Create WorkerContext
-	ctx := NewWorkerContext("dumb_check", len(allJobs))
-
-	// Start workers
-	for i := 0; i < config.Threads; i++ {
-		ctx.wg.Add(1)
-		go worker(ctx, jobs, results)
-	}
-
-	for _, job := range allJobs {
-		select {
-		case <-ctx.cancel:
-			close(jobs)
-			ctx.wg.Wait()
-			return
-		case jobs <- job:
-		}
-	}
-
-	close(jobs)
-	ctx.wg.Wait()
-	fmt.Println()
-}
-
-func worker(ctx *WorkerContext, jobs <-chan PayloadJob, results chan<- *Result) {
+func worker(ctx *WorkerContext, jobs <-chan payload.PayloadJob, results chan<- *Result) {
 	defer ctx.wg.Done()
 
 	// Add panic recovery
@@ -218,20 +222,18 @@ func worker(ctx *WorkerContext, jobs <-chan PayloadJob, results chan<- *Result) 
 			if err != nil {
 				_, parseErr := rawurlparser.RawURLParse(job.url)
 				if parseErr != nil {
-					LogError("[%s] Failed to parse URL: %s", job.bypassMode, job.url)
+					logger.LogError("[%s] Failed to parse URL: %s", job.bypassMode, job.url)
 					continue
 				}
 
-				if errkit.IsKind(err, ErrKindGo403BypassFatal) {
-					if config.Verbose {
-						LogError("[ErrorMonitorService] => Stopping current bypass mode [%s] -- Permanent error for %s: %v",
-							job.bypassMode, job.url, err)
-					}
+				if errkit.IsKind(err, error.ErrKindGo403BypassFatal) {
+					logger.LogError("[ErrorMonitorService] => Stopping current bypass mode [%s] -- Permanent error for %s: %v",
+						job.bypassMode, job.url, err)
 					ctx.Stop()
 					return
 				}
 
-				LogError("[%s] Request error for %s: %v",
+				logger.LogError("[%s] Request error for %s: %v",
 					job.bypassMode, job.url, err)
 				continue
 			}
@@ -244,7 +246,7 @@ func worker(ctx *WorkerContext, jobs <-chan PayloadJob, results chan<- *Result) 
 						StatusCode:      details.StatusCode,
 						ResponsePreview: details.ResponsePreview,
 						ResponseHeaders: details.ResponseHeaders,
-						CurlPocCommand:  buildCurlCmd(job.method, job.url, headersToMap(job.headers)),
+						CurlPocCommand:  BuildCurlCmd(job.method, job.url, payload.HeadersToMap(job.headers)),
 						BypassModule:    job.bypassMode,
 						ContentType:     details.ContentType,
 						ContentLength:   details.ContentLength,
