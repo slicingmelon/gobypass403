@@ -7,9 +7,40 @@ import (
 	"time"
 
 	"github.com/projectdiscovery/utils/errkit"
+	"github.com/slicingmelon/go-bypass-403/internal/engine/payload"
 	"github.com/slicingmelon/go-bypass-403/internal/utils/logger"
 	"github.com/slicingmelon/go-rawurlparser"
 )
+
+// BypassModule defines the interface for all bypass modules
+type BypassModule struct {
+	Name         string
+	GenerateJobs func(targetURL string) []PayloadJob
+}
+
+// Registry of all bypass modules
+var bypassModules = map[string]*BypassModule{
+	"mid_paths": {
+		Name:         "mid_paths",
+		GenerateJobs: payload.GenerateMidPathsJobs,
+	},
+	"end_paths": {
+		Name:         "end_paths",
+		GenerateJobs: payload.GenerateEndPathsJobs,
+	},
+	"http_headers_ip": {
+		Name:         "http_headers_ip",
+		GenerateJobs: payload.GenerateHeaderIPJobs,
+	},
+	"case_substitution": {
+		Name:         "case_substitution",
+		GenerateJobs: payload.GenerateCaseSubstitutionJobs,
+	},
+	"char_encode": {
+		Name:         "char_encode",
+		GenerateJobs: payload.GenerateCharEncodeJobs,
+	},
+}
 
 type WorkerContext struct {
 	mode     string
@@ -43,7 +74,7 @@ func (w *WorkerContext) Stop() {
 func (s *Scanner) RunAllBypasses(targetURL string) chan *Result {
 	results := make(chan *Result)
 
-	// Validate URL, should remove this, it's validated already
+	// Validate URL
 	if _, err := rawurlparser.RawURLParse(targetURL); err != nil {
 		logger.LogError("Failed to parse URL: %s", targetURL)
 		close(results)
@@ -51,58 +82,75 @@ func (s *Scanner) RunAllBypasses(targetURL string) chan *Result {
 	}
 
 	go func() {
+		defer close(results)
+
 		modes := strings.Split(s.config.BypassModule, ",")
 		for _, mode := range modes {
 			mode = strings.TrimSpace(mode)
 
-			// Skip if mode is not enabled in AvailableModes
-			if !AvailableModes[mode].Enabled && mode != "all" {
+			if mode == "all" {
+				// Run all registered modules except dumb_check
+				for modeName := range bypassModules {
+					runBypassForMode(modeName, targetURL, results)
+				}
 				continue
 			}
 
-			// Run the appropriate bypass based on mode
-			switch mode {
-			case "all":
-				// Run all enabled modes
-				for modeName, modeConfig := range AvailableModes {
-					if modeConfig.Enabled && modeName != "all" {
-						runBypassForMode(modeName, targetURL, results)
-					}
-				}
-			default:
+			// Special case for dumb check
+			if mode == "dumb_check" {
+				runDumbCheck(targetURL, results)
+				continue
+			}
+
+			// Check if module exists in registry
+			if _, exists := bypassModules[mode]; exists {
 				runBypassForMode(mode, targetURL, results)
+			} else {
+				logger.LogError("Unknown bypass mode: %s", mode)
 			}
 		}
-		close(results)
 	}()
 
 	return results
 }
 
+// Generic runner that replaces all individual run*Bypass functions
 func runBypassForMode(mode string, targetURL string, results chan<- *Result) {
-	// First run the dumb check
-	runDumbCheck(targetURL, results)
-
-	switch mode {
-	case "mid_paths":
-		runMidPathsBypass(targetURL, results)
-	case "end_paths":
-		runEndPathsBypass(targetURL, results)
-	case "case_substitution":
-		runCaseSubstitutionBypass(targetURL, results)
-	case "char_encode":
-		runCharEncodeBypass(targetURL, results)
-	case "http_headers_ip":
-		runHeaderIPBypass(targetURL, results)
-	case "http_headers_scheme":
-		runHeaderSchemeBypass(targetURL, results)
-	case "http_headers_url":
-		runHeaderURLBypass(targetURL, results)
-	case "http_headers_port":
-		runHeaderPortBypass(targetURL, results)
-	case "http_host":
-		runHostHeaderBypass(targetURL, results)
+	if mode == "dumb_check" {
+		runDumbCheck(targetURL, results) // Keep special case
+		return
 	}
+
+	module, exists := bypassModules[mode]
+	if !exists {
+		return
+	}
+
+	jobs := make(chan payload.PayloadJob, 1000)
+	allJobs := module.GenerateJobs(targetURL)
+
+	ctx := NewWorkerContext(mode, len(allJobs))
+
+	// Start workers
+	for i := 0; i < 20; i++ {
+		ctx.wg.Add(1)
+		go worker(ctx, jobs, results)
+	}
+
+	// Process jobs
+	for _, job := range allJobs {
+		select {
+		case <-ctx.cancel:
+			close(jobs)
+			ctx.wg.Wait()
+			return
+		case jobs <- job:
+		}
+	}
+
+	close(jobs)
+	ctx.wg.Wait()
+	fmt.Println()
 }
 
 func runDumbCheck(targetURL string, results chan<- *Result) {
@@ -133,273 +181,13 @@ func runDumbCheck(targetURL string, results chan<- *Result) {
 	fmt.Println()
 }
 
-func runMidPathsBypass(targetURL string, results chan<- *Result) {
-	jobs := make(chan PayloadJob, 1000)
-	allJobs := generateMidPathsJobs(targetURL)
-
-	// Create WorkerContext
-	ctx := NewWorkerContext("mid_paths", len(allJobs))
-
-	// Start workers
-	for i := 0; i < config.Threads; i++ {
-		ctx.wg.Add(1)
-		go worker(ctx, jobs, results)
-	}
-
-	for _, job := range allJobs {
-		select {
-		case <-ctx.cancel:
-
-			close(jobs)
-			ctx.wg.Wait()
-			return
-		case jobs <- job:
-		}
-	}
-
-	close(jobs)
-	ctx.wg.Wait()
-	fmt.Println()
-}
-
-func runEndPathsBypass(targetURL string, results chan<- *Result) {
-	jobs := make(chan PayloadJob, 1000)
-	allJobs := generateEndPathsJobs(targetURL)
-
-	// Create WorkerContext
-	ctx := NewWorkerContext("end_paths", len(allJobs))
-
-	// Start workers
-	for i := 0; i < config.Threads; i++ {
-		ctx.wg.Add(1)
-		go worker(ctx, jobs, results)
-	}
-
-	for _, job := range allJobs {
-		select {
-		case <-ctx.cancel:
-
-			close(jobs)
-			ctx.wg.Wait()
-			return
-		case jobs <- job:
-		}
-	}
-
-	close(jobs)
-	ctx.wg.Wait()
-	fmt.Println()
-}
-
-func runHeaderIPBypass(targetURL string, results chan<- *Result) {
-	jobs := make(chan PayloadJob, 1000)
-	allJobs := generateHeaderIPJobs(targetURL)
-
-	// Create WorkerContext
-	ctx := NewWorkerContext("http_headers_ip", len(allJobs))
-
-	// Start workers with ctx
-	for i := 0; i < config.Threads; i++ {
-		ctx.wg.Add(1)
-		go worker(ctx, jobs, results)
-	}
-
-	for _, job := range allJobs {
-		select {
-		case <-ctx.cancel:
-
-			close(jobs)
-			ctx.wg.Wait()
-			return
-		case jobs <- job:
-		}
-	}
-
-	close(jobs)
-	ctx.wg.Wait()
-	fmt.Println()
-}
-
-func runCaseSubstitutionBypass(targetURL string, results chan<- *Result) {
-	jobs := make(chan PayloadJob, 1000)
-	allJobs := generateCaseSubstitutionJobs(targetURL)
-
-	// Create WorkerContext
-	ctx := NewWorkerContext("case_substitution", len(allJobs))
-
-	// Start workers with ctx
-	for i := 0; i < config.Threads; i++ {
-		ctx.wg.Add(1)
-		go worker(ctx, jobs, results)
-	}
-
-	for _, job := range allJobs {
-		select {
-		case <-ctx.cancel:
-
-			close(jobs)
-			ctx.wg.Wait()
-			return
-		case jobs <- job:
-		}
-	}
-
-	close(jobs)
-	ctx.wg.Wait()
-	fmt.Println()
-}
-
-func runCharEncodeBypass(targetURL string, results chan<- *Result) {
-	jobs := make(chan PayloadJob, 1000)
-	allJobs := generateCharEncodeJobs(targetURL)
-
-	// Create WorkerContext
-	ctx := NewWorkerContext("char_encode", len(allJobs))
-
-	// Start workers with ctx
-	for i := 0; i < config.Threads; i++ {
-		ctx.wg.Add(1)
-		go worker(ctx, jobs, results)
-	}
-
-	for _, job := range allJobs {
-		select {
-		case <-ctx.cancel:
-
-			close(jobs)
-			ctx.wg.Wait()
-			return
-		case jobs <- job:
-		}
-	}
-
-	close(jobs)
-	ctx.wg.Wait()
-	fmt.Println()
-}
-
-func runHeaderSchemeBypass(targetURL string, results chan<- *Result) {
-	jobs := make(chan PayloadJob, 1000)
-	allJobs := generateHeaderSchemeJobs(targetURL)
-
-	// Create WorkerContext
-	ctx := NewWorkerContext("http_headers_scheme", len(allJobs))
-
-	// Start workers with ctx
-	for i := 0; i < config.Threads; i++ {
-		ctx.wg.Add(1)
-		go worker(ctx, jobs, results)
-	}
-
-	for _, job := range allJobs {
-		select {
-		case <-ctx.cancel:
-
-			close(jobs)
-			ctx.wg.Wait()
-			return
-		case jobs <- job:
-		}
-	}
-
-	close(jobs)
-	ctx.wg.Wait()
-	fmt.Println()
-}
-
-func runHeaderURLBypass(targetURL string, results chan<- *Result) {
-	jobs := make(chan PayloadJob, 1000)
-	allJobs := generateHeaderURLJobs(targetURL)
-
-	// Create WorkerContext
-	ctx := NewWorkerContext("http_headers_url", len(allJobs))
-
-	// Start workers with ctx
-	for i := 0; i < config.Threads; i++ {
-		ctx.wg.Add(1)
-		go worker(ctx, jobs, results)
-	}
-
-	for _, job := range allJobs {
-		select {
-		case <-ctx.cancel:
-
-			close(jobs)
-			ctx.wg.Wait()
-			return
-		case jobs <- job:
-		}
-	}
-
-	close(jobs)
-	ctx.wg.Wait()
-	fmt.Println()
-}
-
-func runHeaderPortBypass(targetURL string, results chan<- *Result) {
-	jobs := make(chan PayloadJob, 1000)
-	allJobs := generateHeaderPortJobs(targetURL)
-
-	// Create WorkerContext
-	ctx := NewWorkerContext("http_headers_port", len(allJobs))
-
-	// Start workers with ctx
-	for i := 0; i < config.Threads; i++ {
-		ctx.wg.Add(1)
-		go worker(ctx, jobs, results)
-	}
-
-	for _, job := range allJobs {
-		select {
-		case <-ctx.cancel:
-
-			close(jobs)
-			ctx.wg.Wait()
-			return
-		case jobs <- job:
-		}
-	}
-
-	close(jobs)
-	ctx.wg.Wait()
-	fmt.Println()
-}
-
-func runHostHeaderBypass(targetURL string, results chan<- *Result) {
-	jobs := make(chan PayloadJob, 1000)
-	allJobs := generateHostHeaderJobs(targetURL)
-
-	// Create WorkerContext
-	ctx := NewWorkerContext("http_host", len(allJobs))
-
-	// Start workers
-	for i := 0; i < config.Threads; i++ {
-		ctx.wg.Add(1)
-		go worker(ctx, jobs, results)
-	}
-
-	for _, job := range allJobs {
-		select {
-		case <-ctx.cancel:
-			close(jobs)
-			ctx.wg.Wait()
-			return
-		case jobs <- job:
-		}
-	}
-
-	close(jobs)
-	ctx.wg.Wait()
-	fmt.Println()
-}
-
 func worker(ctx *WorkerContext, jobs <-chan PayloadJob, results chan<- *Result) {
 	defer ctx.wg.Done()
 
 	// Add panic recovery
 	defer func() {
 		if r := recover(); r != nil {
-			LogError("[%s] Worker panic recovered: %v", ctx.mode, r)
+			logger.LogError("[%s] Worker panic recovered: %v", ctx.mode, r)
 			ctx.Stop()
 		}
 	}()
@@ -407,7 +195,7 @@ func worker(ctx *WorkerContext, jobs <-chan PayloadJob, results chan<- *Result) 
 	// Create client
 	client, err := New(&config, ctx.mode)
 	if err != nil {
-		LogError("Failed to create client for mode %s: %v", ctx.mode, err)
+		logger.LogError("Failed to create client for mode %s: %v", ctx.mode, err)
 		return
 	}
 	defer func() {

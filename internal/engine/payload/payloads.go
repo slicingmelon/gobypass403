@@ -15,7 +15,7 @@ type PayloadJob struct {
 	bypassMode string
 }
 
-func generateDumbJob(targetURL string) []PayloadJob {
+func GenerateDumbJob(targetURL string) []PayloadJob {
 	_bypassMode := "dumb_check"
 	var allJobs []PayloadJob
 
@@ -32,7 +32,7 @@ func generateDumbJob(targetURL string) []PayloadJob {
 	return allJobs
 }
 
-func generateMidPathsJobs(targetURL string) []PayloadJob {
+func GenerateMidPathsJobs(targetURL string) []PayloadJob {
 	_bypassMode := "mid_paths"
 	var jobs []PayloadJob
 	parsedURL, err := rawurlparser.RawURLParse(targetURL)
@@ -100,7 +100,7 @@ func generateMidPathsJobs(targetURL string) []PayloadJob {
 	return jobs
 }
 
-func generateEndPathsJobs(targetURL string) []PayloadJob {
+func GenerateEndPathsJobs(targetURL string) []PayloadJob {
 	_bypassMode := "end_paths"
 	var jobs []PayloadJob
 
@@ -162,7 +162,7 @@ func generateEndPathsJobs(targetURL string) []PayloadJob {
 	return jobs
 }
 
-func generateHeaderIPJobs(targetURL string) []PayloadJob {
+func GenerateHeaderIPJobs(targetURL string) []PayloadJob {
 	_bypassMode := "http_headers_ip"
 	var allJobs []PayloadJob
 
@@ -254,7 +254,7 @@ func generateHeaderIPJobs(targetURL string) []PayloadJob {
 	return allJobs
 }
 
-func generateCaseSubstitutionJobs(targetURL string) []PayloadJob {
+func GenerateCaseSubstitutionJobs(targetURL string) []PayloadJob {
 	_bypassMode := "case_substitution"
 	var allJobs []PayloadJob
 
@@ -293,7 +293,7 @@ func generateCaseSubstitutionJobs(targetURL string) []PayloadJob {
 	return allJobs
 }
 
-func generateCharEncodeJobs(targetURL string) []PayloadJob {
+func GenerateCharEncodeJobs(targetURL string) []PayloadJob {
 	var allJobs []PayloadJob
 
 	logger.LogVerbose("Starting CharEncode payload generation for: %s", targetURL)
@@ -341,7 +341,7 @@ func generateCharEncodeJobs(targetURL string) []PayloadJob {
 	return allJobs
 }
 
-func generateHeaderSchemeJobs(targetURL string) []PayloadJob {
+func GenerateHeaderSchemeJobs(targetURL string) []PayloadJob {
 	_bypassMode := "http_headers_scheme"
 	var allJobs []PayloadJob
 
@@ -405,7 +405,7 @@ func generateHeaderSchemeJobs(targetURL string) []PayloadJob {
 	return allJobs
 }
 
-func generateHeaderURLJobs(targetURL string) []PayloadJob {
+func GenerateHeaderURLJobs(targetURL string) []PayloadJob {
 	_bypassMode := "http_headers_url"
 	var allJobs []PayloadJob
 
@@ -435,8 +435,8 @@ func generateHeaderURLJobs(targetURL string) []PayloadJob {
 			method: "GET",
 			url:    baseURL + "/",
 			headers: []Header{{
-				Key:   headerURL,
-				Value: basePath,
+				Header: headerURL,
+				Value:  basePath,
 			}},
 			bypassMode: _bypassMode,
 		})
@@ -490,11 +490,11 @@ func generateHeaderURLJobs(targetURL string) []PayloadJob {
 		}
 	}
 
-	LogYellow("\n[%s] Generated %d payloads for %s\n", _bypassMode, len(allJobs), targetURL)
+	logger.LogYellow("\n[%s] Generated %d payloads for %s\n", _bypassMode, len(allJobs), targetURL)
 	return allJobs
 }
 
-func generateHeaderPortJobs(targetURL string) []PayloadJob {
+func GenerateHeaderPortJobs(targetURL string) []PayloadJob {
 	_bypassMode := "http_headers_port"
 	var allJobs []PayloadJob
 
@@ -535,7 +535,7 @@ func generateHeaderPortJobs(targetURL string) []PayloadJob {
 	return allJobs
 }
 
-func generateHostHeaderJobs(targetURL string) []PayloadJob {
+func GenerateHostHeaderJobs(targetURL string) []PayloadJob {
 	_bypassMode := "http_host"
 	var allJobs []PayloadJob
 
@@ -563,8 +563,8 @@ func generateHostHeaderJobs(targetURL string) []PayloadJob {
 				method: "GET",
 				url:    ipURL,
 				headers: []Header{{
-					Key:   "Host",
-					Value: parsedURL.Host,
+					Header: "Host",
+					Value:  parsedURL.Host,
 				}},
 				bypassMode: _bypassMode,
 			})
@@ -576,8 +576,8 @@ func generateHostHeaderJobs(targetURL string) []PayloadJob {
 				method: "GET",
 				url:    targetURL,
 				headers: []Header{{
-					Key:   "Host",
-					Value: ip,
+					Header: "Host",
+					Value:  ip,
 				}},
 				bypassMode: _bypassMode,
 			})
@@ -593,9 +593,9 @@ func generateHostHeaderJobs(targetURL string) []PayloadJob {
 			})
 		}
 	} else {
-		LogError("No IPv4 addresses found in cache for %s", targetURL)
+		logger.LogError("No IPv4 addresses found in cache for %s", targetURL)
 	}
 
-	LogYellow("\n[%s] Generated %d payloads for %s\n", _bypassMode, len(allJobs), targetURL)
+	logger.LogYellow("\n[%s] Generated %d payloads for %s\n", _bypassMode, len(allJobs), targetURL)
 	return allJobs
 }
