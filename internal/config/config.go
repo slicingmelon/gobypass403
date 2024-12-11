@@ -1,40 +1,11 @@
 package config
 
 import (
-	"net/url"
 	"time"
 )
 
 const (
 	VERSION = "0.3.1"
-)
-
-type Config struct {
-	URL                 string
-	URLsFile            string
-	SubstituteHostsFile string
-	Mode                string
-	OutDir              string
-	Threads             int
-	Timeout             int
-	Verbose             bool
-	Proxy               string
-	ParsedProxy         *url.URL
-	MatchStatusCodesStr string
-	MatchStatusCodes    []int
-	Debug               bool
-	LogDebugToFile      bool `default:"false"`
-	ForceHTTP2          bool
-	SpoofIP             string
-	SpoofHeader         string
-	Delay               int
-	FollowRedirects     bool
-	TraceRequests       bool `default:"false"`
-}
-
-// lobal config
-var (
-	MyConfig Config
 )
 
 type Result struct {
@@ -62,87 +33,6 @@ type ScanResult struct {
 
 type JSONData struct {
 	Scans []ScanResult `json:"scans"`
-}
-
-// ModesConfig -- all bypass modes and their status
-type ModesConfig struct {
-	Name        string
-	Enabled     bool
-	Description string
-}
-
-// AvailableModes defines all bypass modes and their default status
-var AvailableModes = map[string]ModesConfig{
-	"all": {
-		Name:        "all",
-		Enabled:     true,
-		Description: "Run all enabled bypass modes",
-	},
-	"mid_paths": {
-		Name:        "mid_paths",
-		Enabled:     true,
-		Description: "Test middle path bypasses",
-	},
-	"end_paths": {
-		Name:        "end_paths",
-		Enabled:     true,
-		Description: "Test end path bypasses",
-	},
-	"http_host": {
-		Name:        "http_host",
-		Enabled:     true,
-		Description: "Test HTTP Host header bypasses",
-	},
-	"http_methods": {
-		Name:        "http_methods",
-		Enabled:     false,
-		Description: "Test different HTTP methods",
-	},
-	"http_versions": {
-		Name:        "http_versions",
-		Enabled:     false,
-		Description: "Test different HTTP versions",
-	},
-	"case_substitution": {
-		Name:        "case_substitution",
-		Enabled:     true,
-		Description: "Test case manipulation bypasses",
-	},
-	"char_encode": {
-		Name:        "char_encode",
-		Enabled:     true,
-		Description: "Test character encoding bypasses",
-	},
-	"http_headers_method": {
-		Name:        "http_headers_method",
-		Enabled:     false,
-		Description: "Test HTTP method header bypasses",
-	},
-	"http_headers_scheme": {
-		Name:        "http_headers_scheme",
-		Enabled:     true,
-		Description: "Test HTTP scheme header bypasses",
-	},
-	"http_headers_ip": {
-		Name:        "http_headers_ip",
-		Enabled:     true,
-		Description: "Test IP-based header bypasses",
-	},
-	"http_headers_port": {
-		Name:        "http_headers_port",
-		Enabled:     true,
-		Description: "Test port-based header bypasses",
-	},
-	"http_headers_url": {
-		Name:        "http_headers_url",
-		Enabled:     true,
-		Description: "Test URL-based header bypasses",
-	},
-	"user_agent": {
-		Name:        "user_agent",
-		Enabled:     false, // waste of time
-		Description: "Test User-Agent based bypasses",
-	},
 }
 
 // Other Constants //

@@ -7,8 +7,8 @@ import (
 	"time"
 
 	"github.com/projectdiscovery/utils/errkit"
-	"github.com/slicingmelon/go-bypass-403/internal/config"
-	"github.com/slicingmelon/go-bypass-403/internal/utils"
+	//"github.com/slicingmelon/go-bypass-403/internal/config"
+	//"github.com/slicingmelon/go-bypass-403/internal/utils"
 	"github.com/slicingmelon/go-rawurlparser"
 )
 

@@ -1,4 +1,4 @@
-package utils
+package helpers
 
 import (
 	"bufio"
@@ -15,8 +15,7 @@ import (
 	"sync"
 
 	"math/rand"
-
-	"github.com/slicingmelon/go-bypass-403/internal/config"
+	//"github.com/slicingmelon/go-bypass-403/internal/config"
 )
 
 // Helper function to read payloads from the specified file

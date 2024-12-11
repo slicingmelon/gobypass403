@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/slicingmelon/go-bypass-403/internal/config"
-	_ "github.com/slicingmelon/go-bypass-403/internal/utils"
+	//"github.com/slicingmelon/go-bypass-403/internal/config"
+	//_ "github.com/slicingmelon/go-bypass-403/internal/utils"
 	"github.com/slicingmelon/go-rawurlparser"
 )
 
