@@ -20,39 +20,60 @@ type Logger struct {
 	tealColor    *color.Color
 }
 
-// Global functions for logging
+// Global functions for logging (with newlines)
 var (
-	Info    func(format string, v ...interface{})
-	Verbose func(format string, v ...interface{})
-	Debug   func(format string, v ...interface{})
-	Error   func(format string, v ...interface{})
-	Yellow  func(format string, v ...interface{})
-	Orange  func(format string, v ...interface{})
-	Green   func(format string, v ...interface{})
-	Blue    func(format string, v ...interface{})
-	Purple  func(format string, v ...interface{})
-	Gray    func(format string, v ...interface{})
-	Teal    func(format string, v ...interface{})
-	Pink    func(format string, v ...interface{})
+	// Logging functions (with newlines)
+	LogInfo    func(format string, v ...interface{})
+	LogVerbose func(format string, v ...interface{})
+	LogDebug   func(format string, v ...interface{})
+	LogError   func(format string, v ...interface{})
+	LogYellow  func(format string, v ...interface{})
+	LogOrange  func(format string, v ...interface{})
+	LogGreen   func(format string, v ...interface{})
+	LogBlue    func(format string, v ...interface{})
+	LogPurple  func(format string, v ...interface{})
+	LogGray    func(format string, v ...interface{})
+	LogTeal    func(format string, v ...interface{})
+	LogPink    func(format string, v ...interface{})
+
+	// Color-only functions (without newlines)
+	Yellow func(format string, v ...interface{}) string
+	Orange func(format string, v ...interface{}) string
+	Green  func(format string, v ...interface{}) string
+	Blue   func(format string, v ...interface{}) string
+	Purple func(format string, v ...interface{}) string
+	Gray   func(format string, v ...interface{}) string
+	Teal   func(format string, v ...interface{}) string
+	Pink   func(format string, v ...interface{}) string
 )
 
 // init initializes the global logger and its functions
 func init() {
 	logger := NewLogger()
 
-	// Initialize global logging functions
-	Info = logger.LogInfo
-	Verbose = logger.LogVerbose
-	Debug = logger.LogDebug
-	Error = logger.LogError
-	Yellow = logger.LogYellow
-	Orange = logger.LogOrange
-	Green = logger.LogGreen
-	Blue = logger.LogBlue
-	Purple = logger.LogPurple
-	Gray = logger.LogGray
-	Teal = logger.LogTeal
-	Pink = logger.LogPink
+	// Initialize logging functions (with newlines)
+	LogInfo = logger.LogInfo
+	LogVerbose = logger.LogVerbose
+	LogDebug = logger.LogDebug
+	LogError = logger.LogError
+	LogYellow = logger.LogYellow
+	LogOrange = logger.LogOrange
+	LogGreen = logger.LogGreen
+	LogBlue = logger.LogBlue
+	LogPurple = logger.LogPurple
+	LogGray = logger.LogGray
+	LogTeal = logger.LogTeal
+	LogPink = logger.LogPink
+
+	// Initialize color-only functions (without newlines)
+	Yellow = logger.yellowColor.Sprintf
+	Orange = logger.orangeColor.Sprintf
+	Green = logger.greenColor.Sprintf
+	Blue = logger.blueColor.Sprintf
+	Purple = logger.purpleColor.Sprintf
+	Gray = logger.grayColor.Sprintf
+	Teal = logger.tealColor.Sprintf
+	Pink = logger.pinkColor.Sprintf
 }
 
 // NewLogger creates a new logger instance
@@ -73,9 +94,9 @@ func NewLogger() *Logger {
 	}
 }
 
-// Logger methods
+// Logger methods (with newlines)
 func (l *Logger) LogInfo(format string, v ...interface{}) {
-	l.infoColor.Printf("[INFO] "+format+"\n", v...)
+	l.infoColor.Printf("\n[INFO] "+format+"\n", v...)
 }
 
 func (l *Logger) LogVerbose(format string, v ...interface{}) {

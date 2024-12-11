@@ -36,7 +36,7 @@ func (p *URLProcessor) ProcessURLs() ([]string, error) {
 	}
 
 	// Probe collected URLs
-	logger.Info("Starting URL validation for %d URLs", len(urls))
+	logger.LogInfo("Starting URL validation for %d URLs", len(urls))
 	if err := p.probeService.FastProbeURLs(urls); err != nil {
 		return nil, fmt.Errorf("error during URL probing: %v", err)
 	}
@@ -120,7 +120,7 @@ func (p *URLProcessor) processWithSubstituteHosts(targetURL string) ([]string, e
 		if strings.Contains(host, "://") {
 			parsed, err := rawurlparser.RawURLParse(host)
 			if err != nil {
-				logger.Debug("Skipping invalid host URL: %s - %v", host, err)
+				logger.LogVerbose("Skipping invalid host URL: %s - %v", host, err)
 				continue
 			}
 			host = parsed.Host

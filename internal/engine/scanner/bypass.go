@@ -51,7 +51,7 @@ func RunAllBypasses(targetURL string) chan *Result {
 	}
 
 	go func() {
-		modes := strings.Split(config.Mode, ",")
+		modes := strings.Split(s.config.modul, ",")
 		for _, mode := range modes {
 			mode = strings.TrimSpace(mode)
 

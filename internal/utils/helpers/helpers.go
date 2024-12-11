@@ -1,21 +1,16 @@
 package helpers
 
 import (
-	"bufio"
-	"bytes"
-	"encoding/json"
 	"fmt"
-	"html"
 	"net"
 	"os"
-	"path/filepath"
 	"regexp"
 	"runtime"
 	"strings"
-	"sync"
 
 	"math/rand"
 	//"github.com/slicingmelon/go-bypass-403/internal/config"
+	"github.com/slicingmelon/go-bypass-403/internal/utils/logger"
 )
 
 // Helper function to read payloads from the specified file
@@ -80,191 +75,16 @@ func FormatBytes(bytes int64) string {
 	return fmt.Sprintf("%.1f%cB", float64(bytes)/float64(div), "KMGTPE"[exp])
 }
 
-// Utility functions to print results to the terminal
-func PrintTableHeader(targetURL string) {
-	fmt.Print("\n")
-
-	fmt.Printf("%s%s[##########] Results for %s%s%s [##########]%s\n",
-		colorCyan,
-		colorBold,
-		colorYellow,
-		targetURL,
-		colorCyan,
-		colorReset)
-
-	fmt.Printf("%s[bypass]%s [%scurl poc%s] ======================================> %s[status]%s [%scontent-length%s] [%scontent-type%s] [%stitle%s] [%sserver%s] [%sredirect%s]\n",
-		colorBlue, // bypass
-		colorReset,
-		colorYellow, // curl poc
-		colorReset,
-		colorGreen, // status
-		colorReset,
-		colorPurple, // content-length
-		colorReset,
-		colorOrange, // content-type (new)
-		colorReset,
-		colorCyan, // title
-		colorReset,
-		colorWhite, // server
-		colorReset,
-		colorRed, // redirect
-		colorReset)
-
-	fmt.Println(strings.Repeat("-", 120))
-}
-
-func PrintTableRow(result *Result) {
-	formatValue := func(val string) string {
-		if val == "" {
-			return "[-]"
-		}
-		return val
-	}
-
-	// Title might be long, so we'll truncate it if needed
-	title := formatValue(result.Title)
-	if len(title) > 30 {
-		title = title[:27] + "..."
-	}
-
-	fmt.Printf("%s[%s]%s [%s%s%s] => %s[%d]%s [%s%s%s] [%s%s%s] [%s%s%s] [%s%s%s] [%s%s%s]\n",
-		colorBlue, result.BypassMode, colorReset,
-		colorYellow, result.CurlPocCommand, colorReset,
-		colorGreen, result.StatusCode, colorReset,
-		colorPurple, formatBytes(result.ContentLength), colorReset,
-		colorOrange, formatValue(result.ContentType), colorReset,
-		colorCyan, title, colorReset,
-		colorWhite, formatValue(result.ServerInfo), colorReset,
-		colorRed, formatValue(result.RedirectURL), colorReset)
-}
-
-// Helper function to save results to JSON file
-func SaveResultsToJSON(outputDir string, url string, mode string, findings []*Result) error {
-	outputFile := filepath.Join(outputDir, "findings.json")
-
-	// Read existing JSON file
-	fileData, err := os.ReadFile(outputFile)
-	if err != nil {
-		return fmt.Errorf("failed to read JSON file: %v", err)
-	}
-
-	var data JSONData
-	if err := json.Unmarshal(fileData, &data); err != nil {
-		return fmt.Errorf("failed to parse existing JSON: %v", err)
-	}
-
-	// Clean up findings
-	cleanFindings := make([]*Result, len(findings))
-	for i, result := range findings {
-		cleanResult := *result
-		cleanResult.ResponsePreview = html.UnescapeString(cleanResult.ResponsePreview)
-		cleanFindings[i] = &cleanResult
-	}
-
-	// Add new scan results
-	scan := ScanResult{
-		URL:         url,
-		BypassModes: mode,
-		ResultsPath: outputDir,
-		Results:     cleanFindings,
-	}
-
-	data.Scans = append(data.Scans, scan)
-
-	// Use custom encoder to fix unicode escapes
-	buffer := &bytes.Buffer{}
-	encoder := json.NewEncoder(buffer)
-	encoder.SetEscapeHTML(false)
-	encoder.SetIndent("", "  ")
-
-	if err := encoder.Encode(data); err != nil {
-		return fmt.Errorf("failed to marshal JSON: %v", err)
-	}
-
-	if err := os.WriteFile(outputFile, buffer.Bytes(), 0644); err != nil {
-		return fmt.Errorf("failed to write JSON file: %v", err)
-	}
-
-	return nil
-}
-
-func AppendResultsToJSON(outputFile, url, mode string, findings []*Result) error {
-	fileLock := &sync.Mutex{}
-	fileLock.Lock()
-	defer fileLock.Unlock()
-
-	var data JSONData
-
-	// Try to read existing file
-	fileData, err := os.ReadFile(outputFile)
-	if err != nil {
-		if !os.IsNotExist(err) {
-			return fmt.Errorf("failed to read JSON file: %v", err)
-		}
-		// File doesn't exist, initialize new data structure
-		data = JSONData{
-			Scans: make([]ScanResult, 0),
-		}
-		LogVerbose("[JSON] Initializing new JSON file")
-	} else {
-		// File exists, parse it
-		if err := json.Unmarshal(fileData, &data); err != nil {
-			return fmt.Errorf("failed to parse existing JSON: %v", err)
-		}
-		LogVerbose("[JSON] Read existing JSON file with %d scans", len(data.Scans))
-	}
-
-	// Clean up findings
-	cleanFindings := make([]*Result, len(findings))
-	for i, result := range findings {
-		cleanResult := *result
-		cleanResult.ResponsePreview = html.UnescapeString(cleanResult.ResponsePreview)
-		cleanFindings[i] = &cleanResult
-	}
-
-	// Add new scan results
-	scan := ScanResult{
-		URL:         url,
-		BypassModes: mode,
-		ResultsPath: config.OutDir,
-		Results:     cleanFindings,
-	}
-
-	data.Scans = append(data.Scans, scan)
-	LogVerbose("[JSON] Updated JSON now has %d scans", len(data.Scans))
-
-	// Open file with write permissions
-	file, err := os.OpenFile(outputFile, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
-	if err != nil {
-		return fmt.Errorf("failed to open JSON file: %v", err)
-	}
-	defer file.Close()
-
-	// Create a buffered writer
-	writer := bufio.NewWriter(file)
-
-	// Use custom encoder with the buffered writer
-	encoder := json.NewEncoder(writer)
-	encoder.SetEscapeHTML(false)
-	encoder.SetIndent("", "  ")
-
-	if err := encoder.Encode(data); err != nil {
-		return fmt.Errorf("failed to encode JSON: %v", err)
-	}
-
-	// Flush the buffer to ensure all data is written
-	if err := writer.Flush(); err != nil {
-		return fmt.Errorf("failed to flush writer: %v", err)
-	}
-
-	return nil
+type Header struct {
+	Header string
+	Value  string
 }
 
 // Helper function to convert a slice of Header structs to a map
 func headersToMap(headers []Header) map[string]string {
 	m := make(map[string]string)
 	for _, h := range headers {
-		m[h.Key] = h.Value
+		m[h.Header] = h.Value
 	}
 	return m
 }
@@ -319,32 +139,32 @@ func IsIP(str string) bool {
 		return net.ParseIP(str) != nil
 	}
 
-	LogDebug("[DEBUG] Split host: %q port: %q", host, port)
+	logger.LogVerbose("Split host: %q port: %q", host, port)
 	return net.ParseIP(host) != nil
 }
 
 // Update IsDNSName with debugging
 func IsDNSName(str string) bool {
-	LogDebug("[DEBUG] Checking if string is DNS name: %q", str)
+	logger.LogVerbose("[DEBUG] Checking if string is DNS name: %q", str)
 
 	host, port, err := net.SplitHostPort(str)
 	if err != nil {
 		host = str
-		LogDebug("[DEBUG] Using full string as hostname: %q", host)
+		logger.LogVerbose("[DEBUG] Using full string as hostname: %q", host)
 	} else {
-		LogDebug("[DEBUG] Split host: %q port: %q", host, port)
+		logger.LogVerbose("Split host: %q port: %q", host, port)
 	}
 
 	if host == "" {
-		LogDebug("[DEBUG] Empty hostname")
+		logger.LogVerbose("[DEBUG] Empty hostname")
 		return false
 	}
 
 	if len(strings.Replace(host, ".", "", -1)) > 255 {
-		LogDebug("[DEBUG] Hostname too long (>255 chars)")
+		logger.LogVerbose("[DEBUG] Hostname too long (>255 chars)")
 		return false
 	}
 
-	LogDebug("[DEBUG] DNS regex match result: %v", rxDNSName.MatchString(host))
+	logger.LogVerbose("[DEBUG] DNS regex match result: %v", rxDNSName.MatchString(host))
 	return !IsIP(host) && rxDNSName.MatchString(host)
 }

@@ -35,8 +35,17 @@ func (r *Runner) Initialize() error {
 
 	// Step 4: Initialize scanner with processed URLs
 	scannerOpts := &scanner.ScannerOpts{
+		BypassModule:     r.options.Module,
+		OutDir:           r.options.OutDir,
 		Timeout:          r.options.Timeout,
 		Threads:          r.options.Threads,
+		Delay:            r.options.Delay,
+		TraceRequests:    r.options.TraceRequests,
+		Proxy:            r.options.Proxy,
+		ForceHTTP2:       r.options.ForceHTTP2,
+		SpoofHeader:      r.options.SpoofHeader,
+		SpoofIP:          r.options.SpoofIP,
+		FollowRedirects:  r.options.FollowRedirects,
 		MatchStatusCodes: r.options.MatchStatusCodes,
 		Debug:            r.options.Debug,
 		Verbose:          r.options.Verbose,
