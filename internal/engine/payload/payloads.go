@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/slicingmelon/go-bypass-403/internal/engine/probe"
 	"github.com/slicingmelon/go-bypass-403/internal/utils/logger"
 	"github.com/slicingmelon/go-rawurlparser"
 )
@@ -487,8 +488,7 @@ func GenerateHeaderURLJobs(targetURL string, module string) []PayloadJob {
 	return allJobs
 }
 
-func GenerateHeaderPortJobs(targetURL string) []PayloadJob {
-	_bypassMode := "http_headers_port"
+func GenerateHeaderPortJobs(targetURL string, module string) []PayloadJob {
 	var allJobs []PayloadJob
 
 	logger.LogVerbose("Starting HeadersPort payload generation for: %s", targetURL)
@@ -519,17 +519,16 @@ func GenerateHeaderPortJobs(targetURL string) []PayloadJob {
 					Header: headerPort,
 					Value:  port,
 				}},
-				bypassMode: _bypassMode,
+				bypassMode: module,
 			})
 		}
 	}
 
-	logger.LogYellow("\n[%s] Generated %d payloads for %s\n", _bypassMode, len(allJobs), targetURL)
+	logger.LogYellow("\n[%s] Generated %d payloads for %s\n", module, len(allJobs), targetURL)
 	return allJobs
 }
 
-func GenerateHostHeaderJobs(targetURL string) []PayloadJob {
-	_bypassMode := "http_host"
+func GenerateHostHeaderJobs(targetURL string, BypassModule string, probeCache probe.Cache) []PayloadJob {
 	var allJobs []PayloadJob
 
 	logger.LogVerbose("Starting HostHeader payload generation for: %s", targetURL)
@@ -548,9 +547,9 @@ func GenerateHostHeaderJobs(targetURL string) []PayloadJob {
 	}
 
 	// Get IP information from cache
-	if httpxResult, exists := globalProbeURLResults.Get(baseURL); exists && len(httpxResult.IPv4) > 0 {
+	if probeCacheResult, exists := probeCache.Get(baseURL); exists && len(probeCacheResult.IPv4) > 0 {
 		// Variation 1: URL with IP, Host header with original host
-		for _, ip := range httpxResult.IPv4 {
+		for _, ip := range probeCacheResult.IPv4 {
 			ipURL := fmt.Sprintf("%s://%s%s", parsedURL.Scheme, ip, pathAndQuery)
 			allJobs = append(allJobs, PayloadJob{
 				method: "GET",
@@ -559,12 +558,12 @@ func GenerateHostHeaderJobs(targetURL string) []PayloadJob {
 					Header: "Host",
 					Value:  parsedURL.Host,
 				}},
-				bypassMode: _bypassMode,
+				bypassMode: BypassModule,
 			})
 		}
 
 		// Variation 2: Original URL, Host header with IP
-		for _, ip := range httpxResult.IPv4 {
+		for _, ip := range probeCacheResult.IPv4 {
 			allJobs = append(allJobs, PayloadJob{
 				method: "GET",
 				url:    targetURL,
@@ -572,23 +571,23 @@ func GenerateHostHeaderJobs(targetURL string) []PayloadJob {
 					Header: "Host",
 					Value:  ip,
 				}},
-				bypassMode: _bypassMode,
+				bypassMode: BypassModule,
 			})
 		}
 
 		// Variation 3: URL with IP, no Host header
-		for _, ip := range httpxResult.IPv4 {
+		for _, ip := range probeCacheResult.IPv4 {
 			ipURL := fmt.Sprintf("%s://%s%s", parsedURL.Scheme, ip, pathAndQuery)
 			allJobs = append(allJobs, PayloadJob{
 				method:     "GET",
 				url:        ipURL,
-				bypassMode: _bypassMode,
+				bypassMode: BypassModule,
 			})
 		}
 	} else {
 		logger.LogError("No IPv4 addresses found in cache for %s", targetURL)
 	}
 
-	logger.LogYellow("\n[%s] Generated %d payloads for %s\n", _bypassMode, len(allJobs), targetURL)
+	logger.LogYellow("\n[%s] Generated %d payloads for %s\n", BypassModule, len(allJobs), targetURL)
 	return allJobs
 }

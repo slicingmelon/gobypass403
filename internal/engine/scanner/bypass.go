@@ -15,42 +15,71 @@ import (
 
 // BypassModule defines the interface for all bypass modules
 type BypassModule struct {
-    Name         string
-    GenerateJobs func(targetURL string, mode string, opts *ScannerOpts) []payload.PayloadJob
+	Name         string
+	GenerateJobs func(targetURL string, mode string, opts *ScannerOpts) []payload.PayloadJob
 }
 
 // Registry of all bypass modules
 var bypassModules = map[string]*BypassModule{
-	// Add dumb_check to registry
 	"dumb_check": {
-		Name:         "dumb_check",
-		GenerateJobs: payload.GenerateDumbJob,
+		Name: "dumb_check",
+		GenerateJobs: func(targetURL string, mode string, opts *ScannerOpts) []payload.PayloadJob {
+			return payload.GenerateDumbJob(targetURL, mode)
+		},
 	},
-    "mid_paths": {
-        Name: "mid_paths",
-        GenerateJobs: func(targetURL string, mode string, opts *ScannerOpts) []payload.PayloadJob {
-            return payload.GenerateMidPathsJobs(targetURL, mode)
-        },
-    },
-    "end_paths": {
-        Name: "end_paths",
-        GenerateJobs: func(targetURL string, mode string, opts *ScannerOpts) []payload.PayloadJob {
-            return payload.GenerateEndPathsJobs(targetURL, mode)
-        },
-    },
+	"mid_paths": {
+		Name: "mid_paths",
+		GenerateJobs: func(targetURL string, mode string, opts *ScannerOpts) []payload.PayloadJob {
+			return payload.GenerateMidPathsJobs(targetURL, mode)
+		},
+	},
+	"end_paths": {
+		Name: "end_paths",
+		GenerateJobs: func(targetURL string, mode string, opts *ScannerOpts) []payload.PayloadJob {
+			return payload.GenerateEndPathsJobs(targetURL, mode)
+		},
+	},
 	"http_headers_ip": {
-		Name:         "http_headers_ip",
-		GenerateJobs: func(targetURL string, opts *ScannerOpts) []payload.PayloadJob {
-            return payload.GenerateHeaderIPJobs(targetURL, opts.SpoofHeader, opts.SpoofIP)
-        },
+		Name: "http_headers_ip",
+		GenerateJobs: func(targetURL string, mode string, opts *ScannerOpts) []payload.PayloadJob {
+			return payload.GenerateHeaderIPJobs(targetURL, mode, opts.SpoofHeader, opts.SpoofIP)
+		},
 	},
 	"case_substitution": {
-		Name:         "case_substitution",
-		GenerateJobs: payload.GenerateCaseSubstitutionJobs,
+		Name: "case_substitution",
+		GenerateJobs: func(targetURL string, mode string, opts *ScannerOpts) []payload.PayloadJob {
+			return payload.GenerateCaseSubstitutionJobs(targetURL, mode)
+		},
 	},
 	"char_encode": {
-		Name:         "char_encode",
-		GenerateJobs: payload.GenerateCharEncodeJobs,
+		Name: "char_encode",
+		GenerateJobs: func(targetURL string, mode string, opts *ScannerOpts) []payload.PayloadJob {
+			return payload.GenerateCharEncodeJobs(targetURL, mode)
+		},
+	},
+	"http_host": {
+		Name: "http_host",
+		GenerateJobs: func(targetURL string, mode string, opts *ScannerOpts) []payload.PayloadJob {
+			return payload.GenerateHostHeaderJobs(targetURL, mode, opts.ProbeCache)
+		},
+	},
+	"http_headers_scheme": {
+		Name: "http_headers_scheme",
+		GenerateJobs: func(targetURL string, mode string, opts *ScannerOpts) []payload.PayloadJob {
+			return payload.GenerateHeaderSchemeJobs(targetURL, mode)
+		},
+	},
+	"http_headers_port": {
+		Name: "http_headers_port",
+		GenerateJobs: func(targetURL string, mode string, opts *ScannerOpts) []payload.PayloadJob {
+			return payload.GenerateHeaderPortJobs(targetURL, mode)
+		},
+	},
+	"http_headers_url": {
+		Name: "http_headers_url",
+		GenerateJobs: func(targetURL string, mode string, opts *ScannerOpts) []payload.PayloadJob {
+			return payload.GenerateHeaderURLJobs(targetURL, mode)
+		},
 	},
 }
 
@@ -62,12 +91,13 @@ type WorkerContext struct {
 	once     sync.Once
 }
 
-func NewWorkerContext(mode string, total int) *WorkerContext {
+func NewWorkerContext(mode string, total int, targetURL string) *WorkerContext {
 	return &WorkerContext{
 		mode: mode,
 		progress: &ProgressCounter{
 			Total: total,
 			Mode:  mode,
+			URL:   targetURL, // Pass URL here
 		},
 		cancel: make(chan struct{}),
 		wg:     &sync.WaitGroup{},
@@ -104,16 +134,18 @@ func (s *Scanner) RunAllBypasses(targetURL string) chan *Result {
 			runDumbCheck(targetURL, results)
 
 			if mode == "all" {
-				// Run all registered modules
-				for modeName := range bypassModules {
-					runBypassForMode(modeName, targetURL, results)
+				// Run all registered modules except dumb_check
+				for modeName, module := range bypassModules {
+					if modeName != "dumb_check" {
+						s.runBypassForMode(modeName, targetURL, results)
+					}
 				}
 				continue
 			}
 
 			// Check if module exists in registry
 			if _, exists := bypassModules[mode]; exists {
-				runBypassForMode(mode, targetURL, results)
+				s.runBypassForMode(mode, targetURL, results)
 			} else {
 				logger.LogError("Unknown bypass mode: %s", mode)
 			}
@@ -125,43 +157,44 @@ func (s *Scanner) RunAllBypasses(targetURL string) chan *Result {
 
 // runDumbCheck runs the baseline check using the same worker pattern
 func runDumbCheck(targetURL string, results chan<- *Result) {
-    jobs := make(chan payload.PayloadJob, 1000)
-    allJobs := payload.GenerateDumbJob(targetURL)
+	jobs := make(chan payload.PayloadJob, 1000)
+	allJobs := payload.GenerateDumbJob(targetURL, "dumb_check")
 
-    ctx := NewWorkerContext("dumb_check", len(allJobs))
+	ctx := NewWorkerContext("dumb_check", len(allJobs), targetURL)
 
-    // Start workers
-    for i := 0; i < s.config.Threads; i++ {
-        ctx.wg.Add(1)
-        go worker(ctx, jobs, results)
-    }
+	// Start workers
+	for i := 0; i < 2; i++ {
+		ctx.wg.Add(1)
+		go worker(ctx, jobs, results)
+	}
 
-    // Process jobs
-    for _, job := range allJobs {
-        select {
-        case <-ctx.cancel:
-            close(jobs)
-            ctx.wg.Wait()
-            return
-        case jobs <- job:
-        }
-    }
+	// Process jobs
+	for _, job := range allJobs {
+		select {
+		case <-ctx.cancel:
+			close(jobs)
+			ctx.wg.Wait()
+			return
+		case jobs <- job:
+		}
+	}
 
-    close(jobs)
-    ctx.wg.Wait()
-    
+	close(jobs)
+	ctx.wg.Wait()
+
+}
 
 // Generic runner that replaces all individual run*Bypass functions
-func (s *Scanner) runBypassForMode(module string, targetURL string, results chan<- *Result) {
-    module, exists := bypassModules[module]
-    if !exists {
-        return
-    }
+func (s *Scanner) runBypassForMode(BypassModule string, targetURL string, results chan<- *Result) {
+	moduleInstance, exists := bypassModules[BypassModule]
+	if !exists {
+		return
+	}
 
-    jobs := make(chan payload.PayloadJob, 1000)
-    allJobs := module.GenerateJobs(targetURL, mode, s.config)
+	jobs := make(chan payload.PayloadJob, 1000)
+	allJobs := moduleInstance.GenerateJobs(targetURL, BypassModule, s.config)
 
-	ctx := NewWorkerContext(mode, len(allJobs))
+	ctx := NewWorkerContext(BypassModule, len(allJobs), targetURL)
 
 	// Start workers
 	for i := 0; i < s.config.Threads; i++ {

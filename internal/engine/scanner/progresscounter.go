@@ -22,6 +22,7 @@ type ProgressCounter struct {
 	Total     int
 	Current   int
 	Mode      string
+	URL       string // Add URL field
 	Mu        sync.Mutex
 	Cancelled bool
 }
@@ -68,10 +69,10 @@ func (pc *ProgressCounter) increment() {
 
 	// Print URL only once at the start
 	if pc.Current == 1 {
-		fmt.Printf("%s[+] Scanning %s ...%s\n", colorCyan, s.config.URL, colorReset)
+		fmt.Printf("%s[+] Scanning %s ...%s\n", colorCyan, pc.URL, colorReset)
 	}
 
-	// Print progress on same line with your color scheme
+	// Print progress on same line
 	fmt.Printf("\r%s[%s]%s %sProgress:%s %s%d%s/%s%d%s (%s%.1f%%%s)",
 		colorCyan, pc.Mode, colorReset,
 		colorTeal, colorReset,
