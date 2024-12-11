@@ -2,7 +2,6 @@ package cli
 
 import (
 	"github.com/slicingmelon/go-bypass-403/internal/engine/scanner"
-	"github.com/slicingmelon/go-bypass-403/internal/utils/logger"
 )
 
 type Runner struct {
@@ -35,11 +34,28 @@ func (r *Runner) Initialize() error {
 	r.urls = urls
 
 	// Step 4: Initialize scanner with processed URLs
-	r.scanner = scanner.New(opts, urls) // This will now work
+	scannerOpts := &scanner.ScannerOpts{
+		Timeout:          r.options.Timeout,
+		Threads:          r.options.Threads,
+		MatchStatusCodes: r.options.MatchStatusCodes,
+		Debug:            r.options.Debug,
+		Verbose:          r.options.Verbose,
+	}
+
+	r.scanner = scanner.New(scannerOpts, urls) // This will now work
 	return nil
 }
 
 func (r *Runner) Run() error {
-	logger.Info("Starting scan with %d URLs", len(r.urls))
-	return r.scanner.Run()
+	scannerOpts := &scanner.ScannerOpts{
+		Timeout:          r.options.Timeout,
+		Threads:          r.options.Threads,
+		MatchStatusCodes: r.options.MatchStatusCodes,
+		Debug:            r.options.Debug,
+		Verbose:          r.options.Verbose,
+		//
+	}
+
+	scan := scanner.New(scannerOpts, r.urls)
+	return scan.Run()
 }

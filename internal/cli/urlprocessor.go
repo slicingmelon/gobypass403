@@ -42,6 +42,7 @@ func (p *URLProcessor) ProcessURLs() ([]string, error) {
 }
 
 // collectURLs gathers URLs from all configured sources
+// collectURLs gathers URLs from all configured sources
 func (p *URLProcessor) collectURLs() ([]string, error) {
 	var urls []string
 	var err error
@@ -60,6 +61,10 @@ func (p *URLProcessor) collectURLs() ([]string, error) {
 		if err != nil {
 			return nil, err
 		}
+	}
+
+	if len(urls) == 0 {
+		return nil, fmt.Errorf("no URLs provided")
 	}
 
 	return urls, nil
@@ -90,6 +95,12 @@ func (p *URLProcessor) processWithSubstituteHosts(targetURL string) ([]string, e
 		return nil, fmt.Errorf("failed to parse target URL: %v", err)
 	}
 
+	// Store original path and query
+	originalPathAndQuery := parsedURL.Path
+	if parsedURL.Query != "" {
+		originalPathAndQuery += "?" + parsedURL.Query
+	}
+
 	// Read substitute hosts
 	content, err := os.ReadFile(p.opts.SubstituteHostsFile)
 	if err != nil {
@@ -98,12 +109,28 @@ func (p *URLProcessor) processWithSubstituteHosts(targetURL string) ([]string, e
 
 	var urls []string
 	for _, host := range strings.Split(strings.TrimSpace(string(content)), "\n") {
-		if host = strings.TrimSpace(host); host != "" {
-			// Create new URL with substituted host
-			newURL := *parsedURL // Create a copy
-			newURL.Host = host
-			urls = append(urls, newURL.String())
+		host = strings.TrimSpace(host)
+		if host == "" {
+			continue
 		}
+
+		// If host contains scheme, extract just the host part
+		if strings.Contains(host, "://") {
+			parsed, err := rawurlparser.RawURLParse(host)
+			if err != nil {
+				logger.Debug("Skipping invalid host URL: %s - %v", host, err)
+				continue
+			}
+			host = parsed.Host
+		}
+
+		// Construct new URL with original scheme and path
+		newURL := fmt.Sprintf("%s://%s%s", parsedURL.Scheme, host, originalPathAndQuery)
+		urls = append(urls, newURL)
+	}
+
+	if len(urls) == 0 {
+		return nil, fmt.Errorf("no valid URLs generated from substitute hosts file")
 	}
 
 	return urls, nil

@@ -7,14 +7,13 @@ import (
 	"time"
 
 	"github.com/projectdiscovery/utils/errkit"
-	//"github.com/slicingmelon/go-bypass-403/internal/config"
-	//"github.com/slicingmelon/go-bypass-403/internal/utils"
+	"github.com/slicingmelon/go-bypass-403/internal/utils/logger"
 	"github.com/slicingmelon/go-rawurlparser"
 )
 
 type WorkerContext struct {
 	mode     string
-	progress *utils.ProgressCounter
+	progress *ProgressCounter
 	cancel   chan struct{}
 	wg       *sync.WaitGroup
 	once     sync.Once
@@ -23,9 +22,9 @@ type WorkerContext struct {
 func NewWorkerContext(mode string, total int) *WorkerContext {
 	return &WorkerContext{
 		mode: mode,
-		progress: &utils.ProgressCounter{
-			total: total,
-			mode:  mode,
+		progress: &ProgressCounter{
+			Total: total,
+			Mode:  mode,
 		},
 		cancel: make(chan struct{}),
 		wg:     &sync.WaitGroup{},
@@ -46,7 +45,7 @@ func RunAllBypasses(targetURL string) chan *Result {
 
 	// Validate URL, should remove this, it's validated already
 	if _, err := rawurlparser.RawURLParse(targetURL); err != nil {
-		LogError("Failed to parse URL: %s", targetURL)
+		logger.LogError("Failed to parse URL: %s", targetURL)
 		close(results)
 		return results
 	}

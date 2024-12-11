@@ -1,19 +1,26 @@
 package scanner
 
 import (
-	"github.com/slicingmelon/go-bypass-403/internal/cli"
 	"github.com/slicingmelon/go-bypass-403/internal/utils/logger"
 )
 
-type Scanner struct {
-	opts *cli.Options
-	urls []string
+type ScannerOpts struct {
+	Timeout          int
+	Threads          int
+	MatchStatusCodes []int
+	Debug            bool
+	Verbose          bool
 }
 
-func New(opts *cli.Options, urls []string) *Scanner {
+type Scanner struct {
+	config *ScannerOpts
+	urls   []string
+}
+
+func New(cfg *ScannerOpts, urls []string) *Scanner {
 	return &Scanner{
-		opts: opts,
-		urls: urls,
+		config: cfg,
+		urls:   urls,
 	}
 }
 
