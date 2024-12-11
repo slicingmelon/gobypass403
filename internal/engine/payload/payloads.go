@@ -10,10 +10,10 @@ import (
 )
 
 type PayloadJob struct {
-	method     string
-	url        string
-	headers    []Header
-	bypassMode string
+	Method     string
+	URL        string
+	Headers    []Header
+	BypassMode string
 }
 
 func GenerateDumbJob(targetURL string, module string) []PayloadJob {
@@ -23,9 +23,9 @@ func GenerateDumbJob(targetURL string, module string) []PayloadJob {
 
 	// Just one job with the original URL
 	allJobs = append(allJobs, PayloadJob{
-		method:     "GET",
-		url:        targetURL,
-		bypassMode: module,
+		Method:     "GET",
+		URL:        targetURL,
+		BypassMode: module,
 	})
 
 	logger.LogYellow("\n[%s] Generated 1 payload for %s\n", module, targetURL)
@@ -90,9 +90,9 @@ func GenerateMidPathsJobs(targetURL string, module string) []PayloadJob {
 	// Convert URLs to PayloadJobs
 	for url := range urls {
 		jobs = append(jobs, PayloadJob{
-			method:     "GET",
-			url:        url,
-			bypassMode: module,
+			Method:     "GET",
+			URL:        url,
+			BypassMode: module,
 		})
 	}
 
@@ -151,9 +151,9 @@ func GenerateEndPathsJobs(targetURL string, module string) []PayloadJob {
 	// Convert URLs to jobs
 	for url := range urls {
 		jobs = append(jobs, PayloadJob{
-			method:     "GET",
-			url:        url,
-			bypassMode: module,
+			Method:     "GET",
+			URL:        url,
+			BypassMode: module,
 		})
 	}
 
@@ -203,13 +203,13 @@ func GenerateHeaderIPJobs(targetURL string, module string, spoofHeader string, s
 
 	// Special case job
 	allJobs = append(allJobs, PayloadJob{
-		method: "GET",
-		url:    targetURL,
-		headers: []Header{{
+		Method: "GET",
+		URL:    targetURL,
+		Headers: []Header{{
 			Header: "X-AppEngine-Trusted-IP-Request",
 			Value:  "1",
 		}},
-		bypassMode: module,
+		BypassMode: module,
 	})
 
 	// Generate regular jobs
@@ -224,24 +224,24 @@ func GenerateHeaderIPJobs(targetURL string, module string, spoofHeader string, s
 
 				for _, variation := range variations {
 					allJobs = append(allJobs, PayloadJob{
-						method: "GET",
-						url:    targetURL,
-						headers: []Header{{
+						Method: "GET",
+						URL:    targetURL,
+						Headers: []Header{{
 							Header: headerName,
 							Value:  variation,
 						}},
-						bypassMode: module,
+						BypassMode: module,
 					})
 				}
 			} else {
 				allJobs = append(allJobs, PayloadJob{
-					method: "GET",
-					url:    targetURL,
-					headers: []Header{{
+					Method: "GET",
+					URL:    targetURL,
+					Headers: []Header{{
 						Header: headerName,
 						Value:  ip,
 					}},
-					bypassMode: module,
+					BypassMode: module,
 				})
 			}
 		}
@@ -278,9 +278,9 @@ func GenerateCaseSubstitutionJobs(targetURL string, module string) []PayloadJob 
 			newPath += basePath[i+1:]
 
 			allJobs = append(allJobs, PayloadJob{
-				method:     "GET",
-				url:        baseURL + newPath,
-				bypassMode: module,
+				Method:     "GET",
+				URL:        baseURL + newPath,
+				BypassMode: module,
 			})
 		}
 	}
@@ -310,25 +310,25 @@ func GenerateCharEncodeJobs(targetURL string, module string) []PayloadJob {
 			encoded := fmt.Sprintf("%%%02x", char)
 			singleEncoded := basePath[:i] + encoded + basePath[i+1:]
 			allJobs = append(allJobs, PayloadJob{
-				method:     "GET",
-				url:        baseURL + singleEncoded,
-				bypassMode: "char_encode",
+				Method:     "GET",
+				URL:        baseURL + singleEncoded,
+				BypassMode: "char_encode",
 			})
 
 			// Double URL encoding
 			doubleEncoded := basePath[:i] + "%25" + encoded[1:] + basePath[i+1:]
 			allJobs = append(allJobs, PayloadJob{
-				method:     "GET",
-				url:        baseURL + doubleEncoded,
-				bypassMode: "char_encode_double",
+				Method:     "GET",
+				URL:        baseURL + doubleEncoded,
+				BypassMode: "char_encode_double",
 			})
 
 			// Triple URL encoding
 			tripleEncoded := basePath[:i] + "%2525" + encoded[1:] + basePath[i+1:]
 			allJobs = append(allJobs, PayloadJob{
-				method:     "GET",
-				url:        baseURL + tripleEncoded,
-				bypassMode: "char_encode_triple",
+				Method:     "GET",
+				URL:        baseURL + tripleEncoded,
+				BypassMode: "char_encode_triple",
 			})
 		}
 	}
@@ -359,13 +359,13 @@ func GenerateHeaderSchemeJobs(targetURL string, module string) []PayloadJob {
 			headerScheme == "X-Forwarded-HTTPS" ||
 			headerScheme == "X-Forwarded-SSL" {
 			allJobs = append(allJobs, PayloadJob{
-				method: "GET",
-				url:    targetURL,
-				headers: []Header{{
+				Method: "GET",
+				URL:    targetURL,
+				Headers: []Header{{
 					Header: headerScheme,
 					Value:  "on",
 				}},
-				bypassMode: module,
+				BypassMode: module,
 			})
 			continue
 		}
@@ -374,23 +374,23 @@ func GenerateHeaderSchemeJobs(targetURL string, module string) []PayloadJob {
 		for _, protoScheme := range protoSchemes {
 			if headerScheme == "Forwarded" {
 				allJobs = append(allJobs, PayloadJob{
-					method: "GET",
-					url:    targetURL,
-					headers: []Header{{
+					Method: "GET",
+					URL:    targetURL,
+					Headers: []Header{{
 						Header: headerScheme,
 						Value:  fmt.Sprintf("proto=%s", protoScheme),
 					}},
-					bypassMode: module,
+					BypassMode: module,
 				})
 			} else {
 				allJobs = append(allJobs, PayloadJob{
-					method: "GET",
-					url:    targetURL,
-					headers: []Header{{
+					Method: "GET",
+					URL:    targetURL,
+					Headers: []Header{{
 						Header: headerScheme,
 						Value:  protoScheme,
 					}},
-					bypassMode: module,
+					BypassMode: module,
 				})
 			}
 		}
@@ -426,13 +426,13 @@ func GenerateHeaderURLJobs(targetURL string, module string) []PayloadJob {
 	for _, headerURL := range headerURLs {
 		// First variant: base_path in header
 		allJobs = append(allJobs, PayloadJob{
-			method: "GET",
-			url:    baseURL + "/",
-			headers: []Header{{
+			Method: "GET",
+			URL:    baseURL + "/",
+			Headers: []Header{{
 				Header: headerURL,
 				Value:  basePath,
 			}},
-			bypassMode: module,
+			BypassMode: module,
 		})
 
 		// Second variant: full target URL in header
@@ -440,13 +440,13 @@ func GenerateHeaderURLJobs(targetURL string, module string) []PayloadJob {
 			strings.Contains(strings.ToLower(headerURL), "request") ||
 			strings.Contains(strings.ToLower(headerURL), "file") {
 			allJobs = append(allJobs, PayloadJob{
-				method: "GET",
-				url:    baseURL + "/",
-				headers: []Header{{
+				Method: "GET",
+				URL:    baseURL + "/",
+				Headers: []Header{{
 					Header: headerURL,
 					Value:  targetURL,
 				}},
-				bypassMode: module,
+				BypassMode: module,
 			})
 		}
 
@@ -459,26 +459,26 @@ func GenerateHeaderURLJobs(targetURL string, module string) []PayloadJob {
 			}
 
 			allJobs = append(allJobs, PayloadJob{
-				method: "GET",
-				url:    targetURL,
-				headers: []Header{{
+				Method: "GET",
+				URL:    targetURL,
+				Headers: []Header{{
 					Header: headerURL,
 					Value:  parentPath,
 				}},
-				bypassMode: module,
+				BypassMode: module,
 			})
 
 			if strings.Contains(strings.ToLower(headerURL), "url") ||
 				strings.Contains(strings.ToLower(headerURL), "refer") {
 				fullURL := baseURL + parentPath
 				allJobs = append(allJobs, PayloadJob{
-					method: "GET",
-					url:    targetURL,
-					headers: []Header{{
+					Method: "GET",
+					URL:    targetURL,
+					Headers: []Header{{
 						Header: headerURL,
 						Value:  fullURL,
 					}},
-					bypassMode: module,
+					BypassMode: module,
 				})
 			}
 		}
@@ -513,13 +513,13 @@ func GenerateHeaderPortJobs(targetURL string, module string) []PayloadJob {
 		// Handle internal ports
 		for _, port := range internalPorts {
 			allJobs = append(allJobs, PayloadJob{
-				method: "GET",
-				url:    targetURL,
-				headers: []Header{{
+				Method: "GET",
+				URL:    targetURL,
+				Headers: []Header{{
 					Header: headerPort,
 					Value:  port,
 				}},
-				bypassMode: module,
+				BypassMode: module,
 			})
 		}
 	}
@@ -552,26 +552,26 @@ func GenerateHostHeaderJobs(targetURL string, BypassModule string, probeCache pr
 		for _, ip := range probeCacheResult.IPv4 {
 			ipURL := fmt.Sprintf("%s://%s%s", parsedURL.Scheme, ip, pathAndQuery)
 			allJobs = append(allJobs, PayloadJob{
-				method: "GET",
-				url:    ipURL,
-				headers: []Header{{
+				Method: "GET",
+				URL:    ipURL,
+				Headers: []Header{{
 					Header: "Host",
 					Value:  parsedURL.Host,
 				}},
-				bypassMode: BypassModule,
+				BypassMode: BypassModule,
 			})
 		}
 
 		// Variation 2: Original URL, Host header with IP
 		for _, ip := range probeCacheResult.IPv4 {
 			allJobs = append(allJobs, PayloadJob{
-				method: "GET",
-				url:    targetURL,
-				headers: []Header{{
+				Method: "GET",
+				URL:    targetURL,
+				Headers: []Header{{
 					Header: "Host",
 					Value:  ip,
 				}},
-				bypassMode: BypassModule,
+				BypassMode: BypassModule,
 			})
 		}
 
@@ -579,9 +579,9 @@ func GenerateHostHeaderJobs(targetURL string, BypassModule string, probeCache pr
 		for _, ip := range probeCacheResult.IPv4 {
 			ipURL := fmt.Sprintf("%s://%s%s", parsedURL.Scheme, ip, pathAndQuery)
 			allJobs = append(allJobs, PayloadJob{
-				method:     "GET",
-				url:        ipURL,
-				bypassMode: BypassModule,
+				Method:     "GET",
+				URL:        ipURL,
+				BypassMode: BypassModule,
 			})
 		}
 	} else {

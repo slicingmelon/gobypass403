@@ -6,9 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/projectdiscovery/utils/errkit"
 	"github.com/slicingmelon/go-bypass-403/internal/engine/payload"
-	"github.com/slicingmelon/go-bypass-403/internal/utils/error"
 	"github.com/slicingmelon/go-bypass-403/internal/utils/logger"
 	"github.com/slicingmelon/go-rawurlparser"
 )
@@ -127,7 +125,7 @@ func (s *Scanner) RunAllBypasses(targetURL string) chan *Result {
 		defer close(results)
 
 		// Run dumb check once at the start
-		runDumbCheck(targetURL, results)
+		s.runDumbCheck(targetURL, results)
 
 		modes := strings.Split(s.config.BypassModule, ",")
 		for _, mode := range modes {
@@ -156,7 +154,7 @@ func (s *Scanner) RunAllBypasses(targetURL string) chan *Result {
 }
 
 // runDumbCheck runs the baseline check using the same worker pattern
-func runDumbCheck(targetURL string, results chan<- *Result) {
+func (s *Scanner) runDumbCheck(targetURL string, results chan<- *Result) {
 	jobs := make(chan payload.PayloadJob, 1000)
 	allJobs := payload.GenerateDumbJob(targetURL, "dumb_check")
 
@@ -165,7 +163,7 @@ func runDumbCheck(targetURL string, results chan<- *Result) {
 	// Start workers
 	for i := 0; i < 2; i++ {
 		ctx.wg.Add(1)
-		go worker(ctx, jobs, results)
+		go worker(ctx, jobs, results, s.config)
 	}
 
 	// Process jobs
@@ -199,7 +197,7 @@ func (s *Scanner) runBypassForMode(BypassModule string, targetURL string, result
 	// Start workers
 	for i := 0; i < s.config.Threads; i++ {
 		ctx.wg.Add(1)
-		go worker(ctx, jobs, results)
+		go worker(ctx, jobs, results, s.config)
 	}
 
 	// Process jobs
@@ -218,7 +216,7 @@ func (s *Scanner) runBypassForMode(BypassModule string, targetURL string, result
 	fmt.Println()
 }
 
-func worker(ctx *WorkerContext, jobs <-chan payload.PayloadJob, results chan<- *Result) {
+func worker(ctx *WorkerContext, jobs <-chan payload.PayloadJob, results chan<- *Result, opts *ScannerOpts) {
 	defer ctx.wg.Done()
 
 	// Add panic recovery
@@ -229,19 +227,20 @@ func worker(ctx *WorkerContext, jobs <-chan payload.PayloadJob, results chan<- *
 		}
 	}()
 
-	// Create client
-	client, err := New(&config, ctx.mode)
-	if err != nil {
-		logger.LogError("Failed to create client for mode %s: %v", ctx.mode, err)
-		return
-	}
-	defer func() {
-		// Print all URL parsing logs before closing the client
-		client.PrintAllLogs()
-		client.Close()
-	}()
+	// Comment out client creation for now
+	/*
+	   client, err := NewClient(opts, ctx.mode)
+	   if err != nil {
+	       logger.LogError("Failed to create client for mode %s: %v", ctx.mode, err)
+	       return
+	   }
+	   defer func() {
+	       client.PrintAllLogs()
+	       client.Close()
+	   }()
+	*/
 
-	workerLimiter := time.NewTicker(time.Duration(config.Delay) * time.Millisecond)
+	workerLimiter := time.NewTicker(time.Duration(opts.Delay) * time.Millisecond)
 	defer workerLimiter.Stop()
 
 	for job := range jobs {
@@ -249,38 +248,30 @@ func worker(ctx *WorkerContext, jobs <-chan payload.PayloadJob, results chan<- *
 		case <-ctx.cancel:
 			return
 		case <-workerLimiter.C:
-			details, err := client.sendRequest(job.method, job.url, job.headers)
-			ctx.progress.increment()
-
-			if err != nil {
-				_, parseErr := rawurlparser.RawURLParse(job.url)
-				if parseErr != nil {
-					logger.LogError("[%s] Failed to parse URL: %s", job.bypassMode, job.url)
-					continue
-				}
-
-				if errkit.IsKind(err, error.ErrKindGo403BypassFatal) {
-					logger.LogError("[ErrorMonitorService] => Stopping current bypass mode [%s] -- Permanent error for %s: %v",
-						job.bypassMode, job.url, err)
-					ctx.Stop()
-					return
-				}
-
-				logger.LogError("[%s] Request error for %s: %v",
-					job.bypassMode, job.url, err)
-				continue
+			// Mock response for testing
+			details := &ResponseDetails{
+				StatusCode:      200,
+				ResponsePreview: "Test Response",
+				ResponseHeaders: "Test Headers",
+				ContentType:     "text/html",
+				ContentLength:   100,
+				ResponseBytes:   100,
+				Title:           "Test Title",
+				ServerInfo:      "Test Server",
 			}
 
+			ctx.progress.increment()
+
 			// Process successful response
-			for _, allowedCode := range config.MatchStatusCodes {
+			for _, allowedCode := range opts.MatchStatusCodes {
 				if details.StatusCode == allowedCode {
 					results <- &Result{
-						TargetURL:       job.url,
+						TargetURL:       job.URL,
 						StatusCode:      details.StatusCode,
 						ResponsePreview: details.ResponsePreview,
 						ResponseHeaders: details.ResponseHeaders,
-						CurlPocCommand:  BuildCurlCmd(job.method, job.url, payload.HeadersToMap(job.headers)),
-						BypassModule:    job.bypassMode,
+						CurlPocCommand:  BuildCurlCmd(job.Method, job.URL, payload.HeadersToMap(job.Headers)),
+						BypassModule:    job.BypassMode,
 						ContentType:     details.ContentType,
 						ContentLength:   details.ContentLength,
 						ResponseBytes:   details.ResponseBytes,
@@ -293,3 +284,74 @@ func worker(ctx *WorkerContext, jobs <-chan payload.PayloadJob, results chan<- *
 		}
 	}
 }
+
+// func worker(ctx *WorkerContext, jobs <-chan payload.PayloadJob, results chan<- *Result, opts *ScannerOpts) {
+// 	defer ctx.wg.Done()
+
+// 	// Add panic recovery
+// 	defer func() {
+// 		if r := recover(); r != nil {
+// 			logger.LogError("[%s] Worker panic recovered: %v", ctx.mode, r)
+// 			ctx.Stop()
+// 		}
+// 	}()
+
+// 	// Create client
+// 	//nolint:errcheck
+// 	client, err := NewClient(opts, ctx.mode) //nolint:errcheck
+// 	if err != nil {
+// 		logger.LogError("WEEEE REACHED THE END!!! Failed to create client for mode %s: %v", ctx.mode, err)
+// 		return
+// 	}
+// 	defer func() {
+// 		// Print all URL parsing logs before closing the client
+// 		client.PrintAllLogs()
+// 		client.Close()
+// 	}()
+
+// 	workerLimiter := time.NewTicker(time.Duration(opts.Delay) * time.Millisecond)
+// 	defer workerLimiter.Stop()
+
+// 	for job := range jobs {
+// 		select {
+// 		case <-ctx.cancel:
+// 			return
+// 		case <-workerLimiter.C:
+// 			details, err := client.sendRequest(job.Method, job.URL, job.Headers)
+// 			ctx.progress.increment()
+
+// 			if err != nil {
+// 				if errkit.IsKind(err, error.ErrKindGo403BypassFatal) {
+// 					logger.LogError("[ErrorMonitorService] => Stopping current bypass mode [%s] -- Permanent error for %s: %v",
+// 						job.BypassMode, job.URL, err)
+// 					ctx.Stop()
+// 					return
+// 				}
+
+// 				logger.LogError("[%s] Request error for %s: %v",
+// 					job.BypassMode, job.URL, err)
+// 				continue
+// 			}
+
+// 			// Process successful response
+// 			for _, allowedCode := range opts.MatchStatusCodes {
+// 				if details.StatusCode == allowedCode {
+// 					results <- &Result{
+// 						TargetURL:       job.URL,
+// 						StatusCode:      details.StatusCode,
+// 						ResponsePreview: details.ResponsePreview,
+// 						ResponseHeaders: details.ResponseHeaders,
+// 						CurlPocCommand:  BuildCurlCmd(job.Method, job.URL, payload.HeadersToMap(job.Headers)),
+// 						BypassModule:    job.BypassMode,
+// 						ContentType:     details.ContentType,
+// 						ContentLength:   details.ContentLength,
+// 						ResponseBytes:   details.ResponseBytes,
+// 						Title:           details.Title,
+// 						ServerInfo:      details.ServerInfo,
+// 						RedirectURL:     details.RedirectURL,
+// 					}
+// 				}
+// 			}
+// 		}
+// 	}
+// }

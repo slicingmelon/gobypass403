@@ -44,6 +44,18 @@ type JSONData struct {
 	Scans []ScanResult `json:"scans"`
 }
 
+type ResponseDetails struct {
+	StatusCode      int
+	ResponsePreview string
+	ResponseHeaders string
+	ContentType     string
+	ContentLength   int64
+	ServerInfo      string
+	RedirectURL     string
+	ResponseBytes   int
+	Title           string
+}
+
 // PrintTableHeader prints the header for results table
 func PrintTableHeader(targetURL string) {
 	fmt.Print("\n")
@@ -51,7 +63,7 @@ func PrintTableHeader(targetURL string) {
 	logger.Yellow(targetURL)
 	logger.Teal(" [##########]")
 
-	fmt.Printf("%s[bypass]%s [%scurl poc%s] ======================================> %s[status]%s [%scontent-length%s] [%scontent-type%s] [%stitle%s] [%sserver%s] [%sredirect%s]\n",
+	fmt.Printf("%s [%s] ======================================> %s [%s] [%s] [%s] [%s] [%s]\n",
 		logger.Blue("[bypass]"),
 		logger.Yellow("[curl poc]"),
 		logger.Green("[status]"),
