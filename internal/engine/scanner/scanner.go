@@ -2,7 +2,7 @@ package scanner
 
 import (
 	"github.com/slicingmelon/go-bypass-403/internal/cli"
-	"github.com/slicingmelon/go-bypass-403/internal/engine/scanner"
+	//"github.com/slicingmelon/go-bypass-403/internal/engine/scanner"
 	"github.com/slicingmelon/go-bypass-403/internal/utils/logger"
 )
 
