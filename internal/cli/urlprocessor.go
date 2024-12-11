@@ -15,12 +15,15 @@ import (
 type URLProcessor struct {
 	opts         *Options
 	probeService *probe.ProbeService
+	probeCache   probe.Cache
 }
 
 func NewURLProcessor(opts *Options) *URLProcessor {
+	probeService := probe.NewProbeService()
 	return &URLProcessor{
 		opts:         opts,
-		probeService: probe.NewProbeService(),
+		probeService: probeService,
+		probeCache:   probeService.GetCache(),
 	}
 }
 
@@ -41,7 +44,6 @@ func (p *URLProcessor) ProcessURLs() ([]string, error) {
 	return urls, nil
 }
 
-// collectURLs gathers URLs from all configured sources
 // collectURLs gathers URLs from all configured sources
 func (p *URLProcessor) collectURLs() ([]string, error) {
 	var urls []string
@@ -150,4 +152,9 @@ func (p *URLProcessor) constructBaseURL(scheme, host, port string) string {
 		return fmt.Sprintf("%s://%s", scheme, host)
 	}
 	return fmt.Sprintf("%s://%s:%s", scheme, host, port)
+}
+
+// GetProbeCache returns the probe cache
+func (p *URLProcessor) GetProbeCache() probe.Cache {
+	return p.probeCache
 }

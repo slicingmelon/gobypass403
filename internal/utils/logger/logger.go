@@ -28,6 +28,12 @@ var (
 	Error   func(format string, v ...interface{})
 	Yellow  func(format string, v ...interface{})
 	Orange  func(format string, v ...interface{})
+	Green   func(format string, v ...interface{})
+	Blue    func(format string, v ...interface{})
+	Purple  func(format string, v ...interface{})
+	Gray    func(format string, v ...interface{})
+	Teal    func(format string, v ...interface{})
+	Pink    func(format string, v ...interface{})
 )
 
 // init initializes the global logger and its functions
@@ -41,6 +47,12 @@ func init() {
 	Error = logger.LogError
 	Yellow = logger.LogYellow
 	Orange = logger.LogOrange
+	Green = logger.LogGreen
+	Blue = logger.LogBlue
+	Purple = logger.LogPurple
+	Gray = logger.LogGray
+	Teal = logger.LogTeal
+	Pink = logger.LogPink
 }
 
 // NewLogger creates a new logger instance
@@ -84,4 +96,28 @@ func (l *Logger) LogYellow(format string, v ...interface{}) {
 
 func (l *Logger) LogOrange(format string, v ...interface{}) {
 	l.orangeColor.Printf("\n"+format+"\n", v...)
+}
+
+func (l *Logger) LogGreen(format string, v ...interface{}) {
+	l.greenColor.Printf("\n"+format+"\n", v...)
+}
+
+func (l *Logger) LogBlue(format string, v ...interface{}) {
+	l.blueColor.Printf("\n"+format+"\n", v...)
+}
+
+func (l *Logger) LogPurple(format string, v ...interface{}) {
+	l.purpleColor.Printf("\n"+format+"\n", v...)
+}
+
+func (l *Logger) LogGray(format string, v ...interface{}) {
+	l.grayColor.Printf("\n"+format+"\n", v...)
+}
+
+func (l *Logger) LogTeal(format string, v ...interface{}) {
+	l.tealColor.Printf("\n"+format+"\n", v...)
+}
+
+func (l *Logger) LogPink(format string, v ...interface{}) {
+	l.pinkColor.Printf("\n"+format+"\n", v...)
 }

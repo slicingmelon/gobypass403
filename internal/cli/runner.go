@@ -40,22 +40,13 @@ func (r *Runner) Initialize() error {
 		MatchStatusCodes: r.options.MatchStatusCodes,
 		Debug:            r.options.Debug,
 		Verbose:          r.options.Verbose,
+		ProbeCache:       r.urlProcessor.GetProbeCache(),
 	}
 
-	r.scanner = scanner.New(scannerOpts, urls) // This will now work
+	r.scanner = scanner.New(scannerOpts, urls)
 	return nil
 }
 
 func (r *Runner) Run() error {
-	scannerOpts := &scanner.ScannerOpts{
-		Timeout:          r.options.Timeout,
-		Threads:          r.options.Threads,
-		MatchStatusCodes: r.options.MatchStatusCodes,
-		Debug:            r.options.Debug,
-		Verbose:          r.options.Verbose,
-		//
-	}
-
-	scan := scanner.New(scannerOpts, r.urls)
-	return scan.Run()
+	return r.scanner.Run()
 }
