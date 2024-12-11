@@ -126,16 +126,16 @@ func (s *Scanner) RunAllBypasses(targetURL string) chan *Result {
 	go func() {
 		defer close(results)
 
+		// Run dumb check once at the start
+		runDumbCheck(targetURL, results)
+
 		modes := strings.Split(s.config.BypassModule, ",")
 		for _, mode := range modes {
 			mode = strings.TrimSpace(mode)
 
-			// Always run dumb check first for each mode
-			runDumbCheck(targetURL, results)
-
 			if mode == "all" {
 				// Run all registered modules except dumb_check
-				for modeName, module := range bypassModules {
+				for modeName := range bypassModules {
 					if modeName != "dumb_check" {
 						s.runBypassForMode(modeName, targetURL, results)
 					}
@@ -144,7 +144,7 @@ func (s *Scanner) RunAllBypasses(targetURL string) chan *Result {
 			}
 
 			// Check if module exists in registry
-			if _, exists := bypassModules[mode]; exists {
+			if _, exists := bypassModules[mode]; exists && mode != "dumb_check" {
 				s.runBypassForMode(mode, targetURL, results)
 			} else {
 				logger.LogError("Unknown bypass mode: %s", mode)
