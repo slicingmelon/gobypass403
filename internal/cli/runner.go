@@ -1,14 +1,15 @@
 package cli
 
 import (
-	"github.com/slicingmelon/go-bypass-403/internal/scanner"
+	"github.com/slicingmelon/go-bypass-403/internal/engine/scanner"
 	"github.com/slicingmelon/go-bypass-403/internal/utils/logger"
 )
 
 type Runner struct {
-	options *Options
-	scanner *scanner.Scanner
-	urls    []string
+	options      *Options
+	urls         []string
+	scanner      *scanner.Scanner
+	urlProcessor *URLProcessor
 }
 
 func NewRunner() *Runner {
@@ -16,23 +17,27 @@ func NewRunner() *Runner {
 }
 
 func (r *Runner) Initialize() error {
-	// Parse flags and get options
+	// Step 1: Parse CLI flags
 	opts, err := parseFlags()
 	if err != nil {
 		return err
 	}
 	r.options = opts
 
-	// Process URLs
-	urlProcessor := NewURLProcessor(opts)
-	urls, err := urlProcessor.ProcessURLs()
+	// Step 2: Initialize URL Processor
+	r.urlProcessor = NewURLProcessor(opts)
+
+	// Step 3: Process and validate URLs
+	urls, err := r.urlProcessor.ProcessURLs()
 	if err != nil {
 		return err
 	}
 	r.urls = urls
+	logger.Info("Successfully processed %d URLs", len(urls))
 
-	// Initialize scanner
+	// Step 4: Initialize scanner with processed URLs
 	r.scanner = scanner.New(opts, urls)
+
 	return nil
 }
 

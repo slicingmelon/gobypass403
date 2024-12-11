@@ -50,8 +50,7 @@ type ModulesConfig struct {
 	Description string
 }
 
-// AvailableModes defines all bypass modes and their default status
-// Available bypass modules
+// AvailableModes defines all bypass modes and their status, true if enabled, false if disabled
 var AvailableModules = map[string]bool{
 	"all":                 true,
 	"mid_paths":           true,
