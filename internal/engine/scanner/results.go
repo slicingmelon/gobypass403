@@ -63,9 +63,10 @@ func PrintTableHeader(targetURL string) {
 	logger.Yellow(targetURL)
 	logger.Teal(" [##########]")
 
-	fmt.Printf("%s [%s] ======================================> %s [%s] [%s] [%s] [%s] [%s]\n",
+	fmt.Printf("%s [%s] %s=> %s [%s] [%s] [%s] [%s] [%s]\n",
 		logger.Blue("[bypass]"),
 		logger.Yellow("[curl poc]"),
+		strings.Repeat("=", 70),
 		logger.Green("[status]"),
 		logger.Purple("[content-length]"),
 		logger.Orange("[content-type]"),
@@ -73,7 +74,7 @@ func PrintTableHeader(targetURL string) {
 		logger.Gray("[server]"),
 		logger.Pink("[redirect]"))
 
-	fmt.Println(strings.Repeat("-", 140))
+	fmt.Println(strings.Repeat("-", 170))
 }
 
 // PrintTableRow prints a single result row
@@ -91,10 +92,10 @@ func PrintTableRow(result *Result) {
 	}
 
 	// Format everything in a single line
-	fmt.Printf("%s [%s] %s %s [%s] [%s] [%s] [%s] [%s]\n",
+	fmt.Printf("%s [%s] %s=> %s [%s] [%s] [%s] [%s] [%s]\n",
 		logger.BlueString("[%s]", result.BypassModule),
 		logger.YellowString("%s", result.CurlPocCommand),
-		strings.Repeat("=", 50),
+		strings.Repeat("=", 5),
 		logger.GreenString("[%d]", result.StatusCode),
 		logger.PurpleString("[%s]", formatBytes(result.ContentLength)),
 		logger.OrangeString("[%s]", formatValue(result.ContentType)),

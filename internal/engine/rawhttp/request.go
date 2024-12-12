@@ -5,6 +5,8 @@ import (
 	"context"
 	"fmt"
 	"math/rand"
+	"runtime"
+	"strings"
 	"sync"
 	"time"
 	"unsafe"
@@ -73,6 +75,7 @@ type workerPool struct {
 	lock            sync.Mutex
 	stopCh          chan struct{}
 	workerChanPool  sync.Pool
+	pool            *RequestPool
 }
 
 type workerChan struct {
@@ -95,6 +98,9 @@ func NewRequestPool(opts *ClientOptions) *RequestPool {
 		},
 	}
 
+	// Set the pool reference
+	pool.workerPool.pool = pool
+
 	// Initialize worker channel pool
 	pool.workerPool.workerChanPool.New = func() interface{} {
 		return &workerChan{
@@ -108,31 +114,46 @@ func NewRequestPool(opts *ClientOptions) *RequestPool {
 
 // ProcessRequests handles multiple requests efficiently
 func (p *RequestPool) ProcessRequests(jobs []payload.PayloadJob) <-chan *ResponseDetails {
-	results := make(chan *ResponseDetails, len(jobs))
+	results := make(chan *ResponseDetails, p.client.options.MaxConnsPerHost)
 
 	go func() {
 		defer close(results)
 
-		// Start workers as needed
-		for _, job := range jobs {
-			workerChan := p.workerPool.getCh()
-			if workerChan == nil {
-				// Pool is full, wait and retry
-				time.Sleep(100 * time.Millisecond)
-				continue
-			}
+		// Create a buffered channel for jobs
+		jobsChan := make(chan payload.PayloadJob, len(jobs))
 
-			// Send job to worker
-			workerChan.jobs <- job
+		// Start workers
+		numWorkers := min(p.client.options.MaxConnsPerHost, len(jobs))
+		var wg sync.WaitGroup
 
-			// Get result
-			if result := <-workerChan.results; result != nil {
-				results <- result
-			}
+		for i := 0; i < numWorkers; i++ {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
 
-			// Release worker back to pool
-			p.workerPool.release(workerChan)
+				for job := range jobsChan {
+					workerChan := p.workerPool.getCh()
+					if workerChan == nil {
+						continue
+					}
+
+					workerChan.jobs <- job
+					if result := <-workerChan.results; result != nil {
+						results <- result
+					}
+					p.workerPool.release(workerChan)
+				}
+			}()
 		}
+
+		// Feed jobs to workers
+		for _, job := range jobs {
+			jobsChan <- job
+		}
+		close(jobsChan)
+
+		// Wait for all workers to finish
+		wg.Wait()
 	}()
 
 	return results
@@ -164,49 +185,31 @@ func (wp *workerPool) getCh() *workerChan {
 }
 
 func (wp *workerPool) workerFunc(ch *workerChan) {
-	// Create request/response objects for this worker
 	req := fasthttp.AcquireRequest()
 	resp := fasthttp.AcquireResponse()
 	defer fasthttp.ReleaseRequest(req)
 	defer fasthttp.ReleaseResponse(resp)
 
 	for job := range ch.jobs {
-		// Reset objects for reuse
 		req.Reset()
 		resp.Reset()
 
-		// Setup request
 		req.SetRequestURI(job.URL)
 		req.Header.SetMethod(job.Method)
 		req.URI().DisablePathNormalizing = true
 
-		// Set headers
 		for _, h := range job.Headers {
 			req.Header.Set(h.Header, h.Value)
 		}
 
-		// Process request with retries
-		var err error
-		for retries := 0; retries < 3; retries++ {
-			if err = p.client.DoRaw(req, resp); err == nil {
-				break
-			}
-			time.Sleep(500 * time.Millisecond)
+		var result *ResponseDetails
+		err := wp.pool.client.DoRaw(req, resp)
+		if err == nil {
+			result = wp.pool.processResponse(resp, job)
 		}
 
-		if err != nil {
-			logger.LogError("Request error: %v", err)
-			ch.results <- nil
-			continue
-		}
-
-		// Process response
-		ch.results <- p.processResponse(resp, job)
+		ch.results <- result
 	}
-
-	wp.lock.Lock()
-	wp.workersCount--
-	wp.lock.Unlock()
 }
 
 func (wp *workerPool) release(ch *workerChan) {
@@ -403,13 +406,32 @@ func b2s(b []byte) string {
 
 // BuildCurlCommand generates a curl command for request reproduction
 func BuildCurlCommand(job payload.PayloadJob) string {
-	var cmd bytes.Buffer
-	cmd.WriteString(fmt.Sprintf("curl -X %s ", job.Method))
-
-	for _, h := range job.Headers {
-		cmd.WriteString(fmt.Sprintf("-H '%s: %s' ", h.Header, h.Value))
+	// Determine curl command based on OS
+	curlCmd := "curl"
+	if runtime.GOOS == "windows" {
+		curlCmd = "curl.exe"
 	}
 
-	cmd.WriteString(fmt.Sprintf("'%s'", job.URL))
-	return cmd.String()
+	parts := []string{curlCmd, "-skgi", "--path-as-is"}
+
+	// Add method if not GET
+	if job.Method != "GET" {
+		parts = append(parts, "-X", job.Method)
+	}
+
+	// Convert job.Headers to map for consistent ordering
+	headers := make(map[string]string)
+	for _, h := range job.Headers {
+		headers[h.Header] = h.Value
+	}
+
+	// Add headers
+	for k, v := range headers {
+		parts = append(parts, fmt.Sprintf("-H '%s: %s'", k, v))
+	}
+
+	// Add URL
+	parts = append(parts, fmt.Sprintf("'%s'", job.URL))
+
+	return strings.Join(parts, " ")
 }
