@@ -197,7 +197,9 @@ func (wp *workerPool) workerFunc(ch *workerChan) {
 		req.SetRequestURI(job.URL)
 		req.Header.SetMethod(job.Method)
 		req.URI().DisablePathNormalizing = true
+		req.Header.DisableNormalizing()
 
+		// add headers coming from the payload generators
 		for _, h := range job.Headers {
 			req.Header.Set(h.Header, h.Value)
 		}
@@ -263,34 +265,6 @@ type ResponseDetails struct {
 	BodyLimitHit    bool
 }
 
-// // SendRequest handles the complete request cycle using the configured client
-// func (c *Client) SendRequest(method, url string, headers map[string]string) (*ResponseDetails, error) {
-// 	// Acquire request and response objects from pool
-// 	req := c.AcquireRequest()
-// 	resp := c.AcquireResponse()
-// 	defer c.ReleaseRequest(req)
-// 	defer c.ReleaseResponse(resp)
-
-// 	// Setup request
-// 	req.SetRequestURI(url)
-// 	req.Header.SetMethod(method)
-// 	req.URI().DisablePathNormalizing = true
-// 	req.Header.DisableNormalizing()
-// 	req.Header.SetNoDefaultContentType(true)
-
-// 	// Set headers
-// 	for key, value := range headers {
-// 		req.Header.Set(key, value)
-// 	}
-
-// 	// Perform request with configured client options (including retries)
-// 	if err := c.DoRaw(req, resp); err != nil {
-// 		return nil, err
-// 	}
-
-// 	return c.processResponse(resp, job), nil
-// }
-
 // processResponse handles response processing and data extraction
 // processResponse converts fasthttp.Response to ResponseDetails
 func (p *RequestPool) processResponse(resp *fasthttp.Response, job payload.PayloadJob) *ResponseDetails {
@@ -298,9 +272,9 @@ func (p *RequestPool) processResponse(resp *fasthttp.Response, job payload.Paylo
 		URL:         job.URL,
 		BypassMode:  job.BypassMode,
 		StatusCode:  resp.StatusCode(),
-		ContentType: b2s(resp.Header.Peek("Content-Type")),
-		ServerInfo:  b2s(resp.Header.Peek("Server")),
-		RedirectURL: b2s(resp.Header.Peek("Location")),
+		ContentType: Byte2String(resp.Header.ContentType()),
+		ServerInfo:  Byte2String(resp.Header.Peek("Server")),
+		RedirectURL: Byte2String(resp.Header.Peek("Location")),
 	}
 
 	// Process headers
@@ -394,13 +368,19 @@ func generateRandomString(length int) string {
 }
 
 // s2b converts string to a byte slice without memory allocation.
-func s2b(s string) []byte {
+// This conversion *does not* copy data. Note that casting via "([]byte)(string)" *does* copy data.
+// Also note that you *should not* change the byte slice after conversion, because Go strings
+// are treated as immutable. This would cause a segmentation violation panic.
+func String2Byte(s string) []byte {
 	return unsafe.Slice(unsafe.StringData(s), len(s))
 }
 
 // b2s converts byte slice to a string without memory allocation.
 // See https://groups.google.com/forum/#!msg/Golang-Nuts/ENgbUzYvCuU/90yGx7GUAgAJ .
-func b2s(b []byte) string {
+// This conversion *does not* copy data. Note that casting via "(string)([]byte)" *does* copy data.
+// Also note that you *should not* change the byte slice after conversion, because Go strings
+// are treated as immutable. This would cause a segmentation violation panic.
+func Byte2String(b []byte) string {
 	return unsafe.String(unsafe.SliceData(b), len(b))
 }
 

@@ -1,6 +1,8 @@
 package rawhttp
 
 import (
+	"bufio"
+	"bytes"
 	"crypto/tls"
 	"sync"
 	"time"
@@ -9,8 +11,8 @@ import (
 	"github.com/valyala/fasthttp/fasthttpproxy"
 )
 
-const (
-	userAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+var (
+	userAgent = []byte("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36")
 )
 
 // ClientOptions contains configuration options for the Client
@@ -101,7 +103,7 @@ func NewClient(opts *ClientOptions) *Client {
 	return &Client{
 		client:    client,
 		bufPool:   sync.Pool{New: func() interface{} { return make([]byte, 0, opts.ReadBufferSize) }},
-		userAgent: []byte(userAgent),
+		userAgent: userAgent,
 		options:   opts,
 	}
 }
@@ -109,16 +111,39 @@ func NewClient(opts *ClientOptions) *Client {
 // DoRaw performs a raw HTTP request with full control over the request
 // DoRaw performs a raw HTTP request
 func (c *Client) DoRaw(req *fasthttp.Request, resp *fasthttp.Response) error {
-	if !c.options.NoDefaultUserAgent && len(req.Header.Peek("User-Agent")) == 0 {
-		// Use Set instead of SetBytesV since we're setting a single value
-		req.Header.SetUserAgent(string(c.userAgent))
+	if !c.options.NoDefaultUserAgent && len(req.Header.UserAgent()) == 0 {
+		req.Header.SetUserAgentBytes(c.userAgent)
 	}
 
 	if c.options.DisableKeepAlive {
 		req.Header.SetConnectionClose()
+		req.SetConnectionClose()
 	}
 
-	return c.client.Do(req, resp)
+	// First do the request
+	err := c.client.Do(req, resp)
+	if err != nil {
+		return err
+	}
+
+	// Then apply body size limits if configured
+	if c.options.ReadBufferSize > 0 {
+		// Create a reader from the response body
+		bodyReader := bufio.NewReader(bytes.NewReader(resp.Body()))
+
+		// Use ReadLimitBody to enforce size limits
+		err = resp.ReadLimitBody(bodyReader, c.options.ReadBufferSize)
+		if err != nil {
+			if err == fasthttp.ErrBodyTooLarge {
+				// Truncate response body to max size
+				resp.SetBody(resp.Body()[:c.options.ReadBufferSize])
+				return nil
+			}
+			return err
+		}
+	}
+
+	return nil
 }
 
 // isRetryableError determines if an error should trigger a retry
