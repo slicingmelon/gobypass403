@@ -85,38 +85,59 @@ func NewRequestPool(opts *ClientOptions) *RequestPool {
 }
 
 // ProcessRequests handles multiple requests efficiently
-func (p *RequestPool) ProcessRequests(jobs <-chan payload.PayloadJob) <-chan *ResponseDetails {
+func (p *RequestPool) ProcessRequests(jobs []payload.PayloadJob) <-chan *ResponseDetails {
 	results := make(chan *ResponseDetails)
 
 	go func() {
 		defer close(results)
 
-		// Reuse request/response objects since we're hitting same host
-		req := p.reqPool.Get().(*fasthttp.Request)
-		resp := p.respPool.Get().(*fasthttp.Response)
-		defer p.reqPool.Put(req)
-		defer p.respPool.Put(resp)
+		// Create semaphore for concurrency control
+		sem := make(chan struct{}, p.client.options.MaxConnsPerHost)
+		var wg sync.WaitGroup
 
-		for job := range jobs {
-			req.Reset()
-			resp.Reset()
+		for _, job := range jobs {
+			wg.Add(1)
+			sem <- struct{}{} // Acquire semaphore
 
-			// Keep connection alive between requests
-			req.SetRequestURI(job.URL)
-			req.Header.SetMethod(job.Method)
-			req.URI().DisablePathNormalizing = true
+			go func(job payload.PayloadJob) {
+				defer wg.Done()
+				defer func() { <-sem }() // Release semaphore
 
-			for _, h := range job.Headers {
-				req.Header.Set(h.Header, h.Value)
-			}
+				// Get request/response objects from pool
+				req := p.client.AcquireRequest()
+				resp := p.client.AcquireResponse()
+				defer p.client.ReleaseRequest(req)
+				defer p.client.ReleaseResponse(resp)
 
-			if err := p.client.DoRaw(req, resp); err != nil {
-				logger.LogError("[RequestPool] Request error: %v", err)
-				continue
-			}
+				// Setup request
+				req.SetRequestURI(job.URL)
+				req.Header.SetMethod(job.Method)
+				req.URI().DisablePathNormalizing = true
 
-			results <- p.processResponse(resp, job)
+				// Set headers
+				for _, h := range job.Headers {
+					req.Header.Set(h.Header, h.Value)
+				}
+
+				// Send request with retry logic
+				var err error
+				for retries := 0; retries <= p.client.maxRetries; retries++ {
+					if err = p.client.DoRaw(req, resp); err == nil {
+						break
+					}
+					time.Sleep(p.client.retryDelay)
+				}
+
+				if err != nil {
+					logger.LogError("Request error after retries: %v", err)
+					return
+				}
+
+				results <- p.processResponse(resp, job)
+			}(job)
 		}
+
+		wg.Wait()
 	}()
 
 	return results

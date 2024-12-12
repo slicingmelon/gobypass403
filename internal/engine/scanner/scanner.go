@@ -3,8 +3,10 @@ package scanner
 import (
 	"fmt"
 	"path/filepath"
+	"time"
 
 	"github.com/slicingmelon/go-bypass-403/internal/engine/probe"
+	"github.com/slicingmelon/go-bypass-403/internal/engine/rawhttp"
 	"github.com/slicingmelon/go-bypass-403/internal/utils/logger"
 )
 
@@ -30,12 +32,25 @@ type ScannerOpts struct {
 type Scanner struct {
 	config *ScannerOpts
 	urls   []string
+	client *rawhttp.Client
+	pool   *rawhttp.RequestPool
 }
 
 func New(opts *ScannerOpts, urls []string) *Scanner {
+	clientOpts := &rawhttp.ClientOptions{
+		Timeout:             time.Duration(opts.Timeout) * time.Second,
+		MaxConnsPerHost:     opts.Threads,
+		MaxIdleConnDuration: 30 * time.Second,
+		NoDefaultUserAgent:  true,
+		ProxyURL:            opts.Proxy,
+		ReadBufferSize:      opts.MaxResponseBodySize,
+		DisableKeepAlive:    false,
+	}
+
 	return &Scanner{
 		config: opts,
 		urls:   urls,
+		pool:   rawhttp.NewRequestPool(clientOpts),
 	}
 }
 
