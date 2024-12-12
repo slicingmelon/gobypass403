@@ -3,6 +3,7 @@ package rawhttp
 import (
 	"context"
 	"fmt"
+	"math/rand"
 	"time"
 
 	"github.com/valyala/fasthttp"
@@ -39,6 +40,10 @@ func NewRequestWithContext(ctx context.Context, method, url string, headers map[
 	for key, value := range headers {
 		req.Header.Set(key, value)
 	}
+
+	// add canary
+	canary := generateRandomString(18)
+	req.Header.Set("X-Go-Bypass-403", canary)
 
 	return req
 }
@@ -118,4 +123,14 @@ func (r *Request) Release() {
 		fasthttp.ReleaseRequest(r.Request)
 		r.Request = nil
 	}
+}
+
+// Helper function to generate random strings
+func generateRandomString(length int) string {
+	const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+	b := make([]byte, length)
+	for i := range b {
+		b[i] = charset[rand.Intn(len(charset))]
+	}
+	return string(b)
 }
