@@ -73,7 +73,7 @@ func PrintTableHeader(targetURL string) {
 		logger.Gray("[server]"),
 		logger.Pink("[redirect]"))
 
-	fmt.Println(strings.Repeat("-", 120))
+	fmt.Println(strings.Repeat("-", 140))
 }
 
 // PrintTableRow prints a single result row
@@ -91,9 +91,10 @@ func PrintTableRow(result *Result) {
 	}
 
 	// Format everything in a single line
-	fmt.Printf("%s [%s] ======================================> %s [%s] [%s] [%s] [%s] [%s]\n",
+	fmt.Printf("%s [%s] %s %s [%s] [%s] [%s] [%s] [%s]\n",
 		logger.BlueString("[%s]", result.BypassModule),
 		logger.YellowString("%s", result.CurlPocCommand),
+		strings.Repeat("=", 50),
 		logger.GreenString("[%d]", result.StatusCode),
 		logger.PurpleString("[%s]", formatBytes(result.ContentLength)),
 		logger.OrangeString("[%s]", formatValue(result.ContentType)),

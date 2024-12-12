@@ -40,7 +40,7 @@ type Client struct {
 func DefaultOptionsMultiHost() *ClientOptions {
 	return &ClientOptions{
 		Timeout:             30 * time.Second,
-		MaxConnsPerHost:     50,
+		MaxConnsPerHost:     25,
 		MaxIdleConnDuration: 5 * time.Second,
 		NoDefaultUserAgent:  true,
 		ProxyURL:            "",
@@ -76,8 +76,8 @@ func NewClient(opts *ClientOptions) *Client {
 		dialFunc = fasthttpproxy.FasthttpHTTPDialerTimeout(opts.ProxyURL, opts.Timeout)
 	} else {
 		dialFunc = (&fasthttp.TCPDialer{
-			Concurrency:      1000,
-			DNSCacheDuration: time.Hour,
+			Concurrency:      100,
+			DNSCacheDuration: time.Minute,
 		}).Dial
 	}
 
@@ -91,7 +91,7 @@ func NewClient(opts *ClientOptions) *Client {
 		DisablePathNormalizing:        true,
 		NoDefaultUserAgentHeader:      true,
 		ReadBufferSize:                opts.ReadBufferSize,
-		MaxIdemponentCallAttempts:     opts.MaxRetries,
+		MaxIdemponentCallAttempts:     1,
 		TLSConfig: &tls.Config{
 			InsecureSkipVerify: true,
 			MinVersion:         tls.VersionTLS10,

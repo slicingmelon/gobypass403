@@ -62,85 +62,157 @@ type Header struct {
 
 // RequestPool manages a pool of FastHTTP requests
 type RequestPool struct {
-	client   *Client
-	reqPool  sync.Pool
-	respPool sync.Pool
+	client     *Client
+	workerPool *workerPool
+}
+
+type workerPool struct {
+	workersCount    int
+	maxWorkersCount int
+	ready           []*workerChan
+	lock            sync.Mutex
+	stopCh          chan struct{}
+	workerChanPool  sync.Pool
+}
+
+type workerChan struct {
+	lastUseTime time.Time
+	jobs        chan payload.PayloadJob
+	results     chan *ResponseDetails
 }
 
 // NewRequestPool creates a centralized request handling pool
 func NewRequestPool(opts *ClientOptions) *RequestPool {
 	if opts == nil {
-		opts = DefaultOptionsSingleHost() // Use single host optimized settings
+		opts = DefaultOptionsSingleHost()
 	}
 
-	return &RequestPool{
+	pool := &RequestPool{
 		client: NewClient(opts),
-		reqPool: sync.Pool{
-			New: func() interface{} { return fasthttp.AcquireRequest() },
-		},
-		respPool: sync.Pool{
-			New: func() interface{} { return fasthttp.AcquireResponse() },
+		workerPool: &workerPool{
+			maxWorkersCount: opts.MaxConnsPerHost,
+			stopCh:          make(chan struct{}),
 		},
 	}
+
+	// Initialize worker channel pool
+	pool.workerPool.workerChanPool.New = func() interface{} {
+		return &workerChan{
+			jobs:    make(chan payload.PayloadJob, 1),
+			results: make(chan *ResponseDetails, 1),
+		}
+	}
+
+	return pool
 }
 
 // ProcessRequests handles multiple requests efficiently
 func (p *RequestPool) ProcessRequests(jobs []payload.PayloadJob) <-chan *ResponseDetails {
-	results := make(chan *ResponseDetails)
+	results := make(chan *ResponseDetails, len(jobs))
 
 	go func() {
 		defer close(results)
 
-		// Create semaphore for concurrency control
-		sem := make(chan struct{}, p.client.options.MaxConnsPerHost)
-		var wg sync.WaitGroup
-
+		// Start workers as needed
 		for _, job := range jobs {
-			wg.Add(1)
-			sem <- struct{}{} // Acquire semaphore
+			workerChan := p.workerPool.getCh()
+			if workerChan == nil {
+				// Pool is full, wait and retry
+				time.Sleep(100 * time.Millisecond)
+				continue
+			}
 
-			go func(job payload.PayloadJob) {
-				defer wg.Done()
-				defer func() { <-sem }() // Release semaphore
+			// Send job to worker
+			workerChan.jobs <- job
 
-				// Get request/response objects from pool
-				req := p.client.AcquireRequest()
-				resp := p.client.AcquireResponse()
-				defer p.client.ReleaseRequest(req)
-				defer p.client.ReleaseResponse(resp)
+			// Get result
+			if result := <-workerChan.results; result != nil {
+				results <- result
+			}
 
-				// Setup request
-				req.SetRequestURI(job.URL)
-				req.Header.SetMethod(job.Method)
-				req.URI().DisablePathNormalizing = true
-
-				// Set headers
-				for _, h := range job.Headers {
-					req.Header.Set(h.Header, h.Value)
-				}
-
-				// Send request with retry logic
-				var err error
-				for retries := 0; retries <= p.client.maxRetries; retries++ {
-					if err = p.client.DoRaw(req, resp); err == nil {
-						break
-					}
-					time.Sleep(p.client.retryDelay)
-				}
-
-				if err != nil {
-					logger.LogError("Request error after retries: %v", err)
-					return
-				}
-
-				results <- p.processResponse(resp, job)
-			}(job)
+			// Release worker back to pool
+			p.workerPool.release(workerChan)
 		}
-
-		wg.Wait()
 	}()
 
 	return results
+}
+
+func (wp *workerPool) getCh() *workerChan {
+	wp.lock.Lock()
+	defer wp.lock.Unlock()
+
+	// Try to get existing worker
+	if len(wp.ready) > 0 {
+		ch := wp.ready[len(wp.ready)-1]
+		wp.ready = wp.ready[:len(wp.ready)-1]
+		return ch
+	}
+
+	// Create new worker if possible
+	if wp.workersCount < wp.maxWorkersCount {
+		wp.workersCount++
+		ch := wp.workerChanPool.Get().(*workerChan)
+
+		// Start worker goroutine
+		go wp.workerFunc(ch)
+
+		return ch
+	}
+
+	return nil
+}
+
+func (wp *workerPool) workerFunc(ch *workerChan) {
+	// Create request/response objects for this worker
+	req := fasthttp.AcquireRequest()
+	resp := fasthttp.AcquireResponse()
+	defer fasthttp.ReleaseRequest(req)
+	defer fasthttp.ReleaseResponse(resp)
+
+	for job := range ch.jobs {
+		// Reset objects for reuse
+		req.Reset()
+		resp.Reset()
+
+		// Setup request
+		req.SetRequestURI(job.URL)
+		req.Header.SetMethod(job.Method)
+		req.URI().DisablePathNormalizing = true
+
+		// Set headers
+		for _, h := range job.Headers {
+			req.Header.Set(h.Header, h.Value)
+		}
+
+		// Process request with retries
+		var err error
+		for retries := 0; retries < 3; retries++ {
+			if err = p.client.DoRaw(req, resp); err == nil {
+				break
+			}
+			time.Sleep(500 * time.Millisecond)
+		}
+
+		if err != nil {
+			logger.LogError("Request error: %v", err)
+			ch.results <- nil
+			continue
+		}
+
+		// Process response
+		ch.results <- p.processResponse(resp, job)
+	}
+
+	wp.lock.Lock()
+	wp.workersCount--
+	wp.lock.Unlock()
+}
+
+func (wp *workerPool) release(ch *workerChan) {
+	wp.lock.Lock()
+	wp.ready = append(wp.ready, ch)
+	wp.lock.Unlock()
 }
 
 // NewRequestWithContext creates a new Request with context
