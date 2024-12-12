@@ -108,7 +108,6 @@ func NewClient(opts *ClientOptions) *Client {
 }
 
 // DoRaw performs a raw HTTP request with full control over the request
-// DoRaw performs the actual HTTP request
 func (c *Client) DoRaw(req *fasthttp.Request, resp *fasthttp.Response) error {
 	if !c.options.NoDefaultUserAgent && len(req.Header.Peek("User-Agent")) == 0 {
 		req.Header.SetBytesV("User-Agent", c.userAgent)

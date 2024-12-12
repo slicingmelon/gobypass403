@@ -10,7 +10,6 @@ import (
 	"github.com/slicingmelon/go-bypass-403/internal/engine/rawhttp"
 	"github.com/slicingmelon/go-bypass-403/internal/utils/logger"
 	"github.com/slicingmelon/go-rawurlparser"
-	"github.com/valyala/fasthttp"
 )
 
 // BypassModule defines the interface for all bypass modules
@@ -221,13 +220,17 @@ func (s *Scanner) runBypassForMode(BypassModule string, targetURL string, result
 func worker(ctx *WorkerContext, jobs <-chan payload.PayloadJob, results chan<- *Result, opts *ScannerOpts) {
 	defer ctx.wg.Done()
 
+	// Create client with options
 	clientOpts := &rawhttp.ClientOptions{
 		Timeout:             time.Duration(opts.Timeout) * time.Second,
-		MaxConnsPerHost:     512,
+		MaxConnsPerHost:     opts.Threads,
 		MaxIdleConnDuration: 10 * time.Second,
 		NoDefaultUserAgent:  true,
 		ProxyURL:            opts.Proxy,
-		ReadBufferSize:      1024,
+		ReadBufferSize:      opts.MaxResponseBodySize,
+		MaxRetries:          3,
+		RetryDelay:          time.Second,
+		DisableKeepAlive:    true,
 	}
 
 	client := rawhttp.NewClient(clientOpts)
@@ -241,16 +244,7 @@ func worker(ctx *WorkerContext, jobs <-chan payload.PayloadJob, results chan<- *
 		case <-ctx.cancel:
 			return
 		case <-workerLimiter.C:
-			req := fasthttp.AcquireRequest()
-			defer fasthttp.ReleaseRequest(req)
-
-			req.SetRequestURI(job.URL)
-			req.Header.SetMethod(job.Method)
-			for key, value := range payload.HeadersToMap(job.Headers) {
-				req.Header.Set(key, value)
-			}
-
-			details, err := client.SendRequest(req)
+			details, err := client.SendRequest(job.Method, job.URL, payload.HeadersToMap(job.Headers))
 			ctx.progress.increment()
 
 			if err != nil {
@@ -258,9 +252,10 @@ func worker(ctx *WorkerContext, jobs <-chan payload.PayloadJob, results chan<- *
 				continue
 			}
 
+			// Process successful response
 			for _, allowedCode := range opts.MatchStatusCodes {
 				if details.StatusCode == allowedCode {
-					result := &Result{
+					results <- &Result{
 						TargetURL:       job.URL,
 						BypassModule:    job.BypassMode,
 						CurlPocCommand:  BuildCurlCmd(job.Method, job.URL, payload.HeadersToMap(job.Headers)),
@@ -274,7 +269,6 @@ func worker(ctx *WorkerContext, jobs <-chan payload.PayloadJob, results chan<- *
 						ServerInfo:      details.ServerInfo,
 						RedirectURL:     details.RedirectURL,
 					}
-					results <- result
 				}
 			}
 		}

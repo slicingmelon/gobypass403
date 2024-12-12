@@ -1,6 +1,7 @@
 package rawhttp
 
 import (
+	"bytes"
 	"context"
 	"math/rand"
 	"sync"
@@ -8,6 +9,11 @@ import (
 
 	"github.com/slicingmelon/go-bypass-403/internal/utils/logger"
 	"github.com/valyala/fasthttp"
+)
+
+const (
+	DefaultBodyPreviewSize = 2 * 1024        // 2KB preview
+	DefaultMaxResponseSize = 5 * 1024 * 1024 // 5MB total
 )
 
 var (
@@ -51,18 +57,6 @@ type Header struct {
 	Value string
 }
 
-type responseDetails struct {
-	StatusCode      int
-	ResponsePreview string
-	ResponseHeaders string
-	ContentType     string
-	ContentLength   int64
-	ServerInfo      string
-	RedirectURL     string
-	ResponseBytes   int
-	Title           string
-}
-
 // NewRequestWithContext creates a new Request with context
 func NewRequestWithContext(ctx context.Context, method, url string, headers map[string]string) *Request {
 	req := &Request{
@@ -91,17 +85,51 @@ func NewRequestWithContext(ctx context.Context, method, url string, headers map[
 	return req
 }
 
-// SendRequest sends a request and processes the response
-func (c *Client) SendRequest(req *fasthttp.Request) (*responseDetails, error) {
-	resp := fasthttp.AcquireResponse()
-	defer fasthttp.ReleaseResponse(resp)
+// ResponseDetails contains processed response information
+type ResponseDetails struct {
+	StatusCode      int
+	ResponsePreview string
+	ResponseHeaders string
+	ContentType     string
+	ContentLength   int64
+	ServerInfo      string
+	RedirectURL     string
+	ResponseBytes   int
+	Title           string
+	BodyLimitHit    bool
+}
 
-	err := c.DoRaw(req, resp)
-	if err != nil {
+// SendRequest handles the complete request cycle using the configured client
+func (c *Client) SendRequest(method, url string, headers map[string]string) (*ResponseDetails, error) {
+	// Acquire request and response objects from pool
+	req := c.AcquireRequest()
+	resp := c.AcquireResponse()
+	defer c.ReleaseRequest(req)
+	defer c.ReleaseResponse(resp)
+
+	// Setup request
+	req.SetRequestURI(url)
+	req.Header.SetMethod(method)
+	req.URI().DisablePathNormalizing = true
+	req.Header.DisableNormalizing()
+	req.Header.SetNoDefaultContentType(true)
+
+	// Set headers
+	for key, value := range headers {
+		req.Header.Set(key, value)
+	}
+
+	// Perform request with configured client options (including retries)
+	if err := c.DoRaw(req, resp); err != nil {
 		return nil, err
 	}
 
-	details := &responseDetails{
+	return c.processResponse(resp), nil
+}
+
+// processResponse handles response processing and data extraction
+func (c *Client) processResponse(resp *fasthttp.Response) *ResponseDetails {
+	details := &ResponseDetails{
 		StatusCode:    resp.StatusCode(),
 		ContentType:   string(resp.Header.Peek("Content-Type")),
 		ContentLength: int64(resp.Header.ContentLength()),
@@ -109,12 +137,39 @@ func (c *Client) SendRequest(req *fasthttp.Request) (*responseDetails, error) {
 		RedirectURL:   string(resp.Header.Peek("Location")),
 	}
 
-	if body := resp.Body(); len(body) > 0 {
-		details.ResponseBytes = len(body)
+	// Process headers
+	var headerBuf bytes.Buffer
+	resp.Header.VisitAll(func(key, value []byte) {
+		headerBuf.Write(key)
+		headerBuf.WriteString(": ")
+		headerBuf.Write(value)
+		headerBuf.WriteString("\n")
+	})
+	details.ResponseHeaders = headerBuf.String()
+
+	// Process body with size limits
+	body := resp.Body()
+	details.ResponseBytes = len(body)
+
+	// Use configured ReadBufferSize if available
+	maxSize := DefaultMaxResponseSize
+	if c.options.ReadBufferSize > 0 {
+		maxSize = c.options.ReadBufferSize
+	}
+
+	if len(body) > maxSize {
+		details.BodyLimitHit = true
+		body = body[:maxSize]
+	}
+
+	// Create preview
+	if len(body) > DefaultBodyPreviewSize {
+		details.ResponsePreview = string(body[:DefaultBodyPreviewSize]) + "..."
+	} else {
 		details.ResponsePreview = string(body)
 	}
 
-	return details, nil
+	return details
 }
 
 // doRequestWithTimeout handles the actual request with proper timeout
