@@ -90,15 +90,16 @@ func PrintTableRow(result *Result) {
 		title = title[:27] + "..."
 	}
 
-	logger.Blue("[%s]", result.BypassModule)
-	logger.Yellow("[%s]", result.CurlPocCommand)
-	logger.Green("[%d]", result.StatusCode)
-	logger.Purple("[%s]", formatBytes(result.ContentLength))
-	logger.Orange("[%s]", formatValue(result.ContentType))
-	logger.Teal("[%s]", title)
-	logger.Gray("[%s]", formatValue(result.ServerInfo))
-	logger.Pink("[%s]", formatValue(result.RedirectURL))
-	fmt.Println()
+	// Format everything in a single line
+	fmt.Printf("%s [%s] ======================================> %s [%s] [%s] [%s] [%s] [%s]\n",
+		logger.BlueString("[%s]", result.BypassModule),
+		logger.YellowString("%s", result.CurlPocCommand),
+		logger.GreenString("[%d]", result.StatusCode),
+		logger.PurpleString("[%s]", formatBytes(result.ContentLength)),
+		logger.OrangeString("[%s]", formatValue(result.ContentType)),
+		logger.TealString("[%s]", title),
+		logger.GrayString("[%s]", formatValue(result.ServerInfo)),
+		logger.PinkString("[%s]", formatValue(result.RedirectURL)))
 }
 
 // AppendResultsToJSON appends scan results to JSON file

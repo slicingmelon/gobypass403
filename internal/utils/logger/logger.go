@@ -181,3 +181,35 @@ func (l *Logger) LogTeal(format string, v ...interface{}) {
 func (l *Logger) LogPink(format string, v ...interface{}) {
 	l.pinkColor.Printf("\n"+format+"\n", v...)
 }
+
+func BlueString(format string, a ...interface{}) string {
+	return globalLogger.blueColor.Sprintf(format, a...)
+}
+
+func YellowString(format string, a ...interface{}) string {
+	return globalLogger.yellowColor.Sprintf(format, a...)
+}
+
+func GreenString(format string, a ...interface{}) string {
+	return globalLogger.greenColor.Sprintf(format, a...)
+}
+
+func PurpleString(format string, a ...interface{}) string {
+	return globalLogger.purpleColor.Sprintf(format, a...)
+}
+
+func OrangeString(format string, a ...interface{}) string {
+	return globalLogger.orangeColor.Sprintf(format, a...)
+}
+
+func TealString(format string, a ...interface{}) string {
+	return globalLogger.tealColor.Sprintf(format, a...)
+}
+
+func GrayString(format string, a ...interface{}) string {
+	return globalLogger.grayColor.Sprintf(format, a...)
+}
+
+func PinkString(format string, a ...interface{}) string {
+	return globalLogger.pinkColor.Sprintf(format, a...)
+}

@@ -73,67 +73,52 @@ func NewClient(opts *ClientOptions) *Client {
 	// Configure dialer based on proxy settings
 	var dialFunc fasthttp.DialFunc
 	if opts.ProxyURL != "" {
-		// Use FasthttpHTTPDialer for HTTP proxy support
-		dialFunc = fasthttpproxy.FasthttpHTTPDialer(opts.ProxyURL)
+		dialFunc = fasthttpproxy.FasthttpHTTPDialerTimeout(opts.ProxyURL, opts.Timeout)
+	} else {
+		dialFunc = (&fasthttp.TCPDialer{
+			Concurrency:      1000,
+			DNSCacheDuration: time.Hour,
+		}).Dial
 	}
 
-	c := &Client{
-		client: &fasthttp.Client{
-			Dial:                          dialFunc,
-			ReadTimeout:                   opts.Timeout,
-			WriteTimeout:                  opts.Timeout,
-			MaxConnsPerHost:               opts.MaxConnsPerHost,
-			MaxIdleConnDuration:           opts.MaxIdleConnDuration,
-			DisableHeaderNamesNormalizing: true,
-			DisablePathNormalizing:        true,
-			NoDefaultUserAgentHeader:      true,
-			ReadBufferSize:                opts.ReadBufferSize,
-			TLSConfig: &tls.Config{
-				InsecureSkipVerify: true,
-				MinVersion:         tls.VersionTLS10,
-			},
+	client := &fasthttp.Client{
+		Dial:                          dialFunc,
+		ReadTimeout:                   opts.Timeout,
+		WriteTimeout:                  opts.Timeout,
+		MaxConnsPerHost:               opts.MaxConnsPerHost,
+		MaxIdleConnDuration:           opts.MaxIdleConnDuration,
+		DisableHeaderNamesNormalizing: true,
+		DisablePathNormalizing:        true,
+		NoDefaultUserAgentHeader:      true,
+		ReadBufferSize:                opts.ReadBufferSize,
+		MaxIdemponentCallAttempts:     opts.MaxRetries,
+		TLSConfig: &tls.Config{
+			InsecureSkipVerify: true,
+			MinVersion:         tls.VersionTLS10,
 		},
-		bufPool: sync.Pool{
-			New: func() interface{} {
-				return make([]byte, 0, opts.ReadBufferSize)
-			},
-		},
-		userAgent:  []byte(userAgent),
-		maxRetries: opts.MaxRetries,
-		retryDelay: opts.RetryDelay,
-		options:    opts,
 	}
 
-	return c
+	return &Client{
+		client:    client,
+		bufPool:   sync.Pool{New: func() interface{} { return make([]byte, 0, opts.ReadBufferSize) }},
+		userAgent: []byte(userAgent),
+		options:   opts,
+	}
 }
 
 // DoRaw performs a raw HTTP request with full control over the request
+// DoRaw performs a raw HTTP request
 func (c *Client) DoRaw(req *fasthttp.Request, resp *fasthttp.Response) error {
 	if !c.options.NoDefaultUserAgent && len(req.Header.Peek("User-Agent")) == 0 {
-		req.Header.SetBytesV("User-Agent", c.userAgent)
+		// Use Set instead of SetBytesV since we're setting a single value
+		req.Header.SetUserAgent(string(c.userAgent))
 	}
 
 	if c.options.DisableKeepAlive {
-		req.Header.Set("Connection", "close")
+		req.Header.SetConnectionClose()
 	}
 
-	var err error
-	for retry := 0; retry <= c.maxRetries; retry++ {
-		if retry > 0 {
-			time.Sleep(c.retryDelay)
-		}
-
-		err = c.client.Do(req, resp)
-		if err == nil {
-			return nil
-		}
-
-		if !isRetryableError(err) {
-			return err
-		}
-	}
-
-	return err
+	return c.client.Do(req, resp)
 }
 
 // isRetryableError determines if an error should trigger a retry

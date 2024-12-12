@@ -83,24 +83,39 @@ var bypassModules = map[string]*BypassModule{
 }
 
 type WorkerContext struct {
-	mode     string
-	progress *ProgressCounter
-	cancel   chan struct{}
-	wg       *sync.WaitGroup
-	once     sync.Once
+	mode        string
+	progress    *ProgressCounter
+	cancel      chan struct{}
+	wg          *sync.WaitGroup
+	once        sync.Once
+	opts        *ScannerOpts
+	requestPool *rawhttp.RequestPool
 }
 
-func NewWorkerContext(mode string, total int, targetURL string) *WorkerContext {
+func NewWorkerContext(mode string, total int, targetURL string, opts *ScannerOpts) *WorkerContext {
+	// Create request pool with options
+	poolOpts := &rawhttp.ClientOptions{
+		Timeout:             time.Duration(opts.Timeout) * time.Second,
+		MaxConnsPerHost:     opts.Threads,
+		MaxIdleConnDuration: 30 * time.Second,
+		NoDefaultUserAgent:  true,
+		ProxyURL:            opts.Proxy,
+		ReadBufferSize:      opts.MaxResponseBodySize,
+		DisableKeepAlive:    false,
+	}
+
 	return &WorkerContext{
 		mode: mode,
 		progress: &ProgressCounter{
 			Total: total,
 			Mode:  mode,
-			URL:   targetURL, // Pass URL here
+			URL:   targetURL,
 		},
-		cancel: make(chan struct{}),
-		wg:     &sync.WaitGroup{},
-		once:   sync.Once{},
+		cancel:      make(chan struct{}),
+		wg:          &sync.WaitGroup{},
+		once:        sync.Once{},
+		opts:        opts,
+		requestPool: rawhttp.NewRequestPool(poolOpts),
 	}
 }
 
@@ -159,12 +174,12 @@ func (s *Scanner) runDumbCheck(targetURL string, results chan<- *Result) {
 	jobs := make(chan payload.PayloadJob, 1000)
 	allJobs := payload.GenerateDumbJob(targetURL, "dumb_check")
 
-	ctx := NewWorkerContext("dumb_check", len(allJobs), targetURL)
+	ctx := NewWorkerContext("dumb_check", len(allJobs), targetURL, s.config)
 
 	// Start workers
 	for i := 0; i < 2; i++ {
 		ctx.wg.Add(1)
-		go worker(ctx, jobs, results, s.config)
+		go worker(ctx, jobs, results)
 	}
 
 	// Process jobs
@@ -193,12 +208,12 @@ func (s *Scanner) runBypassForMode(BypassModule string, targetURL string, result
 	jobs := make(chan payload.PayloadJob, 1000)
 	allJobs := moduleInstance.GenerateJobs(targetURL, BypassModule, s.config)
 
-	ctx := NewWorkerContext(BypassModule, len(allJobs), targetURL)
+	ctx := NewWorkerContext(BypassModule, len(allJobs), targetURL, s.config)
 
 	// Start workers
 	for i := 0; i < s.config.Threads; i++ {
 		ctx.wg.Add(1)
-		go worker(ctx, jobs, results, s.config)
+		go worker(ctx, jobs, results)
 	}
 
 	// Process jobs
@@ -217,48 +232,40 @@ func (s *Scanner) runBypassForMode(BypassModule string, targetURL string, result
 	fmt.Println()
 }
 
-func worker(ctx *WorkerContext, jobs <-chan payload.PayloadJob, results chan<- *Result, opts *ScannerOpts) {
+func worker(ctx *WorkerContext, jobs <-chan payload.PayloadJob, results chan<- *Result) {
 	defer ctx.wg.Done()
 
-	// Create client with options
-	clientOpts := &rawhttp.ClientOptions{
-		Timeout:             time.Duration(opts.Timeout) * time.Second,
-		MaxConnsPerHost:     opts.Threads,
-		MaxIdleConnDuration: 10 * time.Second,
-		NoDefaultUserAgent:  true,
-		ProxyURL:            opts.Proxy,
-		ReadBufferSize:      opts.MaxResponseBodySize,
-		MaxRetries:          3,
-		RetryDelay:          time.Second,
-		DisableKeepAlive:    true,
+	// Use the rate limiter if delay is specified
+	var limiter *time.Ticker
+	if ctx.opts.Delay > 0 {
+		limiter = time.NewTicker(time.Duration(ctx.opts.Delay) * time.Millisecond)
+		defer limiter.Stop()
 	}
 
-	client := rawhttp.NewClient(clientOpts)
-	defer client.Close()
-
-	workerLimiter := time.NewTicker(time.Duration(opts.Delay) * time.Millisecond)
-	defer workerLimiter.Stop()
-
-	for job := range jobs {
+	// Process jobs through the request pool
+	for details := range ctx.requestPool.ProcessRequests(jobs) {
 		select {
 		case <-ctx.cancel:
 			return
-		case <-workerLimiter.C:
-			details, err := client.SendRequest(job.Method, job.URL, payload.HeadersToMap(job.Headers))
-			ctx.progress.increment()
+		default:
+			// Rate limiting if enabled
+			if limiter != nil {
+				<-limiter.C
+			}
 
-			if err != nil {
-				logger.LogError("[%s] Request error for %s: %v", job.BypassMode, job.URL, err)
+			if details == nil {
 				continue
 			}
 
-			// Process successful response
-			for _, allowedCode := range opts.MatchStatusCodes {
+			ctx.progress.increment()
+
+			// Check if status code matches
+			for _, allowedCode := range ctx.opts.MatchStatusCodes {
 				if details.StatusCode == allowedCode {
 					results <- &Result{
-						TargetURL:       job.URL,
-						BypassModule:    job.BypassMode,
-						CurlPocCommand:  BuildCurlCmd(job.Method, job.URL, payload.HeadersToMap(job.Headers)),
+						TargetURL:       details.URL,
+						BypassModule:    details.BypassMode,
+						CurlPocCommand:  details.CurlCommand,
 						ResponseHeaders: details.ResponseHeaders,
 						ResponsePreview: details.ResponsePreview,
 						StatusCode:      details.StatusCode,
@@ -274,143 +281,3 @@ func worker(ctx *WorkerContext, jobs <-chan payload.PayloadJob, results chan<- *
 		}
 	}
 }
-
-// func worker(ctx *WorkerContext, jobs <-chan payload.PayloadJob, results chan<- *Result, opts *ScannerOpts) {
-// 	defer ctx.wg.Done()
-
-// 	// Add panic recovery
-// 	defer func() {
-// 		if r := recover(); r != nil {
-// 			logger.LogError("[%s] Worker panic recovered: %v", ctx.mode, r)
-// 			ctx.Stop()
-// 		}
-// 	}()
-
-// 	// Comment out client creation for now
-// 	/*
-// 	   client, err := NewClient(opts, ctx.mode)
-// 	   if err != nil {
-// 	       logger.LogError("Failed to create client for mode %s: %v", ctx.mode, err)
-// 	       return
-// 	   }
-// 	   defer func() {
-// 	       client.PrintAllLogs()
-// 	       client.Close()
-// 	   }()
-// 	*/
-
-// 	workerLimiter := time.NewTicker(time.Duration(opts.Delay) * time.Millisecond)
-// 	defer workerLimiter.Stop()
-
-// 	for job := range jobs {
-// 		select {
-// 		case <-ctx.cancel:
-// 			return
-// 		case <-workerLimiter.C:
-// 			// Mock response for testing
-// 			details := &ResponseDetails{
-// 				StatusCode:      200,
-// 				ResponsePreview: "Test Response",
-// 				ResponseHeaders: "Test Headers",
-// 				ContentType:     "text/html",
-// 				ContentLength:   100,
-// 				ResponseBytes:   100,
-// 				Title:           "Test Title",
-// 				ServerInfo:      "Test Server",
-// 			}
-
-// 			ctx.progress.increment()
-
-// 			// Process successful response
-// 			for _, allowedCode := range opts.MatchStatusCodes {
-// 				if details.StatusCode == allowedCode {
-// 					results <- &Result{
-// 						TargetURL:       job.URL,
-// 						StatusCode:      details.StatusCode,
-// 						ResponsePreview: details.ResponsePreview,
-// 						ResponseHeaders: details.ResponseHeaders,
-// 						CurlPocCommand:  BuildCurlCmd(job.Method, job.URL, payload.HeadersToMap(job.Headers)),
-// 						BypassModule:    job.BypassMode,
-// 						ContentType:     details.ContentType,
-// 						ContentLength:   details.ContentLength,
-// 						ResponseBytes:   details.ResponseBytes,
-// 						Title:           details.Title,
-// 						ServerInfo:      details.ServerInfo,
-// 						RedirectURL:     details.RedirectURL,
-// 					}
-// 				}
-// 			}
-// 		}
-// 	}
-// }
-
-// func worker(ctx *WorkerContext, jobs <-chan payload.PayloadJob, results chan<- *Result, opts *ScannerOpts) {
-// 	defer ctx.wg.Done()
-
-// 	// Add panic recovery
-// 	defer func() {
-// 		if r := recover(); r != nil {
-// 			logger.LogError("[%s] Worker panic recovered: %v", ctx.mode, r)
-// 			ctx.Stop()
-// 		}
-// 	}()
-
-// 	// Create client
-// 	//nolint:errcheck
-// 	client, err := NewClient(opts, ctx.mode) //nolint:errcheck
-// 	if err != nil {
-// 		logger.LogError("WEEEE REACHED THE END!!! Failed to create client for mode %s: %v", ctx.mode, err)
-// 		return
-// 	}
-// 	defer func() {
-// 		// Print all URL parsing logs before closing the client
-// 		client.PrintAllLogs()
-// 		client.Close()
-// 	}()
-
-// 	workerLimiter := time.NewTicker(time.Duration(opts.Delay) * time.Millisecond)
-// 	defer workerLimiter.Stop()
-
-// 	for job := range jobs {
-// 		select {
-// 		case <-ctx.cancel:
-// 			return
-// 		case <-workerLimiter.C:
-// 			details, err := client.sendRequest(job.Method, job.URL, job.Headers)
-// 			ctx.progress.increment()
-
-// 			if err != nil {
-// 				if errkit.IsKind(err, error.ErrKindGo403BypassFatal) {
-// 					logger.LogError("[ErrorMonitorService] => Stopping current bypass mode [%s] -- Permanent error for %s: %v",
-// 						job.BypassMode, job.URL, err)
-// 					ctx.Stop()
-// 					return
-// 				}
-
-// 				logger.LogError("[%s] Request error for %s: %v",
-// 					job.BypassMode, job.URL, err)
-// 				continue
-// 			}
-
-// 			// Process successful response
-// 			for _, allowedCode := range opts.MatchStatusCodes {
-// 				if details.StatusCode == allowedCode {
-// 					results <- &Result{
-// 						TargetURL:       job.URL,
-// 						StatusCode:      details.StatusCode,
-// 						ResponsePreview: details.ResponsePreview,
-// 						ResponseHeaders: details.ResponseHeaders,
-// 						CurlPocCommand:  BuildCurlCmd(job.Method, job.URL, payload.HeadersToMap(job.Headers)),
-// 						BypassModule:    job.BypassMode,
-// 						ContentType:     details.ContentType,
-// 						ContentLength:   details.ContentLength,
-// 						ResponseBytes:   details.ResponseBytes,
-// 						Title:           details.Title,
-// 						ServerInfo:      details.ServerInfo,
-// 						RedirectURL:     details.RedirectURL,
-// 					}
-// 				}
-// 			}
-// 		}
-// 	}
-// }

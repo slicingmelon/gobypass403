@@ -1,44 +1,11 @@
-# 1. FastHTTP Overview
+# 1. Switching from net/http to fasthttp 
 
-Package fasthttp provides fast HTTP server and client API.
-Fasthttp provides the following features:
+Unfortunately, fasthttp doesn't provide API identical to net/http.
+There is [net/http -> fasthttp handler converter](https://pkg.go.dev/github.com/valyala/fasthttp/fasthttpadaptor),
+but it is better to write fasthttp request handlers by hand in order to use
+all of the fasthttp advantages (especially high performance :) ).
 
-## 1.1 Optimized for speed. Easily handles more than 100K qps and more than 1M concurrent keep-alive connections on modern hardware.
-
-## 1.2 Optimized for low memory usage.
-
-## 1.3 Easy 'Connection: Upgrade' support via RequestCtx.Hijack.
-
-## 1.4 Server provides the following anti-DoS limits:
-
-- The number of concurrent connections.
-- The number of concurrent connections per client IP.
-- The number of requests per connection.
-- Request read timeout.
-- Response write timeout.
-- Maximum request header size.
-- Maximum request body size.
-- Maximum request execution time.
-- Maximum keep-alive connection lifetime.
-- Early filtering out non-GET requests.
-
-## 1.5 A lot of additional useful info is exposed to request handler:
-- Server and client address.
-- Per-request logger.
-- Unique request id.
-- Request start time.
-- Connection start time.
-- Request sequence number for the current connection.
-- Client supports automatic retry on idempotent requests' failure.
-- Fasthttp API is designed with the ability to extend existing client and server implementations or to write custom client and server implementations from scratch.
-
-# 2. Switching from net/http to fasthttp 
-
-Switching from net/http to fasthttp requires some adjustments, as fasthttp does not offer an identical API to net/http. While there is a net/http -> fasthttp handler converter available to simplify migration 
-
-**It is recommended to write fasthttp request handlers directly. This approach ensures that you can fully utilize the high performance advantages and features unique to fasthttp.**
-
-## 2.1 Important points:
+## 1.1 Important points:
 
 * Fasthttp works with [RequestHandler functions](https://pkg.go.dev/github.com/valyala/fasthttp#RequestHandler)
 instead of objects implementing [Handler interface](https://pkg.go.dev/net/http#Handler).
@@ -261,7 +228,7 @@ by slow [RequestHandler](https://pkg.go.dev/github.com/valyala/fasthttp#RequestH
 * See also [fasthttputil](https://pkg.go.dev/github.com/valyala/fasthttp/fasthttputil), [fasthttpadaptor](https://pkg.go.dev/github.com/valyala/fasthttp/fasthttpadaptor) and [expvarhandler](https://pkg.go.dev/github.com/valyala/fasthttp/expvarhandler).
 
 
-# 3. Performance optimization tips for multi-core systems
+# 2. Performance optimization tips for multi-core systems
 
 * Use [reuseport](https://pkg.go.dev/github.com/valyala/fasthttp/reuseport) listener.
 * Run a separate server instance per CPU core with GOMAXPROCS=1.
@@ -271,7 +238,7 @@ by slow [RequestHandler](https://pkg.go.dev/github.com/valyala/fasthttp#RequestH
 * Use the latest version of Go as each version contains performance improvements.
 
 
-# 4. Fasthttp best practices
+# 3. Fasthttp best practices
 
 * Do not allocate objects and `[]byte` buffers - just reuse them as much as possible. Fasthttp API design encourages this.
 * [sync.Pool](https://pkg.go.dev/sync#Pool) is your best friend.
@@ -283,7 +250,7 @@ by slow [RequestHandler](https://pkg.go.dev/github.com/valyala/fasthttp#RequestH
 * Prefer [quicktemplate](https://github.com/valyala/quicktemplate) instead of [html/template](https://pkg.go.dev/html/template) in your webserver.
 
 
-# 5. Tricks with `[]byte` buffers
+# 4. Tricks with `[]byte` buffers
 
 The following tricks are used by fasthttp. Use them in your code too.
 
@@ -340,17 +307,15 @@ uintBuf := fasthttp.AppendUint(nil, 1234)
 
 * String and `[]byte` buffers may converted without memory allocations
 ```go
+// b2s converts byte slice to a string without memory allocation.
+// See https://groups.google.com/forum/#!msg/Golang-Nuts/ENgbUzYvCuU/90yGx7GUAgAJ .
 func b2s(b []byte) string {
-    return *(*string)(unsafe.Pointer(&b))
+	return unsafe.String(unsafe.SliceData(b), len(b))
 }
 
-func s2b(s string) (b []byte) {
-    bh := (*reflect.SliceHeader)(unsafe.Pointer(&b))
-    sh := (*reflect.StringHeader)(unsafe.Pointer(&s))
-    bh.Data = sh.Data
-    bh.Cap = sh.Len
-    bh.Len = sh.Len
-    return b
+// s2b converts string to a byte slice without memory allocation.
+func s2b(s string) []byte {
+	return unsafe.Slice(unsafe.StringData(s), len(s))
 }
 ```
 
@@ -359,7 +324,7 @@ This is an **unsafe** way, the result string and `[]byte` buffer share the same 
 
 **Please make sure not to modify the bytes in the `[]byte` buffer if the string still survives!**
 
-# 6. FastHTTP vs net/http - Some Brief Final Comparison
+# 5. FastHTTP vs net/http - Final Comparison
 
 * *net/http API limits many optimization opportunities.*
 
@@ -370,7 +335,7 @@ This is an **unsafe** way, the result string and `[]byte` buffer share the same 
 * *fasthttp API prefers returning `[]byte` instead of `string`* because `[]byte` to `string` conversion isn't free - it requires memory allocation and copy. Feel free wrapping returned `[]byte` result into `string()` if you prefer working with strings instead of byte slices. But be aware that this has non-zero overhead.
 
 
-# 7. Final Things To Keep in Mind
+# 6. Final Things To Keep in Mind
 
 * Make sure there are no references to [RequestCtx](https://pkg.go.dev/github.com/valyala/fasthttp#RequestCtx) or to its' members after returning from [RequestHandler](https://pkg.go.dev/github.com/valyala/fasthttp#RequestHandler).
 * Make sure you call [TimeoutError](https://pkg.go.dev/github.com/valyala/fasthttp#RequestCtx.TimeoutError) before returning from [RequestHandler](https://pkg.go.dev/github.com/valyala/fasthttp#RequestHandler) if there are references to [RequestCtx](https://pkg.go.dev/github.com/valyala/fasthttp#RequestCtx) or to its' members, which may be accessed by other goroutines.

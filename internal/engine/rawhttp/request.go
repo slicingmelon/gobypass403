@@ -3,10 +3,13 @@ package rawhttp
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"math/rand"
 	"sync"
 	"time"
+	"unsafe"
 
+	"github.com/slicingmelon/go-bypass-403/internal/engine/payload"
 	"github.com/slicingmelon/go-bypass-403/internal/utils/logger"
 	"github.com/valyala/fasthttp"
 )
@@ -57,6 +60,68 @@ type Header struct {
 	Value string
 }
 
+// RequestPool manages a pool of FastHTTP requests
+type RequestPool struct {
+	client   *Client
+	reqPool  sync.Pool
+	respPool sync.Pool
+}
+
+// NewRequestPool creates a centralized request handling pool
+func NewRequestPool(opts *ClientOptions) *RequestPool {
+	return &RequestPool{
+		client: NewClient(opts),
+		reqPool: sync.Pool{
+			New: func() interface{} { return fasthttp.AcquireRequest() },
+		},
+		respPool: sync.Pool{
+			New: func() interface{} { return fasthttp.AcquireResponse() },
+		},
+	}
+}
+
+// ProcessRequests handles multiple requests efficiently
+func (p *RequestPool) ProcessRequests(jobs <-chan payload.PayloadJob) <-chan *ResponseDetails {
+	results := make(chan *ResponseDetails)
+
+	go func() {
+		defer close(results)
+
+		req := p.reqPool.Get().(*fasthttp.Request)
+		resp := p.respPool.Get().(*fasthttp.Response)
+		defer p.reqPool.Put(req)
+		defer p.respPool.Put(resp)
+
+		for job := range jobs {
+			req.Reset()
+			resp.Reset()
+
+			// Setup request
+			req.SetRequestURIBytes(s2b(job.URL))
+			req.Header.SetMethodBytes(s2b(job.Method))
+			req.URI().DisablePathNormalizing = true
+			req.Header.DisableNormalizing()
+
+			// Set headers
+			for _, h := range job.Headers {
+				req.Header.SetBytesKV(
+					s2b(h.Header),
+					s2b(h.Value),
+				)
+			}
+
+			if err := p.client.DoRaw(req, resp); err != nil {
+				logger.LogError("[RequestPool] Request error: %v", err)
+				continue
+			}
+
+			results <- p.processResponse(resp, job)
+		}
+	}()
+
+	return results
+}
+
 // NewRequestWithContext creates a new Request with context
 func NewRequestWithContext(ctx context.Context, method, url string, headers map[string]string) *Request {
 	req := &Request{
@@ -87,6 +152,9 @@ func NewRequestWithContext(ctx context.Context, method, url string, headers map[
 
 // ResponseDetails contains processed response information
 type ResponseDetails struct {
+	URL             string // Added
+	BypassMode      string // Added
+	CurlCommand     string // Added
 	StatusCode      int
 	ResponsePreview string
 	ResponseHeaders string
@@ -99,42 +167,44 @@ type ResponseDetails struct {
 	BodyLimitHit    bool
 }
 
-// SendRequest handles the complete request cycle using the configured client
-func (c *Client) SendRequest(method, url string, headers map[string]string) (*ResponseDetails, error) {
-	// Acquire request and response objects from pool
-	req := c.AcquireRequest()
-	resp := c.AcquireResponse()
-	defer c.ReleaseRequest(req)
-	defer c.ReleaseResponse(resp)
+// // SendRequest handles the complete request cycle using the configured client
+// func (c *Client) SendRequest(method, url string, headers map[string]string) (*ResponseDetails, error) {
+// 	// Acquire request and response objects from pool
+// 	req := c.AcquireRequest()
+// 	resp := c.AcquireResponse()
+// 	defer c.ReleaseRequest(req)
+// 	defer c.ReleaseResponse(resp)
 
-	// Setup request
-	req.SetRequestURI(url)
-	req.Header.SetMethod(method)
-	req.URI().DisablePathNormalizing = true
-	req.Header.DisableNormalizing()
-	req.Header.SetNoDefaultContentType(true)
+// 	// Setup request
+// 	req.SetRequestURI(url)
+// 	req.Header.SetMethod(method)
+// 	req.URI().DisablePathNormalizing = true
+// 	req.Header.DisableNormalizing()
+// 	req.Header.SetNoDefaultContentType(true)
 
-	// Set headers
-	for key, value := range headers {
-		req.Header.Set(key, value)
-	}
+// 	// Set headers
+// 	for key, value := range headers {
+// 		req.Header.Set(key, value)
+// 	}
 
-	// Perform request with configured client options (including retries)
-	if err := c.DoRaw(req, resp); err != nil {
-		return nil, err
-	}
+// 	// Perform request with configured client options (including retries)
+// 	if err := c.DoRaw(req, resp); err != nil {
+// 		return nil, err
+// 	}
 
-	return c.processResponse(resp), nil
-}
+// 	return c.processResponse(resp, job), nil
+// }
 
 // processResponse handles response processing and data extraction
-func (c *Client) processResponse(resp *fasthttp.Response) *ResponseDetails {
+// processResponse converts fasthttp.Response to ResponseDetails
+func (p *RequestPool) processResponse(resp *fasthttp.Response, job payload.PayloadJob) *ResponseDetails {
 	details := &ResponseDetails{
-		StatusCode:    resp.StatusCode(),
-		ContentType:   string(resp.Header.Peek("Content-Type")),
-		ContentLength: int64(resp.Header.ContentLength()),
-		ServerInfo:    string(resp.Header.Peek("Server")),
-		RedirectURL:   string(resp.Header.Peek("Location")),
+		URL:         job.URL,
+		BypassMode:  job.BypassMode,
+		StatusCode:  resp.StatusCode(),
+		ContentType: b2s(resp.Header.Peek("Content-Type")),
+		ServerInfo:  b2s(resp.Header.Peek("Server")),
+		RedirectURL: b2s(resp.Header.Peek("Location")),
 	}
 
 	// Process headers
@@ -147,19 +217,14 @@ func (c *Client) processResponse(resp *fasthttp.Response) *ResponseDetails {
 	})
 	details.ResponseHeaders = headerBuf.String()
 
-	// Process body with size limits
+	// Process body
 	body := resp.Body()
 	details.ResponseBytes = len(body)
 
-	// Use configured ReadBufferSize if available
-	maxSize := DefaultMaxResponseSize
-	if c.options.ReadBufferSize > 0 {
-		maxSize = c.options.ReadBufferSize
-	}
-
-	if len(body) > maxSize {
+	// Handle body size limits
+	if len(body) > DefaultMaxResponseSize {
 		details.BodyLimitHit = true
-		body = body[:maxSize]
+		body = body[:DefaultMaxResponseSize]
 	}
 
 	// Create preview
@@ -168,6 +233,9 @@ func (c *Client) processResponse(resp *fasthttp.Response) *ResponseDetails {
 	} else {
 		details.ResponsePreview = string(body)
 	}
+
+	// Generate curl command for reproduction
+	details.CurlCommand = BuildCurlCommand(job)
 
 	return details
 }
@@ -243,4 +311,28 @@ func generateRandomString(length int) string {
 	mu.Unlock()
 
 	return string(b)
+}
+
+// s2b converts string to a byte slice without memory allocation.
+func s2b(s string) []byte {
+	return unsafe.Slice(unsafe.StringData(s), len(s))
+}
+
+// b2s converts byte slice to a string without memory allocation.
+// See https://groups.google.com/forum/#!msg/Golang-Nuts/ENgbUzYvCuU/90yGx7GUAgAJ .
+func b2s(b []byte) string {
+	return unsafe.String(unsafe.SliceData(b), len(b))
+}
+
+// BuildCurlCommand generates a curl command for request reproduction
+func BuildCurlCommand(job payload.PayloadJob) string {
+	var cmd bytes.Buffer
+	cmd.WriteString(fmt.Sprintf("curl -X %s ", job.Method))
+
+	for _, h := range job.Headers {
+		cmd.WriteString(fmt.Sprintf("-H '%s: %s' ", h.Header, h.Value))
+	}
+
+	cmd.WriteString(fmt.Sprintf("'%s'", job.URL))
+	return cmd.String()
 }
