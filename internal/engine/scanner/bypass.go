@@ -1,7 +1,6 @@
 package scanner
 
 import (
-	"context"
 	"fmt"
 	"strings"
 	"sync"
@@ -11,6 +10,7 @@ import (
 	"github.com/slicingmelon/go-bypass-403/internal/engine/rawhttp"
 	"github.com/slicingmelon/go-bypass-403/internal/utils/logger"
 	"github.com/slicingmelon/go-rawurlparser"
+	"github.com/valyala/fasthttp"
 )
 
 // BypassModule defines the interface for all bypass modules
@@ -221,25 +221,16 @@ func (s *Scanner) runBypassForMode(BypassModule string, targetURL string, result
 func worker(ctx *WorkerContext, jobs <-chan payload.PayloadJob, results chan<- *Result, opts *ScannerOpts) {
 	defer ctx.wg.Done()
 
-	// Add panic recovery
-	defer func() {
-		if r := recover(); r != nil {
-			logger.LogError("[%s] Worker panic recovered: %v", ctx.mode, r)
-			ctx.Stop()
-		}
-	}()
-
-	// Create client with options
 	clientOpts := &rawhttp.ClientOptions{
 		Timeout:             time.Duration(opts.Timeout) * time.Second,
 		MaxConnsPerHost:     512,
 		MaxIdleConnDuration: 10 * time.Second,
 		NoDefaultUserAgent:  true,
 		ProxyURL:            opts.Proxy,
-		ReadBufferSize:      opts.MaxResponseBodySize,
+		ReadBufferSize:      1024,
 	}
 
-	client := rawhttp.NewHTTPClient(clientOpts)
+	client := rawhttp.NewClient(clientOpts)
 	defer client.Close()
 
 	workerLimiter := time.NewTicker(time.Duration(opts.Delay) * time.Millisecond)
@@ -250,22 +241,23 @@ func worker(ctx *WorkerContext, jobs <-chan payload.PayloadJob, results chan<- *
 		case <-ctx.cancel:
 			return
 		case <-workerLimiter.C:
-			// Create request with context
-			reqCtx := context.Background()
-			req := rawhttp.NewRequestWithContext(reqCtx, job.Method, job.URL, payload.HeadersToMap(job.Headers))
+			req := fasthttp.AcquireRequest()
+			defer fasthttp.ReleaseRequest(req)
 
-			// Send request
+			req.SetRequestURI(job.URL)
+			req.Header.SetMethod(job.Method)
+			for key, value := range payload.HeadersToMap(job.Headers) {
+				req.Header.Set(key, value)
+			}
+
 			details, err := client.SendRequest(req)
 			ctx.progress.increment()
 
 			if err != nil {
-				logger.LogError("[%s] Request error for %s: %v",
-					job.BypassMode, job.URL, err)
-				req.Release()
+				logger.LogError("[%s] Request error for %s: %v", job.BypassMode, job.URL, err)
 				continue
 			}
 
-			// Process successful response
 			for _, allowedCode := range opts.MatchStatusCodes {
 				if details.StatusCode == allowedCode {
 					result := &Result{
@@ -282,14 +274,9 @@ func worker(ctx *WorkerContext, jobs <-chan payload.PayloadJob, results chan<- *
 						ServerInfo:      details.ServerInfo,
 						RedirectURL:     details.RedirectURL,
 					}
-
-					// Send result to channel without breaking
 					results <- result
 				}
 			}
-
-			// Clean up
-			req.Release()
 		}
 	}
 }

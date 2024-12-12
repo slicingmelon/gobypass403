@@ -20,10 +20,10 @@ type ClientOptions struct {
 	MaxIdleConnDuration time.Duration
 	NoDefaultUserAgent  bool
 	ProxyURL            string
-	ReadBufferSize      int // Added this field
+	ReadBufferSize      int
 	MaxRetries          int
 	RetryDelay          time.Duration
-	DisableKeepAlive    bool // Will be handled via Connection: close header
+	DisableKeepAlive    bool
 }
 
 // Client represents a reusable HTTP client optimized for performance
@@ -33,7 +33,7 @@ type Client struct {
 	userAgent  []byte
 	maxRetries int
 	retryDelay time.Duration
-	options    *ClientOptions // Added this field to store options
+	options    *ClientOptions
 }
 
 // DefaultOptionsMultiHost returns options optimized for scanning multiple hosts
@@ -65,20 +65,21 @@ func DefaultOptionsSingleHost() *ClientOptions {
 }
 
 // / NewHTTPClient creates a new optimized HTTP client
-func NewHTTPClient(opts *ClientOptions) *Client {
+func NewClient(opts *ClientOptions) *Client {
 	if opts == nil {
 		opts = DefaultOptionsSingleHost()
 	}
 
 	// Configure dialer based on proxy settings
-	var dialer fasthttp.DialFunc
+	var dialFunc fasthttp.DialFunc
 	if opts.ProxyURL != "" {
-		dialer = fasthttpproxy.FasthttpHTTPDialerTimeout(opts.ProxyURL, opts.Timeout)
+		// Use FasthttpHTTPDialer for HTTP proxy support
+		dialFunc = fasthttpproxy.FasthttpHTTPDialer(opts.ProxyURL)
 	}
 
 	c := &Client{
 		client: &fasthttp.Client{
-			Dial:                          dialer,
+			Dial:                          dialFunc,
 			ReadTimeout:                   opts.Timeout,
 			WriteTimeout:                  opts.Timeout,
 			MaxConnsPerHost:               opts.MaxConnsPerHost,
@@ -94,28 +95,25 @@ func NewHTTPClient(opts *ClientOptions) *Client {
 		},
 		bufPool: sync.Pool{
 			New: func() interface{} {
-				return make([]byte, 0, 32*1024)
+				return make([]byte, 0, opts.ReadBufferSize)
 			},
 		},
+		userAgent:  []byte(userAgent),
 		maxRetries: opts.MaxRetries,
 		retryDelay: opts.RetryDelay,
-		options:    opts, // Store the options in the client
-	}
-
-	if !opts.NoDefaultUserAgent {
-		c.userAgent = []byte(userAgent)
+		options:    opts,
 	}
 
 	return c
 }
 
 // DoRaw performs a raw HTTP request with full control over the request
+// DoRaw performs the actual HTTP request
 func (c *Client) DoRaw(req *fasthttp.Request, resp *fasthttp.Response) error {
-	if len(c.userAgent) > 0 && len(req.Header.Peek("User-Agent")) == 0 {
+	if !c.options.NoDefaultUserAgent && len(req.Header.Peek("User-Agent")) == 0 {
 		req.Header.SetBytesV("User-Agent", c.userAgent)
 	}
 
-	// Set Connection: close header if keep-alive is disabled
 	if c.options.DisableKeepAlive {
 		req.Header.Set("Connection", "close")
 	}
@@ -153,7 +151,8 @@ func (c *Client) AcquireBuffer() []byte {
 
 // ReleaseBuffer returns a buffer to the pool
 func (c *Client) ReleaseBuffer(buf []byte) {
-	buf = buf[:0] // Reset buffer before returning to pool
+	// Reset the buffer before returning it to the pool
+	buf = buf[:0]
 	c.bufPool.Put(buf)
 }
 

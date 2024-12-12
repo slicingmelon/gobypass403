@@ -91,31 +91,24 @@ func NewRequestWithContext(ctx context.Context, method, url string, headers map[
 	return req
 }
 
-// SendRequest sends a raw HTTP request and returns the response
-func (c *Client) SendRequest(req *Request) (*responseDetails, error) {
+// SendRequest sends a request and processes the response
+func (c *Client) SendRequest(req *fasthttp.Request) (*responseDetails, error) {
 	resp := fasthttp.AcquireResponse()
 	defer fasthttp.ReleaseResponse(resp)
 
-	if err := c.doRequestWithTimeout(req, resp); err != nil {
-		return &responseDetails{StatusCode: resp.StatusCode()}, err
+	err := c.DoRaw(req, resp)
+	if err != nil {
+		return nil, err
 	}
 
-	// Always return status code even if body processing fails
 	details := &responseDetails{
-		StatusCode: resp.StatusCode(),
+		StatusCode:    resp.StatusCode(),
+		ContentType:   string(resp.Header.Peek("Content-Type")),
+		ContentLength: int64(resp.Header.ContentLength()),
+		ServerInfo:    string(resp.Header.Peek("Server")),
+		RedirectURL:   string(resp.Header.Peek("Location")),
 	}
 
-	// Process headers (lightweight operation)
-	details.ResponseHeaders = resp.Header.String()
-	details.ContentType = string(resp.Header.ContentType())
-	details.ContentLength = int64(resp.Header.ContentLength())
-	details.ServerInfo = string(resp.Header.Peek("Server"))
-
-	if location := resp.Header.Peek("Location"); len(location) > 0 {
-		details.RedirectURL = string(location)
-	}
-
-	// Process body with proper error handling
 	if body := resp.Body(); len(body) > 0 {
 		details.ResponseBytes = len(body)
 		details.ResponsePreview = string(body)
