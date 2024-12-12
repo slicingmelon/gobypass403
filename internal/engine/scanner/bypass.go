@@ -236,7 +236,7 @@ func worker(ctx *WorkerContext, jobs <-chan payload.PayloadJob, results chan<- *
 		MaxIdleConnDuration: 10 * time.Second,
 		NoDefaultUserAgent:  true,
 		ProxyURL:            opts.Proxy,
-		MaxResponseBodySize: opts.MaxResponseBodySize,
+		ReadBufferSize:      opts.MaxResponseBodySize,
 	}
 
 	client := rawhttp.NewHTTPClient(clientOpts)
@@ -255,7 +255,7 @@ func worker(ctx *WorkerContext, jobs <-chan payload.PayloadJob, results chan<- *
 			req := rawhttp.NewRequestWithContext(reqCtx, job.Method, job.URL, payload.HeadersToMap(job.Headers))
 
 			// Send request
-			resp, err := client.SendRequest(req)
+			details, err := client.SendRequest(req)
 			ctx.progress.increment()
 
 			if err != nil {
@@ -265,41 +265,31 @@ func worker(ctx *WorkerContext, jobs <-chan payload.PayloadJob, results chan<- *
 				continue
 			}
 
-			// Extract response details
-			details := &ResponseDetails{
-				StatusCode:      resp.StatusCode(),
-				ResponsePreview: string(resp.Body()),
-				ResponseHeaders: resp.Header.String(),
-				ContentType:     string(resp.Header.ContentType()),
-				ContentLength:   int64(resp.Header.ContentLength()),
-				ResponseBytes:   len(resp.Body()),
-				//Title:           extractTitle(resp.Body()), // You'll need to implement this
-				ServerInfo: string(resp.Header.Peek("Server")),
-			}
-
 			// Process successful response
 			for _, allowedCode := range opts.MatchStatusCodes {
 				if details.StatusCode == allowedCode {
-					results <- &Result{
+					result := &Result{
 						TargetURL:       job.URL,
-						StatusCode:      details.StatusCode,
-						ResponsePreview: details.ResponsePreview,
-						ResponseHeaders: details.ResponseHeaders,
-						CurlPocCommand:  BuildCurlCmd(job.Method, job.URL, payload.HeadersToMap(job.Headers)),
 						BypassModule:    job.BypassMode,
+						CurlPocCommand:  BuildCurlCmd(job.Method, job.URL, payload.HeadersToMap(job.Headers)),
+						ResponseHeaders: details.ResponseHeaders,
+						ResponsePreview: details.ResponsePreview,
+						StatusCode:      details.StatusCode,
 						ContentType:     details.ContentType,
 						ContentLength:   details.ContentLength,
 						ResponseBytes:   details.ResponseBytes,
 						Title:           details.Title,
 						ServerInfo:      details.ServerInfo,
-						RedirectURL:     string(resp.Header.Peek("Location")),
+						RedirectURL:     details.RedirectURL,
 					}
+
+					// Send result to channel without breaking
+					results <- result
 				}
 			}
 
 			// Clean up
 			req.Release()
-			client.ReleaseResponse(resp)
 		}
 	}
 }

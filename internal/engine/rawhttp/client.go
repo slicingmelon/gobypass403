@@ -13,13 +13,6 @@ const (
 	userAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
 )
 
-// Client represents a reusable HTTP client optimized for performance
-type Client struct {
-	client    *fasthttp.Client
-	bufPool   sync.Pool
-	userAgent []byte
-}
-
 // ClientOptions contains configuration options for the Client
 type ClientOptions struct {
 	Timeout             time.Duration
@@ -27,24 +20,54 @@ type ClientOptions struct {
 	MaxIdleConnDuration time.Duration
 	NoDefaultUserAgent  bool
 	ProxyURL            string
-	MaxResponseBodySize int
+	ReadBufferSize      int // Added this field
+	MaxRetries          int
+	RetryDelay          time.Duration
+	DisableKeepAlive    bool // Will be handled via Connection: close header
 }
 
-// DefaultOptions returns the default client options
-func DefaultOptions() *ClientOptions {
+// Client represents a reusable HTTP client optimized for performance
+type Client struct {
+	client     *fasthttp.Client
+	bufPool    sync.Pool
+	userAgent  []byte
+	maxRetries int
+	retryDelay time.Duration
+	options    *ClientOptions // Added this field to store options
+}
+
+// DefaultOptionsMultiHost returns options optimized for scanning multiple hosts
+func DefaultOptionsMultiHost() *ClientOptions {
+	return &ClientOptions{
+		Timeout:             30 * time.Second,
+		MaxConnsPerHost:     50,
+		MaxIdleConnDuration: 5 * time.Second,
+		NoDefaultUserAgent:  true,
+		ProxyURL:            "",
+		MaxRetries:          3,
+		RetryDelay:          1 * time.Second,
+		DisableKeepAlive:    true, // Set to true for multi-host scanning
+	}
+}
+
+// DefaultOptionsSingleHost returns options optimized for scanning a single host
+func DefaultOptionsSingleHost() *ClientOptions {
 	return &ClientOptions{
 		Timeout:             30 * time.Second,
 		MaxConnsPerHost:     512,
 		MaxIdleConnDuration: 10 * time.Second,
 		NoDefaultUserAgent:  true,
 		ProxyURL:            "",
+		MaxRetries:          5,
+		RetryDelay:          1 * time.Second,
+		DisableKeepAlive:    false, // Keep connections alive for single host
 	}
 }
 
-// NewHTTPClient creates a new optimized HTTP client
+// / NewHTTPClient creates a new optimized HTTP client
 func NewHTTPClient(opts *ClientOptions) *Client {
 	if opts == nil {
-		opts = DefaultOptions()
+		opts = DefaultOptionsSingleHost()
 	}
 
 	// Configure dialer based on proxy settings
@@ -63,7 +86,7 @@ func NewHTTPClient(opts *ClientOptions) *Client {
 			DisableHeaderNamesNormalizing: true,
 			DisablePathNormalizing:        true,
 			NoDefaultUserAgentHeader:      true,
-			MaxResponseBodySize:           opts.MaxResponseBodySize,
+			ReadBufferSize:                opts.ReadBufferSize,
 			TLSConfig: &tls.Config{
 				InsecureSkipVerify: true,
 				MinVersion:         tls.VersionTLS10,
@@ -71,9 +94,12 @@ func NewHTTPClient(opts *ClientOptions) *Client {
 		},
 		bufPool: sync.Pool{
 			New: func() interface{} {
-				return make([]byte, 0, 32*1024) // 32KB initial buffer size
+				return make([]byte, 0, 32*1024)
 			},
 		},
+		maxRetries: opts.MaxRetries,
+		retryDelay: opts.RetryDelay,
+		options:    opts, // Store the options in the client
 	}
 
 	if !opts.NoDefaultUserAgent {
@@ -81,6 +107,43 @@ func NewHTTPClient(opts *ClientOptions) *Client {
 	}
 
 	return c
+}
+
+// DoRaw performs a raw HTTP request with full control over the request
+func (c *Client) DoRaw(req *fasthttp.Request, resp *fasthttp.Response) error {
+	if len(c.userAgent) > 0 && len(req.Header.Peek("User-Agent")) == 0 {
+		req.Header.SetBytesV("User-Agent", c.userAgent)
+	}
+
+	// Set Connection: close header if keep-alive is disabled
+	if c.options.DisableKeepAlive {
+		req.Header.Set("Connection", "close")
+	}
+
+	var err error
+	for retry := 0; retry <= c.maxRetries; retry++ {
+		if retry > 0 {
+			time.Sleep(c.retryDelay)
+		}
+
+		err = c.client.Do(req, resp)
+		if err == nil {
+			return nil
+		}
+
+		if !isRetryableError(err) {
+			return err
+		}
+	}
+
+	return err
+}
+
+// isRetryableError determines if an error should trigger a retry
+func isRetryableError(err error) bool {
+	// TODO: Implement specific error checks for retry conditions
+	// Common cases: connection errors, timeouts, temporary network issues
+	return true
 }
 
 // AcquireBuffer gets a buffer from the pool
@@ -92,15 +155,6 @@ func (c *Client) AcquireBuffer() []byte {
 func (c *Client) ReleaseBuffer(buf []byte) {
 	buf = buf[:0] // Reset buffer before returning to pool
 	c.bufPool.Put(buf)
-}
-
-// DoRaw performs a raw HTTP request with full control over the request
-func (c *Client) DoRaw(req *fasthttp.Request, resp *fasthttp.Response) error {
-	if len(c.userAgent) > 0 && len(req.Header.Peek("User-Agent")) == 0 {
-		req.Header.SetBytesV("User-Agent", c.userAgent)
-	}
-
-	return c.client.Do(req, resp)
 }
 
 // Close releases all idle connections

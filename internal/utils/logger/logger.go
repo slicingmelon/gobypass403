@@ -109,6 +109,16 @@ func EnableDebug() {
 	globalLogger.EnableDebug()
 }
 
+// global utility functions to know if -d was passed as cli argument
+func IsDebugEnabled() bool {
+	return globalLogger.debugEnabled
+}
+
+// global utility function to know if -v was passed as cli argument
+func IsVerboseEnabled() bool {
+	return globalLogger.verboseEnabled
+}
+
 // EnableVerbose enables verbose logging
 func (l *Logger) EnableVerbose() {
 	l.verboseEnabled = true
