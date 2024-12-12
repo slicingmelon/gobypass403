@@ -96,7 +96,8 @@ func NewWorkerContext(mode string, total int, targetURL string, opts *ScannerOpt
 	poolOpts := &rawhttp.ClientOptions{
 		Timeout:             time.Duration(opts.Timeout) * time.Second,
 		MaxConnsPerHost:     opts.Threads,
-		MaxIdleConnDuration: 30 * time.Second,
+		MaxIdleConnDuration: 10 * time.Second,
+		MaxConnWaitTimeout:  1 * time.Second,
 		NoDefaultUserAgent:  true,
 		ProxyURL:            opts.Proxy,
 		ReadBufferSize:      opts.MaxResponseBodySize,

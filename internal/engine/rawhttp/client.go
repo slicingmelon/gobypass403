@@ -20,6 +20,7 @@ type ClientOptions struct {
 	Timeout             time.Duration
 	MaxConnsPerHost     int
 	MaxIdleConnDuration time.Duration
+	MaxConnWaitTimeout  time.Duration
 	NoDefaultUserAgent  bool
 	ProxyURL            string
 	ReadBufferSize      int
@@ -58,6 +59,7 @@ func DefaultOptionsSingleHost() *ClientOptions {
 		Timeout:             30 * time.Second,
 		MaxConnsPerHost:     128,
 		MaxIdleConnDuration: 10 * time.Second,
+		MaxConnWaitTimeout:  2 * time.Second,
 		NoDefaultUserAgent:  true,
 		ProxyURL:            "",
 		MaxRetries:          5,
