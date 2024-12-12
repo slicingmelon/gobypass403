@@ -25,6 +25,7 @@ type Options struct {
 	Threads             int
 	Timeout             int
 	Delay               int
+	MaxResponseBodySize int // in bytes, we don't need too much, Response Headers and a small body preview is enough
 
 	// Output options
 	OutDir        string
@@ -88,6 +89,11 @@ func (o *Options) setDefaults() {
 	// Output directory default
 	if o.OutDir == "" {
 		o.OutDir = filepath.Join(os.TempDir(), fmt.Sprintf("go-bypass-403-%x", time.Now().UnixNano()))
+	}
+
+	// Max response body size default
+	if o.MaxResponseBodySize < 0 {
+		o.MaxResponseBodySize = 1024
 	}
 }
 

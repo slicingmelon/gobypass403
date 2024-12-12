@@ -234,9 +234,9 @@ func worker(ctx *WorkerContext, jobs <-chan payload.PayloadJob, results chan<- *
 		Timeout:             time.Duration(opts.Timeout) * time.Second,
 		MaxConnsPerHost:     512,
 		MaxIdleConnDuration: 10 * time.Second,
-		NoDefaultUserAgent:  false,
+		NoDefaultUserAgent:  true,
 		ProxyURL:            opts.Proxy,
-		MaxResponseBodySize: 1024 * 1024, // 1MB max response size
+		MaxResponseBodySize: opts.MaxResponseBodySize,
 	}
 
 	client := rawhttp.NewHTTPClient(clientOpts)

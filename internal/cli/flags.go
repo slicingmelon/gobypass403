@@ -35,6 +35,7 @@ func parseFlags() (*Options, error) {
 		{name: "spoof-header", usage: "Add more headers used to spoof IPs (example: X-SecretIP-Header,X-GO-IP)", value: &opts.SpoofHeader},
 		{name: "spoof-ip", usage: "Add more spoof IPs (example: 10.10.20.20,172.16.30.10)", value: &opts.SpoofIP},
 		{name: "fr,follow-redirects", usage: "Follow HTTP redirects", value: &opts.FollowRedirects},
+		{name: "mrs,max-response-body-size", usage: "Maximum response body size in bytes", value: &opts.MaxResponseBodySize, defVal: 1024}, // 1024 bytes
 	}
 
 	// Set up custom usage

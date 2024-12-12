@@ -9,21 +9,22 @@ import (
 )
 
 type ScannerOpts struct {
-	Timeout          int
-	Threads          int
-	MatchStatusCodes []int
-	Debug            bool
-	Verbose          bool
-	BypassModule     string
-	OutDir           string
-	Delay            int
-	TraceRequests    bool
-	Proxy            string
-	ForceHTTP2       bool
-	SpoofHeader      string
-	SpoofIP          string
-	FollowRedirects  bool
-	ProbeCache       probe.Cache
+	Timeout             int
+	Threads             int
+	MatchStatusCodes    []int
+	Debug               bool
+	Verbose             bool
+	BypassModule        string
+	OutDir              string
+	Delay               int
+	TraceRequests       bool
+	Proxy               string
+	ForceHTTP2          bool
+	SpoofHeader         string
+	SpoofIP             string
+	FollowRedirects     bool
+	MaxResponseBodySize int
+	ProbeCache          probe.Cache
 }
 
 type Scanner struct {

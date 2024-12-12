@@ -18,7 +18,13 @@ type Logger struct {
 	orangeColor  *color.Color
 	pinkColor    *color.Color
 	tealColor    *color.Color
+
+	// Add these fields
+	verboseEnabled bool
+	debugEnabled   bool
 }
+
+var globalLogger *Logger
 
 // Global functions for logging (with newlines)
 var (
@@ -49,31 +55,31 @@ var (
 
 // init initializes the global logger and its functions
 func init() {
-	logger := NewLogger()
+	globalLogger = NewLogger()
 
 	// Initialize logging functions (with newlines)
-	LogInfo = logger.LogInfo
-	LogVerbose = logger.LogVerbose
-	LogDebug = logger.LogDebug
-	LogError = logger.LogError
-	LogYellow = logger.LogYellow
-	LogOrange = logger.LogOrange
-	LogGreen = logger.LogGreen
-	LogBlue = logger.LogBlue
-	LogPurple = logger.LogPurple
-	LogGray = logger.LogGray
-	LogTeal = logger.LogTeal
-	LogPink = logger.LogPink
+	LogInfo = globalLogger.LogInfo
+	LogVerbose = globalLogger.LogVerbose
+	LogDebug = globalLogger.LogDebug
+	LogError = globalLogger.LogError
+	LogYellow = globalLogger.LogYellow
+	LogOrange = globalLogger.LogOrange
+	LogGreen = globalLogger.LogGreen
+	LogBlue = globalLogger.LogBlue     // Fixed: was using logger.LogBlue
+	LogPurple = globalLogger.LogPurple // Fixed: was using logger.LogPurple
+	LogGray = globalLogger.LogGray
+	LogTeal = globalLogger.LogTeal
+	LogPink = globalLogger.LogPink
 
 	// Initialize color-only functions (without newlines)
-	Yellow = logger.yellowColor.Sprintf
-	Orange = logger.orangeColor.Sprintf
-	Green = logger.greenColor.Sprintf
-	Blue = logger.blueColor.Sprintf
-	Purple = logger.purpleColor.Sprintf
-	Gray = logger.grayColor.Sprintf
-	Teal = logger.tealColor.Sprintf
-	Pink = logger.pinkColor.Sprintf
+	Yellow = globalLogger.yellowColor.Sprintf // Fixed: was using logger.yellowColor
+	Orange = globalLogger.orangeColor.Sprintf // Fixed: was using logger.orangeColor
+	Green = globalLogger.greenColor.Sprintf   // Fixed: was using logger.greenColor
+	Blue = globalLogger.blueColor.Sprintf     // Fixed: was using logger.blueColor
+	Purple = globalLogger.purpleColor.Sprintf // Fixed: was using logger.purpleColor
+	Gray = globalLogger.grayColor.Sprintf     // Fixed: was using logger.grayColor
+	Teal = globalLogger.tealColor.Sprintf     // Fixed: was using logger.tealColor
+	Pink = globalLogger.pinkColor.Sprintf     // Fixed: was using logger.pinkColor
 }
 
 // NewLogger creates a new logger instance
@@ -94,17 +100,40 @@ func NewLogger() *Logger {
 	}
 }
 
+// Add these global functions
+func EnableVerbose() {
+	globalLogger.EnableVerbose()
+}
+
+func EnableDebug() {
+	globalLogger.EnableDebug()
+}
+
+// EnableVerbose enables verbose logging
+func (l *Logger) EnableVerbose() {
+	l.verboseEnabled = true
+}
+
+// EnableDebug enables debug logging
+func (l *Logger) EnableDebug() {
+	l.debugEnabled = true
+}
+
 // Logger methods (with newlines)
 func (l *Logger) LogInfo(format string, v ...interface{}) {
 	l.infoColor.Printf("\n[INFO] "+format+"\n", v...)
 }
 
 func (l *Logger) LogVerbose(format string, v ...interface{}) {
-	l.verboseColor.Printf("\n[VERBOSE] "+format+"\n", v...)
+	if l.verboseEnabled {
+		l.verboseColor.Printf("\n[VERBOSE] "+format+"\n", v...)
+	}
 }
 
 func (l *Logger) LogDebug(format string, v ...interface{}) {
-	l.debugColor.Printf("\n[DEBUG] "+format+"\n", v...)
+	if l.debugEnabled {
+		l.debugColor.Printf("\n[DEBUG] "+format+"\n", v...)
+	}
 }
 
 func (l *Logger) LogError(format string, v ...interface{}) {
