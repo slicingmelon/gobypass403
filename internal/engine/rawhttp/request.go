@@ -124,6 +124,7 @@ func (p *RequestPool) ProcessRequests(jobs []payload.PayloadJob) <-chan *Respons
 
 		// Start workers
 		numWorkers := min(p.client.options.MaxConnsPerHost, len(jobs))
+		//numWorkers := min(10,30)
 		var wg sync.WaitGroup
 
 		for i := 0; i < numWorkers; i++ {

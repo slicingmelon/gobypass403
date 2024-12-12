@@ -121,8 +121,13 @@ func NewWorkerContext(mode string, total int, targetURL string, opts *ScannerOpt
 
 func (w *WorkerContext) Stop() {
 	w.once.Do(func() {
-		close(w.cancel)
-		w.progress.markAsCancelled()
+		select {
+		case <-w.cancel: // Already closed
+			return
+		default:
+			close(w.cancel)
+			w.progress.markAsCancelled()
+		}
 	})
 }
 
@@ -169,35 +174,6 @@ func (s *Scanner) RunAllBypasses(targetURL string) chan *Result {
 	return results
 }
 
-// // runDumbCheck runs the baseline check using the same worker pattern
-// func (s *Scanner) runDumbCheck(targetURL string, results chan<- *Result) {
-// 	jobs := make(chan payload.PayloadJob, 1000)
-// 	allJobs := payload.GenerateDumbJob(targetURL, "dumb_check")
-
-// 	ctx := NewWorkerContext("dumb_check", len(allJobs), targetURL, s.config)
-
-// 	// Start workers
-// 	for i := 0; i < 2; i++ {
-// 		ctx.wg.Add(1)
-// 		go worker(ctx, jobs, results)
-// 	}
-
-// 	// Process jobs
-// 	for _, job := range allJobs {
-// 		select {
-// 		case <-ctx.cancel:
-// 			close(jobs)
-// 			ctx.wg.Wait()
-// 			return
-// 		case jobs <- job:
-// 		}
-// 	}
-
-// 	close(jobs)
-// 	ctx.wg.Wait()
-
-// }
-
 // Generic runner that replaces all individual run*Bypass functions
 func (s *Scanner) runBypassForMode(bypassModule string, targetURL string, results chan<- *Result) {
 	moduleInstance, exists := bypassModules[bypassModule]
@@ -207,42 +183,60 @@ func (s *Scanner) runBypassForMode(bypassModule string, targetURL string, result
 
 	// Generate all jobs for this module
 	allJobs := moduleInstance.GenerateJobs(targetURL, bypassModule, s.config)
-
-	// Create progress counter
-	progress := &ProgressCounter{
-		Total: len(allJobs),
-		Mode:  bypassModule,
-		URL:   targetURL,
+	if len(allJobs) == 0 {
+		logger.LogVerbose("No jobs generated for module: %s", bypassModule)
+		return
 	}
 
-	// Process jobs through request pool
-	for response := range s.pool.ProcessRequests(allJobs) {
-		progress.increment()
+	// Create WorkerContext with all necessary components
+	ctx := NewWorkerContext(bypassModule, len(allJobs), targetURL, s.config)
 
-		if response == nil {
-			continue
-		}
+	// Use errgroup for better goroutine management
+	var wg sync.WaitGroup
+	wg.Add(1)
 
-		// Check for matching status codes
-		for _, code := range s.config.MatchStatusCodes {
-			if response.StatusCode == code {
-				results <- &Result{
-					TargetURL:       response.URL,
-					BypassModule:    bypassModule,
-					StatusCode:      response.StatusCode,
-					ResponseHeaders: response.ResponseHeaders,
-					CurlPocCommand:  response.CurlCommand,
-					ResponsePreview: response.ResponsePreview,
-					ContentType:     response.ContentType,
-					ContentLength:   response.ContentLength,
-					ResponseBytes:   response.ResponseBytes,
-					Title:           response.Title,
-					ServerInfo:      response.ServerInfo,
-					RedirectURL:     response.RedirectURL,
+	go func() {
+		defer wg.Done()
+		defer ctx.Stop() // Move cleanup here
+
+		// Use WorkerContext's requestPool
+		responses := ctx.requestPool.ProcessRequests(allJobs)
+
+		for response := range responses {
+			if ctx.progress.isCancelled() {
+				return
+			}
+
+			// Use WorkerContext's progress counter
+			ctx.progress.increment()
+
+			if response == nil {
+				continue
+			}
+
+			// Check for matching status codes
+			for _, code := range s.config.MatchStatusCodes {
+				if response.StatusCode == code {
+					results <- &Result{
+						TargetURL:       response.URL,
+						BypassModule:    bypassModule,
+						StatusCode:      response.StatusCode,
+						ResponseHeaders: response.ResponseHeaders,
+						CurlPocCommand:  response.CurlCommand,
+						ResponsePreview: response.ResponsePreview,
+						ContentType:     response.ContentType,
+						ContentLength:   response.ContentLength,
+						ResponseBytes:   response.ResponseBytes,
+						Title:           response.Title,
+						ServerInfo:      response.ServerInfo,
+						RedirectURL:     response.RedirectURL,
+					}
 				}
 			}
 		}
-	}
+	}()
+
+	wg.Wait()
 }
 
 // func (s *Scanner) worker(wg *sync.WaitGroup, jobs <-chan payload.PayloadJob, results chan<- *Result, progress *ProgressCounter) {
