@@ -54,7 +54,7 @@ func DefaultOptionsMultiHost() *ClientOptions {
 func DefaultOptionsSingleHost() *ClientOptions {
 	return &ClientOptions{
 		Timeout:             30 * time.Second,
-		MaxConnsPerHost:     512,
+		MaxConnsPerHost:     128,
 		MaxIdleConnDuration: 10 * time.Second,
 		NoDefaultUserAgent:  true,
 		ProxyURL:            "",

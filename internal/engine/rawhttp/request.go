@@ -69,6 +69,10 @@ type RequestPool struct {
 
 // NewRequestPool creates a centralized request handling pool
 func NewRequestPool(opts *ClientOptions) *RequestPool {
+	if opts == nil {
+		opts = DefaultOptionsSingleHost() // Use single host optimized settings
+	}
+
 	return &RequestPool{
 		client: NewClient(opts),
 		reqPool: sync.Pool{
@@ -87,6 +91,7 @@ func (p *RequestPool) ProcessRequests(jobs <-chan payload.PayloadJob) <-chan *Re
 	go func() {
 		defer close(results)
 
+		// Reuse request/response objects since we're hitting same host
 		req := p.reqPool.Get().(*fasthttp.Request)
 		resp := p.respPool.Get().(*fasthttp.Response)
 		defer p.reqPool.Put(req)
@@ -96,18 +101,13 @@ func (p *RequestPool) ProcessRequests(jobs <-chan payload.PayloadJob) <-chan *Re
 			req.Reset()
 			resp.Reset()
 
-			// Setup request
-			req.SetRequestURIBytes(s2b(job.URL))
-			req.Header.SetMethodBytes(s2b(job.Method))
+			// Keep connection alive between requests
+			req.SetRequestURI(job.URL)
+			req.Header.SetMethod(job.Method)
 			req.URI().DisablePathNormalizing = true
-			req.Header.DisableNormalizing()
 
-			// Set headers
 			for _, h := range job.Headers {
-				req.Header.SetBytesKV(
-					s2b(h.Header),
-					s2b(h.Value),
-				)
+				req.Header.Set(h.Header, h.Value)
 			}
 
 			if err := p.client.DoRaw(req, resp); err != nil {
@@ -240,22 +240,6 @@ func (p *RequestPool) processResponse(resp *fasthttp.Response, job payload.Paylo
 	return details
 }
 
-// doRequestWithTimeout handles the actual request with proper timeout
-func (c *Client) doRequestWithTimeout(req *Request, resp *fasthttp.Response) error {
-	done := make(chan error, 1)
-	go func() {
-		done <- c.DoRaw(req.Request, resp)
-	}()
-
-	select {
-	case <-req.ctx.Done():
-		c.client.CloseIdleConnections()
-		return req.ctx.Err()
-	case err := <-done:
-		return err
-	}
-}
-
 // SetHeaderBytes sets a header using byte slices
 func (r *Request) SetHeaderBytes(key, value []byte) {
 	r.Header.SetBytesKV(key, value)
@@ -279,10 +263,10 @@ func (r *Request) SetHeaders(headers map[string]string) {
 	}
 }
 
-// SetBody sets the request body
-func (r *Request) SetBody(body []byte) {
-	r.SetBody(body)
-}
+// // SetBody sets the request body
+// func (r *Request) SetBody(body []byte) {
+// 	r.SetBody(body)
+// }
 
 // SetTimeout sets request timeout
 func (r *Request) SetTimeout(timeout time.Duration) {

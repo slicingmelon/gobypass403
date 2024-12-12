@@ -232,50 +232,44 @@ func (s *Scanner) runBypassForMode(BypassModule string, targetURL string, result
 	fmt.Println()
 }
 
-func worker(ctx *WorkerContext, jobs <-chan payload.PayloadJob, results chan<- *Result) {
-	defer ctx.wg.Done()
+func (s *Scanner) worker(wg *sync.WaitGroup, jobs <-chan payload.PayloadJob, results chan<- *Result, progress *ProgressCounter) {
+	defer wg.Done()
 
-	// Use the rate limiter if delay is specified
-	var limiter *time.Ticker
-	if ctx.opts.Delay > 0 {
-		limiter = time.NewTicker(time.Duration(ctx.opts.Delay) * time.Millisecond)
-		defer limiter.Stop()
+	// Setup rate limiting if needed
+	var ticker *time.Ticker
+	if s.config.Delay > 0 {
+		ticker = time.NewTicker(time.Duration(s.config.Delay) * time.Millisecond)
+		defer ticker.Stop()
 	}
 
-	// Process jobs through the request pool
-	for details := range ctx.requestPool.ProcessRequests(jobs) {
-		select {
-		case <-ctx.cancel:
-			return
-		default:
-			// Rate limiting if enabled
-			if limiter != nil {
-				<-limiter.C
-			}
+	// Process jobs
+	for details := range s.pool.ProcessRequests(jobs) {
+		if ticker != nil {
+			<-ticker.C
+		}
 
-			if details == nil {
-				continue
-			}
+		if details == nil {
+			continue
+		}
 
-			ctx.progress.increment()
+		progress.Increment()
 
-			// Check if status code matches
-			for _, allowedCode := range ctx.opts.MatchStatusCodes {
-				if details.StatusCode == allowedCode {
-					results <- &Result{
-						TargetURL:       details.URL,
-						BypassModule:    details.BypassMode,
-						CurlPocCommand:  details.CurlCommand,
-						ResponseHeaders: details.ResponseHeaders,
-						ResponsePreview: details.ResponsePreview,
-						StatusCode:      details.StatusCode,
-						ContentType:     details.ContentType,
-						ContentLength:   details.ContentLength,
-						ResponseBytes:   details.ResponseBytes,
-						Title:           details.Title,
-						ServerInfo:      details.ServerInfo,
-						RedirectURL:     details.RedirectURL,
-					}
+		// Check for matching status codes - no break, report all matches
+		for _, code := range s.config.MatchStatusCodes {
+			if details.StatusCode == code {
+				results <- &Result{
+					TargetURL:       details.URL,
+					BypassModule:    details.BypassMode,
+					StatusCode:      details.StatusCode,
+					ResponseHeaders: details.ResponseHeaders,
+					CurlPocCommand:  details.CurlCommand,
+					ResponsePreview: details.ResponsePreview,
+					ContentType:     details.ContentType,
+					ContentLength:   details.ContentLength,
+					ResponseBytes:   details.ResponseBytes,
+					Title:           details.Title,
+					ServerInfo:      details.ServerInfo,
+					RedirectURL:     details.RedirectURL,
 				}
 			}
 		}
