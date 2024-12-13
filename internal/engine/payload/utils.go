@@ -1,8 +1,39 @@
 package payload
 
 import (
+	"math/rand"
 	"os"
 	"strings"
+	"sync"
+	"time"
+)
+
+var (
+	charsetTable = func() [62]byte {
+		// Initialize with 62 chars (26 lowercase + 26 uppercase + 10 digits)
+		var table [62]byte
+
+		// 0-9 (10 chars)
+		for i := 0; i < 10; i++ {
+			table[i] = byte(i) + '0'
+		}
+
+		// A-Z (26 chars)
+		for i := 0; i < 26; i++ {
+			table[i+10] = byte(i) + 'A'
+		}
+
+		// a-z (26 chars)
+		for i := 0; i < 26; i++ {
+			table[i+36] = byte(i) + 'a'
+		}
+
+		return table
+	}()
+
+	// Use a concurrent-safe random source
+	rnd = rand.New(rand.NewSource(time.Now().UnixNano()))
+	mu  sync.Mutex
 )
 
 // ReplaceNth replaces the nth occurrence of old with new in s
@@ -70,4 +101,18 @@ func HeadersToMap(headers []Header) map[string]string {
 		m[h.Header] = h.Value
 	}
 	return m
+}
+
+func generatePayloadSeed() string {
+	b := make([]byte, 18)
+	tableSize := uint32(len(charsetTable))
+
+	mu.Lock()
+	for i := range b {
+		// Using uint32 for better performance than modulo
+		b[i] = charsetTable[rnd.Uint32()%tableSize]
+	}
+	mu.Unlock()
+
+	return string(b)
 }

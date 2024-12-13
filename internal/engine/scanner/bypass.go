@@ -92,30 +92,28 @@ type WorkerContext struct {
 }
 
 func NewWorkerContext(mode string, total int, targetURL string, opts *ScannerOpts) *WorkerContext {
-	// Create request pool with options
-	poolOpts := &rawhttp.ClientOptions{
+	// Only create ClientOptions for connection settings
+	clientOpts := &rawhttp.ClientOptions{
 		Timeout:             time.Duration(opts.Timeout) * time.Second,
 		MaxConnsPerHost:     opts.Threads,
 		MaxIdleConnDuration: 10 * time.Second,
 		MaxConnWaitTimeout:  1 * time.Second,
 		NoDefaultUserAgent:  true,
 		ProxyURL:            opts.Proxy,
-		ReadBufferSize:      opts.MaxResponseBodySize,
-		DisableKeepAlive:    false,
+		ReadBufferSize:      opts.ResponseBodyPreviewSize,
 	}
 
 	return &WorkerContext{
-		mode: mode,
-		progress: &ProgressCounter{
-			Total: total,
-			Mode:  mode,
-			URL:   targetURL,
-		},
-		cancel:      make(chan struct{}),
-		wg:          &sync.WaitGroup{},
-		once:        sync.Once{},
-		opts:        opts,
-		requestPool: rawhttp.NewRequestPool(poolOpts),
+		mode:     mode,
+		progress: &ProgressCounter{},
+		cancel:   make(chan struct{}),
+		wg:       &sync.WaitGroup{},
+		once:     sync.Once{},
+		opts:     opts,
+		requestPool: rawhttp.NewRequestPool(clientOpts, &rawhttp.ScannerCliOpts{
+			MatchStatusCodes:        opts.MatchStatusCodes,
+			ResponseBodyPreviewSize: opts.ResponseBodyPreviewSize,
+		}), // Pass entire opts
 	}
 }
 
@@ -238,47 +236,3 @@ func (s *Scanner) runBypassForMode(bypassModule string, targetURL string, result
 
 	wg.Wait()
 }
-
-// func (s *Scanner) worker(wg *sync.WaitGroup, jobs <-chan payload.PayloadJob, results chan<- *Result, progress *ProgressCounter) {
-// 	defer wg.Done()
-
-// 	// Setup rate limiting if needed
-// 	var ticker *time.Ticker
-// 	if s.config.Delay > 0 {
-// 		ticker = time.NewTicker(time.Duration(s.config.Delay) * time.Millisecond)
-// 		defer ticker.Stop()
-// 	}
-
-// 	// Process jobs
-// 	for details := range s.pool.ProcessRequests(jobs) {
-// 		if ticker != nil {
-// 			<-ticker.C
-// 		}
-
-// 		if details == nil {
-// 			continue
-// 		}
-
-// 		progress.Increment()
-
-// 		// Check for matching status codes - no break, report all matches
-// 		for _, code := range s.config.MatchStatusCodes {
-// 			if details.StatusCode == code {
-// 				results <- &Result{
-// 					TargetURL:       details.URL,
-// 					BypassModule:    details.BypassMode,
-// 					StatusCode:      details.StatusCode,
-// 					ResponseHeaders: details.ResponseHeaders,
-// 					CurlPocCommand:  details.CurlCommand,
-// 					ResponsePreview: details.ResponsePreview,
-// 					ContentType:     details.ContentType,
-// 					ContentLength:   details.ContentLength,
-// 					ResponseBytes:   details.ResponseBytes,
-// 					Title:           details.Title,
-// 					ServerInfo:      details.ServerInfo,
-// 					RedirectURL:     details.RedirectURL,
-// 				}
-// 			}
-// 		}
-// 	}
-// }

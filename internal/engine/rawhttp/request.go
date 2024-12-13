@@ -3,7 +3,6 @@ package rawhttp
 import (
 	"bytes"
 	"fmt"
-	"math/rand"
 	"runtime"
 	"strings"
 	"sync"
@@ -13,40 +12,6 @@ import (
 	"github.com/slicingmelon/go-bypass-403/internal/engine/payload"
 	"github.com/slicingmelon/go-bypass-403/internal/utils/logger"
 	"github.com/valyala/fasthttp"
-)
-
-const (
-	DefaultBodyPreviewSize = 2 * 1024        // 2KB preview
-	DefaultMaxResponseSize = 5 * 1024 * 1024 // 5MB total
-)
-
-var (
-	// Pre-generate the charset table for faster lookups
-	charsetTable = func() [62]byte {
-		// Initialize with 62 chars (26 lowercase + 26 uppercase + 10 digits)
-		var table [62]byte
-
-		// 0-9 (10 chars)
-		for i := 0; i < 10; i++ {
-			table[i] = byte(i) + '0'
-		}
-
-		// A-Z (26 chars)
-		for i := 0; i < 26; i++ {
-			table[i+10] = byte(i) + 'A'
-		}
-
-		// a-z (26 chars)
-		for i := 0; i < 26; i++ {
-			table[i+36] = byte(i) + 'a'
-		}
-
-		return table
-	}()
-
-	// Use a concurrent-safe random source
-	rnd = rand.New(rand.NewSource(time.Now().UnixNano()))
-	mu  sync.Mutex
 )
 
 // RequestBuilder handles the lifecycle of fasthttp requests
@@ -59,10 +24,18 @@ type Header struct {
 	Value string
 }
 
+// ScanOptions reference the cli options, we'll need them internally here as well
+type ScannerCliOpts struct {
+	MatchStatusCodes        []int
+	ResponseBodyPreviewSize int
+}
+
 // RequestPool manages a pool of FastHTTP requests
 type RequestPool struct {
 	client     *Client
 	workerPool *workerPool
+	jobs       []payload.PayloadJob // worker pool jobs
+	scanOpts   *ScannerCliOpts      // Direct reference to (some) scanner options
 }
 
 type workerPool struct {
@@ -78,11 +51,11 @@ type workerPool struct {
 type workerChan struct {
 	lastUseTime time.Time
 	jobs        chan payload.PayloadJob
-	results     chan *ResponseDetails
+	results     chan *RawHTTPResponseDetails
 }
 
 // ResponseDetails contains processed response information
-type ResponseDetails struct {
+type RawHTTPResponseDetails struct {
 	URL             string // Added
 	BypassMode      string // Added
 	CurlCommand     string // Added
@@ -95,31 +68,27 @@ type ResponseDetails struct {
 	RedirectURL     string
 	ResponseBytes   int
 	Title           string
-	BodyLimitHit    bool
 }
 
-// NewRequestPool creates a centralized request handling pool
-func NewRequestPool(opts *ClientOptions) *RequestPool {
-	if opts == nil {
-		opts = DefaultOptionsSingleHost()
+func NewRequestPool(clientOpts *ClientOptions, scanOpts *ScannerCliOpts) *RequestPool {
+	if clientOpts == nil {
+		clientOpts = DefaultOptionsSingleHost()
 	}
 
 	pool := &RequestPool{
-		client: NewClient(opts),
+		client:   NewClient(clientOpts),
+		scanOpts: scanOpts,
 		workerPool: &workerPool{
-			maxWorkersCount: opts.MaxConnsPerHost,
+			maxWorkersCount: clientOpts.MaxConnsPerHost,
 			stopCh:          make(chan struct{}),
 		},
 	}
 
-	// Set the pool reference
 	pool.workerPool.pool = pool
-
-	// Initialize worker channel pool
 	pool.workerPool.workerChanPool.New = func() interface{} {
 		return &workerChan{
 			jobs:    make(chan payload.PayloadJob, 1),
-			results: make(chan *ResponseDetails, 1),
+			results: make(chan *RawHTTPResponseDetails, 1),
 		}
 	}
 
@@ -151,10 +120,9 @@ func (rb *RequestBuilder) BuildRequest(job payload.PayloadJob) *fasthttp.Request
 		req.Header.Set(h.Header, h.Value)
 	}
 
-	// add debug canary
-	canary := generateRandomString(18)
+	// add debug canary/seed to each request for better debugging
 	if logger.IsDebugEnabled() {
-		req.Header.Set("X-GB403-Debug", canary)
+		req.Header.Set("X-GB403-Debug", job.PayloadSeed)
 	}
 
 	// set a decent user agent
@@ -169,8 +137,8 @@ func (rb *RequestBuilder) BuildRequest(job payload.PayloadJob) *fasthttp.Request
 	return req
 }
 
-// ExecuteRequest performs the request and returns a response
-func (rb *RequestBuilder) ExecuteRequest(req *fasthttp.Request) (*fasthttp.Response, error) {
+// SendRequest performs the request and returns a response
+func (rb *RequestBuilder) SendRequest(req *fasthttp.Request) (*fasthttp.Response, error) {
 	resp := fasthttp.AcquireResponse()
 
 	err := rb.client.DoRaw(req, resp)
@@ -183,10 +151,10 @@ func (rb *RequestBuilder) ExecuteRequest(req *fasthttp.Request) (*fasthttp.Respo
 }
 
 // ProcessRequests handles multiple requests efficiently
-func (p *RequestPool) ProcessRequests(jobs []payload.PayloadJob) <-chan *ResponseDetails {
+func (p *RequestPool) ProcessRequests(jobs []payload.PayloadJob) <-chan *RawHTTPResponseDetails {
 	// Buffer size based on number of jobs, capped at a reasonable maximum
 	bufferSize := min(len(jobs), p.client.options.MaxConnsPerHost)
-	results := make(chan *ResponseDetails, bufferSize)
+	results := make(chan *RawHTTPResponseDetails, bufferSize)
 
 	go func() {
 		defer close(results)
@@ -255,7 +223,7 @@ func (wp *workerPool) workerFunc(ch *workerChan) {
 		req := builder.BuildRequest(job)
 
 		// Execute
-		resp, err := builder.ExecuteRequest(req)
+		resp, err := builder.SendRequest(req)
 
 		// Always release request
 		fasthttp.ReleaseRequest(req)
@@ -284,8 +252,8 @@ func (wp *workerPool) release(ch *workerChan) {
 
 // processResponse handles response processing and data extraction
 // processResponse converts fasthttp.Response to ResponseDetails
-func (p *RequestPool) processResponse(resp *fasthttp.Response, job payload.PayloadJob) *ResponseDetails {
-	details := &ResponseDetails{
+func (p *RequestPool) processResponse(resp *fasthttp.Response, job payload.PayloadJob) *RawHTTPResponseDetails {
+	details := &RawHTTPResponseDetails{
 		URL:         job.URL,
 		BypassMode:  job.BypassMode,
 		StatusCode:  resp.StatusCode(),
@@ -308,8 +276,8 @@ func (p *RequestPool) processResponse(resp *fasthttp.Response, job payload.Paylo
 	body := resp.Body()
 
 	// even a half of the resp body buffer is enough, we can use it as a preview
-	if len(body) > 1024 {
-		body = body[:1024]
+	if len(body) > p.scanOpts.ResponseBodyPreviewSize {
+		body = body[:p.scanOpts.ResponseBodyPreviewSize]
 	}
 
 	details.ResponsePreview = string(body)
@@ -321,24 +289,8 @@ func (p *RequestPool) processResponse(resp *fasthttp.Response, job payload.Paylo
 		details.ContentLength = int64(resp.Header.ContentLength())
 	}
 
-	details.CurlCommand = BuildCurlCommand(job)
+	details.CurlCommand = BuildCurlCmd(job)
 	return details
-}
-
-// Helper function to generate random strings
-// generateRandomString creates a random string using pre-generated table
-func generateRandomString(length int) string {
-	b := make([]byte, length)
-	tableSize := uint32(len(charsetTable))
-
-	mu.Lock()
-	for i := range b {
-		// Using uint32 for better performance than modulo
-		b[i] = charsetTable[rnd.Uint32()%tableSize]
-	}
-	mu.Unlock()
-
-	return string(b)
 }
 
 // s2b converts string to a byte slice without memory allocation.
@@ -359,7 +311,7 @@ func Byte2String(b []byte) string {
 }
 
 // BuildCurlCommand generates a curl command for request reproduction
-func BuildCurlCommand(job payload.PayloadJob) string {
+func BuildCurlCmd(job payload.PayloadJob) string {
 	// Determine curl command based on OS
 	curlCmd := "curl"
 	if runtime.GOOS == "windows" {

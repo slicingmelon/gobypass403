@@ -19,13 +19,13 @@ type Options struct {
 	SubstituteHostsFile string
 
 	// Scan configuration
-	Module              string // Changed from Mode to Module
-	MatchStatusCodesStr string
-	MatchStatusCodes    []int
-	Threads             int
-	Timeout             int
-	Delay               int
-	MaxResponseBodySize int // in bytes, we don't need too much, Response Headers and a small body preview is enough
+	Module                  string // Changed from Mode to Module
+	MatchStatusCodesStr     string
+	MatchStatusCodes        []int
+	Threads                 int
+	Timeout                 int
+	Delay                   int
+	ResponseBodyPreviewSize int // in bytes, we don't need too much, Response Headers and a small body preview is enough
 
 	// Output options
 	OutDir        string
@@ -92,8 +92,8 @@ func (o *Options) setDefaults() {
 	}
 
 	// Max response body size default
-	if o.MaxResponseBodySize < 0 {
-		o.MaxResponseBodySize = 1024
+	if o.ResponseBodyPreviewSize < 0 {
+		o.ResponseBodyPreviewSize = 1024
 	}
 }
 
