@@ -60,6 +60,7 @@ func DefaultOptionsSingleHost() *ClientOptions {
 		MaxConnWaitTimeout:  2 * time.Second,
 		NoDefaultUserAgent:  true,
 		ProxyURL:            "",
+		ReadBufferSize:      4096,
 		MaxRetries:          5,
 		RetryDelay:          1 * time.Second,
 		DisableKeepAlive:    false, // Keep connections alive for single host
@@ -110,6 +111,7 @@ func NewClient(opts *ClientOptions) *Client {
 
 // DoRaw performs a raw HTTP request
 func (c *Client) DoRaw(req *fasthttp.Request, resp *fasthttp.Response) error {
+	// Set max body size before making the request
 	return c.client.Do(req, resp)
 }
 

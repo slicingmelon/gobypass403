@@ -304,17 +304,21 @@ func (p *RequestPool) processResponse(resp *fasthttp.Response, job payload.Paylo
 	})
 	details.ResponseHeaders = headerBuf.String()
 
-	// Set max body size limit before reading
-	resp.SetBodyStream(resp.BodyStream(), DefaultBodyPreviewSize)
+	// Just read what we got in the buffer
+	body := resp.Body()
 
-	// Now we only get preview size
-	preview := resp.Body()
-	details.ResponsePreview = string(preview)
-	details.ResponseBytes = len(preview)
+	// even a half of the resp body buffer is enough, we can use it as a preview
+	if len(body) > 1024 {
+		body = body[:1024]
+	}
 
-	// Check if there's more data (body was limited)
-	if resp.Header.ContentLength() > DefaultBodyPreviewSize {
-		details.BodyLimitHit = true
+	details.ResponsePreview = string(body)
+	details.ResponseBytes = len(body)
+
+	// ContentLength returns Content-Length header value.
+	// It may be negative: -1 means Transfer-Encoding: chunked. -2 means Transfer-Encoding: identity.
+	if resp.Header.ContentLength() > 0 {
+		details.ContentLength = int64(resp.Header.ContentLength())
 	}
 
 	details.CurlCommand = BuildCurlCommand(job)

@@ -87,8 +87,13 @@ func PrintTableRow(result *Result) {
 	}
 
 	title := formatValue(result.Title)
-	if len(title) > 30 {
-		title = title[:27] + "..."
+	if len(title) > 20 {
+		title = title[:19] + "..."
+	}
+
+	contentType := formatValue(result.ContentType)
+	if strings.Contains(contentType, ";") {
+		contentType = strings.TrimSpace(strings.Split(contentType, ";")[0])
 	}
 
 	// Format everything in a single line
@@ -98,7 +103,7 @@ func PrintTableRow(result *Result) {
 		strings.Repeat("=", 5),
 		logger.GreenString("[%d]", result.StatusCode),
 		logger.PurpleString("[%s]", formatBytes(result.ContentLength)),
-		logger.OrangeString("[%s]", formatValue(result.ContentType)),
+		logger.OrangeString("[%s]", contentType),
 		logger.TealString("[%s]", title),
 		logger.GrayString("[%s]", formatValue(result.ServerInfo)),
 		logger.PinkString("[%s]", formatValue(result.RedirectURL)))
