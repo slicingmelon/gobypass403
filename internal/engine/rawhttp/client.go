@@ -2,9 +2,14 @@ package rawhttp
 
 import (
 	"crypto/tls"
+	"errors"
+	"fmt"
+	"net"
+	"strings"
 	"sync"
 	"time"
 
+	GB403ErrorHandler "github.com/slicingmelon/go-bypass-403/internal/utils/error"
 	"github.com/valyala/fasthttp"
 	"github.com/valyala/fasthttp/fasthttpproxy"
 	"golang.org/x/net/http/httpproxy"
@@ -31,12 +36,13 @@ type ClientOptions struct {
 
 // Client represents a reusable HTTP client optimized for performance
 type Client struct {
-	client     *fasthttp.Client
-	bufPool    sync.Pool
-	userAgent  []byte
-	maxRetries int
-	retryDelay time.Duration
-	options    *ClientOptions
+	client       *fasthttp.Client
+	bufPool      sync.Pool
+	userAgent    []byte
+	maxRetries   int
+	retryDelay   time.Duration
+	options      *ClientOptions
+	errorHandler *GB403ErrorHandler.ErrorHandler
 }
 
 // DefaultOptionsMultiHost returns options optimized for scanning multiple hosts
@@ -69,7 +75,7 @@ func DefaultOptionsSameHost() *ClientOptions {
 }
 
 // / NewHTTPClient creates a new optimized HTTP client
-func NewClient(opts *ClientOptions) *Client {
+func NewClient(opts *ClientOptions, errorHandler *GB403ErrorHandler.ErrorHandler) *Client {
 	if opts == nil {
 		opts = DefaultOptionsSameHost()
 	}
@@ -88,7 +94,39 @@ func NewClient(opts *ClientOptions) *Client {
 		DialDualStack:  false,
 	}
 
-	dialFunc, _ := d.GetDialFunc(false)
+	// Get the dial function and handle any initial errors
+	dialFunc, err := d.GetDialFunc(false)
+	if err != nil && errorHandler != nil {
+		errorHandler.HandleError("Dialer", err)
+	}
+
+	wrappedDialFunc := func(addr string) (net.Conn, error) {
+		conn, err := dialFunc(addr)
+		if err != nil {
+			if errorHandler != nil {
+				var dialErr *fasthttp.ErrDialWithUpstream
+				switch {
+				case errors.Is(err, fasthttp.ErrDialTimeout):
+					errorHandler.HandleError("Dial", fmt.Errorf("timeout connecting to %s: %w", addr, err))
+				case errors.As(err, &dialErr):
+					// Handle DNS and proxy errors
+					switch {
+					case strings.Contains(dialErr.Error(), "no such host") ||
+						strings.Contains(dialErr.Error(), "no DNS entries"):
+						errorHandler.HandleError("DNS", fmt.Errorf("DNS resolution failed for %s: %w", addr, err))
+					case strings.Contains(dialErr.Error(), "proxy"):
+						errorHandler.HandleError("Proxy", fmt.Errorf("proxy error for %s: %w", addr, err))
+					default:
+						errorHandler.HandleError("Dial", fmt.Errorf("connection failed to %s: %w", addr, err))
+					}
+				default:
+					errorHandler.HandleError("Dial", fmt.Errorf("error connecting to %s: %w", addr, err))
+				}
+			}
+			return nil, err
+		}
+		return conn, nil
+	}
 
 	client := &fasthttp.Client{
 		MaxConnsPerHost:               opts.MaxConnsPerHost,
@@ -99,20 +137,20 @@ func NewClient(opts *ClientOptions) *Client {
 		NoDefaultUserAgentHeader:      true,
 		ReadBufferSize:                opts.ReadBufferSize,
 		MaxIdemponentCallAttempts:     opts.MaxRetries,
-		Dial:                          dialFunc,
-		// Let fasthttp handle TLS automatically based on URI scheme
+		Dial:                          wrappedDialFunc,
 		TLSConfig: &tls.Config{
 			InsecureSkipVerify: true,
 		},
 	}
 
 	return &Client{
-		client:     client,
-		bufPool:    sync.Pool{New: func() interface{} { return make([]byte, 0, opts.ReadBufferSize) }},
-		userAgent:  userAgent,
-		maxRetries: opts.MaxRetries,
-		retryDelay: opts.RetryDelay,
-		options:    opts,
+		client:       client,
+		errorHandler: errorHandler,
+		bufPool:      sync.Pool{New: func() interface{} { return make([]byte, 0, opts.ReadBufferSize) }},
+		userAgent:    userAgent,
+		maxRetries:   opts.MaxRetries,
+		retryDelay:   opts.RetryDelay,
+		options:      opts,
 	}
 }
 

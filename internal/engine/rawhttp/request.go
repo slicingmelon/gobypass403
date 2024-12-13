@@ -8,6 +8,7 @@ import (
 
 	"github.com/slicingmelon/go-bypass-403/internal/engine/payload"
 	"github.com/slicingmelon/go-bypass-403/internal/engine/rawhttp/bytebufferpool"
+	GB403ErrorHandler "github.com/slicingmelon/go-bypass-403/internal/utils/error"
 	"github.com/slicingmelon/go-bypass-403/internal/utils/logger"
 	"github.com/valyala/fasthttp"
 )
@@ -68,13 +69,13 @@ type RawHTTPResponseDetails struct {
 	Title           []byte
 }
 
-func NewRequestPool(clientOpts *ClientOptions, scanOpts *ScannerCliOpts) *RequestPool {
+func NewRequestPool(clientOpts *ClientOptions, scanOpts *ScannerCliOpts, errorHandler *GB403ErrorHandler.ErrorHandler) *RequestPool {
 	if clientOpts == nil {
 		clientOpts = DefaultOptionsSameHost()
 	}
 
 	pool := &RequestPool{
-		client:   NewClient(clientOpts),
+		client:   NewClient(clientOpts, errorHandler),
 		scanOpts: scanOpts,
 		workerPool: &workerPool{
 			maxWorkersCount: clientOpts.MaxConnsPerHost,

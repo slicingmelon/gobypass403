@@ -7,6 +7,7 @@ import (
 
 	"github.com/slicingmelon/go-bypass-403/internal/engine/payload"
 	"github.com/slicingmelon/go-bypass-403/internal/engine/rawhttp"
+	GB403ErrorHandler "github.com/slicingmelon/go-bypass-403/internal/utils/error"
 	"github.com/slicingmelon/go-bypass-403/internal/utils/logger"
 	"github.com/slicingmelon/go-rawurlparser"
 )
@@ -91,8 +92,7 @@ type WorkerContext struct {
 	requestPool *rawhttp.RequestPool
 }
 
-func NewWorkerContext(mode string, total int, targetURL string, opts *ScannerOpts) *WorkerContext {
-	// Start with default single host options since we're targeting one URL
+func NewWorkerContext(mode string, total int, targetURL string, opts *ScannerOpts, errorHandler *GB403ErrorHandler.ErrorHandler) *WorkerContext {
 	clientOpts := rawhttp.DefaultOptionsSameHost()
 
 	// Override specific settings from user options
@@ -115,7 +115,7 @@ func NewWorkerContext(mode string, total int, targetURL string, opts *ScannerOpt
 		requestPool: rawhttp.NewRequestPool(clientOpts, &rawhttp.ScannerCliOpts{
 			MatchStatusCodes:        opts.MatchStatusCodes,
 			ResponseBodyPreviewSize: opts.ResponseBodyPreviewSize,
-		}),
+		}, errorHandler),
 	}
 }
 
@@ -187,7 +187,7 @@ func (s *Scanner) runBypassForMode(bypassModule string, targetURL string, result
 		return
 	}
 
-	ctx := NewWorkerContext(bypassModule, len(allJobs), targetURL, s.config)
+	ctx := NewWorkerContext(bypassModule, len(allJobs), targetURL, s.config, s.errorHandler)
 	var wg sync.WaitGroup
 	wg.Add(1)
 
