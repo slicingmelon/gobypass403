@@ -58,7 +58,7 @@ type ResponseDetails struct {
 
 // PrintTableHeader prints the header for results table
 func PrintTableHeader(targetURL string) {
-	fmt.Print("\n")
+	fmt.Print("\n\n")
 	logger.Teal("[##########] Results for ")
 	logger.Yellow(targetURL)
 	logger.Teal(" [##########]")
@@ -88,7 +88,7 @@ func PrintTableRow(result *Result) {
 
 	title := formatValue(result.Title)
 	if len(title) > 20 {
-		title = title[:19] + "..."
+		title = title[:14] + "..."
 	}
 
 	contentType := formatValue(result.ContentType)
