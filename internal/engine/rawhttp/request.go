@@ -56,9 +56,9 @@ type workerChan struct {
 
 // ResponseDetails contains processed response information
 type RawHTTPResponseDetails struct {
-	URL             string // Added
-	BypassMode      string // Added
-	CurlCommand     string // Added
+	URL             string
+	BypassMode      string
+	CurlCommand     string
 	StatusCode      int
 	ResponsePreview string
 	ResponseHeaders string
@@ -72,7 +72,7 @@ type RawHTTPResponseDetails struct {
 
 func NewRequestPool(clientOpts *ClientOptions, scanOpts *ScannerCliOpts) *RequestPool {
 	if clientOpts == nil {
-		clientOpts = DefaultOptionsSingleHost()
+		clientOpts = DefaultOptionsSameHost()
 	}
 
 	pool := &RequestPool{
@@ -155,15 +155,16 @@ func (rb *RequestBuilder) SendRequest(req *fasthttp.Request) (*fasthttp.Response
 
 // ProcessRequests handles multiple requests efficiently
 func (p *RequestPool) ProcessRequests(jobs []payload.PayloadJob) <-chan *RawHTTPResponseDetails {
-	// Buffer size based on number of jobs, capped at a reasonable maximum
-	bufferSize := min(len(jobs), p.client.options.MaxConnsPerHost)
+	// Reduce buffer size to prevent too many concurrent connections
+	bufferSize := min(len(jobs), p.client.options.MaxConnsPerHost/2)
 	results := make(chan *RawHTTPResponseDetails, bufferSize)
 
 	go func() {
 		defer close(results)
 
-		// Use the configured thread count from scanner options
-		sem := make(chan struct{}, p.client.options.MaxConnsPerHost)
+		// Use a smaller number of concurrent requests
+		maxConcurrent := min(p.client.options.MaxConnsPerHost/2, 10)
+		sem := make(chan struct{}, maxConcurrent)
 		var wg sync.WaitGroup
 
 		for _, job := range jobs {
@@ -228,21 +229,28 @@ func (wp *workerPool) workerFunc(ch *workerChan) {
 		// Execute
 		resp, err := builder.SendRequest(req)
 
+		logger.LogVerbose("[%s] Sending request: %s", job.BypassMode, job.URL)
+
+		logger.LogDebug("[%s] [Canary: %s] Sending request: %s",
+			job.BypassMode,
+			job.PayloadSeed,
+			job.URL)
+
 		// Always release request
 		fasthttp.ReleaseRequest(req)
 
 		if err != nil {
 			// Enhanced error logging with job context
 			if logger.IsDebugEnabled() {
-				logger.Purple("[%s] [Canarry: %s] Request error for %s\n"+
-					"Error: %v\n",
+				logger.LogError("[%s] [Canary: %s] Request error for %s: %v",
 					job.BypassMode,
 					job.PayloadSeed,
 					job.URL,
 					err)
-			} else if logger.IsVerboseEnabled() {
-				logger.LogCyan("[%s] Request error for %s: %v "+
-					"Error: %v\n",
+			}
+
+			if logger.IsVerboseEnabled() {
+				logger.LogError("[%s] Request error for %s: %v",
 					job.BypassMode,
 					job.URL,
 					err)

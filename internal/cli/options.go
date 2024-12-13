@@ -129,7 +129,7 @@ func (o *Options) setDefaults() {
 
 	// Max response body size default
 	if o.ResponseBodyPreviewSize < 0 {
-		o.ResponseBodyPreviewSize = 1024
+		o.ResponseBodyPreviewSize = 512
 	}
 }
 

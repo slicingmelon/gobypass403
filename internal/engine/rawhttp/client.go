@@ -54,7 +54,7 @@ func DefaultOptionsMultiHost() *ClientOptions {
 }
 
 // DefaultOptionsSingleHost returns options optimized for scanning a single host
-func DefaultOptionsSingleHost() *ClientOptions {
+func DefaultOptionsSameHost() *ClientOptions {
 	return &ClientOptions{
 		Timeout:             30 * time.Second,
 		MaxConnsPerHost:     64,
@@ -71,7 +71,7 @@ func DefaultOptionsSingleHost() *ClientOptions {
 // / NewHTTPClient creates a new optimized HTTP client
 func NewClient(opts *ClientOptions) *Client {
 	if opts == nil {
-		opts = DefaultOptionsSingleHost()
+		opts = DefaultOptionsSameHost()
 	}
 
 	d := fasthttpproxy.Dialer{

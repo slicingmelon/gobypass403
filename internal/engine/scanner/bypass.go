@@ -92,16 +92,14 @@ type WorkerContext struct {
 }
 
 func NewWorkerContext(mode string, total int, targetURL string, opts *ScannerOpts) *WorkerContext {
-	// Only create ClientOptions for connection settings
-	clientOpts := &rawhttp.ClientOptions{
-		Timeout:             time.Duration(opts.Timeout) * time.Second,
-		MaxConnsPerHost:     opts.Threads,
-		MaxIdleConnDuration: 10 * time.Second,
-		MaxConnWaitTimeout:  1 * time.Second,
-		NoDefaultUserAgent:  true,
-		ProxyURL:            opts.Proxy,
-		ReadBufferSize:      opts.ResponseBodyPreviewSize,
-	}
+	// Start with default single host options since we're targeting one URL
+	clientOpts := rawhttp.DefaultOptionsSameHost()
+
+	// Override specific settings from user options
+	clientOpts.Timeout = time.Duration(opts.Timeout) * time.Second
+	clientOpts.MaxConnsPerHost = opts.Threads
+	clientOpts.ProxyURL = opts.Proxy
+	clientOpts.ReadBufferSize = opts.ResponseBodyPreviewSize
 
 	return &WorkerContext{
 		mode: mode,
