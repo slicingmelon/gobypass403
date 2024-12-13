@@ -2,7 +2,6 @@ package rawhttp
 
 import (
 	"bytes"
-	"context"
 	"fmt"
 	"math/rand"
 	"runtime"
@@ -50,11 +49,9 @@ var (
 	mu  sync.Mutex
 )
 
-// Request represents a raw HTTP request with context support
-type Request struct {
-	*fasthttp.Request
-	ctx     context.Context
-	timeout time.Duration
+// RequestBuilder handles the lifecycle of fasthttp requests
+type RequestBuilder struct {
+	client *Client
 }
 
 type Header struct {
@@ -82,6 +79,23 @@ type workerChan struct {
 	lastUseTime time.Time
 	jobs        chan payload.PayloadJob
 	results     chan *ResponseDetails
+}
+
+// ResponseDetails contains processed response information
+type ResponseDetails struct {
+	URL             string // Added
+	BypassMode      string // Added
+	CurlCommand     string // Added
+	StatusCode      int
+	ResponsePreview string
+	ResponseHeaders string
+	ContentType     string
+	ContentLength   int64
+	ServerInfo      string
+	RedirectURL     string
+	ResponseBytes   int
+	Title           string
+	BodyLimitHit    bool
 }
 
 // NewRequestPool creates a centralized request handling pool
@@ -112,48 +126,96 @@ func NewRequestPool(opts *ClientOptions) *RequestPool {
 	return pool
 }
 
+// NewRequestBuilder creates a new request builder
+func NewRequestBuilder(client *Client) *RequestBuilder {
+	return &RequestBuilder{
+		client: client,
+	}
+}
+
+// BuildRequest creates and configures a request from a payload job
+func (rb *RequestBuilder) BuildRequest(job payload.PayloadJob) *fasthttp.Request {
+	req := fasthttp.AcquireRequest()
+
+	// Core request setup
+	req.SetRequestURI(job.URL)
+	req.Header.SetMethod(job.Method)
+
+	// Disable normalizing for raw path testing
+	req.URI().DisablePathNormalizing = true
+	req.Header.DisableNormalizing()
+	req.Header.SetNoDefaultContentType(true)
+
+	// Add payload headers
+	for _, h := range job.Headers {
+		req.Header.Set(h.Header, h.Value)
+	}
+
+	// add debug canary
+	canary := generateRandomString(18)
+	if logger.IsDebugEnabled() {
+		req.Header.Set("X-GB403-Debug", canary)
+	}
+
+	// set a decent user agent
+	if !rb.client.options.NoDefaultUserAgent {
+		req.Header.SetUserAgentBytes(rb.client.userAgent)
+	}
+
+	if rb.client.options.DisableKeepAlive {
+		req.SetConnectionClose()
+	}
+
+	return req
+}
+
+// ExecuteRequest performs the request and returns a response
+func (rb *RequestBuilder) ExecuteRequest(req *fasthttp.Request) (*fasthttp.Response, error) {
+	resp := fasthttp.AcquireResponse()
+
+	err := rb.client.DoRaw(req, resp)
+	if err != nil {
+		fasthttp.ReleaseResponse(resp)
+		return nil, err
+	}
+
+	return resp, nil
+}
+
 // ProcessRequests handles multiple requests efficiently
 func (p *RequestPool) ProcessRequests(jobs []payload.PayloadJob) <-chan *ResponseDetails {
-	results := make(chan *ResponseDetails, p.client.options.MaxConnsPerHost)
+	// Buffer size based on number of jobs, capped at a reasonable maximum
+	bufferSize := min(len(jobs), p.client.options.MaxConnsPerHost)
+	results := make(chan *ResponseDetails, bufferSize)
 
 	go func() {
 		defer close(results)
 
-		// Create a buffered channel for jobs
-		jobsChan := make(chan payload.PayloadJob, len(jobs))
-
-		// Start workers
-		numWorkers := min(p.client.options.MaxConnsPerHost, len(jobs))
-		//numWorkers := min(10,30)
+		// Use the configured thread count from scanner options
+		sem := make(chan struct{}, p.client.options.MaxConnsPerHost)
 		var wg sync.WaitGroup
 
-		for i := 0; i < numWorkers; i++ {
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
-
-				for job := range jobsChan {
-					workerChan := p.workerPool.getCh()
-					if workerChan == nil {
-						continue
-					}
-
-					workerChan.jobs <- job
-					if result := <-workerChan.results; result != nil {
-						results <- result
-					}
-					p.workerPool.release(workerChan)
-				}
-			}()
-		}
-
-		// Feed jobs to workers
 		for _, job := range jobs {
-			jobsChan <- job
-		}
-		close(jobsChan)
+			wg.Add(1)
+			go func(j payload.PayloadJob) {
+				defer wg.Done()
+				sem <- struct{}{}
+				defer func() { <-sem }()
 
-		// Wait for all workers to finish
+				workerChan := p.workerPool.getCh()
+				if workerChan == nil {
+					return
+				}
+
+				workerChan.jobs <- j
+				result := <-workerChan.results
+				if result != nil {
+					results <- result
+				}
+				p.workerPool.release(workerChan)
+			}(job)
+		}
+
 		wg.Wait()
 	}()
 
@@ -186,30 +248,29 @@ func (wp *workerPool) getCh() *workerChan {
 }
 
 func (wp *workerPool) workerFunc(ch *workerChan) {
-	req := fasthttp.AcquireRequest()
-	resp := fasthttp.AcquireResponse()
-	defer fasthttp.ReleaseRequest(req)
-	defer fasthttp.ReleaseResponse(resp)
+	builder := NewRequestBuilder(wp.pool.client)
 
 	for job := range ch.jobs {
-		req.Reset()
-		resp.Reset()
+		// Build request
+		req := builder.BuildRequest(job)
 
-		req.SetRequestURI(job.URL)
-		req.Header.SetMethod(job.Method)
-		req.URI().DisablePathNormalizing = true
-		req.Header.DisableNormalizing()
+		// Execute
+		resp, err := builder.ExecuteRequest(req)
 
-		// add headers coming from the payload generators
-		for _, h := range job.Headers {
-			req.Header.Set(h.Header, h.Value)
+		// Always release request
+		fasthttp.ReleaseRequest(req)
+
+		if err != nil {
+			logger.LogVerbose("Request error: %v", err)
+			ch.results <- nil
+			continue
 		}
 
-		var result *ResponseDetails
-		err := wp.pool.client.DoRaw(req, resp)
-		if err == nil {
-			result = wp.pool.processResponse(resp, job)
-		}
+		// Process response
+		result := wp.pool.processResponse(resp, job)
+
+		// Release response
+		fasthttp.ReleaseResponse(resp)
 
 		ch.results <- result
 	}
@@ -221,51 +282,6 @@ func (wp *workerPool) release(ch *workerChan) {
 	wp.lock.Unlock()
 }
 
-// NewRequestWithContext creates a new Request with context
-func NewRequestWithContext(ctx context.Context, method, url string, headers map[string]string) *Request {
-	req := &Request{
-		Request: fasthttp.AcquireRequest(),
-		ctx:     ctx,
-	}
-
-	req.Header.SetMethod(method)
-	req.SetRequestURI(url)
-
-	// Configure raw request handling
-	req.URI().DisablePathNormalizing = true
-	req.Header.DisableNormalizing()
-	req.Header.SetNoDefaultContentType(true)
-
-	// Set headers at creation time
-	for key, value := range headers {
-		req.Header.Set(key, value)
-	}
-
-	canary := generateRandomString(18)
-	if logger.IsDebugEnabled() {
-		req.Header.Set("X-GB403-Debug", canary)
-	}
-
-	return req
-}
-
-// ResponseDetails contains processed response information
-type ResponseDetails struct {
-	URL             string // Added
-	BypassMode      string // Added
-	CurlCommand     string // Added
-	StatusCode      int
-	ResponsePreview string
-	ResponseHeaders string
-	ContentType     string
-	ContentLength   int64
-	ServerInfo      string
-	RedirectURL     string
-	ResponseBytes   int
-	Title           string
-	BodyLimitHit    bool
-}
-
 // processResponse handles response processing and data extraction
 // processResponse converts fasthttp.Response to ResponseDetails
 func (p *RequestPool) processResponse(resp *fasthttp.Response, job payload.PayloadJob) *ResponseDetails {
@@ -274,7 +290,7 @@ func (p *RequestPool) processResponse(resp *fasthttp.Response, job payload.Paylo
 		BypassMode:  job.BypassMode,
 		StatusCode:  resp.StatusCode(),
 		ContentType: Byte2String(resp.Header.ContentType()),
-		ServerInfo:  Byte2String(resp.Header.Peek("Server")),
+		ServerInfo:  string(resp.Header.Server()),
 		RedirectURL: Byte2String(resp.Header.Peek("Location")),
 	}
 
@@ -288,68 +304,21 @@ func (p *RequestPool) processResponse(resp *fasthttp.Response, job payload.Paylo
 	})
 	details.ResponseHeaders = headerBuf.String()
 
-	// Process body
-	body := resp.Body()
-	details.ResponseBytes = len(body)
+	// Set max body size limit before reading
+	resp.SetBodyStream(resp.BodyStream(), DefaultBodyPreviewSize)
 
-	// Handle body size limits
-	if len(body) > DefaultMaxResponseSize {
+	// Now we only get preview size
+	preview := resp.Body()
+	details.ResponsePreview = string(preview)
+	details.ResponseBytes = len(preview)
+
+	// Check if there's more data (body was limited)
+	if resp.Header.ContentLength() > DefaultBodyPreviewSize {
 		details.BodyLimitHit = true
-		body = body[:DefaultMaxResponseSize]
 	}
 
-	// Create preview
-	if len(body) > DefaultBodyPreviewSize {
-		details.ResponsePreview = string(body[:DefaultBodyPreviewSize]) + "..."
-	} else {
-		details.ResponsePreview = string(body)
-	}
-
-	// Generate curl command for reproduction
 	details.CurlCommand = BuildCurlCommand(job)
-
 	return details
-}
-
-// SetHeaderBytes sets a header using byte slices
-func (r *Request) SetHeaderBytes(key, value []byte) {
-	r.Header.SetBytesKV(key, value)
-}
-
-// SetRequestURIBytes sets the request URI using a byte slice
-func (r *Request) SetRequestURIBytes(uri []byte) {
-	r.Request.SetRequestURIBytes(uri)
-	r.URI().DisablePathNormalizing = true
-}
-
-// SetHeader sets a header value
-func (r *Request) SetHeader(key, value string) {
-	r.Header.Set(key, value)
-}
-
-// SetHeaders sets multiple headers from a map
-func (r *Request) SetHeaders(headers map[string]string) {
-	for key, value := range headers {
-		r.Header.Set(key, value)
-	}
-}
-
-// // SetBody sets the request body
-// func (r *Request) SetBody(body []byte) {
-// 	r.SetBody(body)
-// }
-
-// SetTimeout sets request timeout
-func (r *Request) SetTimeout(timeout time.Duration) {
-	r.timeout = timeout
-}
-
-// Release releases request resources back to pool
-func (r *Request) Release() {
-	if r.Request != nil {
-		fasthttp.ReleaseRequest(r.Request)
-		r.Request = nil
-	}
 }
 
 // Helper function to generate random strings

@@ -1,8 +1,6 @@
 package rawhttp
 
 import (
-	"bufio"
-	"bytes"
 	"crypto/tls"
 	"sync"
 	"time"
@@ -110,49 +108,9 @@ func NewClient(opts *ClientOptions) *Client {
 	}
 }
 
-// DoRaw performs a raw HTTP request with full control over the request
 // DoRaw performs a raw HTTP request
 func (c *Client) DoRaw(req *fasthttp.Request, resp *fasthttp.Response) error {
-	if !c.options.NoDefaultUserAgent && len(req.Header.UserAgent()) == 0 {
-		req.Header.SetUserAgentBytes(c.userAgent)
-	}
-
-	if c.options.DisableKeepAlive {
-		req.Header.SetConnectionClose()
-		req.SetConnectionClose()
-	}
-
-	// First do the request
-	err := c.client.Do(req, resp)
-	if err != nil {
-		return err
-	}
-
-	// Then apply body size limits if configured
-	if c.options.ReadBufferSize > 0 {
-		// Create a reader from the response body
-		bodyReader := bufio.NewReader(bytes.NewReader(resp.Body()))
-
-		// Use ReadLimitBody to enforce size limits
-		err = resp.ReadLimitBody(bodyReader, c.options.ReadBufferSize)
-		if err != nil {
-			if err == fasthttp.ErrBodyTooLarge {
-				// Truncate response body to max size
-				resp.SetBody(resp.Body()[:c.options.ReadBufferSize])
-				return nil
-			}
-			return err
-		}
-	}
-
-	return nil
-}
-
-// isRetryableError determines if an error should trigger a retry
-func isRetryableError(err error) bool {
-	// TODO: Implement specific error checks for retry conditions
-	// Common cases: connection errors, timeouts, temporary network issues
-	return true
+	return c.client.Do(req, resp)
 }
 
 // AcquireBuffer gets a buffer from the pool
