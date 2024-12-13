@@ -183,42 +183,34 @@ func (s *Scanner) runBypassForMode(bypassModule string, targetURL string, result
 		return
 	}
 
-	// Generate all jobs for this module
 	allJobs := moduleInstance.GenerateJobs(targetURL, bypassModule, s.config)
 	if len(allJobs) == 0 {
 		logger.LogVerbose("No jobs generated for module: %s", bypassModule)
 		return
 	}
 
-	// Create WorkerContext with all necessary components
 	ctx := NewWorkerContext(bypassModule, len(allJobs), targetURL, s.config)
-
-	// Use errgroup for better goroutine management
 	var wg sync.WaitGroup
 	wg.Add(1)
 
 	go func() {
 		defer wg.Done()
-		defer ctx.Stop() // Move cleanup here
 
-		// Use WorkerContext's requestPool
 		responses := ctx.requestPool.ProcessRequests(allJobs)
+		foundMatch := false
 
 		for response := range responses {
-			if ctx.progress.isCancelled() {
-				return
-			}
-
-			// Use WorkerContext's progress counter
-			ctx.progress.increment()
-
 			if response == nil {
+				ctx.progress.increment()
 				continue
 			}
+
+			ctx.progress.increment()
 
 			// Check for matching status codes
 			for _, code := range s.config.MatchStatusCodes {
 				if response.StatusCode == code {
+					foundMatch = true
 					results <- &Result{
 						TargetURL:       response.URL,
 						BypassModule:    bypassModule,
@@ -235,6 +227,11 @@ func (s *Scanner) runBypassForMode(bypassModule string, targetURL string, result
 					}
 				}
 			}
+		}
+
+		// Only log if we completed all requests but found no matches
+		if !foundMatch {
+			logger.LogVerbose("\n[%s] No matching status codes found\n", bypassModule)
 		}
 	}()
 

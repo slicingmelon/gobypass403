@@ -66,7 +66,7 @@ func PrintTableHeader(targetURL string) {
 	fmt.Printf("%s [%s] %s=> %s [%s] [%s] [%s] [%s] [%s]\n",
 		logger.Blue("[bypass]"),
 		logger.Yellow("[curl poc]"),
-		strings.Repeat("=", 70),
+		strings.Repeat("=", 90),
 		logger.Green("[status]"),
 		logger.Purple("[content-length]"),
 		logger.Orange("[content-type]"),

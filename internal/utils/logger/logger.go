@@ -18,6 +18,7 @@ type Logger struct {
 	orangeColor  *color.Color
 	pinkColor    *color.Color
 	tealColor    *color.Color
+	cyanColor    *color.Color
 
 	// Add these fields
 	verboseEnabled bool
@@ -41,6 +42,7 @@ var (
 	LogGray    func(format string, v ...interface{})
 	LogTeal    func(format string, v ...interface{})
 	LogPink    func(format string, v ...interface{})
+	LogCyan    func(format string, v ...interface{})
 
 	// Color-only functions (without newlines)
 	Yellow func(format string, v ...interface{}) string
@@ -51,6 +53,7 @@ var (
 	Gray   func(format string, v ...interface{}) string
 	Teal   func(format string, v ...interface{}) string
 	Pink   func(format string, v ...interface{}) string
+	Cyan   func(format string, v ...interface{}) string
 )
 
 // init initializes the global logger and its functions
@@ -70,6 +73,7 @@ func init() {
 	LogGray = globalLogger.LogGray
 	LogTeal = globalLogger.LogTeal
 	LogPink = globalLogger.LogPink
+	LogCyan = globalLogger.LogCyan
 
 	// Initialize color-only functions (without newlines)
 	Yellow = globalLogger.yellowColor.Sprintf // Fixed: was using logger.yellowColor
@@ -80,6 +84,7 @@ func init() {
 	Gray = globalLogger.grayColor.Sprintf     // Fixed: was using logger.grayColor
 	Teal = globalLogger.tealColor.Sprintf     // Fixed: was using logger.tealColor
 	Pink = globalLogger.pinkColor.Sprintf     // Fixed: was using logger.pinkColor
+	Cyan = globalLogger.cyanColor.Sprintf     // Fixed: was using logger.cyanColor
 }
 
 // NewLogger creates a new logger instance
@@ -97,6 +102,7 @@ func NewLogger() *Logger {
 		orangeColor:  color.New(color.FgHiRed),
 		pinkColor:    color.New(color.FgHiMagenta),
 		tealColor:    color.New(color.FgHiCyan),
+		cyanColor:    color.New(color.FgHiCyan),
 	}
 }
 
@@ -152,6 +158,10 @@ func (l *Logger) LogError(format string, v ...interface{}) {
 
 func (l *Logger) LogYellow(format string, v ...interface{}) {
 	l.yellowColor.Printf("\n"+format+"\n", v...)
+}
+
+func (l *Logger) LogCyan(format string, v ...interface{}) {
+	l.cyanColor.Printf("\n"+format+"\n", v...)
 }
 
 func (l *Logger) LogOrange(format string, v ...interface{}) {
@@ -212,4 +222,8 @@ func GrayString(format string, a ...interface{}) string {
 
 func PinkString(format string, a ...interface{}) string {
 	return globalLogger.pinkColor.Sprintf(format, a...)
+}
+
+func CyanString(format string, a ...interface{}) string {
+	return globalLogger.cyanColor.Sprintf(format, a...)
 }

@@ -132,6 +132,9 @@ func (rb *RequestBuilder) BuildRequest(job payload.PayloadJob) *fasthttp.Request
 
 	if rb.client.options.DisableKeepAlive {
 		req.SetConnectionClose()
+	} else {
+		req.Header.Set("Connection", "keep-alive")
+
 	}
 
 	return req
@@ -229,8 +232,26 @@ func (wp *workerPool) workerFunc(ch *workerChan) {
 		fasthttp.ReleaseRequest(req)
 
 		if err != nil {
-			logger.LogVerbose("Request error: %v", err)
+			// Enhanced error logging with job context
+			if logger.IsDebugEnabled() {
+				logger.Purple("[%s] [Canarry: %s] Request error for %s\n"+
+					"Error: %v\n",
+					job.BypassMode,
+					job.PayloadSeed,
+					job.URL,
+					err)
+			} else if logger.IsVerboseEnabled() {
+				logger.LogCyan("[%s] Request error for %s: %v "+
+					"Error: %v\n",
+					job.BypassMode,
+					job.URL,
+					err)
+			}
+
 			ch.results <- nil
+
+			// Add delay on error to prevent overwhelming the server
+			time.Sleep(100 * time.Millisecond)
 			continue
 		}
 

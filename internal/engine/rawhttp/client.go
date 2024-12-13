@@ -62,7 +62,7 @@ func DefaultOptionsSingleHost() *ClientOptions {
 		MaxConnWaitTimeout:  2 * time.Second,
 		NoDefaultUserAgent:  true,
 		ReadBufferSize:      4096,
-		MaxRetries:          5,
+		MaxRetries:          3,
 		RetryDelay:          1 * time.Second,
 		DisableKeepAlive:    false, // Keep connections alive for single host
 	}
@@ -74,26 +74,15 @@ func NewClient(opts *ClientOptions) *Client {
 		opts = DefaultOptionsSingleHost()
 	}
 
-	// Configure dialer based on proxy settings
-	httpproxyConfig := &httpproxy.Config{
-		HTTPProxy:  opts.ProxyURL,
-		HTTPSProxy: opts.ProxyURL,
-	}
-
-	if opts.ProxyURL == "" {
-		httpproxyConfig.NoProxy = "*"
-	}
-
 	d := fasthttpproxy.Dialer{
-
 		TCPDialer: fasthttp.TCPDialer{
 			Concurrency:      2048,
 			DNSCacheDuration: time.Hour,
 		},
-		Config: httpproxy.Config{ // Direct struct initialization
+		Config: httpproxy.Config{
 			HTTPProxy:  opts.ProxyURL,
 			HTTPSProxy: opts.ProxyURL,
-			NoProxy:    "*", // Set if opts.ProxyURL == ""
+			NoProxy:    "*",
 		},
 		ConnectTimeout: 5 * time.Second,
 		DialDualStack:  false,
@@ -102,7 +91,6 @@ func NewClient(opts *ClientOptions) *Client {
 	dialFunc, _ := d.GetDialFunc(false)
 
 	client := &fasthttp.Client{
-		ReadTimeout:                   opts.Timeout,
 		MaxConnsPerHost:               opts.MaxConnsPerHost,
 		MaxIdleConnDuration:           opts.MaxIdleConnDuration,
 		MaxConnWaitTimeout:            opts.MaxConnWaitTimeout,
@@ -112,9 +100,9 @@ func NewClient(opts *ClientOptions) *Client {
 		ReadBufferSize:                opts.ReadBufferSize,
 		MaxIdemponentCallAttempts:     opts.MaxRetries,
 		Dial:                          dialFunc,
+		// Let fasthttp handle TLS automatically based on URI scheme
 		TLSConfig: &tls.Config{
 			InsecureSkipVerify: true,
-			MinVersion:         tls.VersionTLS10,
 		},
 	}
 

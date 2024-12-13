@@ -50,7 +50,7 @@ func (r *Runner) Initialize() error {
 		Threads:                 r.options.Threads,
 		Delay:                   r.options.Delay,
 		TraceRequests:           r.options.TraceRequests,
-		Proxy:                   r.options.ParsedProxy.String(),
+		Proxy:                   "",
 		EnableHTTP2:             r.options.EnableHTTP2,
 		SpoofHeader:             r.options.SpoofHeader,
 		SpoofIP:                 r.options.SpoofIP,
@@ -60,6 +60,11 @@ func (r *Runner) Initialize() error {
 		Verbose:                 r.options.Verbose,
 		ResponseBodyPreviewSize: r.options.ResponseBodyPreviewSize,
 		ProbeCache:              r.urlProcessor.GetProbeCache(),
+	}
+
+	// Only set proxy if ParsedProxy exists
+	if r.options.ParsedProxy != nil {
+		scannerOpts.Proxy = r.options.ParsedProxy.String()
 	}
 
 	r.scanner = scanner.New(scannerOpts, urls)
