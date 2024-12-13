@@ -104,16 +104,20 @@ func NewWorkerContext(mode string, total int, targetURL string, opts *ScannerOpt
 	}
 
 	return &WorkerContext{
-		mode:     mode,
-		progress: &ProgressCounter{},
-		cancel:   make(chan struct{}),
-		wg:       &sync.WaitGroup{},
-		once:     sync.Once{},
-		opts:     opts,
+		mode: mode,
+		progress: &ProgressCounter{
+			Total: total,
+			Mode:  mode,
+			URL:   targetURL,
+		},
+		cancel: make(chan struct{}),
+		wg:     &sync.WaitGroup{},
+		once:   sync.Once{},
+		opts:   opts,
 		requestPool: rawhttp.NewRequestPool(clientOpts, &rawhttp.ScannerCliOpts{
 			MatchStatusCodes:        opts.MatchStatusCodes,
 			ResponseBodyPreviewSize: opts.ResponseBodyPreviewSize,
-		}), // Pass entire opts
+		}),
 	}
 }
 

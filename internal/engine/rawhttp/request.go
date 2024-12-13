@@ -258,7 +258,7 @@ func (p *RequestPool) processResponse(resp *fasthttp.Response, job payload.Paylo
 		BypassMode:  job.BypassMode,
 		StatusCode:  resp.StatusCode(),
 		ContentType: Byte2String(resp.Header.ContentType()),
-		ServerInfo:  string(resp.Header.Server()),
+		ServerInfo:  Byte2String(resp.Header.Server()),
 		RedirectURL: Byte2String(resp.Header.Peek("Location")),
 	}
 

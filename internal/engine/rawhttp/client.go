@@ -7,6 +7,7 @@ import (
 
 	"github.com/valyala/fasthttp"
 	"github.com/valyala/fasthttp/fasthttpproxy"
+	"golang.org/x/net/http/httpproxy"
 )
 
 var (
@@ -25,6 +26,7 @@ type ClientOptions struct {
 	MaxRetries          int
 	RetryDelay          time.Duration
 	DisableKeepAlive    bool
+	EnableHTTP2         bool
 }
 
 // Client represents a reusable HTTP client optimized for performance
@@ -44,7 +46,7 @@ func DefaultOptionsMultiHost() *ClientOptions {
 		MaxConnsPerHost:     25,
 		MaxIdleConnDuration: 5 * time.Second,
 		NoDefaultUserAgent:  true,
-		ProxyURL:            "",
+		ReadBufferSize:      4096,
 		MaxRetries:          3,
 		RetryDelay:          1 * time.Second,
 		DisableKeepAlive:    true, // Set to true for multi-host scanning
@@ -55,11 +57,10 @@ func DefaultOptionsMultiHost() *ClientOptions {
 func DefaultOptionsSingleHost() *ClientOptions {
 	return &ClientOptions{
 		Timeout:             30 * time.Second,
-		MaxConnsPerHost:     128,
+		MaxConnsPerHost:     64,
 		MaxIdleConnDuration: 10 * time.Second,
 		MaxConnWaitTimeout:  2 * time.Second,
 		NoDefaultUserAgent:  true,
-		ProxyURL:            "",
 		ReadBufferSize:      4096,
 		MaxRetries:          5,
 		RetryDelay:          1 * time.Second,
@@ -74,27 +75,43 @@ func NewClient(opts *ClientOptions) *Client {
 	}
 
 	// Configure dialer based on proxy settings
-	var dialFunc fasthttp.DialFunc
-	if opts.ProxyURL != "" {
-		dialFunc = fasthttpproxy.FasthttpHTTPDialerTimeout(opts.ProxyURL, opts.Timeout)
-	} else {
-		dialFunc = (&fasthttp.TCPDialer{
-			Concurrency:      100,
-			DNSCacheDuration: time.Minute,
-		}).Dial
+	httpproxyConfig := &httpproxy.Config{
+		HTTPProxy:  opts.ProxyURL,
+		HTTPSProxy: opts.ProxyURL,
 	}
 
+	if opts.ProxyURL == "" {
+		httpproxyConfig.NoProxy = "*"
+	}
+
+	d := fasthttpproxy.Dialer{
+
+		TCPDialer: fasthttp.TCPDialer{
+			Concurrency:      2048,
+			DNSCacheDuration: time.Hour,
+		},
+		Config: httpproxy.Config{ // Direct struct initialization
+			HTTPProxy:  opts.ProxyURL,
+			HTTPSProxy: opts.ProxyURL,
+			NoProxy:    "*", // Set if opts.ProxyURL == ""
+		},
+		ConnectTimeout: 5 * time.Second,
+		DialDualStack:  false,
+	}
+
+	dialFunc, _ := d.GetDialFunc(false)
+
 	client := &fasthttp.Client{
-		Dial:                          dialFunc,
 		ReadTimeout:                   opts.Timeout,
-		WriteTimeout:                  opts.Timeout,
 		MaxConnsPerHost:               opts.MaxConnsPerHost,
 		MaxIdleConnDuration:           opts.MaxIdleConnDuration,
+		MaxConnWaitTimeout:            opts.MaxConnWaitTimeout,
 		DisableHeaderNamesNormalizing: true,
 		DisablePathNormalizing:        true,
 		NoDefaultUserAgentHeader:      true,
 		ReadBufferSize:                opts.ReadBufferSize,
-		MaxIdemponentCallAttempts:     1,
+		MaxIdemponentCallAttempts:     opts.MaxRetries,
+		Dial:                          dialFunc,
 		TLSConfig: &tls.Config{
 			InsecureSkipVerify: true,
 			MinVersion:         tls.VersionTLS10,
@@ -102,10 +119,12 @@ func NewClient(opts *ClientOptions) *Client {
 	}
 
 	return &Client{
-		client:    client,
-		bufPool:   sync.Pool{New: func() interface{} { return make([]byte, 0, opts.ReadBufferSize) }},
-		userAgent: userAgent,
-		options:   opts,
+		client:     client,
+		bufPool:    sync.Pool{New: func() interface{} { return make([]byte, 0, opts.ReadBufferSize) }},
+		userAgent:  userAgent,
+		maxRetries: opts.MaxRetries,
+		retryDelay: opts.RetryDelay,
+		options:    opts,
 	}
 }
 

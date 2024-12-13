@@ -19,7 +19,7 @@ type ScannerOpts struct {
 	Delay                   int
 	TraceRequests           bool
 	Proxy                   string
-	ForceHTTP2              bool
+	EnableHTTP2             bool
 	SpoofHeader             string
 	SpoofIP                 string
 	FollowRedirects         bool
@@ -40,11 +40,11 @@ func New(opts *ScannerOpts, urls []string) *Scanner {
 }
 
 func (s *Scanner) Run() error {
-	logger.LogInfo("Initializing scanner with %d URLs", len(s.urls))
+	logger.LogYellow("Initializing scanner with %d URLs", len(s.urls))
 
 	for _, url := range s.urls {
 		if err := s.scanURL(url); err != nil {
-			logger.LogError("Error scanning %s: %v", url, err)
+			logger.LogError("Error scanning %s!  Error: %v", url, err)
 			continue
 		}
 	}

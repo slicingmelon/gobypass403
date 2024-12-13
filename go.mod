@@ -9,6 +9,7 @@ require (
 	github.com/projectdiscovery/utils v0.4.1
 	github.com/slicingmelon/go-rawurlparser v0.2.7
 	github.com/valyala/fasthttp v1.58.0
+	golang.org/x/net v0.31.0
 )
 
 require (
@@ -54,7 +55,6 @@ require (
 	golang.org/x/crypto v0.29.0 // indirect
 	golang.org/x/exp v0.0.0-20221205204356-47842c84f3db // indirect
 	golang.org/x/mod v0.17.0 // indirect
-	golang.org/x/net v0.31.0 // indirect
 	golang.org/x/sync v0.9.0 // indirect
 	golang.org/x/sys v0.27.0 // indirect
 	golang.org/x/text v0.20.0 // indirect

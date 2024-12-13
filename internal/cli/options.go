@@ -2,6 +2,7 @@ package cli
 
 import (
 	"encoding/json"
+	"flag"
 	"fmt"
 	"net/url"
 	"os"
@@ -19,7 +20,7 @@ type Options struct {
 	SubstituteHostsFile string
 
 	// Scan configuration
-	Module                  string // Changed from Mode to Module
+	Module                  string
 	MatchStatusCodesStr     string
 	MatchStatusCodes        []int
 	Threads                 int
@@ -36,7 +37,7 @@ type Options struct {
 	// Network options
 	Proxy           string
 	ParsedProxy     *url.URL
-	ForceHTTP2      bool
+	EnableHTTP2     bool
 	FollowRedirects bool
 
 	// Spoofing options
@@ -65,6 +66,39 @@ var AvailableModules = map[string]bool{
 	"http_host":           true,
 }
 
+// Add this method to your Options struct
+// printUsage prints either full usage or specific flag usage
+func (o *Options) printUsage(flagName ...string) {
+	if len(flagName) == 0 {
+		flag.Usage()
+		return
+	}
+
+	// Print header only for specific flag usage
+	fmt.Fprintf(os.Stderr, "Go-Bypass-403\n\n")
+
+	// Search for the specific flag in our flags slice
+	for _, f := range flags {
+		names := strings.Split(f.name, ",")
+		for _, name := range names {
+			if name == flagName[0] {
+				if len(names) > 1 {
+					fmt.Fprintf(os.Stderr, "  -%s, -%s\n", names[0], names[1])
+				} else {
+					fmt.Fprintf(os.Stderr, "  -%s\n", names[0])
+				}
+
+				if f.defVal != nil {
+					fmt.Fprintf(os.Stderr, "        %s (Default: %v)\n", f.usage, f.defVal)
+				} else {
+					fmt.Fprintf(os.Stderr, "        %s\n", f.usage)
+				}
+				return
+			}
+		}
+	}
+}
+
 // setDefaults sets default values for options
 func (o *Options) setDefaults() {
 	// Core defaults
@@ -75,11 +109,13 @@ func (o *Options) setDefaults() {
 		o.Threads = 15
 	}
 	if o.Timeout == 0 {
-		o.Timeout = 15
+		o.Timeout = 20
 	}
 	if o.Delay <= 0 {
 		o.Delay = 150
 	}
+
+	o.TraceRequests = false
 
 	// Status codes default
 	if o.MatchStatusCodesStr == "" {
@@ -176,6 +212,8 @@ func (o *Options) processStatusCodes() error {
 // validateModule checks if the specified module is valid
 func (o *Options) validateModule() error {
 	if !AvailableModules[o.Module] {
+		o.printUsage("module")
+		fmt.Println()
 		return fmt.Errorf("invalid module: %s", o.Module)
 	}
 	return nil
@@ -207,7 +245,6 @@ func (o *Options) setupOutputDir() error {
 	return nil
 }
 
-// processProxy processes the proxy URL if provided
 func (o *Options) processProxy() error {
 	if o.Proxy == "" {
 		return nil
@@ -215,8 +252,11 @@ func (o *Options) processProxy() error {
 
 	parsedProxy, err := url.Parse(o.Proxy)
 	if err != nil {
-		return fmt.Errorf("invalid proxy URL: %v", err)
+		o.printUsage("proxy")
+		fmt.Println()
+		return fmt.Errorf("\ninvalid proxy URL: %v\n", err)
 	}
+
 	o.ParsedProxy = parsedProxy
 	return nil
 }

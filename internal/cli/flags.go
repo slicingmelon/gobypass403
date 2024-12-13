@@ -14,6 +14,8 @@ type multiFlag struct {
 	defVal interface{}
 }
 
+var flags []multiFlag
+
 func parseFlags() (*Options, error) {
 	opts := &Options{}
 
@@ -24,18 +26,18 @@ func parseFlags() (*Options, error) {
 		{name: "m,module", usage: "Bypass module (all, mid_paths, end_paths, case_substitution, char_encode, http_headers_scheme, http_headers_ip, http_headers_port, http_headers_url, http_host)", value: &opts.Module, defVal: "all"},
 		{name: "o,outdir", usage: "Output directory", value: &opts.OutDir},
 		{name: "t,threads", usage: "Number of concurrent threads", value: &opts.Threads, defVal: 15},
-		{name: "T,timeout", usage: "Timeout in seconds", value: &opts.Timeout, defVal: 15},
+		{name: "T,timeout", usage: "Timeout in seconds", value: &opts.Timeout, defVal: false},
 		{name: "delay", usage: "Delay between requests in milliseconds", value: &opts.Delay, defVal: 150},
 		{name: "v,verbose", usage: "Verbose output", value: &opts.Verbose},
 		{name: "d,debug", usage: "Debug mode with request canaries", value: &opts.Debug},
 		{name: "trace", usage: "Trace HTTP requests", value: &opts.TraceRequests},
 		{name: "mc,match-status-code", usage: "Only save results matching these HTTP status codes (example: -mc 200,301,500)", value: &opts.MatchStatusCodesStr},
-		{name: "http2", usage: "Force attempt requests on HTTP2", value: &opts.ForceHTTP2},
-		{name: "x,proxy", usage: "Proxy URL (format: http://proxy:port)", value: &opts.Proxy},
+		{name: "http2", usage: "Enable HTTP2 client", value: &opts.EnableHTTP2, defVal: false},
+		{name: "x,proxy", usage: "Proxy URL (format: http://proxy:port) (Example: -x http://127.0.0.1:8080)", value: &opts.Proxy},
 		{name: "spoof-header", usage: "Add more headers used to spoof IPs (example: X-SecretIP-Header,X-GO-IP)", value: &opts.SpoofHeader},
 		{name: "spoof-ip", usage: "Add more spoof IPs (example: 10.10.20.20,172.16.30.10)", value: &opts.SpoofIP},
 		{name: "fr,follow-redirects", usage: "Follow HTTP redirects", value: &opts.FollowRedirects},
-		{name: "rps,response-preview-size", usage: "Maximum number of bytes to retrieve from response body", value: &opts.ResponseBodyPreviewSize, defVal: 1024}, // 1024 bytes
+		{name: "rbps,response-body-preview-size", usage: "Maximum number of bytes to retrieve from response body", value: &opts.ResponseBodyPreviewSize, defVal: 1024}, // 1024 bytes
 	}
 
 	// Set up custom usage
