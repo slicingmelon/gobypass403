@@ -45,6 +45,8 @@ func New(opts *ScannerOpts, urls []string) *Scanner {
 }
 
 func (s *Scanner) Run() error {
+	defer s.Close()
+
 	logger.LogYellow("Initializing scanner with %d URLs", len(s.urls))
 
 	for _, url := range s.urls {
@@ -90,4 +92,11 @@ func (s *Scanner) scanURL(url string) error {
 	}
 
 	return nil
+}
+
+func (s *Scanner) Close() {
+	// Close error handler
+	if s.errorHandler != nil {
+		s.errorHandler.Close()
+	}
 }

@@ -129,11 +129,14 @@ func (rb *RequestBuilder) BuildRequest(job payload.PayloadJob) *fasthttp.Request
 		req.Header.SetUserAgentBytes(rb.client.userAgent)
 	}
 
-	if rb.client.options.DisableKeepAlive {
+	// Handle connection settings
+	if rb.client.options.ProxyURL != "" {
+		// Always use Connection: close with proxy
+		req.SetConnectionClose()
+	} else if rb.client.options.DisableKeepAlive {
 		req.SetConnectionClose()
 	} else {
 		req.Header.Set("Connection", "keep-alive")
-
 	}
 
 	return req
@@ -352,9 +355,8 @@ func Byte2String(b []byte) string {
 	return unsafe.String(unsafe.SliceData(b), len(b))
 }
 
-// BuildCurlCommand generates a curl command for request reproduction
-// Uses local bytebufferpool pkg
-// BuildCurlCommand generates a curl command for request reproduction
+// BuildCurlCommand generates a curl poc command to reproduce the findings
+// Uses a local bytebufferpool implementation from this project
 func BuildCurlCmd(job payload.PayloadJob) []byte {
 	buf := bytebufferpool.Get()
 	defer bytebufferpool.Put(buf)

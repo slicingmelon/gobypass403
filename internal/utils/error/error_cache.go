@@ -106,7 +106,8 @@ func (h *ErrorHandler) GetCacheStats() CacheStats {
 	}
 }
 
-// Close releases cache resources
 func (h *ErrorHandler) Close() {
-	h.cache.Reset()
+	if h.cache != nil {
+		h.cache.Reset()
+	}
 }

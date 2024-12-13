@@ -1,18 +1,12 @@
 package rawhttp
 
 import (
-	"crypto/tls"
-	"errors"
-	"fmt"
-	"net"
-	"strings"
 	"sync"
 	"time"
 
 	GB403ErrorHandler "github.com/slicingmelon/go-bypass-403/internal/utils/error"
 	"github.com/valyala/fasthttp"
 	"github.com/valyala/fasthttp/fasthttpproxy"
-	"golang.org/x/net/http/httpproxy"
 )
 
 var (
@@ -80,52 +74,16 @@ func NewClient(opts *ClientOptions, errorHandler *GB403ErrorHandler.ErrorHandler
 		opts = DefaultOptionsSameHost()
 	}
 
-	d := fasthttpproxy.Dialer{
-		TCPDialer: fasthttp.TCPDialer{
+	var dialFunc fasthttp.DialFunc
+	if opts.ProxyURL != "" {
+		dialFunc = fasthttpproxy.FasthttpHTTPDialerTimeout(opts.ProxyURL, time.Second*2)
+	} else {
+		// No proxy, use default dialer
+		d := &fasthttp.TCPDialer{
 			Concurrency:      2048,
 			DNSCacheDuration: time.Hour,
-		},
-		Config: httpproxy.Config{
-			HTTPProxy:  opts.ProxyURL,
-			HTTPSProxy: opts.ProxyURL,
-			NoProxy:    "*",
-		},
-		ConnectTimeout: 5 * time.Second,
-		DialDualStack:  false,
-	}
-
-	// Get the dial function and handle any initial errors
-	dialFunc, err := d.GetDialFunc(false)
-	if err != nil && errorHandler != nil {
-		errorHandler.HandleError("Dialer", err)
-	}
-
-	wrappedDialFunc := func(addr string) (net.Conn, error) {
-		conn, err := dialFunc(addr)
-		if err != nil {
-			if errorHandler != nil {
-				var dialErr *fasthttp.ErrDialWithUpstream
-				switch {
-				case errors.Is(err, fasthttp.ErrDialTimeout):
-					errorHandler.HandleError("Dial", fmt.Errorf("timeout connecting to %s: %w", addr, err))
-				case errors.As(err, &dialErr):
-					// Handle DNS and proxy errors
-					switch {
-					case strings.Contains(dialErr.Error(), "no such host") ||
-						strings.Contains(dialErr.Error(), "no DNS entries"):
-						errorHandler.HandleError("DNS", fmt.Errorf("DNS resolution failed for %s: %w", addr, err))
-					case strings.Contains(dialErr.Error(), "proxy"):
-						errorHandler.HandleError("Proxy", fmt.Errorf("proxy error for %s: %w", addr, err))
-					default:
-						errorHandler.HandleError("Dial", fmt.Errorf("connection failed to %s: %w", addr, err))
-					}
-				default:
-					errorHandler.HandleError("Dial", fmt.Errorf("error connecting to %s: %w", addr, err))
-				}
-			}
-			return nil, err
 		}
-		return conn, nil
+		dialFunc = d.Dial
 	}
 
 	client := &fasthttp.Client{
@@ -137,10 +95,10 @@ func NewClient(opts *ClientOptions, errorHandler *GB403ErrorHandler.ErrorHandler
 		NoDefaultUserAgentHeader:      true,
 		ReadBufferSize:                opts.ReadBufferSize,
 		MaxIdemponentCallAttempts:     opts.MaxRetries,
-		Dial:                          wrappedDialFunc,
-		TLSConfig: &tls.Config{
-			InsecureSkipVerify: true,
-		},
+		Dial:                          dialFunc,
+		// TLSConfig: &tls.Config{
+		// 	InsecureSkipVerify: true,
+		// },
 	}
 
 	return &Client{
