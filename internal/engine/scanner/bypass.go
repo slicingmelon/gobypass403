@@ -188,50 +188,43 @@ func (s *Scanner) runBypassForMode(bypassModule string, targetURL string, result
 	}
 
 	ctx := NewWorkerContext(bypassModule, len(allJobs), targetURL, s.config, s.errorHandler)
-	var wg sync.WaitGroup
-	wg.Add(1)
 
-	go func() {
-		defer wg.Done()
+	responses := ctx.requestPool.ProcessRequests(allJobs)
 
-		responses := ctx.requestPool.ProcessRequests(allJobs)
-		foundMatch := false
-
-		for response := range responses {
-			if response == nil {
-				ctx.progress.increment()
-				continue
-			}
-
+	for response := range responses {
+		if response == nil {
 			ctx.progress.increment()
+			continue
+		}
 
-			// Check for matching status codes
-			for _, code := range s.config.MatchStatusCodes {
-				if response.StatusCode == code {
-					foundMatch = true
-					results <- &Result{
-						TargetURL:       string(response.URL),
-						BypassModule:    bypassModule,
-						StatusCode:      response.StatusCode,
-						ResponseHeaders: string(response.ResponseHeaders),
-						CurlPocCommand:  string(response.CurlCommand),
-						ResponsePreview: string(response.ResponsePreview),
-						ContentType:     string(response.ContentType),
-						ContentLength:   response.ContentLength,
-						ResponseBytes:   response.ResponseBytes,
-						Title:           string(response.Title),
-						ServerInfo:      string(response.ServerInfo),
-						RedirectURL:     string(response.RedirectURL),
-					}
-				}
+		ctx.progress.increment()
+
+		// Check for matching status codes
+		if containsStatusCode(s.config.MatchStatusCodes, response.StatusCode) {
+			results <- &Result{
+				TargetURL:       string(response.URL),
+				BypassModule:    bypassModule,
+				StatusCode:      response.StatusCode,
+				ResponseHeaders: string(response.ResponseHeaders),
+				CurlPocCommand:  string(response.CurlCommand),
+				ResponsePreview: string(response.ResponsePreview),
+				ContentType:     string(response.ContentType),
+				ContentLength:   response.ContentLength,
+				ResponseBytes:   response.ResponseBytes,
+				Title:           string(response.Title),
+				ServerInfo:      string(response.ServerInfo),
+				RedirectURL:     string(response.RedirectURL),
 			}
 		}
+	}
+}
 
-		// Only log if we completed all requests but found no matches
-		if !foundMatch {
-			logger.LogVerbose("\n[%s] No matching status codes found\n", bypassModule)
+// Helper function to check if slice contains value
+func containsStatusCode(codes []int, code int) bool {
+	for _, c := range codes {
+		if c == code {
+			return true
 		}
-	}()
-
-	wg.Wait()
+	}
+	return false
 }

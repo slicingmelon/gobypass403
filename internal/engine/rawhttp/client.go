@@ -76,7 +76,7 @@ func NewClient(opts *ClientOptions, errorHandler *GB403ErrorHandler.ErrorHandler
 
 	var dialFunc fasthttp.DialFunc
 	if opts.ProxyURL != "" {
-		dialFunc = fasthttpproxy.FasthttpHTTPDialerTimeout(opts.ProxyURL, time.Second*2)
+		dialFunc = fasthttpproxy.FasthttpHTTPDialerTimeout(opts.ProxyURL, time.Second*3)
 	} else {
 		// No proxy, use default dialer
 		d := &fasthttp.TCPDialer{

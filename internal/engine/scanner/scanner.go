@@ -62,16 +62,17 @@ func (s *Scanner) Run() error {
 }
 
 func (s *Scanner) scanURL(url string) error {
-	results := s.RunAllBypasses(url)
+	resultsChannel := s.RunAllBypasses(url)
 	var findings []*Result
 
-	for result := range results {
-		if result == nil {
-			continue
+	// Collect all results first
+	for result := range resultsChannel {
+		if result != nil {
+			findings = append(findings, result)
 		}
-		findings = append(findings, result)
 	}
 
+	// Then process and display them
 	if len(findings) > 0 {
 		PrintTableHeader(url)
 		for _, result := range findings {
@@ -81,7 +82,6 @@ func (s *Scanner) scanURL(url string) error {
 
 		outputFile := filepath.Join(s.config.OutDir, "findings.json")
 		if err := AppendResultsToJSON(outputFile, url, s.config.BypassModule, findings); err != nil {
-			// Handle file operation error
 			handledErr := s.errorHandler.HandleError(url, err)
 			logger.LogError("Failed to save JSON results: %v", handledErr)
 			return handledErr

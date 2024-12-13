@@ -211,11 +211,22 @@ func (o *Options) processStatusCodes() error {
 
 // validateModule checks if the specified module is valid
 func (o *Options) validateModule() error {
-	if !AvailableModules[o.Module] {
-		o.printUsage("module")
-		fmt.Println()
-		return fmt.Errorf("invalid module: %s", o.Module)
+	if o.Module == "" {
+		return fmt.Errorf("bypass module cannot be empty")
 	}
+
+	// Split and validate each module
+	modules := strings.Split(o.Module, ",")
+	for _, m := range modules {
+		m = strings.TrimSpace(m)
+		if m == "all" {
+			return nil // basically "all"
+		}
+		if enabled, exists := AvailableModules[m]; !exists || !enabled {
+			return fmt.Errorf("invalid module: %s", m)
+		}
+	}
+
 	return nil
 }
 
