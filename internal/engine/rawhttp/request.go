@@ -1,15 +1,13 @@
 package rawhttp
 
 import (
-	"bytes"
-	"fmt"
 	"runtime"
-	"strings"
 	"sync"
 	"time"
 	"unsafe"
 
 	"github.com/slicingmelon/go-bypass-403/internal/engine/payload"
+	"github.com/slicingmelon/go-bypass-403/internal/engine/rawhttp/bytebufferpool"
 	"github.com/slicingmelon/go-bypass-403/internal/utils/logger"
 	"github.com/valyala/fasthttp"
 )
@@ -226,51 +224,57 @@ func (wp *workerPool) workerFunc(ch *workerChan) {
 		// Build request
 		req := builder.BuildRequest(job)
 
+		// Log before sending
+		if logger.IsDebugEnabled() {
+			logger.LogDebug("[%s] [Canary: %s] Preparing request: %s",
+				job.BypassMode,
+				job.PayloadSeed,
+				job.URL)
+		}
+
 		// Execute
 		resp, err := builder.SendRequest(req)
 
-		logger.LogVerbose("[%s] Sending request: %s", job.BypassMode, job.URL)
-
-		logger.LogDebug("[%s] [Canary: %s] Sending request: %s",
-			job.BypassMode,
-			job.PayloadSeed,
-			job.URL)
-
-		// Always release request
+		// Always release request immediately after use
 		fasthttp.ReleaseRequest(req)
 
 		if err != nil {
-			// Enhanced error logging with job context
-			if logger.IsDebugEnabled() {
-				logger.LogError("[%s] [Canary: %s] Request error for %s: %v",
-					job.BypassMode,
-					job.PayloadSeed,
-					job.URL,
-					err)
-			}
-
-			if logger.IsVerboseEnabled() {
-				logger.LogError("[%s] Request error for %s: %v",
-					job.BypassMode,
-					job.URL,
-					err)
-			}
-
-			ch.results <- nil
-
-			// Add delay on error to prevent overwhelming the server
-			time.Sleep(100 * time.Millisecond)
+			handleError(job, err, ch)
 			continue
 		}
 
-		// Process response
+		// Log successful request
+		logger.LogVerbose("[%s] Request sent successfully: %s", job.BypassMode, job.URL)
+
+		// Process response before releasing it
 		result := wp.pool.processResponse(resp, job)
 
-		// Release response
+		// Release response immediately after processing
 		fasthttp.ReleaseResponse(resp)
 
+		// Send result only after response is fully processed and released
 		ch.results <- result
 	}
+}
+
+func handleError(job payload.PayloadJob, err error, ch *workerChan) {
+	if logger.IsDebugEnabled() {
+		logger.LogError("[%s] [Canary: %s] Request error for %s: %v",
+			job.BypassMode,
+			job.PayloadSeed,
+			job.URL,
+			err)
+	}
+
+	if logger.IsVerboseEnabled() {
+		logger.LogError("[%s] Request error for %s: %v",
+			job.BypassMode,
+			job.URL,
+			err)
+	}
+
+	ch.results <- nil
+	time.Sleep(100 * time.Millisecond)
 }
 
 func (wp *workerPool) release(ch *workerChan) {
@@ -279,41 +283,35 @@ func (wp *workerPool) release(ch *workerChan) {
 	wp.lock.Unlock()
 }
 
-// processResponse handles response processing and data extraction
-// processResponse converts fasthttp.Response to ResponseDetails
+// processResponse handles response processing and details extraction
 func (p *RequestPool) processResponse(resp *fasthttp.Response, job payload.PayloadJob) *RawHTTPResponseDetails {
+	// Create copies of header values immediately
 	details := &RawHTTPResponseDetails{
-		URL:         job.URL,
-		BypassMode:  job.BypassMode,
-		StatusCode:  resp.StatusCode(),
-		ContentType: Byte2String(resp.Header.Peek("Content-Type")),
-		ServerInfo:  Byte2String(resp.Header.Server()),
-		RedirectURL: Byte2String(resp.Header.Peek("Location")),
+		ContentType: string(append([]byte{}, resp.Header.Peek("Content-Type")...)),
+		ServerInfo:  string(append([]byte{}, resp.Header.Server()...)),
+		RedirectURL: string(append([]byte{}, resp.Header.Peek("Location")...)),
 	}
 
-	// Process headers
-	var headerBuf bytes.Buffer
+	// Use bytebufferpool instead of bytes.Buffer
+	headerBuf := bytebufferpool.Get()
+	defer bytebufferpool.Put(headerBuf)
+
 	resp.Header.VisitAll(func(key, value []byte) {
 		headerBuf.Write(key)
 		headerBuf.WriteString(": ")
 		headerBuf.Write(value)
 		headerBuf.WriteString("\n")
 	})
-	details.ResponseHeaders = headerBuf.String()
+	details.ResponseHeaders = headerBuf.String() // Uses your optimized zero-copy String()
 
-	// Just read what we got in the buffer
+	// Process body
 	body := resp.Body()
-
-	// even a half of the resp body buffer is enough, we can use it as a preview
 	if len(body) > p.scanOpts.ResponseBodyPreviewSize {
 		body = body[:p.scanOpts.ResponseBodyPreviewSize]
 	}
-
-	details.ResponsePreview = string(body)
+	details.ResponsePreview = Byte2String(body) // Use your zero-copy conversion
 	details.ResponseBytes = len(body)
 
-	// ContentLength returns Content-Length header value.
-	// It may be negative: -1 means Transfer-Encoding: chunked. -2 means Transfer-Encoding: identity.
 	if resp.Header.ContentLength() > 0 {
 		details.ContentLength = int64(resp.Header.ContentLength())
 	}
@@ -341,32 +339,32 @@ func Byte2String(b []byte) string {
 
 // BuildCurlCommand generates a curl command for request reproduction
 func BuildCurlCmd(job payload.PayloadJob) string {
-	// Determine curl command based on OS
-	curlCmd := "curl"
+	buf := bytebufferpool.Get()
+	defer bytebufferpool.Put(buf)
+
 	if runtime.GOOS == "windows" {
-		curlCmd = "curl.exe"
+		buf.WriteString("curl.exe")
+	} else {
+		buf.WriteString("curl")
 	}
+	buf.WriteString(" -skgi --path-as-is")
 
-	parts := []string{curlCmd, "-skgi", "--path-as-is"}
-
-	// Add method if not GET
 	if job.Method != "GET" {
-		parts = append(parts, "-X", job.Method)
+		buf.WriteString(" -X ")
+		buf.WriteString(job.Method)
 	}
 
-	// Convert job.Headers to map for consistent ordering
-	headers := make(map[string]string)
 	for _, h := range job.Headers {
-		headers[h.Header] = h.Value
+		buf.WriteString(" -H '")
+		buf.WriteString(h.Header)
+		buf.WriteString(": ")
+		buf.WriteString(h.Value)
+		buf.WriteString("'")
 	}
 
-	// Add headers
-	for k, v := range headers {
-		parts = append(parts, fmt.Sprintf("-H '%s: %s'", k, v))
-	}
+	buf.WriteString(" '")
+	buf.WriteString(job.URL)
+	buf.WriteString("'")
 
-	// Add URL
-	parts = append(parts, fmt.Sprintf("'%s'", job.URL))
-
-	return strings.Join(parts, " ")
+	return buf.String()
 }
