@@ -55,18 +55,18 @@ type workerChan struct {
 
 // ResponseDetails contains processed response information
 type RawHTTPResponseDetails struct {
-	URL             string
-	BypassMode      string
-	CurlCommand     string
+	URL             []byte
+	BypassMode      []byte
+	CurlCommand     []byte
 	StatusCode      int
-	ResponsePreview string
-	ResponseHeaders string
-	ContentType     string
+	ResponsePreview []byte
+	ResponseHeaders []byte
+	ContentType     []byte
 	ContentLength   int64
-	ServerInfo      string
-	RedirectURL     string
+	ServerInfo      []byte
+	RedirectURL     []byte
 	ResponseBytes   int
-	Title           string
+	Title           []byte
 }
 
 func NewRequestPool(clientOpts *ClientOptions, scanOpts *ScannerCliOpts) *RequestPool {
@@ -287,8 +287,8 @@ func (wp *workerPool) release(ch *workerChan) {
 // processResponse handles response processing and details extraction
 func (p *RequestPool) processResponse(resp *fasthttp.Response, job payload.PayloadJob) *RawHTTPResponseDetails {
 	details := &RawHTTPResponseDetails{
-		URL:        job.URL,
-		BypassMode: job.BypassMode,
+		URL:        String2Byte(job.URL),
+		BypassMode: String2Byte(job.BypassMode),
 		StatusCode: resp.StatusCode(),
 	}
 
@@ -309,25 +309,25 @@ func (p *RequestPool) processResponse(resp *fasthttp.Response, job payload.Paylo
 		headerBuf.WriteString("\r\n")
 	})
 	headerBuf.WriteString("\r\n")
-	details.ResponseHeaders = Byte2String(headerBuf.B)
+	details.ResponseHeaders = append([]byte(nil), headerBuf.B...)
 
 	// Get specific headers we need
 	if contentType := resp.Header.Peek("Content-Type"); len(contentType) > 0 {
-		details.ContentType = string(contentType)
+		details.ContentType = append([]byte(nil), contentType...)
 	}
 	if server := resp.Header.Server(); len(server) > 0 {
-		details.ServerInfo = string(server)
+		details.ServerInfo = append([]byte(nil), server...)
 	}
 	if location := resp.Header.Peek("Location"); len(location) > 0 {
-		details.RedirectURL = string(location)
+		details.RedirectURL = append([]byte(nil), location...)
 	}
 
 	// Process body
 	body := resp.Body()
 	if len(body) > p.scanOpts.ResponseBodyPreviewSize {
-		details.ResponsePreview = string(body[:p.scanOpts.ResponseBodyPreviewSize])
+		details.ResponsePreview = append([]byte(nil), body[:p.scanOpts.ResponseBodyPreviewSize]...)
 	} else {
-		details.ResponsePreview = string(body)
+		details.ResponsePreview = append([]byte(nil), body...)
 	}
 	details.ResponseBytes = len(body)
 	details.ContentLength = int64(resp.Header.ContentLength())
@@ -355,7 +355,8 @@ func Byte2String(b []byte) string {
 
 // BuildCurlCommand generates a curl command for request reproduction
 // Uses local bytebufferpool pkg
-func BuildCurlCmd(job payload.PayloadJob) string {
+// BuildCurlCommand generates a curl command for request reproduction
+func BuildCurlCmd(job payload.PayloadJob) []byte {
 	buf := bytebufferpool.Get()
 	defer bytebufferpool.Put(buf)
 
@@ -381,7 +382,7 @@ func BuildCurlCmd(job payload.PayloadJob) string {
 
 	buf.WriteString(" '")
 	buf.WriteString(job.URL)
-	buf.WriteString("'") // Add closing quote
+	buf.WriteString("'")
 
-	return buf.String()
+	return append([]byte(nil), buf.B...)
 }

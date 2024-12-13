@@ -210,18 +210,18 @@ func (s *Scanner) runBypassForMode(bypassModule string, targetURL string, result
 				if response.StatusCode == code {
 					foundMatch = true
 					results <- &Result{
-						TargetURL:       response.URL,
+						TargetURL:       string(response.URL),
 						BypassModule:    bypassModule,
 						StatusCode:      response.StatusCode,
-						ResponseHeaders: response.ResponseHeaders,
-						CurlPocCommand:  response.CurlCommand,
-						ResponsePreview: response.ResponsePreview,
-						ContentType:     response.ContentType,
+						ResponseHeaders: string(response.ResponseHeaders),
+						CurlPocCommand:  string(response.CurlCommand),
+						ResponsePreview: string(response.ResponsePreview),
+						ContentType:     string(response.ContentType),
 						ContentLength:   response.ContentLength,
 						ResponseBytes:   response.ResponseBytes,
-						Title:           response.Title,
-						ServerInfo:      response.ServerInfo,
-						RedirectURL:     response.RedirectURL,
+						Title:           string(response.Title),
+						ServerInfo:      string(response.ServerInfo),
+						RedirectURL:     string(response.RedirectURL),
 					}
 				}
 			}
