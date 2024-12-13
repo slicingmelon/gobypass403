@@ -83,7 +83,7 @@ func (h *ErrorHandler) HandleError(host string, err error) error {
 		default:
 			newErr = ErrBypassFailed
 		}
-		h.RecordError(host, newErr, 0) // Add status code if available
+		h.RecordError(host, newErr, 0)
 		return newErr
 	}
 
