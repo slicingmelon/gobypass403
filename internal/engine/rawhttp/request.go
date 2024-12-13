@@ -1,7 +1,6 @@
 package rawhttp
 
 import (
-	"fmt"
 	"runtime"
 	"sync"
 	"time"
@@ -284,7 +283,7 @@ func (wp *workerPool) release(ch *workerChan) {
 	wp.lock.Unlock()
 }
 
-// processResponse handles response processing and details extraction
+// processResponse handles response processing
 func (p *RequestPool) processResponse(resp *fasthttp.Response, job payload.PayloadJob) *RawHTTPResponseDetails {
 	details := &RawHTTPResponseDetails{
 		URL:        String2Byte(job.URL),
@@ -292,33 +291,32 @@ func (p *RequestPool) processResponse(resp *fasthttp.Response, job payload.Paylo
 		StatusCode: resp.StatusCode(),
 	}
 
-	// Collect all headers
 	headerBuf := bytebufferpool.Get()
 	defer bytebufferpool.Put(headerBuf)
 
-	// Add status line first
-	headerBuf.WriteString(fmt.Sprintf("HTTP/1.1 %d %s\r\n",
-		resp.StatusCode(),
-		resp.Header.StatusMessage()))
+	// Use protocol (http version from the response)
+	headerBuf.Write(resp.Header.Protocol())
+	headerBuf.WriteByte(' ')
+	headerBuf.B = fasthttp.AppendUint(headerBuf.B, resp.StatusCode())
+	headerBuf.WriteByte(' ')
+	headerBuf.Write(resp.Header.StatusMessage())
+	headerBuf.WriteString("\r\n")
 
-	// Add all headers
+	// Write headers
 	resp.Header.VisitAll(func(key, value []byte) {
 		headerBuf.Write(key)
 		headerBuf.WriteString(": ")
 		headerBuf.Write(value)
-		headerBuf.WriteString("\r\n")
+		headerBuf.Write([]byte("\r\n"))
 	})
 	headerBuf.WriteString("\r\n")
+
 	details.ResponseHeaders = append([]byte(nil), headerBuf.B...)
 
-	// Get specific headers we need
-	if contentType := resp.Header.Peek("Content-Type"); len(contentType) > 0 {
-		details.ContentType = append([]byte(nil), contentType...)
-	}
-	if server := resp.Header.Server(); len(server) > 0 {
-		details.ServerInfo = append([]byte(nil), server...)
-	}
-	if location := resp.Header.Peek("Location"); len(location) > 0 {
+	// Use direct byte access for headers
+	details.ContentType = append([]byte(nil), resp.Header.ContentType()...)
+	details.ServerInfo = append([]byte(nil), resp.Header.Server()...)
+	if location := resp.Header.PeekBytes([]byte("Location")); len(location) > 0 {
 		details.RedirectURL = append([]byte(nil), location...)
 	}
 
