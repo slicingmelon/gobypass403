@@ -1,6 +1,7 @@
 package rawhttp
 
 import (
+	"fmt"
 	"runtime"
 	"sync"
 	"time"
@@ -285,36 +286,51 @@ func (wp *workerPool) release(ch *workerChan) {
 
 // processResponse handles response processing and details extraction
 func (p *RequestPool) processResponse(resp *fasthttp.Response, job payload.PayloadJob) *RawHTTPResponseDetails {
-	// Create copies of header values immediately
 	details := &RawHTTPResponseDetails{
-		ContentType: string(append([]byte{}, resp.Header.Peek("Content-Type")...)),
-		ServerInfo:  string(append([]byte{}, resp.Header.Server()...)),
-		RedirectURL: string(append([]byte{}, resp.Header.Peek("Location")...)),
+		URL:        job.URL,
+		BypassMode: job.BypassMode,
+		StatusCode: resp.StatusCode(),
 	}
 
-	// Use bytebufferpool instead of bytes.Buffer
+	// Collect all headers
 	headerBuf := bytebufferpool.Get()
 	defer bytebufferpool.Put(headerBuf)
 
+	// Add status line first
+	headerBuf.WriteString(fmt.Sprintf("HTTP/1.1 %d %s\r\n",
+		resp.StatusCode(),
+		resp.Header.StatusMessage()))
+
+	// Add all headers
 	resp.Header.VisitAll(func(key, value []byte) {
 		headerBuf.Write(key)
 		headerBuf.WriteString(": ")
 		headerBuf.Write(value)
-		headerBuf.WriteString("\n")
+		headerBuf.WriteString("\r\n")
 	})
-	details.ResponseHeaders = headerBuf.String() // Uses your optimized zero-copy String()
+	headerBuf.WriteString("\r\n")
+	details.ResponseHeaders = Byte2String(headerBuf.B)
+
+	// Get specific headers we need
+	if contentType := resp.Header.Peek("Content-Type"); len(contentType) > 0 {
+		details.ContentType = string(contentType)
+	}
+	if server := resp.Header.Server(); len(server) > 0 {
+		details.ServerInfo = string(server)
+	}
+	if location := resp.Header.Peek("Location"); len(location) > 0 {
+		details.RedirectURL = string(location)
+	}
 
 	// Process body
 	body := resp.Body()
 	if len(body) > p.scanOpts.ResponseBodyPreviewSize {
-		body = body[:p.scanOpts.ResponseBodyPreviewSize]
+		details.ResponsePreview = string(body[:p.scanOpts.ResponseBodyPreviewSize])
+	} else {
+		details.ResponsePreview = string(body)
 	}
-	details.ResponsePreview = Byte2String(body) // Use your zero-copy conversion
 	details.ResponseBytes = len(body)
-
-	if resp.Header.ContentLength() > 0 {
-		details.ContentLength = int64(resp.Header.ContentLength())
-	}
+	details.ContentLength = int64(resp.Header.ContentLength())
 
 	details.CurlCommand = BuildCurlCmd(job)
 	return details
@@ -338,6 +354,7 @@ func Byte2String(b []byte) string {
 }
 
 // BuildCurlCommand generates a curl command for request reproduction
+// Uses local bytebufferpool pkg
 func BuildCurlCmd(job payload.PayloadJob) string {
 	buf := bytebufferpool.Get()
 	defer bytebufferpool.Put(buf)
@@ -364,7 +381,7 @@ func BuildCurlCmd(job payload.PayloadJob) string {
 
 	buf.WriteString(" '")
 	buf.WriteString(job.URL)
-	buf.WriteString("'")
+	buf.WriteString("'") // Add closing quote
 
 	return buf.String()
 }
