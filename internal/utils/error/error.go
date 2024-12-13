@@ -1,113 +1,104 @@
 package error
 
 import (
-	"strings"
-	"time"
+	"errors"
+	"sync"
 
-	"github.com/projectdiscovery/gcache"
-	"github.com/projectdiscovery/utils/errkit"
+	"github.com/VictoriaMetrics/fastcache"
+	"github.com/valyala/fasthttp"
 )
 
-// ----------------------------------//
-// Custom Error Handling 			//
-// ---------------------------------//
-
-// Define custom error kinds to not interfere with other pkgs such as fastdialer
-var (
-	ErrKindGo403BypassFatal = errkit.NewPrimitiveErrKind(
-		"error-go-403-bypass-fatal",
-		"error go 403 bypass fatal",
-		nil,
-	)
-
-	ErrKindGo403Temporary = errkit.NewPrimitiveErrKind(
-		"error-go-403-bypass-temporary",
-		"error go 403 bypass temporary",
-		isGo403TemporaryErr,
-	)
-)
-
-// Define custom errors
-var (
-	ErrForciblyClosed = errkit.New("connection forcibly closed by remote host").
-		SetKind(ErrKindGo403Temporary).
-		Build()
-)
-
-// Helper function to identify temporary errors
-func isGo403TemporaryErr(err *errkit.ErrorX) bool {
-	if err.Cause() == nil {
-		return false
-	}
-	v := err.Cause().Error()
-	return strings.Contains(v, "forcibly closed by the remote host")
-}
-
-// ErrorHandler struct
+// Enhanced ErrorHandler
 type ErrorHandler struct {
-	hostErrors       gcache.Cache[string, int]
-	lastErrorTime    gcache.Cache[string, time.Time]
-	maxErrors        int
-	maxErrorDuration time.Duration
+	cache     *fastcache.Cache
+	maxErrors uint32
+	stats     ErrorStats
+	hostStats map[string]*HostStats
+	mu        sync.RWMutex
 }
 
-// NewErrorHandler -- init func
-func NewErrorHandler() *ErrorHandler {
-	return &ErrorHandler{
-		hostErrors: gcache.New[string, int](1000).
-			ARC(). // Adaptive Replacement Cache
-			Build(),
-		lastErrorTime: gcache.New[string, time.Time](1000).
-			ARC().
-			Build(),
-		maxErrors:        15,
-		maxErrorDuration: 1 * time.Minute,
-	}
-}
+type GoBypass403Error uint8
 
-// HandleError -> New custom error handler
-func (h *ErrorHandler) HandleError(err error, host string) error {
+const (
+	ErrNone GoBypass403Error = iota
+)
+
+// General errors
+var (
+	ErrGracefulShutdown = errors.New("graceful shutdown initiated")
+	ErrNotRunning       = errors.New("scanner is not running")
+	ErrScannerExited    = errors.New("scanner exited unexpectedly")
+)
+
+// HTTP/Connection errors
+var (
+	ErrTooManyTimeouts    = errors.New("too many timeout errors for host")
+	ErrTooManyConnections = errors.New("too many connection errors for host")
+	ErrTooManyRequests    = errors.New("too many requests for host")
+	ErrHostUnreachable    = errors.New("host became unreachable")
+)
+
+// TLS errors
+var (
+	ErrTLSHandshake       = errors.New("TLS handshake failed")
+	ErrInvalidCertificate = errors.New("invalid certificate")
+)
+
+// Payload errors
+var (
+	ErrInvalidPayload  = errors.New("invalid payload format")
+	ErrPayloadTooLarge = errors.New("payload exceeds maximum size")
+	ErrEmptyPayload    = errors.New("empty payload provided")
+)
+
+// Response errors
+var (
+	ErrInvalidResponse = errors.New("invalid response received")
+	ErrEmptyResponse   = errors.New("empty response received")
+	ErrResponseTimeout = errors.New("response timeout")
+)
+
+// Scanner errors
+var (
+	ErrBypassFailed = errors.New("bypass attempt failed")
+)
+
+func (h *ErrorHandler) HandleError(host string, err error) error {
 	if err == nil {
 		return nil
 	}
 
-	errx := errkit.FromError(err)
+	hostKey := []byte(host)
+	count := h.incrementErrorCount(hostKey)
 
-	// Only handle our custom temporary errors
-	if errx.Kind() == ErrKindGo403Temporary {
-		now := time.Now()
-		errorCount, _ := h.hostErrors.GetIFPresent(host)
-		errorCount++
-		_ = h.hostErrors.Set(host, errorCount)
-
-		lastTime, _ := h.lastErrorTime.GetIFPresent(host)
-
-		if !lastTime.IsZero() && now.Sub(lastTime) <= h.maxErrorDuration {
-			if errorCount >= h.maxErrors {
-				// Convert to our custom fatal error
-				errx.ResetKind().SetKind(ErrKindGo403BypassFatal)
-				return errkit.WithMessagef(errx.Build(),
-					"[go-403-bypass-error-handler]: max errors (%d) reached within %v for host %s",
-					h.maxErrors, h.maxErrorDuration, host)
-			}
-		} else {
-			errorCount = 1
-			_ = h.hostErrors.Set(host, errorCount)
+	if count >= h.maxErrors {
+		var newErr error
+		switch err {
+		case fasthttp.ErrTimeout:
+			newErr = ErrTooManyTimeouts
+		case fasthttp.ErrConnectionClosed:
+			newErr = ErrTooManyConnections
+		case fasthttp.ErrNoFreeConns:
+			newErr = ErrHostUnreachable
+		default:
+			newErr = ErrBypassFailed
 		}
-		_ = h.lastErrorTime.Set(host, now)
+		h.RecordError(host, newErr, 0) // Add status code if available
+		return newErr
 	}
 
-	return errx.Build()
+	return err
 }
 
-// Purge cache
-func (h *ErrorHandler) Purge() {
-	h.hostErrors.Purge()
-	h.lastErrorTime.Purge()
+// IsTemporaryError checks if the error is temporary
+func IsTemporaryError(err error) bool {
+	return errors.Is(err, ErrTooManyTimeouts) ||
+		errors.Is(err, ErrTooManyRequests) ||
+		errors.Is(err, ErrResponseTimeout)
 }
 
-// ResetErrorCount
-func (h *ErrorHandler) ResetErrorCount(host string) {
-	h.hostErrors.Remove(host)
-	h.lastErrorTime.Remove(host)
+func IsPermanentError(err error) bool {
+	return errors.Is(err, ErrHostUnreachable) ||
+		errors.Is(err, ErrTLSHandshake) ||
+		errors.Is(err, ErrInvalidCertificate)
 }

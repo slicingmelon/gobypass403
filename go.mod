@@ -3,10 +3,10 @@ module github.com/slicingmelon/go-bypass-403
 go 1.22.10
 
 require (
+	github.com/VictoriaMetrics/fastcache v1.12.2
 	github.com/fatih/color v1.18.0
 	github.com/projectdiscovery/fastdialer v0.2.13
 	github.com/projectdiscovery/gcache v0.0.0-20241015120333-12546c6e3f4c
-	github.com/projectdiscovery/utils v0.4.1
 	github.com/slicingmelon/go-rawurlparser v0.2.7
 	github.com/valyala/fasthttp v1.58.0
 	golang.org/x/net v0.32.0
@@ -19,6 +19,7 @@ require (
 	github.com/asaskevich/govalidator v0.0.0-20230301143203-a9d515a09cc2 // indirect
 	github.com/aymerick/douceur v0.2.0 // indirect
 	github.com/bits-and-blooms/bitset v1.13.0 // indirect
+	github.com/cespare/xxhash/v2 v2.2.0 // indirect
 	github.com/cloudflare/circl v1.3.7 // indirect
 	github.com/dimchansky/utfbom v1.1.1 // indirect
 	github.com/docker/go-units v0.5.0 // indirect
@@ -35,6 +36,7 @@ require (
 	github.com/projectdiscovery/hmap v0.0.69 // indirect
 	github.com/projectdiscovery/networkpolicy v0.0.9 // indirect
 	github.com/projectdiscovery/retryabledns v1.0.87 // indirect
+	github.com/projectdiscovery/utils v0.4.1 // indirect
 	github.com/refraction-networking/utls v1.6.7 // indirect
 	github.com/saintfish/chardet v0.0.0-20230101081208-5e3ef4b5456d // indirect
 	github.com/syndtr/goleveldb v1.0.0 // indirect
