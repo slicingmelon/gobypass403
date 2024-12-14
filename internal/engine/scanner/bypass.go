@@ -188,9 +188,9 @@ func (s *Scanner) runBypassForMode(bypassModule string, targetURL string, result
 	}
 
 	ctx := NewWorkerContext(bypassModule, len(allJobs), targetURL, s.config, s.errorHandler)
-
 	responses := ctx.requestPool.ProcessRequests(allJobs)
 
+	// Process responses directly without intermediate channel
 	for response := range responses {
 		if response == nil {
 			ctx.progress.increment()

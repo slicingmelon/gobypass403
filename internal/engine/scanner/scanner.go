@@ -3,6 +3,7 @@ package scanner
 import (
 	"fmt"
 	"path/filepath"
+	"sort"
 
 	"github.com/slicingmelon/go-bypass-403/internal/engine/probe"
 	GB403ErrorHandler "github.com/slicingmelon/go-bypass-403/internal/utils/error"
@@ -71,6 +72,14 @@ func (s *Scanner) scanURL(url string) error {
 			findings = append(findings, result)
 		}
 	}
+
+	// Sort findings by module and status code for better presentation
+	sort.Slice(findings, func(i, j int) bool {
+		if findings[i].BypassModule != findings[j].BypassModule {
+			return findings[i].BypassModule < findings[j].BypassModule
+		}
+		return findings[i].StatusCode < findings[j].StatusCode
+	})
 
 	// Then process and display them
 	if len(findings) > 0 {
