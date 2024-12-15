@@ -391,39 +391,38 @@ func Byte2String(b []byte) string {
 // BuildCurlCommandPoc generates a curl poc command to reproduce the findings
 // Uses a local bytebufferpool implementation from this project
 func BuildCurlCommandPoc(job payload.PayloadJob) []byte {
-	var buf bytebufferpool.ByteBuffer
-	defer buf.Reset()
+	bb := bytebufferpool.Get()
+	defer bytebufferpool.Put(bb)
 
-	// Determine curl command based on OS
 	if runtime.GOOS == "windows" {
-		buf.WriteString("curl.exe")
+		bb.WriteString("curl.exe")
 	} else {
-		buf.WriteString("curl")
+		bb.WriteString("curl")
 	}
 
-	buf.WriteString(" -skgi --path-as-is")
+	bb.WriteString(" -skgi --path-as-is")
 
 	// Add method only if not GET
 	if job.Method != "GET" {
-		buf.WriteString(" -X ")
-		buf.WriteString(job.Method)
+		bb.WriteString(" -X ")
+		bb.WriteString(job.Method)
 	}
 
 	// Add headers before URL
 	for _, h := range job.Headers {
-		buf.WriteString(" -H '")
-		buf.WriteString(h.Header)
-		buf.WriteString(": ")
-		buf.WriteString(h.Value)
-		buf.WriteString("'")
+		bb.WriteString(" -H '")
+		bb.WriteString(h.Header)
+		bb.WriteString(": ")
+		bb.WriteString(h.Value)
+		bb.WriteString("'")
 	}
 
 	// last is URL
-	buf.WriteString(" '")
-	buf.WriteString(job.URL)
-	buf.WriteString("'")
+	bb.WriteString(" '")
+	bb.WriteString(job.URL)
+	bb.WriteString("'")
 
-	return append([]byte(nil), buf.B...)
+	return append([]byte(nil), bb.B...)
 }
 
 // Helper function to extract title from HTML
