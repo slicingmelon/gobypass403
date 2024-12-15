@@ -11,7 +11,7 @@ import (
 )
 
 var (
-	userAgent = []byte("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36")
+	CustomUserAgent = []byte("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36")
 )
 
 // ClientOptions contains configuration options for the Client
@@ -35,7 +35,6 @@ type ClientOptions struct {
 type Client struct {
 	client       *fasthttp.Client
 	bufPool      sync.Pool
-	userAgent    []byte
 	maxRetries   int
 	retryDelay   time.Duration
 	options      *ClientOptions
@@ -114,7 +113,6 @@ func NewClient(opts *ClientOptions, errorHandler *GB403ErrorHandler.ErrorHandler
 		client:       client,
 		errorHandler: errorHandler,
 		bufPool:      sync.Pool{New: func() interface{} { return make([]byte, 0, opts.ReadBufferSize) }},
-		userAgent:    userAgent,
 		maxRetries:   opts.MaxRetries,
 		retryDelay:   opts.RetryDelay,
 		options:      opts,

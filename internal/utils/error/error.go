@@ -1,113 +1,62 @@
+// File: internal/utils/error/error.go
 package error
 
 import (
-	"errors"
-	"strings"
-	"sync"
-
 	"github.com/VictoriaMetrics/fastcache"
-	"github.com/valyala/fasthttp"
 )
 
-// Enhanced ErrorHandler
+// ErrorContext holds metadata about the error occurrence
+type ErrorContext struct {
+	Host       []byte
+	BypassMode []byte
+	WorkerID   []byte
+	URL        []byte
+	Timestamp  []byte
+}
+
+// ErrorHandler wraps fastcache for error tracking
 type ErrorHandler struct {
-	cache     *fastcache.Cache
-	maxErrors uint32
-	stats     ErrorStats
-	hostStats map[string]*HostStats
-	mu        sync.RWMutex
+	cache *fastcache.Cache
 }
 
-type GoBypass403Error uint8
-
-const (
-	ErrNone GoBypass403Error = iota
-)
-
-// General errors
-var (
-	ErrGracefulShutdown = errors.New("graceful shutdown initiated")
-	ErrNotRunning       = errors.New("scanner is not running")
-	ErrScannerExited    = errors.New("scanner exited unexpectedly")
-)
-
-// HTTP/Connection errors
-var (
-	ErrTooManyTimeouts    = errors.New("too many timeout errors for host")
-	ErrTooManyConnections = errors.New("too many connection errors for host")
-	ErrTooManyRequests    = errors.New("too many requests for host")
-	ErrHostUnreachable    = errors.New("host became unreachable")
-)
-
-// TLS errors
-var (
-	ErrTLSHandshake       = errors.New("TLS handshake failed")
-	ErrInvalidCertificate = errors.New("invalid certificate")
-)
-
-// Payload errors
-var (
-	ErrInvalidPayload  = errors.New("invalid payload format")
-	ErrPayloadTooLarge = errors.New("payload exceeds maximum size")
-	ErrEmptyPayload    = errors.New("empty payload provided")
-)
-
-// Response errors
-var (
-	ErrInvalidResponse = errors.New("invalid response received")
-	ErrEmptyResponse   = errors.New("empty response received")
-	ErrResponseTimeout = errors.New("response timeout")
-)
-
-// Scanner errors
-var (
-	ErrBypassFailed = errors.New("bypass attempt failed")
-)
-
-func (h *ErrorHandler) HandleError(host string, err error) error {
-	if err == nil {
-		return nil
+func NewErrorHandler() *ErrorHandler {
+	// Minimum 32MB as per fastcache docs
+	return &ErrorHandler{
+		cache: fastcache.New(32 * 1024 * 1024),
 	}
-
-	hostKey := []byte(host)
-	count := h.incrementErrorCount(hostKey)
-
-	if count >= h.maxErrors {
-		var newErr error
-		switch err {
-		case fasthttp.ErrTimeout:
-			newErr = ErrTooManyTimeouts
-		case fasthttp.ErrConnectionClosed:
-			newErr = ErrTooManyConnections
-		case fasthttp.ErrNoFreeConns:
-			newErr = ErrHostUnreachable
-		default:
-			newErr = ErrBypassFailed
-		}
-		h.RecordError(host, newErr, 0)
-		return newErr
-	}
-
-	return err
 }
 
-// IsTemporaryError checks if the error is temporary
-func IsTemporaryError(err error) bool {
-	return errors.Is(err, ErrTooManyTimeouts) ||
-		errors.Is(err, ErrTooManyRequests) ||
-		errors.Is(err, ErrResponseTimeout)
+// HandleError stores error context in cache
+func (h *ErrorHandler) HandleError(ctx *ErrorContext) {
+	if ctx == nil {
+		return
+	}
+
+	// Create composite key: host + bypass mode
+	key := append([]byte{}, ctx.Host...)
+	key = append(key, '_')
+	key = append(key, ctx.BypassMode...)
+
+	// Store error context
+	value := append([]byte{}, ctx.WorkerID...)
+	value = append(value, '_')
+	value = append(value, ctx.URL...)
+	value = append(value, '_')
+	value = append(value, ctx.Timestamp...)
+
+	h.cache.Set(key, value)
 }
 
-func IsPermanentError(err error) bool {
-	if err == nil {
-		return false
-	}
+// GetStats returns cache statistics
+func (h *ErrorHandler) GetStats() *fastcache.Stats {
+	stats := &fastcache.Stats{}
+	h.cache.UpdateStats(stats)
+	return stats
+}
 
-	// Only consider connection/network errors as permanent
-	if strings.Contains(err.Error(), "connection refused") ||
-		strings.Contains(err.Error(), "no such host") ||
-		strings.Contains(err.Error(), "network is unreachable") {
-		return true
+// Close releases cache resources
+func (h *ErrorHandler) Close() {
+	if h.cache != nil {
+		h.cache.Reset()
 	}
-	return false
 }

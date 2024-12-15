@@ -139,7 +139,7 @@ func (rb *RequestBuilder) BuildRequest(req *fasthttp.Request, job payload.Payloa
 
 	// Set user agent
 	if !rb.client.options.NoDefaultUserAgent {
-		req.Header.SetUserAgentBytes(rb.client.userAgent)
+		req.Header.SetUserAgentBytes(CustomUserAgent)
 	}
 
 	// Handle connection settings
