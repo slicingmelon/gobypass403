@@ -152,19 +152,6 @@ func (rb *RequestBuilder) BuildRequest(req *fasthttp.Request, job payload.Payloa
 	}
 }
 
-// SendRequest performs the request and returns a response
-func (rb *RequestBuilder) SendRequest(req *fasthttp.Request) (*fasthttp.Response, error) {
-	resp := fasthttp.AcquireResponse()
-
-	err := rb.client.DoRaw(req, resp)
-	if err != nil {
-		fasthttp.ReleaseResponse(resp)
-		return nil, err
-	}
-
-	return resp, nil
-}
-
 // ProcessRequests handles multiple requests efficiently
 func (p *RequestPool) ProcessRequests(jobs []payload.PayloadJob) <-chan *RawHTTPResponseDetails {
 	results := make(chan *RawHTTPResponseDetails, len(jobs))
