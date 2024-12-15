@@ -2,6 +2,7 @@ package rawhttp
 
 import (
 	"bytes"
+	"runtime"
 	"sync"
 	"time"
 	"unsafe"
@@ -394,12 +395,25 @@ func (rb *RequestBuilder) GenerateCurlCommand(job payload.PayloadJob) []byte {
 	var buf bytebufferpool.ByteBuffer
 	defer buf.Reset()
 
-	buf.WriteString("curl -X ")
-	buf.WriteString(job.Method)
+	// Determine curl command based on OS
+	if runtime.GOOS == "windows" {
+		buf.WriteString("curl.exe")
+	} else {
+		buf.WriteString("curl")
+	}
+
+	// Add method only if not GET
+	if job.Method != "GET" {
+		buf.WriteString(" -X ")
+		buf.WriteString(job.Method)
+	}
+
+	// Add URL
 	buf.WriteString(" '")
 	buf.WriteString(job.URL)
 	buf.WriteString("'")
 
+	// Add headers
 	for _, h := range job.Headers {
 		buf.WriteString(" -H '")
 		buf.WriteString(h.Header)
