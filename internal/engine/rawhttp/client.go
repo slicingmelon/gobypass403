@@ -22,7 +22,9 @@ type ClientOptions struct {
 	MaxConnWaitTimeout  time.Duration
 	NoDefaultUserAgent  bool
 	ProxyURL            string
+	MaxResponseBodySize int
 	ReadBufferSize      int
+	WriteBufferSize     int
 	MaxRetries          int
 	RetryDelay          time.Duration
 	DisableKeepAlive    bool
@@ -47,7 +49,9 @@ func DefaultOptionsMultiHost() *ClientOptions {
 		MaxConnsPerHost:     25,
 		MaxIdleConnDuration: 5 * time.Second,
 		NoDefaultUserAgent:  true,
+		MaxResponseBodySize: 4096, // Hardlimit at 4k
 		ReadBufferSize:      4096,
+		WriteBufferSize:     4096,
 		MaxRetries:          3,
 		RetryDelay:          1 * time.Second,
 		DisableKeepAlive:    true, // Set to true for multi-host scanning
@@ -62,7 +66,9 @@ func DefaultOptionsSameHost() *ClientOptions {
 		MaxIdleConnDuration: 10 * time.Second,
 		MaxConnWaitTimeout:  2 * time.Second,
 		NoDefaultUserAgent:  true,
+		MaxResponseBodySize: 4096, // Hardlimit at 4k
 		ReadBufferSize:      4096,
+		WriteBufferSize:     4096,
 		MaxRetries:          3,
 		RetryDelay:          1 * time.Second,
 		DisableKeepAlive:    false, // Keep connections alive for single host
@@ -94,7 +100,9 @@ func NewClient(opts *ClientOptions, errorHandler *GB403ErrorHandler.ErrorHandler
 		DisableHeaderNamesNormalizing: true,
 		DisablePathNormalizing:        true,
 		NoDefaultUserAgentHeader:      true,
+		MaxResponseBodySize:           opts.MaxResponseBodySize,
 		ReadBufferSize:                opts.ReadBufferSize,
+		WriteBufferSize:               opts.WriteBufferSize,
 		MaxIdemponentCallAttempts:     opts.MaxRetries,
 		Dial:                          dialFunc,
 		TLSConfig: &tls.Config{

@@ -219,7 +219,7 @@ func (w *worker) processJob(job payload.PayloadJob) *RawHTTPResponseDetails {
 	// Build and send request
 	w.builder.BuildRequest(req, job)
 	err := w.client.DoRaw(req, resp)
-	if err != nil {
+	if err != nil && err != fasthttp.ErrBodyTooLarge {
 		return w.handleError(err, job)
 	}
 
@@ -241,42 +241,54 @@ func (w *worker) processResponse(resp *fasthttp.Response, job payload.PayloadJob
 		StatusCode: resp.StatusCode(),
 	}
 
-	// Process headers
+	// Get header buffer from pool
 	headerBuf := bytebufferpool.Get()
 	defer bytebufferpool.Put(headerBuf)
 
+	// Write status line
+	headerBuf.Write(resp.Header.Protocol())
+	headerBuf.WriteByte(' ')
+	headerBuf.B = fasthttp.AppendUint(headerBuf.B, resp.StatusCode())
+	headerBuf.WriteByte(' ')
+	headerBuf.Write(resp.Header.StatusMessage())
+	headerBuf.WriteString("\r\n")
+
+	// Process headers once
 	resp.Header.VisitAll(func(key, value []byte) {
-		headerBuf.WriteString(Byte2String(key))
+		headerBuf.Write(key)
 		headerBuf.WriteString(": ")
-		headerBuf.WriteString(Byte2String(value))
-		headerBuf.WriteString("\n")
-
-		switch string(key) {
-		case "Content-Type":
-			result.ContentType = append([]byte(nil), value...)
-		case "Server":
-			result.ServerInfo = append([]byte(nil), value...)
-		case "Location":
-			result.RedirectURL = append([]byte(nil), value...)
-		}
+		headerBuf.Write(value)
+		headerBuf.WriteString("\r\n")
 	})
+	headerBuf.WriteString("\r\n")
 
+	// Store headers
 	result.ResponseHeaders = append([]byte(nil), headerBuf.B...)
 
-	// Process body
-	result.ContentLength = int64(resp.Header.ContentLength())
-	result.ResponseBytes = len(resp.Body())
-
-	// Get response preview if configured
-	if w.scanOpts.ResponseBodyPreviewSize > 0 {
-		previewSize := min(len(resp.Body()), w.scanOpts.ResponseBodyPreviewSize)
-		result.ResponsePreview = append([]byte(nil), resp.Body()[:previewSize]...)
+	// Use direct header access methods
+	result.ContentType = append([]byte(nil), resp.Header.ContentType()...)
+	result.ServerInfo = append([]byte(nil), resp.Header.Server()...)
+	if location := resp.Header.PeekBytes([]byte("Location")); len(location) > 0 {
+		result.RedirectURL = append([]byte(nil), location...)
 	}
 
-	// Extract title if present
-	result.Title = extractTitle(resp.Body())
+	// Process body - get it once
+	body := resp.Body()
+	result.ContentLength = int64(resp.Header.ContentLength())
+	result.ResponseBytes = len(body)
 
-	// Generate curl command for reproduction
+	// Get preview if configured
+	if w.scanOpts.ResponseBodyPreviewSize > 0 && len(body) > 0 {
+		previewSize := min(len(body), w.scanOpts.ResponseBodyPreviewSize)
+		result.ResponsePreview = append([]byte(nil), body[:previewSize]...)
+	}
+
+	// Extract title if needed
+	if bytes.Contains(result.ContentType, []byte("html")) {
+		result.Title = extractTitle(body)
+	}
+
+	// Generate curl command
 	result.CurlCommand = BuildCurlCommandPoc(job)
 
 	return result
