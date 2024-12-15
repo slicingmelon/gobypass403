@@ -38,6 +38,7 @@ type worker struct {
 	results  chan *RawHTTPResponseDetails
 	lastUsed time.Time
 	builder  *RequestBuilder
+	scanOpts *ScannerCliOpts
 }
 
 // RequestBuilder handles the lifecycle of fasthttp requests
@@ -88,11 +89,12 @@ func NewRequestPool(clientOpts *ClientOptions, scanOpts *ScannerCliOpts, errorHa
 	// Initialize worker pool
 	pool.workerPool.pool.New = func() interface{} {
 		return &worker{
-			id:      len(pool.workerPool.workers),
-			client:  pool.client,
-			jobs:    make(chan payload.PayloadJob, 1),
-			results: make(chan *RawHTTPResponseDetails, 1),
-			builder: NewRequestBuilder(pool.client),
+			id:       len(pool.workerPool.workers),
+			client:   pool.client,
+			jobs:     make(chan payload.PayloadJob, 1),
+			results:  make(chan *RawHTTPResponseDetails, 1),
+			builder:  NewRequestBuilder(pool.client),
+			scanOpts: scanOpts,
 		}
 	}
 
@@ -230,91 +232,6 @@ func (w *worker) handleError(err error, job payload.PayloadJob) *RawHTTPResponse
 	return nil
 }
 
-func (wp *workerPool) getCh() *workerChan {
-	wp.lock.Lock()
-	defer wp.lock.Unlock()
-
-	// Try to get existing worker
-	if len(wp.ready) > 0 {
-		ch := wp.ready[len(wp.ready)-1]
-		wp.ready = wp.ready[:len(wp.ready)-1]
-		return ch
-	}
-
-	// Create new worker if possible
-	if wp.workersCount < wp.maxWorkersCount {
-		wp.workersCount++
-		ch := wp.workerChanPool.Get().(*workerChan)
-
-		// Start worker goroutine
-		go wp.workerFunc(ch)
-
-		return ch
-	}
-
-	return nil
-}
-
-func (wp *workerPool) workerFunc(ch *workerChan) {
-	builder := NewRequestBuilder(wp.pool.client)
-
-	for job := range ch.jobs {
-		// Build request
-		req := builder.BuildRequest(job)
-
-		// Log before sending
-		if logger.IsDebugEnabled() {
-			logger.LogDebug("[%s] [Canary: %s] Preparing request: %s",
-				job.BypassMode,
-				job.PayloadSeed,
-				job.URL)
-		}
-
-		// Execute
-		resp, err := builder.SendRequest(req)
-
-		// Always release request immediately after use
-		fasthttp.ReleaseRequest(req)
-
-		if err != nil {
-			handleError(job, err, ch)
-			continue
-		}
-
-		// Log successful request
-		logger.LogVerbose("[%s] Request sent successfully: %s", job.BypassMode, job.URL)
-
-		// Process response before releasing it
-		result := wp.pool.ProcessResponse(resp, job)
-
-		// Release response immediately after processing
-		fasthttp.ReleaseResponse(resp)
-
-		// Send result only after response is fully processed and released
-		ch.results <- result
-	}
-}
-
-func handleError(job payload.PayloadJob, err error, ch *workerChan) {
-	if logger.IsDebugEnabled() {
-		logger.LogError("[%s] [Canary: %s] Request error for %s: %v",
-			job.BypassMode,
-			job.PayloadSeed,
-			job.URL,
-			err)
-	}
-
-	if logger.IsVerboseEnabled() {
-		logger.LogError("[%s] Request error for %s: %v",
-			job.BypassMode,
-			job.URL,
-			err)
-	}
-
-	ch.results <- nil
-	time.Sleep(100 * time.Millisecond)
-}
-
 // processResponse handles response processing
 func (w *worker) processResponse(resp *fasthttp.Response, job payload.PayloadJob) *RawHTTPResponseDetails {
 	result := &RawHTTPResponseDetails{
@@ -350,8 +267,8 @@ func (w *worker) processResponse(resp *fasthttp.Response, job payload.PayloadJob
 	result.ResponseBytes = len(resp.Body())
 
 	// Get response preview if configured
-	if w.client.options.ResponseBodyPreviewSize > 0 {
-		previewSize := min(len(resp.Body()), w.client.options.ResponseBodyPreviewSize)
+	if w.scanOpts.ResponseBodyPreviewSize > 0 {
+		previewSize := min(len(resp.Body()), w.scanOpts.ResponseBodyPreviewSize)
 		result.ResponsePreview = append([]byte(nil), resp.Body()[:previewSize]...)
 	}
 
@@ -428,6 +345,23 @@ func (wp *workerPool) cleanIdleWorkers(maxIdleTime time.Duration) {
 		}
 	}
 	wp.workers = activeWorkers
+}
+
+func (p *RequestPool) Close() {
+	close(p.workerPool.stopCh)
+
+	// Clean up workers
+	p.workerPool.lock.Lock()
+	for _, w := range p.workerPool.workers {
+		close(w.jobs)
+		close(w.results)
+	}
+	p.workerPool.workers = nil
+	p.workerPool.lock.Unlock()
+
+	// Clean up channels
+	close(p.payloadQueue)
+	close(p.results)
 }
 
 // Helper functions
