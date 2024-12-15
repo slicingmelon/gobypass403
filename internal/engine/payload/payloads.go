@@ -27,7 +27,7 @@ func GenerateDumbJob(targetURL string, module string) []PayloadJob {
 		Method:      "GET",
 		URL:         targetURL,
 		BypassMode:  module,
-		PayloadSeed: generatePayloadSeed(),
+		PayloadSeed: GeneratePayloadSeed(),
 	})
 
 	logger.LogYellow("\n[%s] Generated 1 payload for %s\n", module, targetURL)
@@ -95,7 +95,7 @@ func GenerateMidPathsJobs(targetURL string, module string) []PayloadJob {
 			Method:      "GET",
 			URL:         url,
 			BypassMode:  module,
-			PayloadSeed: generatePayloadSeed(),
+			PayloadSeed: GeneratePayloadSeed(),
 		})
 	}
 
@@ -157,7 +157,7 @@ func GenerateEndPathsJobs(targetURL string, module string) []PayloadJob {
 			Method:      "GET",
 			URL:         url,
 			BypassMode:  module,
-			PayloadSeed: generatePayloadSeed(),
+			PayloadSeed: GeneratePayloadSeed(),
 		})
 	}
 
@@ -214,7 +214,7 @@ func GenerateHeaderIPJobs(targetURL string, module string, spoofHeader string, s
 			Value:  "1",
 		}},
 		BypassMode:  module,
-		PayloadSeed: generatePayloadSeed(),
+		PayloadSeed: GeneratePayloadSeed(),
 	})
 
 	// Generate regular jobs
@@ -236,7 +236,7 @@ func GenerateHeaderIPJobs(targetURL string, module string, spoofHeader string, s
 							Value:  variation,
 						}},
 						BypassMode:  module,
-						PayloadSeed: generatePayloadSeed(),
+						PayloadSeed: GeneratePayloadSeed(),
 					})
 				}
 			} else {
@@ -248,7 +248,7 @@ func GenerateHeaderIPJobs(targetURL string, module string, spoofHeader string, s
 						Value:  ip,
 					}},
 					BypassMode:  module,
-					PayloadSeed: generatePayloadSeed(),
+					PayloadSeed: GeneratePayloadSeed(),
 				})
 			}
 		}
@@ -288,7 +288,7 @@ func GenerateCaseSubstitutionJobs(targetURL string, module string) []PayloadJob 
 				Method:      "GET",
 				URL:         baseURL + newPath,
 				BypassMode:  module,
-				PayloadSeed: generatePayloadSeed(),
+				PayloadSeed: GeneratePayloadSeed(),
 			})
 		}
 	}
@@ -321,7 +321,7 @@ func GenerateCharEncodeJobs(targetURL string, module string) []PayloadJob {
 				Method:      "GET",
 				URL:         baseURL + singleEncoded,
 				BypassMode:  "char_encode",
-				PayloadSeed: generatePayloadSeed(),
+				PayloadSeed: GeneratePayloadSeed(),
 			})
 
 			// Double URL encoding
@@ -330,7 +330,7 @@ func GenerateCharEncodeJobs(targetURL string, module string) []PayloadJob {
 				Method:      "GET",
 				URL:         baseURL + doubleEncoded,
 				BypassMode:  "char_encode_double",
-				PayloadSeed: generatePayloadSeed(),
+				PayloadSeed: GeneratePayloadSeed(),
 			})
 
 			// Triple URL encoding
@@ -339,7 +339,7 @@ func GenerateCharEncodeJobs(targetURL string, module string) []PayloadJob {
 				Method:      "GET",
 				URL:         baseURL + tripleEncoded,
 				BypassMode:  "char_encode_triple",
-				PayloadSeed: generatePayloadSeed(),
+				PayloadSeed: GeneratePayloadSeed(),
 			})
 		}
 	}
@@ -377,7 +377,7 @@ func GenerateHeaderSchemeJobs(targetURL string, module string) []PayloadJob {
 					Value:  "on",
 				}},
 				BypassMode:  module,
-				PayloadSeed: generatePayloadSeed(),
+				PayloadSeed: GeneratePayloadSeed(),
 			})
 			continue
 		}
@@ -393,7 +393,7 @@ func GenerateHeaderSchemeJobs(targetURL string, module string) []PayloadJob {
 						Value:  fmt.Sprintf("proto=%s", protoScheme),
 					}},
 					BypassMode:  module,
-					PayloadSeed: generatePayloadSeed(),
+					PayloadSeed: GeneratePayloadSeed(),
 				})
 			} else {
 				allJobs = append(allJobs, PayloadJob{
@@ -404,7 +404,7 @@ func GenerateHeaderSchemeJobs(targetURL string, module string) []PayloadJob {
 						Value:  protoScheme,
 					}},
 					BypassMode:  module,
-					PayloadSeed: generatePayloadSeed(),
+					PayloadSeed: GeneratePayloadSeed(),
 				})
 			}
 		}
@@ -447,7 +447,7 @@ func GenerateHeaderURLJobs(targetURL string, module string) []PayloadJob {
 				Value:  basePath,
 			}},
 			BypassMode:  module,
-			PayloadSeed: generatePayloadSeed(),
+			PayloadSeed: GeneratePayloadSeed(),
 		})
 
 		// Second variant: full target URL in header
@@ -462,7 +462,7 @@ func GenerateHeaderURLJobs(targetURL string, module string) []PayloadJob {
 					Value:  targetURL,
 				}},
 				BypassMode:  module,
-				PayloadSeed: generatePayloadSeed(),
+				PayloadSeed: GeneratePayloadSeed(),
 			})
 		}
 
@@ -482,7 +482,7 @@ func GenerateHeaderURLJobs(targetURL string, module string) []PayloadJob {
 					Value:  parentPath,
 				}},
 				BypassMode:  module,
-				PayloadSeed: generatePayloadSeed(),
+				PayloadSeed: GeneratePayloadSeed(),
 			})
 
 			if strings.Contains(strings.ToLower(headerURL), "url") ||
@@ -496,7 +496,7 @@ func GenerateHeaderURLJobs(targetURL string, module string) []PayloadJob {
 						Value:  fullURL,
 					}},
 					BypassMode:  module,
-					PayloadSeed: generatePayloadSeed(),
+					PayloadSeed: GeneratePayloadSeed(),
 				})
 			}
 		}
@@ -538,7 +538,7 @@ func GenerateHeaderPortJobs(targetURL string, module string) []PayloadJob {
 					Value:  port,
 				}},
 				BypassMode:  module,
-				PayloadSeed: generatePayloadSeed(),
+				PayloadSeed: GeneratePayloadSeed(),
 			})
 		}
 	}
@@ -578,7 +578,7 @@ func GenerateHostHeaderJobs(targetURL string, BypassModule string, probeCache pr
 					Value:  parsedURL.Host,
 				}},
 				BypassMode:  BypassModule,
-				PayloadSeed: generatePayloadSeed(),
+				PayloadSeed: GeneratePayloadSeed(),
 			})
 		}
 
@@ -592,7 +592,7 @@ func GenerateHostHeaderJobs(targetURL string, BypassModule string, probeCache pr
 					Value:  ip,
 				}},
 				BypassMode:  BypassModule,
-				PayloadSeed: generatePayloadSeed(),
+				PayloadSeed: GeneratePayloadSeed(),
 			})
 		}
 
@@ -603,7 +603,7 @@ func GenerateHostHeaderJobs(targetURL string, BypassModule string, probeCache pr
 				Method:      "GET",
 				URL:         ipURL,
 				BypassMode:  BypassModule,
-				PayloadSeed: generatePayloadSeed(),
+				PayloadSeed: GeneratePayloadSeed(),
 			})
 		}
 	} else {

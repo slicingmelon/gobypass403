@@ -103,7 +103,7 @@ func HeadersToMap(headers []Header) map[string]string {
 	return m
 }
 
-func generatePayloadSeed() string {
+func GeneratePayloadSeed() string {
 	b := make([]byte, 18)
 	tableSize := uint32(len(charsetTable))
 

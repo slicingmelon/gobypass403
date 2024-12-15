@@ -251,7 +251,7 @@ func (wp *workerPool) workerFunc(ch *workerChan) {
 		logger.LogVerbose("[%s] Request sent successfully: %s", job.BypassMode, job.URL)
 
 		// Process response before releasing it
-		result := wp.pool.processResponse(resp, job)
+		result := wp.pool.ProcessResponse(resp, job)
 
 		// Release response immediately after processing
 		fasthttp.ReleaseResponse(resp)
@@ -288,7 +288,7 @@ func (wp *workerPool) release(ch *workerChan) {
 }
 
 // processResponse handles response processing
-func (p *RequestPool) processResponse(resp *fasthttp.Response, job payload.PayloadJob) *RawHTTPResponseDetails {
+func (p *RequestPool) ProcessResponse(resp *fasthttp.Response, job payload.PayloadJob) *RawHTTPResponseDetails {
 	details := &RawHTTPResponseDetails{
 		URL:        String2Byte(job.URL),
 		BypassMode: String2Byte(job.BypassMode),
