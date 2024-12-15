@@ -1,6 +1,7 @@
 package rawhttp
 
 import (
+	"bytes"
 	"sync"
 	"time"
 	"unsafe"
@@ -323,13 +324,26 @@ func (w *worker) processResponse(resp *fasthttp.Response, job payload.PayloadJob
 	}
 
 	// Process headers
+	headerBuf := bytebufferpool.Get()
+	defer bytebufferpool.Put(headerBuf)
+
 	resp.Header.VisitAll(func(key, value []byte) {
-		if string(key) == "Content-Type" {
+		headerBuf.WriteString(Byte2String(key))
+		headerBuf.WriteString(": ")
+		headerBuf.WriteString(Byte2String(value))
+		headerBuf.WriteString("\n")
+
+		switch string(key) {
+		case "Content-Type":
 			result.ContentType = append([]byte(nil), value...)
-		} else if string(key) == "Server" {
+		case "Server":
 			result.ServerInfo = append([]byte(nil), value...)
+		case "Location":
+			result.RedirectURL = append([]byte(nil), value...)
 		}
 	})
+
+	result.ResponseHeaders = append([]byte(nil), headerBuf.B...)
 
 	// Process body
 	result.ContentLength = int64(resp.Header.ContentLength())
@@ -340,6 +354,9 @@ func (w *worker) processResponse(resp *fasthttp.Response, job payload.PayloadJob
 		previewSize := min(len(resp.Body()), w.client.options.ResponseBodyPreviewSize)
 		result.ResponsePreview = append([]byte(nil), resp.Body()[:previewSize]...)
 	}
+
+	// Extract title if present
+	result.Title = extractTitle(resp.Body())
 
 	// Generate curl command for reproduction
 	result.CurlCommand = w.builder.GenerateCurlCommand(job)
@@ -458,4 +475,21 @@ func (rb *RequestBuilder) GenerateCurlCommand(job payload.PayloadJob) []byte {
 	}
 
 	return append([]byte(nil), buf.B...)
+}
+
+// Helper function to extract title from HTML
+func extractTitle(body []byte) []byte {
+	lower := bytes.ToLower(body)
+	titleStart := bytes.Index(lower, []byte("<title>"))
+	if titleStart == -1 {
+		return nil
+	}
+	titleStart += 7 // len("<title>")
+
+	titleEnd := bytes.Index(lower[titleStart:], []byte("</title>"))
+	if titleEnd == -1 {
+		return nil
+	}
+
+	return append([]byte(nil), body[titleStart:titleStart+titleEnd]...)
 }
