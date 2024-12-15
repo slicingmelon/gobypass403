@@ -65,16 +65,25 @@ func ReplaceNth(s, old, new string, n int) string {
 	return s[:pos] + new + s[pos+len(old):]
 }
 
-// Helper function to read payloads from the specified file
-func ReadPayloadsFile(filename string) ([]string, error) {
+// ReadPayloadsFromFile reads all payloads from the specified file
+func ReadPayloadsFromFile(filename string) ([]string, error) {
+	return ReadMaxPayloadsFromFile(filename, -1)
+}
+
+// ReadMaxPayloadsFromFile reads up to maxNum payloads from the specified file
+// -1 means all payloads (lines)
+func ReadMaxPayloadsFromFile(filename string, maxNum int) ([]string, error) {
 	content, err := os.ReadFile(filename)
 	if err != nil {
 		return nil, err
 	}
 
 	var payloads []string
-	for _, line := range strings.Split(string(content), "\n") {
-		// Trim both spaces and \r\n
+	lines := strings.Split(string(content), "\n")
+	for i, line := range lines {
+		if i >= maxNum {
+			break
+		}
 		line = strings.TrimSpace(line)
 		if line != "" {
 			payloads = append(payloads, line)
@@ -103,6 +112,7 @@ func HeadersToMap(headers []Header) map[string]string {
 	return m
 }
 
+// GeneratePayloadSeed generates a random payload seed used later in debugging, etc
 func GeneratePayloadSeed() string {
 	b := make([]byte, 18)
 	tableSize := uint32(len(charsetTable))

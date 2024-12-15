@@ -27,6 +27,19 @@ type ProgressCounter struct {
 	Cancelled bool
 }
 
+func (pc *ProgressCounter) summarizeProgress() {
+	pc.Mu.Lock()
+	defer pc.Mu.Unlock()
+
+	fmt.Printf("\r%s[%s]%s %sCompleted:%s %s%d%s/%s%d%s (%s%.1f%%%s) requests\n",
+		colorCyan, pc.Mode, colorReset,
+		colorTeal, colorReset,
+		colorYellow, pc.Current, colorReset,
+		colorGreen, pc.Total, colorReset,
+		colorYellow, float64(pc.Current)/float64(pc.Total)*100, colorReset,
+	)
+}
+
 func (pc *ProgressCounter) markAsCancelled() {
 	pc.Mu.Lock()
 	if !pc.Cancelled {
@@ -82,6 +95,10 @@ func (pc *ProgressCounter) increment() {
 		colorGreen, pc.Total, colorReset,
 		currentColor, percentage, colorReset,
 	)
+
+	if pc.Current == pc.Total {
+		fmt.Printf("\n")
+	}
 }
 
 func (pc *ProgressCounter) isCancelled() bool {

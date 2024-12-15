@@ -181,7 +181,8 @@ func formatBytes(bytes int64) string {
 }
 
 // BuildCurlCmd generates a curl command string for the given request parameters
-func BuildCurlCmd(method, url string, headers map[string]string) string {
+// deprecated
+func buildCurlCmd(method, url string, headers map[string]string) string {
 	// Determine curl command based on OS
 	curlCmd := "curl"
 	if runtime.GOOS == "windows" {

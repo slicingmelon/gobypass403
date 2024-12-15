@@ -277,7 +277,7 @@ func (w *worker) processResponse(resp *fasthttp.Response, job payload.PayloadJob
 	result.Title = extractTitle(resp.Body())
 
 	// Generate curl command for reproduction
-	result.CurlCommand = w.builder.GenerateCurlCommand(job)
+	result.CurlCommand = BuildCurlCommandPoc(job)
 
 	return result
 }
@@ -389,9 +389,9 @@ func Byte2String(b []byte) string {
 	return unsafe.String(unsafe.SliceData(b), len(b))
 }
 
-// BuildCurlCommand generates a curl poc command to reproduce the findings
+// BuildCurlCommandPoc generates a curl poc command to reproduce the findings
 // Uses a local bytebufferpool implementation from this project
-func (rb *RequestBuilder) GenerateCurlCommand(job payload.PayloadJob) []byte {
+func BuildCurlCommandPoc(job payload.PayloadJob) []byte {
 	var buf bytebufferpool.ByteBuffer
 	defer buf.Reset()
 
@@ -402,18 +402,15 @@ func (rb *RequestBuilder) GenerateCurlCommand(job payload.PayloadJob) []byte {
 		buf.WriteString("curl")
 	}
 
+	buf.WriteString(" -skgi --path-as-is")
+
 	// Add method only if not GET
 	if job.Method != "GET" {
 		buf.WriteString(" -X ")
 		buf.WriteString(job.Method)
 	}
 
-	// Add URL
-	buf.WriteString(" '")
-	buf.WriteString(job.URL)
-	buf.WriteString("'")
-
-	// Add headers
+	// Add headers before URL
 	for _, h := range job.Headers {
 		buf.WriteString(" -H '")
 		buf.WriteString(h.Header)
@@ -421,6 +418,11 @@ func (rb *RequestBuilder) GenerateCurlCommand(job payload.PayloadJob) []byte {
 		buf.WriteString(h.Value)
 		buf.WriteString("'")
 	}
+
+	// last is URL
+	buf.WriteString(" '")
+	buf.WriteString(job.URL)
+	buf.WriteString("'")
 
 	return append([]byte(nil), buf.B...)
 }

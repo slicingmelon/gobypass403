@@ -1,6 +1,7 @@
 package rawhttp
 
 import (
+	"crypto/tls"
 	"sync"
 	"time"
 
@@ -96,9 +97,9 @@ func NewClient(opts *ClientOptions, errorHandler *GB403ErrorHandler.ErrorHandler
 		ReadBufferSize:                opts.ReadBufferSize,
 		MaxIdemponentCallAttempts:     opts.MaxRetries,
 		Dial:                          dialFunc,
-		// TLSConfig: &tls.Config{
-		// 	InsecureSkipVerify: true,
-		// },
+		TLSConfig: &tls.Config{
+			InsecureSkipVerify: true,
+		},
 	}
 
 	return &Client{

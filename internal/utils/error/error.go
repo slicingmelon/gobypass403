@@ -2,6 +2,7 @@ package error
 
 import (
 	"errors"
+	"strings"
 	"sync"
 
 	"github.com/VictoriaMetrics/fastcache"
@@ -98,7 +99,15 @@ func IsTemporaryError(err error) bool {
 }
 
 func IsPermanentError(err error) bool {
-	return errors.Is(err, ErrHostUnreachable) ||
-		errors.Is(err, ErrTLSHandshake) ||
-		errors.Is(err, ErrInvalidCertificate)
+	if err == nil {
+		return false
+	}
+
+	// Only consider connection/network errors as permanent
+	if strings.Contains(err.Error(), "connection refused") ||
+		strings.Contains(err.Error(), "no such host") ||
+		strings.Contains(err.Error(), "network is unreachable") {
+		return true
+	}
+	return false
 }

@@ -12,7 +12,7 @@ import (
 )
 
 // Helper function to format bytes (so you can see human readable size)
-func FormatBytes(bytes int64) string {
+func FormatBytesH(bytes int64) string {
 	const unit = 1024
 	if bytes < 0 {
 		return "unknown"

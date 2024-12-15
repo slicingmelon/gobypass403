@@ -126,9 +126,8 @@ func (w *WorkerContext) Stop() {
 			return
 		default:
 			close(w.cancel)
-			w.progress.markAsCancelled()
 			if w.requestPool != nil {
-				w.requestPool.Close() // Add this
+				w.requestPool.Close()
 			}
 		}
 	})
@@ -191,7 +190,8 @@ func (s *Scanner) runBypassForMode(bypassModule string, targetURL string, result
 	}
 
 	ctx := NewWorkerContext(bypassModule, len(allJobs), targetURL, s.config, s.errorHandler)
-	defer ctx.Stop() // Stop the worker context when the function returns
+	//defer ctx.Stop() // Stop the worker context when the function returns
+
 	responses := ctx.requestPool.ProcessRequests(allJobs)
 
 	// Process responses directly without intermediate channel
@@ -204,7 +204,7 @@ func (s *Scanner) runBypassForMode(bypassModule string, targetURL string, result
 		ctx.progress.increment()
 
 		// Check for matching status codes
-		if containsStatusCode(s.config.MatchStatusCodes, response.StatusCode) {
+		if matchStatusCodes(response.StatusCode, s.config.MatchStatusCodes) {
 			results <- &Result{
 				TargetURL:       string(response.URL),
 				BypassModule:    bypassModule,
@@ -221,10 +221,13 @@ func (s *Scanner) runBypassForMode(bypassModule string, targetURL string, result
 			}
 		}
 	}
+	if ctx.requestPool != nil {
+		ctx.requestPool.Close()
+	}
 }
 
-// Helper function to check if slice contains value
-func containsStatusCode(codes []int, code int) bool {
+// match HTTP status code in
+func matchStatusCodes(code int, codes []int) bool {
 	for _, c := range codes {
 		if c == code {
 			return true
