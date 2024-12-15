@@ -5,7 +5,7 @@ go 1.22.10
 require (
 	github.com/VictoriaMetrics/fastcache v1.12.2
 	github.com/fatih/color v1.18.0
-	github.com/projectdiscovery/fastdialer v0.2.13
+	github.com/projectdiscovery/fastdialer v0.2.14
 	github.com/projectdiscovery/gcache v0.0.0-20241015120333-12546c6e3f4c
 	github.com/slicingmelon/go-rawurlparser v0.2.7
 	github.com/valyala/fasthttp v1.58.0
@@ -32,7 +32,7 @@ require (
 	github.com/miekg/dns v1.1.56 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/projectdiscovery/blackrock v0.0.1 // indirect
-	github.com/projectdiscovery/hmap v0.0.69 // indirect
+	github.com/projectdiscovery/hmap v0.0.70 // indirect
 	github.com/projectdiscovery/networkpolicy v0.0.9 // indirect
 	github.com/projectdiscovery/retryabledns v1.0.87 // indirect
 	github.com/projectdiscovery/utils v0.3.0 // indirect
