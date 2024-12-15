@@ -1,3 +1,6 @@
+// File internal/engine/rawhttp/bytebufferpool/bytebuffer.go
+//
+// This is a modified implementation of a fasthttp's bytebufferpool that includes some fixes and optimizations.
 package bytebufferpool
 
 import (

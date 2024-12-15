@@ -1,7 +1,6 @@
 package rawhttp
 
 import (
-	"runtime"
 	"sync"
 	"time"
 	"unsafe"
@@ -13,44 +12,42 @@ import (
 	"github.com/valyala/fasthttp"
 )
 
+// RequestPool manages a pool of FastHTTP requests
+type RequestPool struct {
+	client       *Client
+	workerPool   *workerPool
+	maxWorkers   int
+	payloadQueue chan payload.PayloadJob
+	results      chan *RawHTTPResponseDetails
+	scanOpts     *ScannerCliOpts
+}
+
+type workerPool struct {
+	workers []*worker
+	ready   chan *worker
+	lock    sync.Mutex
+	stopCh  chan struct{}
+	pool    sync.Pool
+}
+
+type worker struct {
+	id       int
+	client   *Client
+	jobs     chan payload.PayloadJob
+	results  chan *RawHTTPResponseDetails
+	lastUsed time.Time
+	builder  *RequestBuilder
+}
+
 // RequestBuilder handles the lifecycle of fasthttp requests
 type RequestBuilder struct {
 	client *Client
 }
 
-type Header struct {
-	Key   string
-	Value string
-}
-
-// ScanOptions reference the cli options, we'll need them internally here as well
+// ScannerCliOpts reference the cli options
 type ScannerCliOpts struct {
 	MatchStatusCodes        []int
 	ResponseBodyPreviewSize int
-}
-
-// RequestPool manages a pool of FastHTTP requests
-type RequestPool struct {
-	client     *Client
-	workerPool *workerPool
-	jobs       []payload.PayloadJob // worker pool jobs
-	scanOpts   *ScannerCliOpts      // Direct reference to (some) scanner options
-}
-
-type workerPool struct {
-	workersCount    int
-	maxWorkersCount int
-	ready           []*workerChan
-	lock            sync.Mutex
-	stopCh          chan struct{}
-	workerChanPool  sync.Pool
-	pool            *RequestPool
-}
-
-type workerChan struct {
-	lastUseTime time.Time
-	jobs        chan payload.PayloadJob
-	results     chan *RawHTTPResponseDetails
 }
 
 // ResponseDetails contains processed response information
@@ -74,27 +71,41 @@ func NewRequestPool(clientOpts *ClientOptions, scanOpts *ScannerCliOpts, errorHa
 		clientOpts = DefaultOptionsSameHost()
 	}
 
+	maxWorkers := clientOpts.MaxConnsPerHost
 	pool := &RequestPool{
-		client:   NewClient(clientOpts, errorHandler),
-		scanOpts: scanOpts,
+		client:       NewClient(clientOpts, errorHandler),
+		maxWorkers:   maxWorkers,
+		payloadQueue: make(chan payload.PayloadJob, maxWorkers*2),
+		results:      make(chan *RawHTTPResponseDetails, maxWorkers*2),
+		scanOpts:     scanOpts,
 		workerPool: &workerPool{
-			maxWorkersCount: clientOpts.MaxConnsPerHost,
-			stopCh:          make(chan struct{}),
+			ready:  make(chan *worker, maxWorkers),
+			stopCh: make(chan struct{}),
 		},
 	}
 
-	pool.workerPool.pool = pool
-	pool.workerPool.workerChanPool.New = func() interface{} {
-		return &workerChan{
+	// Initialize worker pool
+	pool.workerPool.pool.New = func() interface{} {
+		return &worker{
+			id:      len(pool.workerPool.workers),
+			client:  pool.client,
 			jobs:    make(chan payload.PayloadJob, 1),
 			results: make(chan *RawHTTPResponseDetails, 1),
+			builder: NewRequestBuilder(pool.client),
 		}
+	}
+
+	// Pre-create workers
+	for i := 0; i < maxWorkers; i++ {
+		worker := pool.workerPool.pool.Get().(*worker)
+		pool.workerPool.workers = append(pool.workerPool.workers, worker)
+		pool.workerPool.ready <- worker
 	}
 
 	return pool
 }
 
-// NewRequestBuilder creates a new request builder
+// RequestBuilder handles request construction
 func NewRequestBuilder(client *Client) *RequestBuilder {
 	return &RequestBuilder{
 		client: client,
@@ -102,9 +113,7 @@ func NewRequestBuilder(client *Client) *RequestBuilder {
 }
 
 // BuildRequest creates and configures a request from a payload job
-func (rb *RequestBuilder) BuildRequest(job payload.PayloadJob) *fasthttp.Request {
-	req := fasthttp.AcquireRequest()
-
+func (rb *RequestBuilder) BuildRequest(req *fasthttp.Request, job payload.PayloadJob) {
 	// Core request setup
 	req.SetRequestURI(job.URL)
 	req.Header.SetMethod(job.Method)
@@ -119,27 +128,24 @@ func (rb *RequestBuilder) BuildRequest(job payload.PayloadJob) *fasthttp.Request
 		req.Header.Set(h.Header, h.Value)
 	}
 
-	// add debug canary/seed to each request for better debugging
+	// Add debug canary/seed
 	if logger.IsDebugEnabled() {
 		req.Header.Set("X-GB403-Debug", job.PayloadSeed)
 	}
 
-	// set a decent user agent
+	// Set user agent
 	if !rb.client.options.NoDefaultUserAgent {
 		req.Header.SetUserAgentBytes(rb.client.userAgent)
 	}
 
 	// Handle connection settings
 	if rb.client.options.ProxyURL != "" {
-		// Always use Connection: close with proxy
 		req.SetConnectionClose()
 	} else if rb.client.options.DisableKeepAlive {
 		req.SetConnectionClose()
 	} else {
 		req.Header.Set("Connection", "keep-alive")
 	}
-
-	return req
 }
 
 // SendRequest performs the request and returns a response
@@ -157,15 +163,13 @@ func (rb *RequestBuilder) SendRequest(req *fasthttp.Request) (*fasthttp.Response
 
 // ProcessRequests handles multiple requests efficiently
 func (p *RequestPool) ProcessRequests(jobs []payload.PayloadJob) <-chan *RawHTTPResponseDetails {
-	// Reduce buffer size to prevent too many concurrent connections
-	bufferSize := min(len(jobs), p.client.options.MaxConnsPerHost/2)
-	results := make(chan *RawHTTPResponseDetails, bufferSize)
+	results := make(chan *RawHTTPResponseDetails, len(jobs))
 
 	go func() {
 		defer close(results)
 
-		// Use a smaller number of concurrent requests
-		maxConcurrent := min(p.client.options.MaxConnsPerHost/2, 10)
+		// Use both worker pool limits and connection limits for optimal concurrency
+		maxConcurrent := min(p.maxWorkers, p.client.options.MaxConnsPerHost)
 		sem := make(chan struct{}, maxConcurrent)
 		var wg sync.WaitGroup
 
@@ -173,20 +177,25 @@ func (p *RequestPool) ProcessRequests(jobs []payload.PayloadJob) <-chan *RawHTTP
 			wg.Add(1)
 			go func(j payload.PayloadJob) {
 				defer wg.Done()
+
+				// Acquire semaphore slot
 				sem <- struct{}{}
 				defer func() { <-sem }()
 
-				workerChan := p.workerPool.getCh()
-				if workerChan == nil {
+				// Get worker from pool
+				worker := p.workerPool.acquire()
+				if worker == nil {
+					logger.LogDebug("Failed to acquire worker for job: %s", j.URL)
 					return
 				}
 
-				workerChan.jobs <- j
-				result := <-workerChan.results
+				// Process job and release worker
+				result := worker.processJob(j)
+				p.workerPool.release(worker)
+
 				if result != nil {
 					results <- result
 				}
-				p.workerPool.release(workerChan)
 			}(job)
 		}
 
@@ -194,6 +203,30 @@ func (p *RequestPool) ProcessRequests(jobs []payload.PayloadJob) <-chan *RawHTTP
 	}()
 
 	return results
+}
+
+func (w *worker) processJob(job payload.PayloadJob) *RawHTTPResponseDetails {
+	// Use FastHTTP's request/response pooling
+	req := fasthttp.AcquireRequest()
+	resp := fasthttp.AcquireResponse()
+	defer fasthttp.ReleaseRequest(req)
+	defer fasthttp.ReleaseResponse(resp)
+
+	// Build and send request
+	w.builder.BuildRequest(req, job)
+	err := w.client.DoRaw(req, resp)
+	if err != nil {
+		return w.handleError(err, job)
+	}
+
+	return w.processResponse(resp, job)
+}
+
+func (w *worker) handleError(err error, job payload.PayloadJob) *RawHTTPResponseDetails {
+	if logger.IsDebugEnabled() {
+		logger.LogDebug("Error processing job %s: %v", job.URL, err)
+	}
+	return nil
 }
 
 func (wp *workerPool) getCh() *workerChan {
@@ -281,64 +314,114 @@ func handleError(job payload.PayloadJob, err error, ch *workerChan) {
 	time.Sleep(100 * time.Millisecond)
 }
 
-func (wp *workerPool) release(ch *workerChan) {
-	wp.lock.Lock()
-	wp.ready = append(wp.ready, ch)
-	wp.lock.Unlock()
-}
-
 // processResponse handles response processing
-func (p *RequestPool) ProcessResponse(resp *fasthttp.Response, job payload.PayloadJob) *RawHTTPResponseDetails {
-	details := &RawHTTPResponseDetails{
-		URL:        String2Byte(job.URL),
-		BypassMode: String2Byte(job.BypassMode),
+func (w *worker) processResponse(resp *fasthttp.Response, job payload.PayloadJob) *RawHTTPResponseDetails {
+	result := &RawHTTPResponseDetails{
+		URL:        append([]byte(nil), job.URL...),
+		BypassMode: append([]byte(nil), job.PayloadSeed...),
 		StatusCode: resp.StatusCode(),
 	}
 
-	headerBuf := bytebufferpool.Get()
-	defer bytebufferpool.Put(headerBuf)
-
-	// Use protocol (http version from the response)
-	headerBuf.Write(resp.Header.Protocol())
-	headerBuf.WriteByte(' ')
-	headerBuf.B = fasthttp.AppendUint(headerBuf.B, resp.StatusCode())
-	headerBuf.WriteByte(' ')
-	headerBuf.Write(resp.Header.StatusMessage())
-	headerBuf.WriteString("\r\n")
-
-	// Write headers
+	// Process headers
 	resp.Header.VisitAll(func(key, value []byte) {
-		headerBuf.Write(key)
-		headerBuf.WriteString(": ")
-		headerBuf.Write(value)
-		headerBuf.Write([]byte("\r\n"))
+		if string(key) == "Content-Type" {
+			result.ContentType = append([]byte(nil), value...)
+		} else if string(key) == "Server" {
+			result.ServerInfo = append([]byte(nil), value...)
+		}
 	})
-	headerBuf.WriteString("\r\n")
-
-	details.ResponseHeaders = append([]byte(nil), headerBuf.B...)
-
-	// Use direct byte access for headers
-	details.ContentType = append([]byte(nil), resp.Header.ContentType()...)
-	details.ServerInfo = append([]byte(nil), resp.Header.Server()...)
-	if location := resp.Header.PeekBytes([]byte("Location")); len(location) > 0 {
-		details.RedirectURL = append([]byte(nil), location...)
-	}
 
 	// Process body
-	body := resp.Body()
-	if len(body) > p.scanOpts.ResponseBodyPreviewSize {
-		details.ResponsePreview = append([]byte(nil), body[:p.scanOpts.ResponseBodyPreviewSize]...)
-	} else {
-		details.ResponsePreview = append([]byte(nil), body...)
-	}
-	details.ResponseBytes = len(body)
-	details.ContentLength = int64(resp.Header.ContentLength())
+	result.ContentLength = int64(resp.Header.ContentLength())
+	result.ResponseBytes = len(resp.Body())
 
-	details.CurlCommand = BuildCurlCmd(job)
-	return details
+	// Get response preview if configured
+	if w.client.options.ResponseBodyPreviewSize > 0 {
+		previewSize := min(len(resp.Body()), w.client.options.ResponseBodyPreviewSize)
+		result.ResponsePreview = append([]byte(nil), resp.Body()[:previewSize]...)
+	}
+
+	// Generate curl command for reproduction
+	result.CurlCommand = w.builder.GenerateCurlCommand(job)
+
+	return result
 }
 
-// s2b converts string to a byte slice without memory allocation.
+// WorkerPool methods
+func (wp *workerPool) acquire() *worker {
+	select {
+	case worker := <-wp.ready:
+		worker.lastUsed = time.Now()
+		return worker
+	default:
+		// If no workers available, try to create new one
+		wp.lock.Lock()
+		defer wp.lock.Unlock()
+
+		if len(wp.workers) < cap(wp.ready) {
+			worker := wp.pool.Get().(*worker)
+			wp.workers = append(wp.workers, worker)
+			worker.lastUsed = time.Now()
+			return worker
+		}
+
+		// Wait for available worker
+		select {
+		case worker := <-wp.ready:
+			worker.lastUsed = time.Now()
+			return worker
+		case <-time.After(5 * time.Second):
+			return nil
+		}
+	}
+}
+
+func (wp *workerPool) release(w *worker) {
+	w.lastUsed = time.Now()
+	select {
+	case wp.ready <- w:
+		// Worker successfully returned to pool
+	default:
+		// Pool is full, clean up worker
+		wp.lock.Lock()
+		for i, worker := range wp.workers {
+			if worker == w {
+				wp.workers[i] = wp.workers[len(wp.workers)-1]
+				wp.workers = wp.workers[:len(wp.workers)-1]
+				break
+			}
+		}
+		wp.lock.Unlock()
+		wp.pool.Put(w)
+	}
+}
+
+func (wp *workerPool) cleanIdleWorkers(maxIdleTime time.Duration) {
+	threshold := time.Now().Add(-maxIdleTime)
+	wp.lock.Lock()
+	defer wp.lock.Unlock()
+
+	activeWorkers := make([]*worker, 0, len(wp.workers))
+	for _, w := range wp.workers {
+		if w.lastUsed.After(threshold) {
+			activeWorkers = append(activeWorkers, w)
+		} else {
+			// Return to sync.Pool for potential reuse
+			wp.pool.Put(w)
+		}
+	}
+	wp.workers = activeWorkers
+}
+
+// Helper functions
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}
+
+// String2Byte converts string to a byte slice without memory allocation.
 // This conversion *does not* copy data. Note that casting via "([]byte)(string)" *does* copy data.
 // Also note that you *should not* change the byte slice after conversion, because Go strings
 // are treated as immutable. This would cause a segmentation violation panic.
@@ -346,8 +429,7 @@ func String2Byte(s string) []byte {
 	return unsafe.Slice(unsafe.StringData(s), len(s))
 }
 
-// b2s converts byte slice to a string without memory allocation.
-// See https://groups.google.com/forum/#!msg/Golang-Nuts/ENgbUzYvCuU/90yGx7GUAgAJ .
+// Byte2String converts byte slice to a string without memory allocation.
 // This conversion *does not* copy data. Note that casting via "(string)([]byte)" *does* copy data.
 // Also note that you *should not* change the byte slice after conversion, because Go strings
 // are treated as immutable. This would cause a segmentation violation panic.
@@ -357,21 +439,15 @@ func Byte2String(b []byte) string {
 
 // BuildCurlCommand generates a curl poc command to reproduce the findings
 // Uses a local bytebufferpool implementation from this project
-func BuildCurlCmd(job payload.PayloadJob) []byte {
-	buf := bytebufferpool.Get()
-	defer bytebufferpool.Put(buf)
+func (rb *RequestBuilder) GenerateCurlCommand(job payload.PayloadJob) []byte {
+	var buf bytebufferpool.ByteBuffer
+	defer buf.Reset()
 
-	if runtime.GOOS == "windows" {
-		buf.WriteString("curl.exe")
-	} else {
-		buf.WriteString("curl")
-	}
-	buf.WriteString(" -skgi --path-as-is")
-
-	if job.Method != "GET" {
-		buf.WriteString(" -X ")
-		buf.WriteString(job.Method)
-	}
+	buf.WriteString("curl -X ")
+	buf.WriteString(job.Method)
+	buf.WriteString(" '")
+	buf.WriteString(job.URL)
+	buf.WriteString("'")
 
 	for _, h := range job.Headers {
 		buf.WriteString(" -H '")
@@ -380,10 +456,6 @@ func BuildCurlCmd(job payload.PayloadJob) []byte {
 		buf.WriteString(h.Value)
 		buf.WriteString("'")
 	}
-
-	buf.WriteString(" '")
-	buf.WriteString(job.URL)
-	buf.WriteString("'")
 
 	return append([]byte(nil), buf.B...)
 }
