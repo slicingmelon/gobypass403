@@ -122,11 +122,14 @@ func NewWorkerContext(mode string, total int, targetURL string, opts *ScannerOpt
 func (w *WorkerContext) Stop() {
 	w.once.Do(func() {
 		select {
-		case <-w.cancel: // Already closed
+		case <-w.cancel:
 			return
 		default:
 			close(w.cancel)
 			w.progress.markAsCancelled()
+			if w.requestPool != nil {
+				w.requestPool.Close() // Add this
+			}
 		}
 	})
 }
@@ -188,6 +191,7 @@ func (s *Scanner) runBypassForMode(bypassModule string, targetURL string, result
 	}
 
 	ctx := NewWorkerContext(bypassModule, len(allJobs), targetURL, s.config, s.errorHandler)
+	defer ctx.Stop() // Stop the worker context when the function returns
 	responses := ctx.requestPool.ProcessRequests(allJobs)
 
 	// Process responses directly without intermediate channel
