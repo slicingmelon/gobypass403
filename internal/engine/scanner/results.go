@@ -180,6 +180,28 @@ func formatBytes(bytes int64) string {
 	return fmt.Sprintf("%d", bytes)
 }
 
+// Helper function to format bytes (so you can see human readable size)
+func FormatBytesH(bytes int64) string {
+	if bytes == 0 {
+		return "[-]"
+	}
+	if bytes < 0 {
+		return "unknown"
+	}
+
+	const unit = 1024
+	if bytes < unit {
+		return fmt.Sprintf("%d B", bytes)
+	}
+
+	div, exp := int64(unit), 0
+	for n := bytes / unit; n >= unit; n /= unit {
+		div *= unit
+		exp++
+	}
+	return fmt.Sprintf("%.1f%cB", float64(bytes)/float64(div), "KMGTPE"[exp])
+}
+
 // BuildCurlCmd generates a curl command string for the given request parameters
 // deprecated
 func buildCurlCmd(method, url string, headers map[string]string) string {

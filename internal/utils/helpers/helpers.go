@@ -6,27 +6,9 @@ import (
 	"regexp"
 	"strings"
 
-	"math/rand"
 	//"github.com/slicingmelon/go-bypass-403/internal/config"
 	"github.com/slicingmelon/go-bypass-403/internal/utils/logger"
 )
-
-// Helper function to format bytes (so you can see human readable size)
-func FormatBytesH(bytes int64) string {
-	const unit = 1024
-	if bytes < 0 {
-		return "unknown"
-	}
-	if bytes < unit {
-		return fmt.Sprintf("%d B", bytes)
-	}
-	div, exp := int64(unit), 0
-	for n := bytes / unit; n >= unit; n /= unit {
-		div *= unit
-		exp++
-	}
-	return fmt.Sprintf("%.1f%cB", float64(bytes)/float64(div), "KMGTPE"[exp])
-}
 
 type Header struct {
 	Header string
@@ -48,27 +30,6 @@ func formatHeaders(headers []Header) string {
 		return ""
 	}
 	return fmt.Sprintf(" [Headers: %v]", headers)
-}
-
-// Helper function to extract title from response body
-func extractTitle(body string) string {
-	var titleRegex = regexp.MustCompile(`(?i)<title>(.*?)</title>`)
-
-	matches := titleRegex.FindStringSubmatch(body)
-	if len(matches) > 1 {
-		return strings.TrimSpace(matches[1])
-	}
-	return ""
-}
-
-// Helper function to generate random strings
-func GenerateRandomString(length int) string {
-	const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-	b := make([]byte, length)
-	for i := range b {
-		b[i] = charset[rand.Intn(len(charset))]
-	}
-	return string(b)
 }
 
 // ----------------------------------------------------------------//

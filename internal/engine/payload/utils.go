@@ -6,6 +6,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/slicingmelon/go-bypass-403/internal/utils/logger"
 )
 
 var (
@@ -78,10 +80,16 @@ func ReadMaxPayloadsFromFile(filename string, maxNum int) ([]string, error) {
 		return nil, err
 	}
 
+	// Convert content to string and normalize line endings
+	text := strings.ReplaceAll(string(content), "\r\n", "\n")
+
 	var payloads []string
-	lines := strings.Split(string(content), "\n")
+	lines := strings.Split(text, "\n")
+
+	logger.LogVerbose("Read %d raw lines from %s", len(lines), filename)
+
 	for i, line := range lines {
-		if i >= maxNum {
+		if maxNum != -1 && i >= maxNum {
 			break
 		}
 		line = strings.TrimSpace(line)
@@ -90,6 +98,7 @@ func ReadMaxPayloadsFromFile(filename string, maxNum int) ([]string, error) {
 		}
 	}
 
+	logger.LogVerbose("Processed %d valid payloads from %s", len(payloads), filename)
 	return payloads, nil
 }
 
