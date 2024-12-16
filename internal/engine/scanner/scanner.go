@@ -63,6 +63,10 @@ func (s *Scanner) Run() error {
 			continue
 		}
 	}
+
+	// Add this before returning
+	s.errorHandler.PrintErrorStats()
+
 	return nil
 }
 

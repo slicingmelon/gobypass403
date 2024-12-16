@@ -4,14 +4,22 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/VictoriaMetrics/fastcache"
+	"github.com/valyala/fasthttp"
 )
 
 const (
 	DefaultCacheSizeMB = 32 // MB
+)
+
+var (
+	ErrBodyTooLarge     = fasthttp.ErrBodyTooLarge
+	ErrConnectionClosed = fasthttp.ErrConnectionClosed
+	ErrNoFreeConns      = fasthttp.ErrNoFreeConns
 )
 
 // ErrorContext holds metadata about where/when the error occurred
@@ -48,11 +56,11 @@ func NewErrorHandler(cacheSizeMB int) *ErrorHandler {
 		whitelist: make(map[string]struct{}),
 	}
 
-	// Initialize default whitelisted errors
+	// Initialize default whitelisted errors with actual error messages
 	handler.AddWhitelistedErrors(
-		"fasthttp.ErrBodyTooLarge",
-		"fasthttp.ErrConnectionClosed",
-		"fasthttp.ErrNoFreeConns",
+		ErrBodyTooLarge.Error(),
+		ErrConnectionClosed.Error(),
+		ErrNoFreeConns.Error(),
 	)
 
 	return handler
@@ -71,8 +79,14 @@ func (e *ErrorHandler) IsWhitelisted(err error) bool {
 	e.whitelistLock.RLock()
 	defer e.whitelistLock.RUnlock()
 
-	_, ok := e.whitelist[err.Error()]
-	return ok
+	// Check the error message itself
+	errMsg := err.Error()
+	for whitelisted := range e.whitelist {
+		if strings.Contains(errMsg, whitelisted) {
+			return true
+		}
+	}
+	return false
 }
 
 func (e *ErrorHandler) HandleError(err error, ctx ErrorContext) error {

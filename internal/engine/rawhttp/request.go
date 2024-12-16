@@ -207,20 +207,16 @@ func (w *worker) processJob(job payload.PayloadJob) *RawHTTPResponseDetails {
 	defer fasthttp.ReleaseResponse(resp)
 
 	w.builder.BuildRequest(req, job)
-	err := w.client.DoRaw(req, resp)
-	if err != nil {
-		// If HandleError returns nil, it means either:
-		// 1. The original error was nil (impossible in this case)
-		// 2. The error was whitelisted
-		// If it returns an error, we should abort processing
+	if err := w.client.DoRaw(req, resp); err != nil {
 		if err := w.errorHandler.HandleError(err, GB403ErrorHandler.ErrorContext{
 			TargetURL:   []byte(job.URL),
 			ErrorSource: []byte("Worker.processJob"),
 			BypassMode:  []byte(job.BypassMode),
-		}); err != nil {
-			logger.LogError("Request failed: %v", err)
-			return nil
+		}); err == nil { // <-- Check for nil to continue processing
+			return w.processResponse(resp, job)
 		}
+		logger.LogError("Request failed: %v", err)
+		return nil
 	}
 
 	return w.processResponse(resp, job)
