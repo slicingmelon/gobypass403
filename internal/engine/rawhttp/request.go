@@ -156,7 +156,7 @@ func (rb *RequestBuilder) BuildRequest(req *fasthttp.Request, job payload.Payloa
 	}
 }
 
-// ProcessRequests handles multiple requests efficiently
+// ProcessRequests handles multiple requests "efficiently"
 func (p *RequestPool) ProcessRequests(jobs []payload.PayloadJob) <-chan *RawHTTPResponseDetails {
 	results := make(chan *RawHTTPResponseDetails, len(jobs))
 
