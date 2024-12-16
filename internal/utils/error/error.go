@@ -2,6 +2,7 @@ package error
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -9,12 +10,16 @@ import (
 	"github.com/VictoriaMetrics/fastcache"
 )
 
+const (
+	DefaultCacheSizeMB = 32 // MB
+)
+
 // ErrorContext holds metadata about where/when the error occurred
 type ErrorContext struct {
-	Host        string    `json:"host"`
-	BypassMode  string    `json:"bypass_mode"`
-	URL         string    `json:"url"`
-	ErrorSource string    `json:"error_source"`
+	Host        []byte    `json:"host"`
+	BypassMode  []byte    `json:"bypass_mode"`
+	TargetURL   []byte    `json:"url"`
+	ErrorSource []byte    `json:"error_source"`
 	Timestamp   time.Time `json:"timestamp"`
 }
 
@@ -70,12 +75,18 @@ func (e *ErrorHandler) IsWhitelisted(err error) bool {
 	return ok
 }
 
-func (e *ErrorHandler) HandleError(err error, ctx ErrorContext) {
+func (e *ErrorHandler) HandleError(err error, ctx ErrorContext) error {
 	if err == nil || e.IsWhitelisted(err) {
-		return
+		return nil
 	}
 
-	errKey := err.Error()
+	// Get the root error
+	rootErr := errors.Unwrap(err)
+	if rootErr == nil {
+		rootErr = err
+	}
+	errKey := rootErr.Error()
+
 	ctx.Timestamp = time.Now()
 
 	// Update stats
@@ -90,12 +101,17 @@ func (e *ErrorHandler) HandleError(err error, ctx ErrorContext) {
 	stat := e.stats[errKey]
 	stat.Count++
 	stat.LastSeen = ctx.Timestamp
-	stat.ErrorSources[ctx.ErrorSource]++
+	stat.ErrorSources[string(ctx.ErrorSource)]++
 	e.statsLock.Unlock()
 
 	// Cache error context
-	contextJSON, _ := json.Marshal(ctx)
+	contextJSON, marshalErr := json.Marshal(ctx)
+	if marshalErr != nil {
+		return fmt.Errorf("failed to marshal error context: %w", marshalErr)
+	}
+
 	e.cache.Set([]byte(fmt.Sprintf("%s:%d", errKey, stat.Count)), contextJSON)
+	return err // Return the original error
 }
 
 func (e *ErrorHandler) PrintErrorStats() {

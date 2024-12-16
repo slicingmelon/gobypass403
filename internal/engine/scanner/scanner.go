@@ -41,7 +41,7 @@ func New(opts *ScannerOpts, urls []string) *Scanner {
 	return &Scanner{
 		config:       opts,
 		urls:         urls,
-		errorHandler: GB403ErrorHandler.NewErrorHandler(),
+		errorHandler: GB403ErrorHandler.NewErrorHandler(32),
 	}
 }
 
@@ -53,8 +53,12 @@ func (s *Scanner) Run() error {
 	for _, url := range s.urls {
 		if err := s.scanURL(url); err != nil {
 			logger.LogError("Error scanning %s: %v", url, err)
-			if GB403ErrorHandler.IsPermanentError(err) {
-				return err
+			if handleErr := s.errorHandler.HandleError(err, GB403ErrorHandler.ErrorContext{
+				TargetURL:   []byte(url),
+				ErrorSource: []byte("Scanner.Run"),
+				BypassMode:  []byte(s.config.BypassModule),
+			}); handleErr != nil {
+				logger.LogError("Error handling error: %v", handleErr)
 			}
 			continue
 		}
@@ -91,13 +95,16 @@ func (s *Scanner) scanURL(url string) error {
 
 		outputFile := filepath.Join(s.config.OutDir, "findings.json")
 		if err := AppendResultsToJSON(outputFile, url, s.config.BypassModule, findings); err != nil {
-			handledErr := s.errorHandler.HandleError(url, err)
-			logger.LogError("Failed to save JSON results: %v", handledErr)
-			return handledErr
+			if handleErr := s.errorHandler.HandleError(err, GB403ErrorHandler.ErrorContext{
+				TargetURL:   []byte(url),
+				ErrorSource: []byte("Scanner.scanURL"),
+				BypassMode:  []byte(s.config.BypassModule),
+			}); handleErr != nil {
+				// If error handler fails, wrap both errors
+				return fmt.Errorf("failed to handle error (%v) while processing error: %w", handleErr, err)
+			}
+			return fmt.Errorf("failed to append results to JSON: %w", err)
 		}
-		logger.LogYellow("[+] Results appended to %s\n", outputFile)
-	} else {
-		logger.LogOrange("\n[!] Sorry, no bypasses found for %s\n", url)
 	}
 
 	return nil
@@ -106,6 +113,6 @@ func (s *Scanner) scanURL(url string) error {
 func (s *Scanner) Close() {
 	// Close error handler
 	if s.errorHandler != nil {
-		s.errorHandler.Close()
+		s.errorHandler.Reset()
 	}
 }

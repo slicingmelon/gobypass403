@@ -22,6 +22,7 @@ type RequestPool struct {
 	payloadQueue chan payload.PayloadJob
 	results      chan *RawHTTPResponseDetails
 	scanOpts     *ScannerCliOpts
+	errorHandler *GB403ErrorHandler.ErrorHandler
 }
 
 type workerPool struct {
@@ -33,13 +34,14 @@ type workerPool struct {
 }
 
 type worker struct {
-	id       int
-	client   *Client
-	jobs     chan payload.PayloadJob
-	results  chan *RawHTTPResponseDetails
-	lastUsed time.Time
-	builder  *RequestBuilder
-	scanOpts *ScannerCliOpts
+	id           int
+	client       *Client
+	jobs         chan payload.PayloadJob
+	results      chan *RawHTTPResponseDetails
+	lastUsed     time.Time
+	builder      *RequestBuilder
+	scanOpts     *ScannerCliOpts
+	errorHandler *GB403ErrorHandler.ErrorHandler
 }
 
 // RequestBuilder handles the lifecycle of fasthttp requests
@@ -81,6 +83,7 @@ func NewRequestPool(clientOpts *ClientOptions, scanOpts *ScannerCliOpts, errorHa
 		payloadQueue: make(chan payload.PayloadJob, maxWorkers*2),
 		results:      make(chan *RawHTTPResponseDetails, maxWorkers*2),
 		scanOpts:     scanOpts,
+		errorHandler: errorHandler,
 		workerPool: &workerPool{
 			ready:  make(chan *worker, maxWorkers),
 			stopCh: make(chan struct{}),
@@ -90,12 +93,13 @@ func NewRequestPool(clientOpts *ClientOptions, scanOpts *ScannerCliOpts, errorHa
 	// Initialize worker pool
 	pool.workerPool.pool.New = func() interface{} {
 		return &worker{
-			id:       len(pool.workerPool.workers),
-			client:   pool.client,
-			jobs:     make(chan payload.PayloadJob, 1),
-			results:  make(chan *RawHTTPResponseDetails, 1),
-			builder:  NewRequestBuilder(pool.client),
-			scanOpts: scanOpts,
+			id:           len(pool.workerPool.workers),
+			client:       pool.client,
+			jobs:         make(chan payload.PayloadJob, 1),
+			results:      make(chan *RawHTTPResponseDetails, 1),
+			builder:      NewRequestBuilder(pool.client),
+			scanOpts:     scanOpts,
+			errorHandler: pool.errorHandler,
 		}
 	}
 
@@ -197,27 +201,29 @@ func (p *RequestPool) ProcessRequests(jobs []payload.PayloadJob) <-chan *RawHTTP
 }
 
 func (w *worker) processJob(job payload.PayloadJob) *RawHTTPResponseDetails {
-	// Use FastHTTP's request/response pooling
 	req := fasthttp.AcquireRequest()
 	resp := fasthttp.AcquireResponse()
 	defer fasthttp.ReleaseRequest(req)
 	defer fasthttp.ReleaseResponse(resp)
 
-	// Build and send request
 	w.builder.BuildRequest(req, job)
 	err := w.client.DoRaw(req, resp)
-	if err != nil && err != fasthttp.ErrBodyTooLarge {
-		return w.handleError(err, job)
+	if err != nil {
+		// If HandleError returns nil, it means either:
+		// 1. The original error was nil (impossible in this case)
+		// 2. The error was whitelisted
+		// If it returns an error, we should abort processing
+		if err := w.errorHandler.HandleError(err, GB403ErrorHandler.ErrorContext{
+			TargetURL:   []byte(job.URL),
+			ErrorSource: []byte("Worker.processJob"),
+			BypassMode:  []byte(job.BypassMode),
+		}); err != nil {
+			logger.LogError("Request failed: %v", err)
+			return nil
+		}
 	}
 
 	return w.processResponse(resp, job)
-}
-
-func (w *worker) handleError(err error, job payload.PayloadJob) *RawHTTPResponseDetails {
-	if logger.IsDebugEnabled() {
-		logger.LogDebug("Error processing job %s: %v", job.URL, err)
-	}
-	return nil
 }
 
 // processResponse handles response processing
