@@ -11,13 +11,13 @@ import (
 func main() {
 	logger.LogInfo("Initializing go-bypass-403...")
 
-	runner := cli.NewRunner()
-
 	// Initialize payloads first
 	if err := payload.InitializePayloadsDir(false); err != nil {
 		logger.LogError("Failed to initialize payloads: %v", err)
 		os.Exit(1)
 	}
+
+	runner := cli.NewRunner()
 
 	if err := runner.Initialize(); err != nil {
 		logger.LogError("Initialization failed: %v", err)

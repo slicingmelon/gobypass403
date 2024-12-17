@@ -41,7 +41,7 @@ var (
 	mu  sync.Mutex
 )
 
-//go:embed payloads/*
+//go:embed payloads/*.lst
 var DefaultPayloadsDir embed.FS
 
 // GetToolDir returns the tool's data directory path
@@ -62,7 +62,7 @@ func GetPayloadsDir() (string, error) {
 	return filepath.Join(toolDir, "payloads"), nil
 }
 
-// InitializePayloads copies default payloads to the tool directory
+// InitializePayloadsDir copies default payloads to the tool directory
 func InitializePayloadsDir(forceUpdate bool) error {
 	payloadsDir, err := GetPayloadsDir()
 	if err != nil {
@@ -70,7 +70,7 @@ func InitializePayloadsDir(forceUpdate bool) error {
 	}
 
 	// Create payloads directory if it doesn't exist
-	if err := os.MkdirAll(payloadsDir, 0755); err != nil {
+	if err := os.MkdirAll(payloadsDir, os.ModePerm); err != nil {
 		return fmt.Errorf("failed to create payloads directory: %w", err)
 	}
 
@@ -106,12 +106,16 @@ func InitializePayloadsDir(forceUpdate bool) error {
 	return nil
 }
 
+// CopyPayloadFile reads a file from the embedded filesystem and writes it to the destination path
 func CopyPayloadFile(src, dst string) error {
 	data, err := DefaultPayloadsDir.ReadFile(src)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to read embedded file %s: %w", src, err)
 	}
-	return os.WriteFile(dst, data, 0644)
+	if err := os.WriteFile(dst, data, 0644); err != nil {
+		return fmt.Errorf("failed to write file %s: %w", dst, err)
+	}
+	return nil
 }
 
 // ReadPayloadsFromFile reads all payloads from the specified file
