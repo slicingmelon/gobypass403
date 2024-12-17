@@ -1,6 +1,7 @@
 package payload
 
 import (
+	"embed"
 	"fmt"
 	"math/rand"
 	"os"
@@ -40,7 +41,119 @@ var (
 	mu  sync.Mutex
 )
 
-// ReplaceNth replaces the nth occurrence of old with new in s
+//go:embed ../../payloads/*
+var DefaultPayloadsDir embed.FS
+
+// GetToolDir returns the tool's data directory path
+func GetToolDir() (string, error) {
+	configDir, err := os.UserConfigDir()
+	if err != nil {
+		return "", fmt.Errorf("failed to get user config directory: %w", err)
+	}
+	return filepath.Join(configDir, "go-bypass-403"), nil
+}
+
+// GetPayloadsDir returns the payloads directory path
+func GetPayloadsDir() (string, error) {
+	toolDir, err := GetToolDir()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(toolDir, "payloads"), nil
+}
+
+// InitializePayloads copies default payloads to the tool directory
+func InitializePayloadsDir(forceUpdate bool) error {
+	payloadsDir, err := GetPayloadsDir()
+	if err != nil {
+		return fmt.Errorf("failed to get payloads directory: %w", err)
+	}
+
+	// Create payloads directory if it doesn't exist
+	if err := os.MkdirAll(payloadsDir, 0755); err != nil {
+		return fmt.Errorf("failed to create payloads directory: %w", err)
+	}
+
+	// Read embedded payloads directory
+	entries, err := DefaultPayloadsDir.ReadDir("payloads")
+	if err != nil {
+		return fmt.Errorf("failed to read embedded payloads: %w", err)
+	}
+
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+
+		srcPath := filepath.Join("payloads", entry.Name())
+		dstPath := filepath.Join(payloadsDir, entry.Name())
+
+		// Skip if file exists and we're not forcing update
+		if !forceUpdate {
+			if _, err := os.Stat(dstPath); err == nil {
+				logger.LogVerbose("Payload file already exists: %s", dstPath)
+				continue
+			}
+		}
+
+		// Copy payload file
+		if err := CopyPayloadFile(srcPath, dstPath); err != nil {
+			return fmt.Errorf("failed to copy payload file %s: %w", entry.Name(), err)
+		}
+		logger.LogVerbose("Copied payload file: %s", dstPath)
+	}
+
+	return nil
+}
+
+func CopyPayloadFile(src, dst string) error {
+	data, err := DefaultPayloadsDir.ReadFile(src)
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(dst, data, 0644)
+}
+
+// ReadPayloadsFromFile reads all payloads from the specified file
+func ReadPayloadsFromFile(filename string) ([]string, error) {
+	return ReadMaxPayloadsFromFile(filename, -1)
+}
+
+// ReadMaxPayloadsFromFile reads up to maxNum payloads from the specified file
+// -1 means all payloads (lines)
+func ReadMaxPayloadsFromFile(filename string, maxNum int) ([]string, error) {
+	payloadsDir, err := GetPayloadsDir()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get payloads directory: %w", err)
+	}
+
+	filepath := filepath.Join(payloadsDir, filepath.Base(filename))
+	content, err := os.ReadFile(filepath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read payload file: %w", err)
+	}
+
+	text := strings.ReplaceAll(string(content), "\r\n", "\n")
+	var payloads []string
+	lines := strings.Split(text, "\n")
+
+	logger.LogVerbose("Read %d raw lines from payload file", len(lines))
+
+	for i, line := range lines {
+		if maxNum != -1 && i >= maxNum {
+			break
+		}
+		line = strings.TrimSpace(line)
+		if line != "" {
+			payloads = append(payloads, line)
+		}
+	}
+
+	logger.LogVerbose("Processed %d valid payloads", len(payloads))
+	return payloads, nil
+}
+
+// ReplaceNth replaces the Nth  occurrence of old with new in s
 func ReplaceNth(s, old, new string, n int) string {
 	if n < 1 {
 		return s
@@ -67,79 +180,6 @@ func ReplaceNth(s, old, new string, n int) string {
 
 	// Replace the nth occurrence
 	return s[:pos] + new + s[pos+len(old):]
-}
-
-// ReadPayloadsFromFile reads all payloads from the specified file
-// ReadPayloadsFromFile reads all payloads from the specified file
-func ReadPayloadsFromFile(filename string) ([]string, error) {
-	return ReadMaxPayloadsFromFile(filename, -1)
-}
-
-// ReadMaxPayloadsFromFile reads up to maxNum payloads from the specified file
-// -1 means all payloads (lines)
-func ReadMaxPayloadsFromFile(filename string, maxNum int) ([]string, error) {
-	// Get executable directory
-	execPath, err := os.Executable()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get executable path: %w", err)
-	}
-	execDir := filepath.Dir(execPath)
-
-	// Try multiple possible locations with proper path joining
-	possiblePaths := []string{
-		filename,                         // Direct path as provided
-		filepath.Join(execDir, filename), // Relative to executable
-		filepath.Join(execDir, "payloads", filename),          // In payloads subdir
-		filepath.Join(execDir, "..", "payloads", filename),    // One level up
-		filepath.Join(execDir, "../..", "payloads", filename), // Two levels up
-	}
-
-	// Also try GOPATH if available
-	if goPath := os.Getenv("GOPATH"); goPath != "" {
-		possiblePaths = append(possiblePaths,
-			filepath.Join(goPath, "src", "github.com", "slicingmelon", "go-bypass-403", "payloads", filename))
-	}
-
-	var content []byte
-	var readErr error
-
-	// Try each path until we find the file
-	for _, path := range possiblePaths {
-		absPath, err := filepath.Abs(path)
-		if err != nil {
-			continue
-		}
-
-		content, readErr = os.ReadFile(absPath)
-		if readErr == nil {
-			logger.LogVerbose("Found payload file at: %s", absPath)
-			break
-		}
-	}
-
-	if readErr != nil {
-		return nil, fmt.Errorf("failed to read payload file from any location: %w", readErr)
-	}
-
-	// Rest of the function remains the same
-	text := strings.ReplaceAll(string(content), "\r\n", "\n")
-	var payloads []string
-	lines := strings.Split(text, "\n")
-
-	logger.LogVerbose("Read %d raw lines from payload file", len(lines))
-
-	for i, line := range lines {
-		if maxNum != -1 && i >= maxNum {
-			break
-		}
-		line = strings.TrimSpace(line)
-		if line != "" {
-			payloads = append(payloads, line)
-		}
-	}
-
-	logger.LogVerbose("Processed %d valid payloads", len(payloads))
-	return payloads, nil
 }
 
 // Helper function to check if a byte is a letter
