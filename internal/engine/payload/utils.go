@@ -149,6 +149,27 @@ func CopyPayloadFile(src, dst string) error {
 
 // ReadPayloadsFromFile reads all payloads from the specified file
 func ReadPayloadsFromFile(filename string) ([]string, error) {
+	// First try reading from embedded FS
+	content, err := DefaultPayloadsDir.ReadFile(filename)
+	if err == nil {
+		text := strings.ReplaceAll(string(content), "\r\n", "\n")
+		var payloads []string
+		lines := strings.Split(text, "\n")
+
+		logger.LogVerbose("Read %d raw lines from embedded payload file", len(lines))
+
+		for _, line := range lines {
+			line = strings.TrimSpace(line)
+			if line != "" {
+				payloads = append(payloads, line)
+			}
+		}
+
+		logger.LogVerbose("Processed %d valid payloads", len(payloads))
+		return payloads, nil
+	}
+
+	// Fallback to reading from filesystem with max payloads
 	return ReadMaxPayloadsFromFile(filename, -1)
 }
 
@@ -182,7 +203,7 @@ func ReadMaxPayloadsFromFile(filename string, maxNum int) ([]string, error) {
 		}
 	}
 
-	logger.LogError("Processed %d valid payloads", len(payloads))
+	logger.LogVerbose("Processed %d valid payloads", len(payloads))
 	return payloads, nil
 }
 
