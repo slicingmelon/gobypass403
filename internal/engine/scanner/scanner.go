@@ -104,11 +104,13 @@ func (s *Scanner) scanURL(url string) error {
 				ErrorSource: []byte("Scanner.scanURL"),
 				BypassMode:  []byte(s.config.BypassModule),
 			}); handleErr != nil {
-				// If error handler fails, wrap both errors
 				return fmt.Errorf("failed to handle error (%v) while processing error: %w", handleErr, err)
 			}
 			return fmt.Errorf("failed to append results to JSON: %w", err)
 		}
+
+		// Add notification about where results were saved
+		logger.LogOrange("Results saved to: %s\n", outputFile)
 	}
 
 	return nil

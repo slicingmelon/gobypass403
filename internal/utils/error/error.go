@@ -59,8 +59,6 @@ func NewErrorHandler(cacheSizeMB int) *ErrorHandler {
 	// Initialize default whitelisted errors with actual error messages
 	handler.AddWhitelistedErrors(
 		ErrBodyTooLarge.Error(),
-		ErrConnectionClosed.Error(),
-		ErrNoFreeConns.Error(),
 	)
 
 	return handler
@@ -121,11 +119,11 @@ func (e *ErrorHandler) HandleError(err error, ctx ErrorContext) error {
 	// Cache error context
 	contextJSON, marshalErr := json.Marshal(ctx)
 	if marshalErr != nil {
-		return fmt.Errorf("failed to marshal error context: %w", marshalErr)
+		return fmt.Errorf("failed to marshal error context: %w", err)
 	}
 
 	e.cache.Set([]byte(fmt.Sprintf("%s:%d", errKey, stat.Count)), contextJSON)
-	return err // Return the original error
+	return err
 }
 
 func (e *ErrorHandler) PrintErrorStats() {
@@ -133,6 +131,39 @@ func (e *ErrorHandler) PrintErrorStats() {
 	defer e.statsLock.RUnlock()
 
 	fmt.Println("\n=== Error Statistics ===")
+
+	// Calculate memory usage
+	var totalContextSize int64
+	var totalErrorKeys int
+	var totalErrorSources int
+	var stats fastcache.Stats
+
+	// Get cache stats
+	e.cache.UpdateStats(&stats)
+
+	for errKey, stat := range e.stats {
+		totalErrorKeys += len(errKey)
+		totalErrorSources += len(stat.ErrorSources)
+
+		// Calculate JSON size for each stored context
+		if data := e.cache.Get(nil, []byte(fmt.Sprintf("%s:%d", errKey, stat.Count))); data != nil {
+			totalContextSize += int64(len(data))
+		}
+	}
+
+	// Print memory stats
+	fmt.Printf("\nMemory Usage:\n")
+	fmt.Printf("Cache Size: %d MB (allocated)\n", stats.BytesSize/(1024*1024))
+	fmt.Printf("Max Cache Size: %d MB\n", stats.MaxBytesSize/(1024*1024))
+	fmt.Printf("Active Cache Usage: %.2f MB\n", float64(totalContextSize)/(1024*1024))
+	fmt.Printf("Unique Errors: %d\n", len(e.stats))
+	fmt.Printf("Total Error Sources: %d\n", totalErrorSources)
+	fmt.Printf("Cache Entries: %d\n", stats.EntriesCount)
+	fmt.Printf("Cache Get Calls: %d\n", stats.GetCalls)
+	fmt.Printf("Cache Set Calls: %d\n", stats.SetCalls)
+	fmt.Printf("Cache Misses: %d\n", stats.Misses)
+
+	// Print error details
 	for errKey, stat := range e.stats {
 		fmt.Printf("\nError: %s\n", errKey)
 		fmt.Printf("Count: %d occurrences\n", stat.Count)

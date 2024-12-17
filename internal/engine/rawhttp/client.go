@@ -2,6 +2,8 @@ package rawhttp
 
 import (
 	"crypto/tls"
+	"fmt"
+	"net"
 	"sync"
 	"time"
 
@@ -80,16 +82,41 @@ func NewClient(opts *ClientOptions, errorHandler *GB403ErrorHandler.ErrorHandler
 		opts = DefaultOptionsSameHost()
 	}
 
-	var dialFunc fasthttp.DialFunc
-	if opts.ProxyURL != "" {
-		dialFunc = fasthttpproxy.FasthttpHTTPDialerTimeout(opts.ProxyURL, time.Second*3)
-	} else {
-		// No proxy, use default dialer
-		d := &fasthttp.TCPDialer{
-			Concurrency:      2048,
-			DNSCacheDuration: time.Hour,
+	// Create a custom TCPDialer with our settings
+	dialer := &fasthttp.TCPDialer{
+		Concurrency:      2048,
+		DNSCacheDuration: 15 * time.Minute,
+	}
+
+	// Create the dial function that handles both proxy and direct connections
+	dialFunc := func(addr string) (net.Conn, error) {
+		if opts.ProxyURL != "" {
+			proxyDialer := fasthttpproxy.FasthttpHTTPDialerTimeout(opts.ProxyURL, 3*time.Second)
+			conn, err := proxyDialer(addr)
+			if err != nil {
+				if handleErr := errorHandler.HandleError(err, GB403ErrorHandler.ErrorContext{
+					ErrorSource: []byte("Client.proxyDial"),
+					Host:        []byte(addr),
+				}); handleErr != nil {
+					return nil, fmt.Errorf("proxy dial error handling failed: %v (original error: %v)", handleErr, err)
+				}
+				return nil, err
+			}
+			return conn, nil
 		}
-		dialFunc = d.Dial
+
+		// No proxy, use our TCPDialer with timeout
+		conn, err := dialer.DialTimeout(addr, 5*time.Second)
+		if err != nil {
+			if handleErr := errorHandler.HandleError(err, GB403ErrorHandler.ErrorContext{
+				ErrorSource: []byte("Client.directDial"),
+				Host:        []byte(addr),
+			}); handleErr != nil {
+				return nil, fmt.Errorf("direct dial error handling failed: %v (original error: %v)", handleErr, err)
+			}
+			return nil, err
+		}
+		return conn, nil
 	}
 
 	client := &fasthttp.Client{

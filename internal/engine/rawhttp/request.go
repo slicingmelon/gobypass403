@@ -17,7 +17,7 @@ import (
 // RequestPool manages a pool of FastHTTP requests
 type RequestPool struct {
 	client       *Client
-	workerPool   *workerPool
+	workerPool   *requestWorkerPool
 	maxWorkers   int
 	payloadQueue chan payload.PayloadJob
 	results      chan *RawHTTPResponseDetails
@@ -25,15 +25,15 @@ type RequestPool struct {
 	errorHandler *GB403ErrorHandler.ErrorHandler
 }
 
-type workerPool struct {
-	workers []*worker
-	ready   chan *worker
+type requestWorkerPool struct {
+	workers []*requestWorker
+	ready   chan *requestWorker
 	lock    sync.Mutex
 	stopCh  chan struct{}
 	pool    sync.Pool
 }
 
-type worker struct {
+type requestWorker struct {
 	id           int
 	client       *Client
 	jobs         chan payload.PayloadJob
@@ -84,15 +84,15 @@ func NewRequestPool(clientOpts *ClientOptions, scanOpts *ScannerCliOpts, errorHa
 		results:      make(chan *RawHTTPResponseDetails, maxWorkers*2),
 		scanOpts:     scanOpts,
 		errorHandler: errorHandler,
-		workerPool: &workerPool{
-			ready:  make(chan *worker, maxWorkers),
+		workerPool: &requestWorkerPool{
+			ready:  make(chan *requestWorker, maxWorkers),
 			stopCh: make(chan struct{}),
 		},
 	}
 
 	// Initialize worker pool
 	pool.workerPool.pool.New = func() interface{} {
-		return &worker{
+		return &requestWorker{
 			id:           len(pool.workerPool.workers),
 			client:       pool.client,
 			jobs:         make(chan payload.PayloadJob, 1),
@@ -105,7 +105,7 @@ func NewRequestPool(clientOpts *ClientOptions, scanOpts *ScannerCliOpts, errorHa
 
 	// Pre-create workers
 	for i := 0; i < maxWorkers; i++ {
-		worker := pool.workerPool.pool.Get().(*worker)
+		worker := pool.workerPool.pool.Get().(*requestWorker)
 		pool.workerPool.workers = append(pool.workerPool.workers, worker)
 		pool.workerPool.ready <- worker
 	}
@@ -141,10 +141,8 @@ func (rb *RequestBuilder) BuildRequest(req *fasthttp.Request, job payload.Payloa
 		req.Header.Set("X-GB403-Debug", job.PayloadSeed)
 	}
 
-	// Set user agent
-	if !rb.client.options.NoDefaultUserAgent {
-		req.Header.SetUserAgentBytes(CustomUserAgent)
-	}
+	// Set a normal user agent
+	req.Header.SetUserAgentBytes(CustomUserAgent)
 
 	// Handle connection settings
 	if rb.client.options.ProxyURL != "" {
@@ -178,15 +176,15 @@ func (p *RequestPool) ProcessRequests(jobs []payload.PayloadJob) <-chan *RawHTTP
 				defer func() { <-sem }()
 
 				// Get worker from pool
-				worker := p.workerPool.acquire()
+				worker := p.workerPool.acquireWorker()
 				if worker == nil {
 					logger.LogDebug("Failed to acquire worker for job: %s", j.URL)
 					return
 				}
 
 				// Process job and release worker
-				result := worker.processJob(j)
-				p.workerPool.release(worker)
+				result := worker.processRequestJob(j)
+				p.workerPool.releaseWorker(worker)
 
 				if result != nil {
 					results <- result
@@ -200,7 +198,7 @@ func (p *RequestPool) ProcessRequests(jobs []payload.PayloadJob) <-chan *RawHTTP
 	return results
 }
 
-func (w *worker) processJob(job payload.PayloadJob) *RawHTTPResponseDetails {
+func (w *requestWorker) processRequestJob(job payload.PayloadJob) *RawHTTPResponseDetails {
 	req := fasthttp.AcquireRequest()
 	resp := fasthttp.AcquireResponse()
 	defer fasthttp.ReleaseRequest(req)
@@ -208,22 +206,22 @@ func (w *worker) processJob(job payload.PayloadJob) *RawHTTPResponseDetails {
 
 	w.builder.BuildRequest(req, job)
 	if err := w.client.DoRaw(req, resp); err != nil {
-		if err := w.errorHandler.HandleError(err, GB403ErrorHandler.ErrorContext{
+		err = w.errorHandler.HandleError(err, GB403ErrorHandler.ErrorContext{
 			TargetURL:   []byte(job.URL),
 			ErrorSource: []byte("Worker.processJob"),
 			BypassMode:  []byte(job.BypassMode),
-		}); err == nil { // <-- Check for nil to continue processing
-			return w.processResponse(resp, job)
+		})
+		if err != nil {
+			logger.LogError("Request failed: %v", err)
+			return nil
 		}
-		logger.LogError("Request failed: %v", err)
-		return nil
 	}
 
 	return w.processResponse(resp, job)
 }
 
 // processResponse handles response processing
-func (w *worker) processResponse(resp *fasthttp.Response, job payload.PayloadJob) *RawHTTPResponseDetails {
+func (w *requestWorker) processResponse(resp *fasthttp.Response, job payload.PayloadJob) *RawHTTPResponseDetails {
 	result := &RawHTTPResponseDetails{
 		URL:        append([]byte(nil), job.URL...),
 		BypassMode: append([]byte(nil), job.PayloadSeed...),
@@ -284,7 +282,7 @@ func (w *worker) processResponse(resp *fasthttp.Response, job payload.PayloadJob
 }
 
 // WorkerPool methods
-func (wp *workerPool) acquire() *worker {
+func (wp *requestWorkerPool) acquireWorker() *requestWorker {
 	select {
 	case worker := <-wp.ready:
 		worker.lastUsed = time.Now()
@@ -295,7 +293,7 @@ func (wp *workerPool) acquire() *worker {
 		defer wp.lock.Unlock()
 
 		if len(wp.workers) < cap(wp.ready) {
-			worker := wp.pool.Get().(*worker)
+			worker := wp.pool.Get().(*requestWorker)
 			wp.workers = append(wp.workers, worker)
 			worker.lastUsed = time.Now()
 			return worker
@@ -312,7 +310,7 @@ func (wp *workerPool) acquire() *worker {
 	}
 }
 
-func (wp *workerPool) release(w *worker) {
+func (wp *requestWorkerPool) releaseWorker(w *requestWorker) {
 	w.lastUsed = time.Now()
 	select {
 	case wp.ready <- w:
@@ -332,12 +330,12 @@ func (wp *workerPool) release(w *worker) {
 	}
 }
 
-func (wp *workerPool) cleanIdleWorkers(maxIdleTime time.Duration) {
+func (wp *requestWorkerPool) cleanIdleWorkers(maxIdleTime time.Duration) {
 	threshold := time.Now().Add(-maxIdleTime)
 	wp.lock.Lock()
 	defer wp.lock.Unlock()
 
-	activeWorkers := make([]*worker, 0, len(wp.workers))
+	activeWorkers := make([]*requestWorker, 0, len(wp.workers))
 	for _, w := range wp.workers {
 		if w.lastUsed.After(threshold) {
 			activeWorkers = append(activeWorkers, w)
