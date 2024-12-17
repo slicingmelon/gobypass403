@@ -1,6 +1,8 @@
 package cli
 
 import (
+	"fmt"
+
 	"github.com/slicingmelon/go-bypass-403/internal/engine/scanner"
 	"github.com/slicingmelon/go-bypass-403/internal/utils/logger"
 )
@@ -23,6 +25,11 @@ func (r *Runner) Initialize() error {
 		return err
 	}
 	r.options = opts
+
+	// Initialize payloads first
+	if err := InitializePayloads(false); err != nil {
+		return fmt.Errorf("failed to initialize payloads: %w", err)
+	}
 
 	// Enable Verbose and Debug Logging only when -v and/or -d are used
 	if opts.Verbose {

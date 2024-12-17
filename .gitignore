@@ -16,5 +16,5 @@
 !images/**
 !internal/
 !internal/**
-# !payloads/
-# !payloads/**
+!payloads/
+!payloads/**

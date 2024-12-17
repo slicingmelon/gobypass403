@@ -43,6 +43,9 @@ type Options struct {
 	// Spoofing options
 	SpoofIP     string
 	SpoofHeader string
+
+	//UpdatePayloads
+	UpdatePayloads bool
 }
 
 // ModesConfig -- all bypass modes and their status
