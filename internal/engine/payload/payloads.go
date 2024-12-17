@@ -10,31 +10,43 @@ import (
 )
 
 type PayloadJob struct {
-	Method      string
-	URL         string
-	Headers     []Header
-	BypassMode  string
-	PayloadSeed string
+	OriginalURL  string   // might never be used
+	Method       string   // this gets updated
+	Host         string   // this gets updated
+	RawURI       string   // this gets updated, represents everything that goes into the first line of the request u
+	Headers      []Header // all headers as result of various payload generators
+	BypassModule string
+	PayloadSeed  string
+	FullURL      string // for convinience, full URL also gets updated, scheme://host/path?query#fragment
 }
 
-func GenerateDumbJob(targetURL string, module string) []PayloadJob {
+func GenerateDumbJob(targetURL string, bypassModule string) []PayloadJob {
 	var allJobs []PayloadJob
 
 	logger.LogVerbose("Starting DumbCheck payload generation for: %s", targetURL)
 
+	parsedURL, err := rawurlparser.RawURLParse(targetURL)
+	if err != nil {
+		logger.LogError("Failed to parse URL")
+		return allJobs
+	}
+
 	// Just one job with the original URL
 	allJobs = append(allJobs, PayloadJob{
-		Method:      "GET",
-		URL:         targetURL,
-		BypassMode:  module,
-		PayloadSeed: GeneratePayloadSeed(),
+		OriginalURL:  targetURL,
+		Method:       "GET",
+		Host:         parsedURL.Host,
+		RawURI:       parsedURL.Path,
+		FullURL:      targetURL,
+		BypassModule: bypassModule,
+		PayloadSeed:  GeneratePayloadSeed(),
 	})
 
-	logger.LogYellow("\n[%s] Generated 1 payload for %s\n", module, targetURL)
+	logger.LogYellow("\n[%s] Generated 1 payload for %s\n", bypassModule, targetURL)
 	return allJobs
 }
 
-func GenerateMidPathsJobs(targetURL string, module string) []PayloadJob {
+func GenerateMidPathsJobs(targetURL string, bypassModule string) []PayloadJob {
 	var jobs []PayloadJob
 	parsedURL, err := rawurlparser.RawURLParse(targetURL)
 	if err != nil {
@@ -87,22 +99,22 @@ func GenerateMidPathsJobs(targetURL string, module string) []PayloadJob {
 		}
 	}
 
-	logger.LogYellow("\n[%s] Generated %d payloads for %s\n", module, len(urls), targetURL)
+	logger.LogYellow("\n[%s] Generated %d payloads for %s\n", bypassModule, len(urls), targetURL)
 
 	// Convert URLs to PayloadJobs
 	for url := range urls {
 		jobs = append(jobs, PayloadJob{
-			Method:      "GET",
-			URL:         url,
-			BypassMode:  module,
-			PayloadSeed: GeneratePayloadSeed(),
+			Method:       "GET",
+			URL:          url,
+			BypassModule: bypassModule,
+			PayloadSeed:  GeneratePayloadSeed(),
 		})
 	}
 
 	return jobs
 }
 
-func GenerateEndPathsJobs(targetURL string, module string) []PayloadJob {
+func GenerateEndPathsJobs(targetURL string, bypassModule string) []PayloadJob {
 	var jobs []PayloadJob
 
 	logger.LogVerbose("Starting EndPaths payload generation for: %s", targetURL)
@@ -149,22 +161,22 @@ func GenerateEndPathsJobs(targetURL string, module string) []PayloadJob {
 		}
 	}
 
-	logger.LogYellow("\n[%s] Generated %d payloads for %s\n", module, len(urls), targetURL)
+	logger.LogYellow("\n[%s] Generated %d payloads for %s\n", bypassModule, len(urls), targetURL)
 
 	// Convert URLs to jobs
 	for url := range urls {
 		jobs = append(jobs, PayloadJob{
-			Method:      "GET",
-			URL:         url,
-			BypassMode:  module,
-			PayloadSeed: GeneratePayloadSeed(),
+			Method:       "GET",
+			URL:          url,
+			BypassModule: bypassModule,
+			PayloadSeed:  GeneratePayloadSeed(),
 		})
 	}
 
 	return jobs
 }
 
-func GenerateHeaderIPJobs(targetURL string, module string, spoofHeader string, spoofIP string) []PayloadJob {
+func GenerateHeaderIPJobs(targetURL string, bypassModule string, spoofHeader string, spoofIP string) []PayloadJob {
 	var allJobs []PayloadJob
 
 	logger.LogVerbose("Starting HeadersIP payload generation for: %s", targetURL)
@@ -184,7 +196,7 @@ func GenerateHeaderIPJobs(targetURL string, module string, spoofHeader string, s
 				headerNames = append(headerNames, header)
 			}
 		}
-		logger.LogYellow("[%s] Added [%s] custom headers from -spoof-header\n", module, strings.Join(customHeaders, ","))
+		logger.LogYellow("[%s] Added [%s] custom headers from -spoof-header\n", bypassModule, strings.Join(customHeaders, ","))
 	}
 
 	ips, err := ReadPayloadsFromFile("payloads/internal_ip_hosts.lst")
@@ -202,7 +214,7 @@ func GenerateHeaderIPJobs(targetURL string, module string, spoofHeader string, s
 				ips = append(ips, ip)
 			}
 		}
-		logger.LogYellow("[%s] Added [%s] custom IPs from -spoof-ip\n", module, strings.Join(customIPs, ","))
+		logger.LogYellow("[%s] Added [%s] custom IPs from -spoof-ip\n", bypassModule, strings.Join(customIPs, ","))
 	}
 
 	// Special case job
@@ -213,8 +225,8 @@ func GenerateHeaderIPJobs(targetURL string, module string, spoofHeader string, s
 			Header: "X-AppEngine-Trusted-IP-Request",
 			Value:  "1",
 		}},
-		BypassMode:  module,
-		PayloadSeed: GeneratePayloadSeed(),
+		BypassModule: bypassModule,
+		PayloadSeed:  GeneratePayloadSeed(),
 	})
 
 	// Generate regular jobs
@@ -235,8 +247,8 @@ func GenerateHeaderIPJobs(targetURL string, module string, spoofHeader string, s
 							Header: headerName,
 							Value:  variation,
 						}},
-						BypassMode:  module,
-						PayloadSeed: GeneratePayloadSeed(),
+						BypassModule: bypassModule,
+						PayloadSeed:  GeneratePayloadSeed(),
 					})
 				}
 			} else {
@@ -247,18 +259,18 @@ func GenerateHeaderIPJobs(targetURL string, module string, spoofHeader string, s
 						Header: headerName,
 						Value:  ip,
 					}},
-					BypassMode:  module,
-					PayloadSeed: GeneratePayloadSeed(),
+					BypassModule: bypassModule,
+					PayloadSeed:  GeneratePayloadSeed(),
 				})
 			}
 		}
 	}
 
-	logger.LogYellow("\n[%s] Generated %d payloads for %s\n", module, len(allJobs), targetURL)
+	logger.LogYellow("\n[%s] Generated %d payloads for %s\n", bypassModule, len(allJobs), targetURL)
 	return allJobs
 }
 
-func GenerateCaseSubstitutionJobs(targetURL string, module string) []PayloadJob {
+func GenerateCaseSubstitutionJobs(targetURL string, bypassModule string) []PayloadJob {
 	var allJobs []PayloadJob
 
 	logger.LogVerbose("Starting CaseSubstitution payload generation for: %s", targetURL)
@@ -285,19 +297,19 @@ func GenerateCaseSubstitutionJobs(targetURL string, module string) []PayloadJob 
 			newPath += basePath[i+1:]
 
 			allJobs = append(allJobs, PayloadJob{
-				Method:      "GET",
-				URL:         baseURL + newPath,
-				BypassMode:  module,
-				PayloadSeed: GeneratePayloadSeed(),
+				Method:       "GET",
+				URL:          baseURL + newPath,
+				BypassModule: bypassModule,
+				PayloadSeed:  GeneratePayloadSeed(),
 			})
 		}
 	}
 
-	logger.LogYellow("\n[%s] Generated %d payloads for %s\n", module, len(allJobs), targetURL)
+	logger.LogYellow("\n[%s] Generated %d payloads for %s\n", bypassModule, len(allJobs), targetURL)
 	return allJobs
 }
 
-func GenerateCharEncodeJobs(targetURL string, module string) []PayloadJob {
+func GenerateCharEncodeJobs(targetURL string, bypassModule string) []PayloadJob {
 	var allJobs []PayloadJob
 
 	logger.LogVerbose("Starting CharEncode payload generation for: %s", targetURL)
@@ -318,37 +330,37 @@ func GenerateCharEncodeJobs(targetURL string, module string) []PayloadJob {
 			encoded := fmt.Sprintf("%%%02x", char)
 			singleEncoded := basePath[:i] + encoded + basePath[i+1:]
 			allJobs = append(allJobs, PayloadJob{
-				Method:      "GET",
-				URL:         baseURL + singleEncoded,
-				BypassMode:  "char_encode",
-				PayloadSeed: GeneratePayloadSeed(),
+				Method:       "GET",
+				URL:          baseURL + singleEncoded,
+				BypassModule: "char_encode",
+				PayloadSeed:  GeneratePayloadSeed(),
 			})
 
 			// Double URL encoding
 			doubleEncoded := basePath[:i] + "%25" + encoded[1:] + basePath[i+1:]
 			allJobs = append(allJobs, PayloadJob{
-				Method:      "GET",
-				URL:         baseURL + doubleEncoded,
-				BypassMode:  "char_encode_double",
-				PayloadSeed: GeneratePayloadSeed(),
+				Method:       "GET",
+				URL:          baseURL + doubleEncoded,
+				BypassModule: "char_encode_double",
+				PayloadSeed:  GeneratePayloadSeed(),
 			})
 
 			// Triple URL encoding
 			tripleEncoded := basePath[:i] + "%2525" + encoded[1:] + basePath[i+1:]
 			allJobs = append(allJobs, PayloadJob{
-				Method:      "GET",
-				URL:         baseURL + tripleEncoded,
-				BypassMode:  "char_encode_triple",
-				PayloadSeed: GeneratePayloadSeed(),
+				Method:       "GET",
+				URL:          baseURL + tripleEncoded,
+				BypassModule: "char_encode_triple",
+				PayloadSeed:  GeneratePayloadSeed(),
 			})
 		}
 	}
 
-	logger.LogYellow("\n[%s] Generated %d payloads for %s\n", module, len(allJobs), targetURL)
+	logger.LogYellow("\n[%s] Generated %d payloads for %s\n", bypassModule, len(allJobs), targetURL)
 	return allJobs
 }
 
-func GenerateHeaderSchemeJobs(targetURL string, module string) []PayloadJob {
+func GenerateHeaderSchemeJobs(targetURL string, bypassModule string) []PayloadJob {
 	var allJobs []PayloadJob
 
 	logger.LogVerbose("Starting HeadersScheme payload generation for: %s", targetURL)
@@ -376,8 +388,8 @@ func GenerateHeaderSchemeJobs(targetURL string, module string) []PayloadJob {
 					Header: headerScheme,
 					Value:  "on",
 				}},
-				BypassMode:  module,
-				PayloadSeed: GeneratePayloadSeed(),
+				BypassModule: bypassModule,
+				PayloadSeed:  GeneratePayloadSeed(),
 			})
 			continue
 		}
@@ -392,8 +404,8 @@ func GenerateHeaderSchemeJobs(targetURL string, module string) []PayloadJob {
 						Header: headerScheme,
 						Value:  fmt.Sprintf("proto=%s", protoScheme),
 					}},
-					BypassMode:  module,
-					PayloadSeed: GeneratePayloadSeed(),
+					BypassModule: bypassModule,
+					PayloadSeed:  GeneratePayloadSeed(),
 				})
 			} else {
 				allJobs = append(allJobs, PayloadJob{
@@ -403,18 +415,18 @@ func GenerateHeaderSchemeJobs(targetURL string, module string) []PayloadJob {
 						Header: headerScheme,
 						Value:  protoScheme,
 					}},
-					BypassMode:  module,
-					PayloadSeed: GeneratePayloadSeed(),
+					BypassModule: bypassModule,
+					PayloadSeed:  GeneratePayloadSeed(),
 				})
 			}
 		}
 	}
 
-	logger.LogYellow("\n[%s] Generated %d payloads for %s\n", module, len(allJobs), targetURL)
+	logger.LogYellow("\n[%s] Generated %d payloads for %s\n", bypassModule, len(allJobs), targetURL)
 	return allJobs
 }
 
-func GenerateHeaderURLJobs(targetURL string, module string) []PayloadJob {
+func GenerateHeaderURLJobs(targetURL string, bypassModule string) []PayloadJob {
 	var allJobs []PayloadJob
 
 	logger.LogVerbose("Starting HeadersURL payload generation for: %s", targetURL)
@@ -446,8 +458,8 @@ func GenerateHeaderURLJobs(targetURL string, module string) []PayloadJob {
 				Header: headerURL,
 				Value:  basePath,
 			}},
-			BypassMode:  module,
-			PayloadSeed: GeneratePayloadSeed(),
+			BypassModule: bypassModule,
+			PayloadSeed:  GeneratePayloadSeed(),
 		})
 
 		// Second variant: full target URL in header
@@ -461,8 +473,8 @@ func GenerateHeaderURLJobs(targetURL string, module string) []PayloadJob {
 					Header: headerURL,
 					Value:  targetURL,
 				}},
-				BypassMode:  module,
-				PayloadSeed: GeneratePayloadSeed(),
+				BypassModule: bypassModule,
+				PayloadSeed:  GeneratePayloadSeed(),
 			})
 		}
 
@@ -481,8 +493,8 @@ func GenerateHeaderURLJobs(targetURL string, module string) []PayloadJob {
 					Header: headerURL,
 					Value:  parentPath,
 				}},
-				BypassMode:  module,
-				PayloadSeed: GeneratePayloadSeed(),
+				BypassModule: bypassModule,
+				PayloadSeed:  GeneratePayloadSeed(),
 			})
 
 			if strings.Contains(strings.ToLower(headerURL), "url") ||
@@ -495,18 +507,18 @@ func GenerateHeaderURLJobs(targetURL string, module string) []PayloadJob {
 						Header: headerURL,
 						Value:  fullURL,
 					}},
-					BypassMode:  module,
-					PayloadSeed: GeneratePayloadSeed(),
+					BypassModule: bypassModule,
+					PayloadSeed:  GeneratePayloadSeed(),
 				})
 			}
 		}
 	}
 
-	logger.LogYellow("\n[%s] Generated %d payloads for %s\n", module, len(allJobs), targetURL)
+	logger.LogYellow("\n[%s] Generated %d payloads for %s\n", bypassModule, len(allJobs), targetURL)
 	return allJobs
 }
 
-func GenerateHeaderPortJobs(targetURL string, module string) []PayloadJob {
+func GenerateHeaderPortJobs(targetURL string, bypassModule string) []PayloadJob {
 	var allJobs []PayloadJob
 
 	logger.LogVerbose("Starting HeadersPort payload generation for: %s", targetURL)
@@ -537,13 +549,13 @@ func GenerateHeaderPortJobs(targetURL string, module string) []PayloadJob {
 					Header: headerPort,
 					Value:  port,
 				}},
-				BypassMode:  module,
-				PayloadSeed: GeneratePayloadSeed(),
+				BypassModule: bypassModule,
+				PayloadSeed:  GeneratePayloadSeed(),
 			})
 		}
 	}
 
-	logger.LogYellow("\n[%s] Generated %d payloads for %s\n", module, len(allJobs), targetURL)
+	logger.LogYellow("\n[%s] Generated %d payloads for %s\n", bypassModule, len(allJobs), targetURL)
 	return allJobs
 }
 
@@ -577,8 +589,8 @@ func GenerateHostHeaderJobs(targetURL string, BypassModule string, probeCache pr
 					Header: "Host",
 					Value:  parsedURL.Host,
 				}},
-				BypassMode:  BypassModule,
-				PayloadSeed: GeneratePayloadSeed(),
+				BypassModule: BypassModule,
+				PayloadSeed:  GeneratePayloadSeed(),
 			})
 		}
 
@@ -591,8 +603,8 @@ func GenerateHostHeaderJobs(targetURL string, BypassModule string, probeCache pr
 					Header: "Host",
 					Value:  ip,
 				}},
-				BypassMode:  BypassModule,
-				PayloadSeed: GeneratePayloadSeed(),
+				BypassModule: BypassModule,
+				PayloadSeed:  GeneratePayloadSeed(),
 			})
 		}
 
@@ -600,10 +612,10 @@ func GenerateHostHeaderJobs(targetURL string, BypassModule string, probeCache pr
 		for _, ip := range probeCacheResult.IPv4 {
 			ipURL := fmt.Sprintf("%s://%s%s", parsedURL.Scheme, ip, pathAndQuery)
 			allJobs = append(allJobs, PayloadJob{
-				Method:      "GET",
-				URL:         ipURL,
-				BypassMode:  BypassModule,
-				PayloadSeed: GeneratePayloadSeed(),
+				Method:       "GET",
+				URL:          ipURL,
+				BypassModule: BypassModule,
+				PayloadSeed:  GeneratePayloadSeed(),
 			})
 		}
 	} else {

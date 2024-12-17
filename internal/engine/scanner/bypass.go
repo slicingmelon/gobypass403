@@ -137,11 +137,17 @@ func (w *WorkerContext) Stop() {
 func (s *Scanner) RunAllBypasses(targetURL string) chan *Result {
 	results := make(chan *Result)
 
-	// Validate URL
+	// Validate URL one more time, who knows
 	if _, err := rawurlparser.RawURLParse(targetURL); err != nil {
-		logger.LogError("Failed to parse URL: %s", targetURL)
-		close(results)
-		return results
+		err = s.errorHandler.HandleError(err, GB403ErrorHandler.ErrorContext{
+			TargetURL:   []byte(targetURL),
+			ErrorSource: []byte("Scanner.RunAllBypasses"),
+		})
+		if err != nil {
+			logger.LogError("Failed to parse URL: %s", targetURL)
+			close(results)
+			return results
+		}
 	}
 
 	go func() {

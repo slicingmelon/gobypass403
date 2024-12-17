@@ -7,7 +7,7 @@ require (
 	github.com/fatih/color v1.18.0
 	github.com/projectdiscovery/fastdialer v0.2.14
 	github.com/projectdiscovery/gcache v0.0.0-20241015120333-12546c6e3f4c
-	github.com/slicingmelon/go-rawurlparser v0.2.7
+	github.com/slicingmelon/go-rawurlparser v0.2.8
 	github.com/valyala/fasthttp v1.58.0
 )
 

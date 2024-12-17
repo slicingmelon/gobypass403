@@ -131,6 +131,9 @@ func (rb *RequestBuilder) BuildRequest(req *fasthttp.Request, job payload.Payloa
 	req.Header.DisableNormalizing()
 	req.Header.SetNoDefaultContentType(true)
 
+	// Set a normal user agent
+	req.Header.SetUserAgentBytes(CustomUserAgent)
+
 	// Add payload headers
 	for _, h := range job.Headers {
 		req.Header.Set(h.Header, h.Value)
@@ -140,9 +143,6 @@ func (rb *RequestBuilder) BuildRequest(req *fasthttp.Request, job payload.Payloa
 	if logger.IsDebugEnabled() {
 		req.Header.Set("X-GB403-Debug", job.PayloadSeed)
 	}
-
-	// Set a normal user agent
-	req.Header.SetUserAgentBytes(CustomUserAgent)
 
 	// Handle connection settings
 	if rb.client.options.ProxyURL != "" {
