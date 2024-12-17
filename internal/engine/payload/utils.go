@@ -1,8 +1,10 @@
 package payload
 
 import (
+	"fmt"
 	"math/rand"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -68,6 +70,7 @@ func ReplaceNth(s, old, new string, n int) string {
 }
 
 // ReadPayloadsFromFile reads all payloads from the specified file
+// ReadPayloadsFromFile reads all payloads from the specified file
 func ReadPayloadsFromFile(filename string) ([]string, error) {
 	return ReadMaxPayloadsFromFile(filename, -1)
 }
@@ -75,18 +78,55 @@ func ReadPayloadsFromFile(filename string) ([]string, error) {
 // ReadMaxPayloadsFromFile reads up to maxNum payloads from the specified file
 // -1 means all payloads (lines)
 func ReadMaxPayloadsFromFile(filename string, maxNum int) ([]string, error) {
-	content, err := os.ReadFile(filename)
+	// Get executable directory
+	execPath, err := os.Executable()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to get executable path: %w", err)
+	}
+	execDir := filepath.Dir(execPath)
+
+	// Try multiple possible locations with proper path joining
+	possiblePaths := []string{
+		filename,                         // Direct path as provided
+		filepath.Join(execDir, filename), // Relative to executable
+		filepath.Join(execDir, "payloads", filename),          // In payloads subdir
+		filepath.Join(execDir, "..", "payloads", filename),    // One level up
+		filepath.Join(execDir, "../..", "payloads", filename), // Two levels up
 	}
 
-	// Convert content to string and normalize line endings
-	text := strings.ReplaceAll(string(content), "\r\n", "\n")
+	// Also try GOPATH if available
+	if goPath := os.Getenv("GOPATH"); goPath != "" {
+		possiblePaths = append(possiblePaths,
+			filepath.Join(goPath, "src", "github.com", "slicingmelon", "go-bypass-403", "payloads", filename))
+	}
 
+	var content []byte
+	var readErr error
+
+	// Try each path until we find the file
+	for _, path := range possiblePaths {
+		absPath, err := filepath.Abs(path)
+		if err != nil {
+			continue
+		}
+
+		content, readErr = os.ReadFile(absPath)
+		if readErr == nil {
+			logger.LogVerbose("Found payload file at: %s", absPath)
+			break
+		}
+	}
+
+	if readErr != nil {
+		return nil, fmt.Errorf("failed to read payload file from any location: %w", readErr)
+	}
+
+	// Rest of the function remains the same
+	text := strings.ReplaceAll(string(content), "\r\n", "\n")
 	var payloads []string
 	lines := strings.Split(text, "\n")
 
-	logger.LogVerbose("Read %d raw lines from %s", len(lines), filename)
+	logger.LogVerbose("Read %d raw lines from payload file", len(lines))
 
 	for i, line := range lines {
 		if maxNum != -1 && i >= maxNum {
@@ -98,7 +138,7 @@ func ReadMaxPayloadsFromFile(filename string, maxNum int) ([]string, error) {
 		}
 	}
 
-	logger.LogVerbose("Processed %d valid payloads from %s", len(payloads), filename)
+	logger.LogVerbose("Processed %d valid payloads", len(payloads))
 	return payloads, nil
 }
 
