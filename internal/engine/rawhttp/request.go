@@ -122,11 +122,17 @@ func NewRequestBuilder(client *Client) *RequestBuilder {
 
 // BuildRequest creates and configures a request from a payload job
 func (rb *RequestBuilder) BuildRequest(req *fasthttp.Request, job payload.PayloadJob) {
-	// Core request setup
-	req.SetRequestURI(job.URL)
+	// Set UseHostHeader to true so Host header takes precedence
+	req.UseHostHeader = true
+
+	// Set the full URL as RequestURI to maintain exact path structure
+	req.SetRequestURI(job.FullURL)
 	req.Header.SetMethod(job.Method)
 
-	// Disable normalizing for raw path testing
+	// Set initial Host from payload.Host
+	req.Header.SetHost(job.Host)
+
+	// Disable all normalizing for raw path testing
 	req.URI().DisablePathNormalizing = true
 	req.Header.DisableNormalizing()
 	req.Header.SetNoDefaultContentType(true)
@@ -134,7 +140,7 @@ func (rb *RequestBuilder) BuildRequest(req *fasthttp.Request, job payload.Payloa
 	// Set a normal user agent
 	req.Header.SetUserAgentBytes(CustomUserAgent)
 
-	// Add payload headers
+	// Add payload headers - any Host header here will override the initial Host
 	for _, h := range job.Headers {
 		req.Header.Set(h.Header, h.Value)
 	}
@@ -145,9 +151,7 @@ func (rb *RequestBuilder) BuildRequest(req *fasthttp.Request, job payload.Payloa
 	}
 
 	// Handle connection settings
-	if rb.client.options.ProxyURL != "" {
-		req.SetConnectionClose()
-	} else if rb.client.options.DisableKeepAlive {
+	if rb.client.options.ProxyURL != "" || rb.client.options.DisableKeepAlive {
 		req.SetConnectionClose()
 	} else {
 		req.Header.Set("Connection", "keep-alive")
@@ -178,7 +182,7 @@ func (p *RequestPool) ProcessRequests(jobs []payload.PayloadJob) <-chan *RawHTTP
 				// Get worker from pool
 				worker := p.workerPool.acquireWorker()
 				if worker == nil {
-					logger.LogDebug("Failed to acquire worker for job: %s", j.URL)
+					logger.LogDebug("Failed to acquire worker for job: %s", j.FullURL)
 					return
 				}
 
@@ -207,9 +211,9 @@ func (w *requestWorker) processRequestJob(job payload.PayloadJob) *RawHTTPRespon
 	w.builder.BuildRequest(req, job)
 	if err := w.client.DoRaw(req, resp); err != nil {
 		err = w.errorHandler.HandleError(err, GB403ErrorHandler.ErrorContext{
-			TargetURL:   []byte(job.URL),
+			TargetURL:   []byte(job.FullURL),
 			ErrorSource: []byte("Worker.processJob"),
-			BypassMode:  []byte(job.BypassMode),
+			BypassMode:  []byte(job.BypassModule),
 		})
 		if err != nil {
 			logger.LogError("Request failed: %v", err)
@@ -223,7 +227,7 @@ func (w *requestWorker) processRequestJob(job payload.PayloadJob) *RawHTTPRespon
 // processResponse handles response processing
 func (w *requestWorker) processResponse(resp *fasthttp.Response, job payload.PayloadJob) *RawHTTPResponseDetails {
 	result := &RawHTTPResponseDetails{
-		URL:        append([]byte(nil), job.URL...),
+		URL:        append([]byte(nil), job.FullURL...),
 		BypassMode: append([]byte(nil), job.PayloadSeed...),
 		StatusCode: resp.StatusCode(),
 	}
@@ -419,7 +423,7 @@ func BuildCurlCommandPoc(job payload.PayloadJob) []byte {
 
 	// last is URL
 	bb.WriteString(" '")
-	bb.WriteString(job.URL)
+	bb.WriteString(job.FullURL)
 	bb.WriteString("'")
 
 	return append([]byte(nil), bb.B...)
