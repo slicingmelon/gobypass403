@@ -41,7 +41,7 @@ var (
 	mu  sync.Mutex
 )
 
-//go:embed ../../payloads/*
+//go:embed payloads/*
 var DefaultPayloadsDir embed.FS
 
 // GetToolDir returns the tool's data directory path
