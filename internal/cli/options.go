@@ -10,6 +10,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/slicingmelon/go-bypass-403/internal/engine/payload"
 )
 
 // Options represents command-line options
@@ -105,6 +107,8 @@ func (o *Options) printUsage(flagName ...string) {
 // setDefaults sets default values for options
 func (o *Options) setDefaults() {
 	// Core defaults
+	o.UpdatePayloads = false
+
 	if o.Module == "" {
 		o.Module = "all"
 	}
@@ -138,6 +142,10 @@ func (o *Options) setDefaults() {
 
 // validate performs all validation checks
 func (o *Options) validate() error {
+	if o.UpdatePayloads {
+		return payload.UpdatePayloads()
+	}
+
 	// Validate input parameters
 	if err := o.validateInputURLs(); err != nil {
 		return err

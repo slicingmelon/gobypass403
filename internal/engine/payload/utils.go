@@ -48,33 +48,33 @@ var DefaultPayloadsDir embed.FS
 func GetToolDir() (string, error) {
 	configDir, err := os.UserConfigDir()
 	if err != nil {
-		return "", fmt.Errorf("failed to get user config directory: %w", err)
+		return "", fmt.Errorf("failed to get user config directory: %v", err)
 	}
 	return filepath.Join(configDir, "go-bypass-403"), nil
 }
 
 // GetPayloadsDir returns the payloads directory path
 func GetPayloadsDir() (string, error) {
-	toolDir, err := GetToolDir()
+	configDir, err := os.UserConfigDir()
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("failed to get user config directory: %w", err)
 	}
-	return filepath.Join(toolDir, "payloads"), nil
+	return filepath.Join(configDir, "go-bypass-403", "payloads"), nil
 }
 
 // InitializePayloadsDir copies default payloads to the tool directory
-func InitializePayloadsDir(forceUpdate bool) error {
-	payloadsDir, err := GetPayloadsDir()
+// InitializePayloadsDir ensures all payload files exist in the user's config directory
+func InitializePayloadsDir() error {
+	toolDir, err := GetToolDir()
 	if err != nil {
-		return fmt.Errorf("failed to get payloads directory: %w", err)
+		return fmt.Errorf("failed to get tool directory: %w", err)
 	}
 
-	// Create payloads directory if it doesn't exist
+	payloadsDir := filepath.Join(toolDir, "payloads")
 	if err := os.MkdirAll(payloadsDir, os.ModePerm); err != nil {
 		return fmt.Errorf("failed to create payloads directory: %w", err)
 	}
 
-	// Read embedded payloads directory
 	entries, err := DefaultPayloadsDir.ReadDir("payloads")
 	if err != nil {
 		return fmt.Errorf("failed to read embedded payloads: %w", err)
@@ -85,24 +85,53 @@ func InitializePayloadsDir(forceUpdate bool) error {
 			continue
 		}
 
-		srcPath := filepath.Join("payloads", entry.Name())
+		srcPath := fmt.Sprintf("payloads/%s", entry.Name())
 		dstPath := filepath.Join(payloadsDir, entry.Name())
 
-		// Skip if file exists and we're not forcing update
-		if !forceUpdate {
-			if _, err := os.Stat(dstPath); err == nil {
-				logger.LogVerbose("Payload file already exists: %s", dstPath)
-				continue
+		// Copy only if file doesn't exist
+		if _, err := os.Stat(dstPath); os.IsNotExist(err) {
+			data, err := DefaultPayloadsDir.ReadFile(srcPath)
+			if err != nil {
+				return fmt.Errorf("failed to read embedded file %s: %w", srcPath, err)
 			}
+			if err := os.WriteFile(dstPath, data, 0644); err != nil {
+				return fmt.Errorf("failed to write file %s: %w", dstPath, err)
+			}
+			logger.LogInfo("Created payload file: %s", dstPath)
 		}
+	}
+	return nil
+}
 
-		// Copy payload file
-		if err := CopyPayloadFile(srcPath, dstPath); err != nil {
-			return fmt.Errorf("failed to copy payload file %s: %w", entry.Name(), err)
-		}
-		logger.LogVerbose("Copied payload file: %s", dstPath)
+// UpdatePayloads forcefully updates all payload files
+func UpdatePayloads() error {
+	payloadsDir, err := GetPayloadsDir()
+	if err != nil {
+		return fmt.Errorf("failed to get payloads directory: %w", err)
 	}
 
+	// Force update all files
+	entries, err := DefaultPayloadsDir.ReadDir("payloads")
+	if err != nil {
+		return fmt.Errorf("failed to read embedded payloads: %w", err)
+	}
+
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+
+		data, err := DefaultPayloadsDir.ReadFile(filepath.Join("payloads", entry.Name()))
+		if err != nil {
+			return fmt.Errorf("failed to read embedded file %s: %w", entry.Name(), err)
+		}
+
+		dstPath := filepath.Join(payloadsDir, entry.Name())
+		if err := os.WriteFile(dstPath, data, 0644); err != nil {
+			return fmt.Errorf("failed to write file %s: %w", dstPath, err)
+		}
+		logger.LogInfo("Updated payload file: %s", dstPath)
+	}
 	return nil
 }
 
@@ -153,7 +182,7 @@ func ReadMaxPayloadsFromFile(filename string, maxNum int) ([]string, error) {
 		}
 	}
 
-	logger.LogVerbose("Processed %d valid payloads", len(payloads))
+	logger.LogError("Processed %d valid payloads", len(payloads))
 	return payloads, nil
 }
 
