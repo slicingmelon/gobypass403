@@ -138,59 +138,91 @@ func (l *Logger) EnableDebug() {
 
 // Logger methods (with newlines)
 func (l *Logger) LogInfo(format string, v ...interface{}) {
-	l.infoColor.Printf("[INFO] "+format, v...)
+	l.infoColor.Printf("[INFO] "+format+"\n", v...)
 }
 
 func (l *Logger) LogVerbose(format string, v ...interface{}) {
 	if l.verboseEnabled {
-		l.verboseColor.Printf("[VERBOSE] "+format, v...)
+		l.verboseColor.Printf("[VERBOSE] "+format+"\n", v...)
 	}
 }
 
 func (l *Logger) LogDebug(format string, v ...interface{}) {
 	if l.debugEnabled {
-		l.debugColor.Printf("[DEBUG] "+format, v...)
+		l.debugColor.Printf("[DEBUG] "+format+"\n", v...)
 	}
 }
 
 func (l *Logger) LogError(format string, v ...interface{}) {
-	l.errorColor.Printf("[ERROR] "+format, v...)
+	l.errorColor.Printf("[ERROR] "+format+"\n", v...)
 }
 
 func (l *Logger) LogYellow(format string, v ...interface{}) {
-	l.yellowColor.Printf("\n"+format+"\n", v...)
+	l.yellowColor.Printf(format, v...)
+}
+
+func (l *Logger) LogYellowln(format string, v ...interface{}) {
+	l.yellowColor.Printf(format+"\n", v...)
 }
 
 func (l *Logger) LogCyan(format string, v ...interface{}) {
-	l.cyanColor.Printf("\n"+format+"\n", v...)
+	l.cyanColor.Printf(format, v...)
+}
+
+func (l *Logger) LogCyanln(format string, v ...interface{}) {
+	l.cyanColor.Printf(format+"\n", v...)
 }
 
 func (l *Logger) LogOrange(format string, v ...interface{}) {
-	l.orangeColor.Printf("\n"+format+"\n", v...)
+	l.orangeColor.Printf(format, v...)
+}
+
+func (l *Logger) LogOrangeln(format string, v ...interface{}) {
+	l.orangeColor.Printf(format+"\n", v...)
 }
 
 func (l *Logger) LogGreen(format string, v ...interface{}) {
-	l.greenColor.Printf("\n"+format+"\n", v...)
+	l.greenColor.Printf(format, v...)
+}
+
+func (l *Logger) LogGreenln(format string, v ...interface{}) {
+	l.greenColor.Printf(format+"\n", v...)
 }
 
 func (l *Logger) LogBlue(format string, v ...interface{}) {
-	l.blueColor.Printf("\n"+format+"\n", v...)
+	l.blueColor.Printf(format, v...)
+}
+
+func (l *Logger) LogBlueln(format string, v ...interface{}) {
+	l.blueColor.Printf(format+"\n", v...)
 }
 
 func (l *Logger) LogPurple(format string, v ...interface{}) {
-	l.purpleColor.Printf("\n"+format+"\n", v...)
+	l.purpleColor.Printf(format, v...)
+}
+
+func (l *Logger) LogPurpleln(format string, v ...interface{}) {
+	l.purpleColor.Printf(format+"\n", v...)
 }
 
 func (l *Logger) LogGray(format string, v ...interface{}) {
-	l.grayColor.Printf("\n"+format+"\n", v...)
+	l.grayColor.Printf(format, v...)
+}
+
+func (l *Logger) LogGrayln(format string, v ...interface{}) {
+	l.grayColor.Printf(format+"\n", v...)
 }
 
 func (l *Logger) LogTeal(format string, v ...interface{}) {
-	l.tealColor.Printf("\n"+format+"\n", v...)
+	l.tealColor.Printf(format, v...)
+}
+
+func (l *Logger) LogTealln(format string, v ...interface{}) {
+	l.tealColor.Printf(format+"\n", v...)
 }
 
 func (l *Logger) LogPink(format string, v ...interface{}) {
-	l.pinkColor.Printf("\n"+format+"\n", v...)
+	l.pinkColor.Printf(format, v...)
 }
 
 func BlueString(format string, a ...interface{}) string {
