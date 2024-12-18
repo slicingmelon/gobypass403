@@ -12,7 +12,7 @@ import (
 )
 
 var (
-	// Use a concurrent-safe random source
+	// concurrent-safe random source
 	rnd = rand.New(rand.NewSource(time.Now().UnixNano()))
 	mu  sync.Mutex
 )
@@ -27,6 +27,9 @@ type SeedData struct {
 	FullURL      string
 }
 
+// This function will generate a debug token that will act as a fingerprint of the request
+// Running in debug mode, a header will be added to each request to debug the requests better
+// At any time, a token can be decoded and retrieve back the payload info/URL that was sent
 func GenerateDebugToken(data SeedData) string {
 	bb := bytebufferpool.Get()
 	defer bytebufferpool.Put(bb)
@@ -81,6 +84,7 @@ func GenerateDebugToken(data SeedData) string {
 	return base64.RawURLEncoding.EncodeToString(compressed)
 }
 
+// Use this function to decode a debug token and retrieve back the payload info/URL that was sent
 func DecodeDebugToken(seed string) (SeedData, error) {
 	var data SeedData
 	// Decode base64

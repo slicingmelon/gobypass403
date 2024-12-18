@@ -54,9 +54,9 @@ func (s *Scanner) Run() error {
 		if err := s.scanURL(url); err != nil {
 			logger.LogError("Error scanning %s: %v", url, err)
 			if handleErr := s.errorHandler.HandleError(err, GB403ErrorHandler.ErrorContext{
-				TargetURL:   []byte(url),
-				ErrorSource: []byte("Scanner.Run"),
-				BypassMode:  []byte(s.config.BypassModule),
+				TargetURL:    []byte(url),
+				ErrorSource:  []byte("Scanner.Run"),
+				BypassModule: []byte(s.config.BypassModule),
 			}); handleErr != nil {
 				logger.LogError("Error handling error: %v", handleErr)
 			}
@@ -100,9 +100,9 @@ func (s *Scanner) scanURL(url string) error {
 		outputFile := filepath.Join(s.config.OutDir, "findings.json")
 		if err := AppendResultsToJSON(outputFile, url, s.config.BypassModule, findings); err != nil {
 			if handleErr := s.errorHandler.HandleError(err, GB403ErrorHandler.ErrorContext{
-				TargetURL:   []byte(url),
-				ErrorSource: []byte("Scanner.scanURL"),
-				BypassMode:  []byte(s.config.BypassModule),
+				TargetURL:    []byte(url),
+				ErrorSource:  []byte("Scanner.scanURL"),
+				BypassModule: []byte(s.config.BypassModule),
 			}); handleErr != nil {
 				return fmt.Errorf("failed to handle error (%v) while processing error: %w", handleErr, err)
 			}

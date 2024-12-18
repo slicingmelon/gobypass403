@@ -16,7 +16,7 @@ type PayloadJob struct {
 	RawURI       string   // this gets updated, represents everything that goes into the first line of the request u
 	Headers      []Header // all headers as result of various payload generators
 	BypassModule string
-	PayloadSeed  string
+	PayloadToken string
 	FullURL      string // for convinience, full URL also gets updated, scheme://host/path?query#fragment
 }
 
@@ -39,7 +39,7 @@ func GenerateDumbJob(targetURL string, bypassModule string) []PayloadJob {
 		RawURI:       parsedURL.Path,
 		FullURL:      targetURL,
 		BypassModule: bypassModule,
-		PayloadSeed:  GenerateDebugToken(SeedData{FullURL: targetURL}),
+		PayloadToken: GenerateDebugToken(SeedData{FullURL: targetURL}),
 	})
 
 	logger.LogYellow("\n[%s] Generated 1 payload for %s\n", bypassModule, targetURL)
@@ -110,7 +110,7 @@ func GenerateMidPathsJobs(targetURL string, bypassModule string) []PayloadJob {
 			RawURI:       rawURI,
 			FullURL:      fullURL,
 			BypassModule: bypassModule,
-			PayloadSeed:  GenerateDebugToken(SeedData{FullURL: fullURL}),
+			PayloadToken: GenerateDebugToken(SeedData{FullURL: fullURL}),
 		})
 	}
 
@@ -179,7 +179,7 @@ func GenerateEndPathsJobs(targetURL string, bypassModule string) []PayloadJob {
 			RawURI:       rawURI,
 			FullURL:      fullURL,
 			BypassModule: bypassModule,
-			PayloadSeed:  GenerateDebugToken(SeedData{FullURL: fullURL}),
+			PayloadToken: GenerateDebugToken(SeedData{FullURL: fullURL}),
 		})
 	}
 
@@ -245,7 +245,7 @@ func GenerateHeaderIPJobs(targetURL string, bypassModule string, spoofHeader str
 		}},
 		FullURL:      targetURL,
 		BypassModule: bypassModule,
-		PayloadSeed:  GenerateDebugToken(SeedData{Headers: []Header{{Header: "X-AppEngine-Trusted-IP-Request", Value: "1"}}, FullURL: targetURL}),
+		PayloadToken: GenerateDebugToken(SeedData{Headers: []Header{{Header: "X-AppEngine-Trusted-IP-Request", Value: "1"}}, FullURL: targetURL}),
 	})
 
 	// Generate regular jobs
@@ -270,7 +270,7 @@ func GenerateHeaderIPJobs(targetURL string, bypassModule string, spoofHeader str
 						}},
 						FullURL:      targetURL,
 						BypassModule: bypassModule,
-						PayloadSeed:  GenerateDebugToken(SeedData{Headers: []Header{{Header: headerName, Value: variation}}, FullURL: targetURL}),
+						PayloadToken: GenerateDebugToken(SeedData{Headers: []Header{{Header: headerName, Value: variation}}, FullURL: targetURL}),
 					})
 				}
 			} else {
@@ -285,7 +285,7 @@ func GenerateHeaderIPJobs(targetURL string, bypassModule string, spoofHeader str
 					}},
 					FullURL:      targetURL,
 					BypassModule: bypassModule,
-					PayloadSeed:  GenerateDebugToken(SeedData{Headers: []Header{{Header: headerName, Value: ip}}, FullURL: targetURL}),
+					PayloadToken: GenerateDebugToken(SeedData{Headers: []Header{{Header: headerName, Value: ip}}, FullURL: targetURL}),
 				})
 			}
 		}
@@ -337,7 +337,7 @@ func GenerateCaseSubstitutionJobs(targetURL string, bypassModule string) []Paylo
 			RawURI:       rawURI,
 			FullURL:      fullURL,
 			BypassModule: bypassModule,
-			PayloadSeed:  GenerateDebugToken(SeedData{FullURL: fullURL}),
+			PayloadToken: GenerateDebugToken(SeedData{FullURL: fullURL}),
 		})
 	}
 
@@ -391,7 +391,7 @@ func GenerateCharEncodeJobs(targetURL string, bypassModule string) []PayloadJob 
 			RawURI:       rawURI,
 			FullURL:      fullURL,
 			BypassModule: "char_encode",
-			PayloadSeed:  GenerateDebugToken(SeedData{FullURL: fullURL}),
+			PayloadToken: GenerateDebugToken(SeedData{FullURL: fullURL}),
 		})
 	}
 
@@ -403,7 +403,7 @@ func GenerateCharEncodeJobs(targetURL string, bypassModule string) []PayloadJob 
 			RawURI:       rawURI,
 			FullURL:      fullURL,
 			BypassModule: "char_encode_double",
-			PayloadSeed:  GenerateDebugToken(SeedData{FullURL: fullURL}),
+			PayloadToken: GenerateDebugToken(SeedData{FullURL: fullURL}),
 		})
 	}
 
@@ -415,7 +415,7 @@ func GenerateCharEncodeJobs(targetURL string, bypassModule string) []PayloadJob 
 			RawURI:       rawURI,
 			FullURL:      fullURL,
 			BypassModule: "char_encode_triple",
-			PayloadSeed:  GenerateDebugToken(SeedData{FullURL: fullURL}),
+			PayloadToken: GenerateDebugToken(SeedData{FullURL: fullURL}),
 		})
 	}
 
@@ -462,7 +462,7 @@ func GenerateHeaderSchemeJobs(targetURL string, bypassModule string) []PayloadJo
 				}},
 				FullURL:      targetURL,
 				BypassModule: bypassModule,
-				PayloadSeed:  GenerateDebugToken(SeedData{FullURL: targetURL}),
+				PayloadToken: GenerateDebugToken(SeedData{FullURL: targetURL}),
 			})
 			continue
 		}
@@ -481,7 +481,7 @@ func GenerateHeaderSchemeJobs(targetURL string, bypassModule string) []PayloadJo
 					}},
 					FullURL:      targetURL,
 					BypassModule: bypassModule,
-					PayloadSeed:  GenerateDebugToken(SeedData{FullURL: targetURL}),
+					PayloadToken: GenerateDebugToken(SeedData{FullURL: targetURL}),
 				})
 			} else {
 				allJobs = append(allJobs, PayloadJob{
@@ -495,7 +495,7 @@ func GenerateHeaderSchemeJobs(targetURL string, bypassModule string) []PayloadJo
 					}},
 					FullURL:      targetURL,
 					BypassModule: bypassModule,
-					PayloadSeed:  GenerateDebugToken(SeedData{FullURL: targetURL}),
+					PayloadToken: GenerateDebugToken(SeedData{FullURL: targetURL}),
 				})
 			}
 		}
@@ -541,7 +541,7 @@ func GenerateHeaderURLJobs(targetURL string, bypassModule string) []PayloadJob {
 				Value:  basePath,
 			}},
 			BypassModule: bypassModule,
-			PayloadSeed:  GenerateDebugToken(SeedData{Headers: []Header{{Header: headerURL, Value: basePath}}, FullURL: baseURL + "/"}),
+			PayloadToken: GenerateDebugToken(SeedData{Headers: []Header{{Header: headerURL, Value: basePath}}, FullURL: baseURL + "/"}),
 		})
 
 		// Second variant: full target URL in header
@@ -559,7 +559,7 @@ func GenerateHeaderURLJobs(targetURL string, bypassModule string) []PayloadJob {
 					Value:  targetURL,
 				}},
 				BypassModule: bypassModule,
-				PayloadSeed:  GenerateDebugToken(SeedData{Headers: []Header{{Header: headerURL, Value: targetURL}}, FullURL: baseURL + "/"}),
+				PayloadToken: GenerateDebugToken(SeedData{Headers: []Header{{Header: headerURL, Value: targetURL}}, FullURL: baseURL + "/"}),
 			})
 		}
 
@@ -582,7 +582,7 @@ func GenerateHeaderURLJobs(targetURL string, bypassModule string) []PayloadJob {
 					Value:  parentPath,
 				}},
 				BypassModule: bypassModule,
-				PayloadSeed:  GenerateDebugToken(SeedData{Headers: []Header{{Header: headerURL, Value: parentPath}}, FullURL: targetURL}),
+				PayloadToken: GenerateDebugToken(SeedData{Headers: []Header{{Header: headerURL, Value: parentPath}}, FullURL: targetURL}),
 			})
 
 			if strings.Contains(strings.ToLower(headerURL), "url") ||
@@ -599,7 +599,7 @@ func GenerateHeaderURLJobs(targetURL string, bypassModule string) []PayloadJob {
 						Value:  fullURL,
 					}},
 					BypassModule: bypassModule,
-					PayloadSeed:  GenerateDebugToken(SeedData{Headers: []Header{{Header: headerURL, Value: fullURL}}, FullURL: targetURL}),
+					PayloadToken: GenerateDebugToken(SeedData{Headers: []Header{{Header: headerURL, Value: fullURL}}, FullURL: targetURL}),
 				})
 			}
 		}
@@ -650,7 +650,7 @@ func GenerateHeaderPortJobs(targetURL string, bypassModule string) []PayloadJob 
 				}},
 				FullURL:      targetURL,
 				BypassModule: bypassModule,
-				PayloadSeed:  GenerateDebugToken(SeedData{Headers: []Header{{Header: headerPort, Value: port}}, FullURL: targetURL}),
+				PayloadToken: GenerateDebugToken(SeedData{Headers: []Header{{Header: headerPort, Value: port}}, FullURL: targetURL}),
 			})
 		}
 	}
@@ -692,7 +692,7 @@ func GenerateHostHeaderJobs(targetURL string, bypassModule string, probeCache pr
 				}},
 				FullURL:      ipURL,
 				BypassModule: bypassModule,
-				PayloadSeed:  GenerateDebugToken(SeedData{Headers: []Header{{Header: "Host", Value: parsedURL.Host}}, FullURL: ipURL}),
+				PayloadToken: GenerateDebugToken(SeedData{Headers: []Header{{Header: "Host", Value: parsedURL.Host}}, FullURL: ipURL}),
 			})
 		}
 
@@ -709,7 +709,7 @@ func GenerateHostHeaderJobs(targetURL string, bypassModule string, probeCache pr
 				}},
 				FullURL:      targetURL,
 				BypassModule: bypassModule,
-				PayloadSeed:  GenerateDebugToken(SeedData{Headers: []Header{{Header: "Host", Value: ip}}, FullURL: targetURL}),
+				PayloadToken: GenerateDebugToken(SeedData{Headers: []Header{{Header: "Host", Value: ip}}, FullURL: targetURL}),
 			})
 		}
 
@@ -727,7 +727,7 @@ func GenerateHostHeaderJobs(targetURL string, bypassModule string, probeCache pr
 				}},
 				FullURL:      ipURL,
 				BypassModule: bypassModule,
-				PayloadSeed:  GenerateDebugToken(SeedData{Headers: []Header{{Header: "Host", Value: ip}}, FullURL: ipURL}),
+				PayloadToken: GenerateDebugToken(SeedData{Headers: []Header{{Header: "Host", Value: ip}}, FullURL: ipURL}),
 			})
 		}
 	} else {

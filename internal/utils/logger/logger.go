@@ -69,23 +69,23 @@ func init() {
 	LogYellow = globalLogger.LogYellow
 	LogOrange = globalLogger.LogOrange
 	LogGreen = globalLogger.LogGreen
-	LogBlue = globalLogger.LogBlue     // Fixed: was using logger.LogBlue
-	LogPurple = globalLogger.LogPurple // Fixed: was using logger.LogPurple
+	LogBlue = globalLogger.LogBlue
+	LogPurple = globalLogger.LogPurple
 	LogGray = globalLogger.LogGray
 	LogTeal = globalLogger.LogTeal
 	LogPink = globalLogger.LogPink
 	LogCyan = globalLogger.LogCyan
 
 	// Initialize color-only functions (without newlines)
-	Yellow = globalLogger.yellowColor.Sprintf // Fixed: was using logger.yellowColor
-	Orange = globalLogger.orangeColor.Sprintf // Fixed: was using logger.orangeColor
-	Green = globalLogger.greenColor.Sprintf   // Fixed: was using logger.greenColor
-	Blue = globalLogger.blueColor.Sprintf     // Fixed: was using logger.blueColor
-	Purple = globalLogger.purpleColor.Sprintf // Fixed: was using logger.purpleColor
-	Gray = globalLogger.grayColor.Sprintf     // Fixed: was using logger.grayColor
-	Teal = globalLogger.tealColor.Sprintf     // Fixed: was using logger.tealColor
-	Pink = globalLogger.pinkColor.Sprintf     // Fixed: was using logger.pinkColor
-	Cyan = globalLogger.cyanColor.Sprintf     // Fixed: was using logger.cyanColor
+	Yellow = globalLogger.yellowColor.Sprintf
+	Orange = globalLogger.orangeColor.Sprintf
+	Green = globalLogger.greenColor.Sprintf
+	Blue = globalLogger.blueColor.Sprintf
+	Purple = globalLogger.purpleColor.Sprintf
+	Gray = globalLogger.grayColor.Sprintf
+	Teal = globalLogger.tealColor.Sprintf
+	Pink = globalLogger.pinkColor.Sprintf
+	Cyan = globalLogger.cyanColor.Sprintf
 }
 
 // NewLogger creates a new logger instance
@@ -138,23 +138,23 @@ func (l *Logger) EnableDebug() {
 
 // Logger methods (with newlines)
 func (l *Logger) LogInfo(format string, v ...interface{}) {
-	l.infoColor.Printf("\n[INFO] "+format+"\n", v...)
+	l.infoColor.Printf("[INFO] "+format, v...)
 }
 
 func (l *Logger) LogVerbose(format string, v ...interface{}) {
 	if l.verboseEnabled {
-		l.verboseColor.Printf("\n[VERBOSE] "+format+"\n", v...)
+		l.verboseColor.Printf("[VERBOSE] "+format, v...)
 	}
 }
 
 func (l *Logger) LogDebug(format string, v ...interface{}) {
 	if l.debugEnabled {
-		l.debugColor.Printf("\n[DEBUG] "+format+"\n", v...)
+		l.debugColor.Printf("[DEBUG] "+format, v...)
 	}
 }
 
 func (l *Logger) LogError(format string, v ...interface{}) {
-	l.errorColor.Printf("\n[ERROR] "+format+"\n", v...)
+	l.errorColor.Printf("[ERROR] "+format, v...)
 }
 
 func (l *Logger) LogYellow(format string, v ...interface{}) {

@@ -24,11 +24,11 @@ var (
 
 // ErrorContext holds metadata about where/when the error occurred
 type ErrorContext struct {
-	Host        []byte    `json:"host"`
-	BypassMode  []byte    `json:"bypass_mode"`
-	TargetURL   []byte    `json:"url"`
-	ErrorSource []byte    `json:"error_source"`
-	Timestamp   time.Time `json:"timestamp"`
+	Host         []byte    `json:"host"`
+	BypassModule []byte    `json:"bypass_module"`
+	TargetURL    []byte    `json:"url"`
+	ErrorSource  []byte    `json:"error_source"`
+	Timestamp    time.Time `json:"timestamp"`
 }
 
 // ErrorStats tracks statistics for each error type

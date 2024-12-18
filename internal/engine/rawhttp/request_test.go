@@ -298,14 +298,14 @@ func TestRequestBuilderMidPathsPayloads(t *testing.T) {
 				rb.BuildRequest(req, job)
 
 				// Build virtual request
-				GB403Logger.LogGreen("[GB403Logger][RequestBuilder] [Canary: %s] Sending request: %s\n================>\n%s<================\n", job.PayloadSeed, job.FullURL, req)
+				GB403Logger.LogGreen("[GB403Logger][RequestBuilder] [X-GB403-Token: %s] Sending request: %s\n================>\n%s<================\n", job.PayloadToken, job.FullURL, req)
 
 				// Send request and let server handle the comparison printing
 				if err := client.client.Do(req, resp); err != nil {
 					t.Fatalf("Job %d failed: %v", i, err)
 				}
 
-				GB403Logger.LogYellow("[GB403Logger] [Canary: %s] Response received for: %s\n%s", job.PayloadSeed, job.FullURL, resp.Body())
+				GB403Logger.LogYellow("[GB403Logger] [X-GB403-Token: %s] Response received for: %s\n%s", job.PayloadToken, job.FullURL, resp.Body())
 			}
 		})
 	}

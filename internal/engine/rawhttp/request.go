@@ -58,7 +58,7 @@ type ScannerCliOpts struct {
 // ResponseDetails contains processed response information
 type RawHTTPResponseDetails struct {
 	URL             []byte
-	BypassMode      []byte
+	BypassModule    []byte
 	CurlCommand     []byte
 	StatusCode      int
 	ResponsePreview []byte
@@ -120,7 +120,7 @@ func NewRequestBuilder(client *HttpClient) *RequestBuilder {
 	}
 }
 
-// BuildRequest creates and configures a request from a payload job
+// BuildRequest creates and configures a HTTP request from a bypass job (payload job)
 func (rb *RequestBuilder) BuildRequest(req *fasthttp.Request, job payload.PayloadJob) {
 	//req.Reset()
 	req.Header.SetMethod(job.Method)
@@ -142,7 +142,7 @@ func (rb *RequestBuilder) BuildRequest(req *fasthttp.Request, job payload.Payloa
 	req.Header.SetUserAgentBytes(CustomUserAgent)
 
 	if logger.IsDebugEnabled() {
-		req.Header.Set("X-GB403-Debug", job.PayloadSeed)
+		req.Header.Set("X-GB403-Token", job.PayloadToken)
 	}
 
 	// Handle connection settings
@@ -231,9 +231,9 @@ func (w *requestWorker) processRequestJob(job payload.PayloadJob) *RawHTTPRespon
 	w.builder.BuildRequest(req, job)
 	if err := w.client.DoRaw(req, resp); err != nil {
 		err = w.errorHandler.HandleError(err, GB403ErrorHandler.ErrorContext{
-			TargetURL:   []byte(job.FullURL),
-			ErrorSource: []byte("Worker.processJob"),
-			BypassMode:  []byte(job.BypassModule),
+			TargetURL:    []byte(job.FullURL),
+			ErrorSource:  []byte("Worker.processJob"),
+			BypassModule: []byte(job.BypassModule),
 		})
 		if err != nil {
 			logger.LogError("Request failed: %v", err)
@@ -247,9 +247,9 @@ func (w *requestWorker) processRequestJob(job payload.PayloadJob) *RawHTTPRespon
 // processResponse handles response processing
 func (w *requestWorker) processResponse(resp *fasthttp.Response, job payload.PayloadJob) *RawHTTPResponseDetails {
 	result := &RawHTTPResponseDetails{
-		URL:        append([]byte(nil), job.FullURL...),
-		BypassMode: append([]byte(nil), job.PayloadSeed...),
-		StatusCode: resp.StatusCode(),
+		URL:          append([]byte(nil), job.FullURL...),
+		BypassModule: append([]byte(nil), job.BypassModule...),
+		StatusCode:   resp.StatusCode(),
 	}
 
 	// Get header buffer from pool
