@@ -127,11 +127,12 @@ func (pc *ProgressCounter) MarkModuleAsDone(moduleName string) {
 		tracker.MarkAsDone()
 	}
 	atomic.AddInt32(&pc.activeModules, -1)
+	// Remove the automatic Stop() here
+}
 
-	// If this was the last active module, stop the progress writer
-	if atomic.LoadInt32(&pc.activeModules) == 0 {
-		pc.Stop()
-	}
+// Add a new method to check if all modules are done
+func (pc *ProgressCounter) AllModulesDone() bool {
+	return atomic.LoadInt32(&pc.activeModules) == 0
 }
 
 func (pc *ProgressCounter) Start() {

@@ -197,10 +197,9 @@ func (s *Scanner) runBypassForMode(bypassModule string, targetURL string, result
 	lastStatsUpdate := time.Now()
 
 	ctx := NewWorkerContext(bypassModule, len(allJobs), targetURL, s.config, s.errorHandler, s.progress)
-
-	// Use a single defer for cleanup
 	defer func() {
-		ctx.Stop() // This will handle requestPool.Close()
+		ctx.Stop()
+		// Remove the automatic stop in MarkModuleAsDone
 		s.progress.MarkModuleAsDone(bypassModule)
 	}()
 
