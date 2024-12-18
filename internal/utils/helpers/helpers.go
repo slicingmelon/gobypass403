@@ -6,7 +6,6 @@ import (
 	"regexp"
 	"strings"
 
-	//"github.com/slicingmelon/go-bypass-403/internal/config"
 	"github.com/slicingmelon/go-bypass-403/internal/utils/logger"
 )
 

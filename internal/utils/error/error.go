@@ -1,5 +1,7 @@
 package error
 
+// Custom Error Handler
+
 import (
 	"encoding/json"
 	"errors"

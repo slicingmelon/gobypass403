@@ -6,7 +6,7 @@ import (
 	"sort"
 
 	"github.com/slicingmelon/go-bypass-403/internal/engine/probe"
-	GB403ErrorHandler "github.com/slicingmelon/go-bypass-403/internal/utils/error"
+	GB403ErrHandler "github.com/slicingmelon/go-bypass-403/internal/utils/error"
 	"github.com/slicingmelon/go-bypass-403/internal/utils/logger"
 )
 
@@ -33,7 +33,7 @@ type ScannerOpts struct {
 type Scanner struct {
 	config       *ScannerOpts
 	urls         []string
-	errorHandler *GB403ErrorHandler.ErrorHandler
+	errorHandler *GB403ErrHandler.ErrorHandler
 }
 
 // New creates a new Scanner instance
@@ -41,7 +41,7 @@ func New(opts *ScannerOpts, urls []string) *Scanner {
 	return &Scanner{
 		config:       opts,
 		urls:         urls,
-		errorHandler: GB403ErrorHandler.NewErrorHandler(32),
+		errorHandler: GB403ErrHandler.NewErrorHandler(32),
 	}
 }
 
@@ -53,7 +53,7 @@ func (s *Scanner) Run() error {
 	for _, url := range s.urls {
 		if err := s.scanURL(url); err != nil {
 			logger.LogError("Error scanning %s: %v", url, err)
-			if handleErr := s.errorHandler.HandleError(err, GB403ErrorHandler.ErrorContext{
+			if handleErr := s.errorHandler.HandleError(err, GB403ErrHandler.ErrorContext{
 				TargetURL:    []byte(url),
 				ErrorSource:  []byte("Scanner.Run"),
 				BypassModule: []byte(s.config.BypassModule),
@@ -99,7 +99,7 @@ func (s *Scanner) scanURL(url string) error {
 
 		outputFile := filepath.Join(s.config.OutDir, "findings.json")
 		if err := AppendResultsToJSON(outputFile, url, s.config.BypassModule, findings); err != nil {
-			if handleErr := s.errorHandler.HandleError(err, GB403ErrorHandler.ErrorContext{
+			if handleErr := s.errorHandler.HandleError(err, GB403ErrHandler.ErrorContext{
 				TargetURL:    []byte(url),
 				ErrorSource:  []byte("Scanner.scanURL"),
 				BypassModule: []byte(s.config.BypassModule),

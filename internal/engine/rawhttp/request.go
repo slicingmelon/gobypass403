@@ -9,7 +9,7 @@ import (
 
 	"github.com/slicingmelon/go-bypass-403/internal/engine/payload"
 	"github.com/slicingmelon/go-bypass-403/internal/engine/rawhttp/bytebufferpool"
-	GB403ErrorHandler "github.com/slicingmelon/go-bypass-403/internal/utils/error"
+	GB403ErrHandler "github.com/slicingmelon/go-bypass-403/internal/utils/error"
 	"github.com/slicingmelon/go-bypass-403/internal/utils/logger"
 	"github.com/valyala/fasthttp"
 )
@@ -22,7 +22,7 @@ type RequestPool struct {
 	payloadQueue chan payload.PayloadJob
 	results      chan *RawHTTPResponseDetails
 	scanOpts     *ScannerCliOpts
-	errorHandler *GB403ErrorHandler.ErrorHandler
+	errHandler   *GB403ErrHandler.ErrorHandler
 }
 
 type requestWorkerPool struct {
@@ -34,14 +34,14 @@ type requestWorkerPool struct {
 }
 
 type requestWorker struct {
-	id           int
-	client       *HttpClient
-	jobs         chan payload.PayloadJob
-	results      chan *RawHTTPResponseDetails
-	lastUsed     time.Time
-	builder      *RequestBuilder
-	scanOpts     *ScannerCliOpts
-	errorHandler *GB403ErrorHandler.ErrorHandler
+	id         int
+	client     *HttpClient
+	jobs       chan payload.PayloadJob
+	results    chan *RawHTTPResponseDetails
+	lastUsed   time.Time
+	builder    *RequestBuilder
+	scanOpts   *ScannerCliOpts
+	errHandler *GB403ErrHandler.ErrorHandler
 }
 
 // RequestBuilder handles the lifecycle of fasthttp requests
@@ -71,19 +71,19 @@ type RawHTTPResponseDetails struct {
 	Title           []byte
 }
 
-func NewRequestPool(clientOpts *ClientOptions, scanOpts *ScannerCliOpts, errorHandler *GB403ErrorHandler.ErrorHandler) *RequestPool {
+func NewRequestPool(clientOpts *ClientOptions, scanOpts *ScannerCliOpts, errHandler *GB403ErrHandler.ErrorHandler) *RequestPool {
 	if clientOpts == nil {
 		clientOpts = DefaultOptionsSameHost()
 	}
 
 	maxWorkers := clientOpts.MaxConnsPerHost
 	pool := &RequestPool{
-		client:       NewClient(clientOpts, errorHandler),
+		client:       NewClient(clientOpts, errHandler),
 		maxWorkers:   maxWorkers,
 		payloadQueue: make(chan payload.PayloadJob, maxWorkers*2),
 		results:      make(chan *RawHTTPResponseDetails, maxWorkers*2),
 		scanOpts:     scanOpts,
-		errorHandler: errorHandler,
+		errHandler:   errHandler,
 		workerPool: &requestWorkerPool{
 			ready:  make(chan *requestWorker, maxWorkers),
 			stopCh: make(chan struct{}),
@@ -93,13 +93,13 @@ func NewRequestPool(clientOpts *ClientOptions, scanOpts *ScannerCliOpts, errorHa
 	// Initialize worker pool
 	pool.workerPool.pool.New = func() interface{} {
 		return &requestWorker{
-			id:           len(pool.workerPool.workers),
-			client:       pool.client,
-			jobs:         make(chan payload.PayloadJob, 1),
-			results:      make(chan *RawHTTPResponseDetails, 1),
-			builder:      NewRequestBuilder(pool.client),
-			scanOpts:     scanOpts,
-			errorHandler: pool.errorHandler,
+			id:         len(pool.workerPool.workers),
+			client:     pool.client,
+			jobs:       make(chan payload.PayloadJob, 1),
+			results:    make(chan *RawHTTPResponseDetails, 1),
+			builder:    NewRequestBuilder(pool.client),
+			scanOpts:   scanOpts,
+			errHandler: pool.errHandler,
 		}
 	}
 
@@ -230,7 +230,7 @@ func (w *requestWorker) processRequestJob(job payload.PayloadJob) *RawHTTPRespon
 
 	w.builder.BuildRequest(req, job)
 	if err := w.client.DoRaw(req, resp); err != nil {
-		err = w.errorHandler.HandleError(err, GB403ErrorHandler.ErrorContext{
+		err = w.errHandler.HandleError(err, GB403ErrHandler.ErrorContext{
 			TargetURL:    []byte(job.FullURL),
 			ErrorSource:  []byte("Worker.processJob"),
 			BypassModule: []byte(job.BypassModule),

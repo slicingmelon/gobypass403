@@ -4,7 +4,7 @@ import (
 	"github.com/fatih/color"
 )
 
-// Logger provides logging functionality
+// Logger
 type Logger struct {
 	infoColor    *color.Color
 	verboseColor *color.Color
