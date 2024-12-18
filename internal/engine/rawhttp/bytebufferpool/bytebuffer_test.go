@@ -2,9 +2,9 @@ package bytebufferpool
 
 import (
 	"bytes"
+	cryptorand "crypto/rand"
 	"fmt"
 	"io"
-	"math/rand"
 	"runtime"
 	"strings"
 	"sync"
@@ -63,7 +63,7 @@ func TestByteBufferWriteTo(t *testing.T) {
 		if err != nil {
 			t.Fatalf("unexpected error: %s", err)
 		}
-		s := string(w.Bytes())
+		s := w.String()
 		if s != expectedS {
 			t.Fatalf("unexpected string written %q. Expecting %q", s, expectedS)
 		}
@@ -179,7 +179,7 @@ func TestByteBufferLargeWrites(t *testing.T) {
 
 	for _, size := range sizes {
 		data := make([]byte, size)
-		rand.Read(data)
+		cryptorand.Read(data)
 
 		n, err := bb.Write(data)
 		if err != nil {
@@ -230,7 +230,7 @@ func TestByteBufferGrowth(t *testing.T) {
 
 	// Test growth with data larger than initial capacity
 	data := make([]byte, initialCap*2)
-	rand.Read(data)
+	cryptorand.Read(data)
 
 	bb.Write(data)
 
@@ -248,7 +248,7 @@ func TestByteBufferGrowth(t *testing.T) {
 	for i := 0; i < 3; i++ {
 		prevCap := cap(bb.B)
 		moreData := make([]byte, prevCap*2)
-		rand.Read(moreData)
+		cryptorand.Read(moreData)
 
 		bb.Write(moreData)
 
