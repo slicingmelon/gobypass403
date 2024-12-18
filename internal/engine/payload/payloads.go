@@ -56,7 +56,7 @@ func GenerateMidPathsJobs(targetURL string, bypassModule string) []PayloadJob {
 
 	logger.LogVerbose("Starting MidPaths payload generation for: %s", targetURL)
 
-	payloads, err := ReadPayloadsFromFile("payloads/internal_midpaths.lst")
+	payloads, err := ReadPayloadsFromFile("internal_midpaths.lst")
 	if err != nil {
 		logger.LogError("Failed to read midpaths payloads: %v", err)
 		return jobs
@@ -128,7 +128,7 @@ func GenerateEndPathsJobs(targetURL string, bypassModule string) []PayloadJob {
 		return jobs
 	}
 
-	payloads, err := ReadPayloadsFromFile("payloads/internal_endpaths.lst")
+	payloads, err := ReadPayloadsFromFile("internal_endpaths.lst")
 	if err != nil {
 		logger.LogError("Failed to read endpaths payloads: %v", err)
 		return jobs
@@ -197,7 +197,7 @@ func GenerateHeaderIPJobs(targetURL string, bypassModule string, spoofHeader str
 		return allJobs
 	}
 
-	headerNames, err := ReadPayloadsFromFile("payloads/header_ip_hosts.lst")
+	headerNames, err := ReadPayloadsFromFile("header_ip_hosts.lst")
 	if err != nil {
 		logger.LogError("Failed to read header names: %v", err)
 		return allJobs
@@ -215,7 +215,7 @@ func GenerateHeaderIPJobs(targetURL string, bypassModule string, spoofHeader str
 		logger.LogYellow("[%s] Added [%s] custom headers from -spoof-header\n", bypassModule, strings.Join(customHeaders, ","))
 	}
 
-	ips, err := ReadPayloadsFromFile("payloads/internal_ip_hosts.lst")
+	ips, err := ReadPayloadsFromFile("internal_ip_hosts.lst")
 	if err != nil {
 		logger.LogError("Failed to read IPs: %v", err)
 		return allJobs
@@ -435,13 +435,13 @@ func GenerateHeaderSchemeJobs(targetURL string, bypassModule string) []PayloadJo
 		return allJobs
 	}
 
-	headerSchemes, err := ReadPayloadsFromFile("payloads/header_proto_schemes.lst")
+	headerSchemes, err := ReadPayloadsFromFile("header_proto_schemes.lst")
 	if err != nil {
 		logger.LogError("Failed to read header schemes: %v", err)
 		return allJobs
 	}
 
-	protoSchemes, err := ReadPayloadsFromFile("payloads/internal_proto_schemes.lst")
+	protoSchemes, err := ReadPayloadsFromFile("internal_proto_schemes.lst")
 	if err != nil {
 		logger.LogError("Failed to read proto schemes: %v", err)
 		return allJobs
@@ -516,7 +516,7 @@ func GenerateHeaderURLJobs(targetURL string, bypassModule string) []PayloadJob {
 		return allJobs
 	}
 
-	headerURLs, err := ReadPayloadsFromFile("payloads/header_urls.lst")
+	headerURLs, err := ReadPayloadsFromFile("header_urls.lst")
 	if err != nil {
 		logger.LogError("Failed to read header URLs: %v", err)
 		return allJobs
@@ -620,13 +620,13 @@ func GenerateHeaderPortJobs(targetURL string, bypassModule string) []PayloadJob 
 		return allJobs
 	}
 
-	headerPorts, err := ReadPayloadsFromFile("payloads/header_ports.lst")
+	headerPorts, err := ReadPayloadsFromFile("header_ports.lst")
 	if err != nil {
 		logger.LogError("Failed to read header ports: %v", err)
 		return allJobs
 	}
 
-	internalPorts, err := ReadPayloadsFromFile("payloads/internal_ports.lst")
+	internalPorts, err := ReadPayloadsFromFile("internal_ports.lst")
 	if err != nil {
 		logger.LogError("Failed to read internal ports: %v", err)
 		return allJobs

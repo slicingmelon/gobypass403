@@ -122,39 +122,45 @@ func NewRequestBuilder(client *Client) *RequestBuilder {
 
 // BuildRequest creates and configures a request from a payload job
 func (rb *RequestBuilder) BuildRequest(req *fasthttp.Request, job payload.PayloadJob) {
-	// Set UseHostHeader to true so Host header takes precedence
-	req.UseHostHeader = true
+	// Set UseHostHeader to false initially - we'll handle host header manually
+	//req.UseHostHeader = true
 
-	// Set the full URL as RequestURI to maintain exact path structure
-	req.SetRequestURI(job.FullURL)
+	req.Reset()
 	req.Header.SetMethod(job.Method)
 
-	// Set initial Host from payload.Host
-	req.Header.SetHost(job.Host)
+	// Set the raw URI for the first line of the request
+	req.SetRequestURI(job.FullURL)
 
 	// Disable all normalizing for raw path testing
 	req.URI().DisablePathNormalizing = true
 	req.Header.DisableNormalizing()
 	req.Header.SetNoDefaultContentType(true)
 
-	// Set a normal user agent
-	req.Header.SetUserAgentBytes(CustomUserAgent)
+	rb.SetRequestHeaders(req, job)
+}
 
-	// Add payload headers - any Host header here will override the initial Host
+func (rb *RequestBuilder) SetRequestHeaders(req *fasthttp.Request, job payload.PayloadJob) {
+	// Iterate through headers and set them
 	for _, h := range job.Headers {
-		req.Header.Set(h.Header, h.Value)
+		headerNameBytes := []byte(h.Header)
+		headerValueBytes := []byte(h.Value)
+
+		req.Header.SetBytesKV(headerNameBytes, headerValueBytes)
 	}
 
-	// Add debug canary/seed
+	req.Header.SetUserAgentBytes(CustomUserAgent)
+
 	if logger.IsDebugEnabled() {
-		req.Header.Set("X-GB403-Debug", job.PayloadSeed)
+		req.Header.SetBytesKV([]byte("X-GB403-Debug"), []byte(job.PayloadSeed))
 	}
 
 	// Handle connection settings
-	if rb.client.options.ProxyURL != "" || rb.client.options.DisableKeepAlive {
+	if rb.client.options.ProxyURL != "" {
+		req.SetConnectionClose()
+	} else if rb.client.options.DisableKeepAlive {
 		req.SetConnectionClose()
 	} else {
-		req.Header.Set("Connection", "keep-alive")
+		req.Header.SetBytesKV([]byte("Connection"), []byte("keep-alive"))
 	}
 }
 

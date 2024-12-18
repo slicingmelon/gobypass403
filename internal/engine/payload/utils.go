@@ -149,28 +149,33 @@ func CopyPayloadFile(src, dst string) error {
 
 // ReadPayloadsFromFile reads all payloads from the specified file
 func ReadPayloadsFromFile(filename string) ([]string, error) {
-	// First try reading from embedded FS
-	content, err := DefaultPayloadsDir.ReadFile(filename)
+	// Try reading from local directory first
+	payloads, err := ReadMaxPayloadsFromFile(filename, -1)
 	if err == nil {
-		text := strings.ReplaceAll(string(content), "\r\n", "\n")
-		var payloads []string
-		lines := strings.Split(text, "\n")
-
-		logger.LogVerbose("Read %d raw lines from embedded payload file", len(lines))
-
-		for _, line := range lines {
-			line = strings.TrimSpace(line)
-			if line != "" {
-				payloads = append(payloads, line)
-			}
-		}
-
-		logger.LogVerbose("Processed %d valid payloads", len(payloads))
 		return payloads, nil
 	}
 
-	// Fallback to reading from filesystem with max payloads
-	return ReadMaxPayloadsFromFile(filename, -1)
+	// Fallback to embedded FS if local read fails
+	content, err := DefaultPayloadsDir.ReadFile(filename)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read payload file %s: %w", filename, err)
+	}
+
+	text := strings.ReplaceAll(string(content), "\r\n", "\n")
+	var embeddedPayloads []string
+	lines := strings.Split(text, "\n")
+
+	logger.LogVerbose("Read %d raw lines from embedded payload file", len(lines))
+
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line != "" {
+			embeddedPayloads = append(embeddedPayloads, line)
+		}
+	}
+
+	logger.LogVerbose("Processed %d valid payloads", len(embeddedPayloads))
+	return embeddedPayloads, nil
 }
 
 // ReadMaxPayloadsFromFile reads up to maxNum payloads from the specified file

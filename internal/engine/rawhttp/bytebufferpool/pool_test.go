@@ -2,6 +2,7 @@ package bytebufferpool
 
 import (
 	"math/rand"
+	"sync"
 	"testing"
 	"time"
 )
@@ -91,4 +92,50 @@ func allocNBytes(dst []byte, n int) []byte {
 		return dst[:n]
 	}
 	return append(dst, make([]byte, diff)...)
+}
+
+func TestPoolStress(t *testing.T) {
+	const (
+		goroutines = 8
+		iterations = 1000
+	)
+
+	var wg sync.WaitGroup
+	wg.Add(goroutines)
+
+	for i := 0; i < goroutines; i++ {
+		go func() {
+			defer wg.Done()
+			for j := 0; j < iterations; j++ {
+				bb := Get()
+				// Write different sizes
+				size := rand.Intn(16384)
+				bb.B = allocNBytes(bb.B, size)
+				Put(bb)
+			}
+		}()
+	}
+
+	wg.Wait()
+}
+
+func TestPoolCalibrationStress(t *testing.T) {
+	const iterations = calibrateCallsThreshold * 2
+
+	var wg sync.WaitGroup
+	wg.Add(4)
+
+	for i := 0; i < 4; i++ {
+		go func() {
+			defer wg.Done()
+			for j := 0; j < iterations; j++ {
+				size := 64 << uint(rand.Intn(10)) // Random sizes from 64 to 32KB
+				bb := Get()
+				bb.B = allocNBytes(bb.B, size)
+				Put(bb)
+			}
+		}()
+	}
+
+	wg.Wait()
 }

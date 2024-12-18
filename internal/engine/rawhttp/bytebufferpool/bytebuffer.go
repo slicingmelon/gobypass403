@@ -1,12 +1,6 @@
-// File internal/engine/rawhttp/bytebufferpool/bytebuffer.go
-//
-// This is a modified implementation of a fasthttp's bytebufferpool that includes some fixes and optimizations.
 package bytebufferpool
 
-import (
-	"io"
-	"unsafe"
-)
+import "io"
 
 // ByteBuffer provides byte buffer, which can be used for minimizing
 // memory allocations.
@@ -90,13 +84,6 @@ func (b *ByteBuffer) WriteByte(c byte) error {
 	return nil
 }
 
-func (b *ByteBuffer) Expand(n int) error {
-	if cap(b.B)-len(b.B) < n {
-		b.B = append(make([]byte, 0, len(b.B)+n), b.B...)
-	}
-	return nil
-}
-
 // WriteString appends s to ByteBuffer.B.
 func (b *ByteBuffer) WriteString(s string) (int, error) {
 	b.B = append(b.B, s...)
@@ -115,7 +102,7 @@ func (b *ByteBuffer) SetString(s string) {
 
 // String returns string representation of ByteBuffer.B.
 func (b *ByteBuffer) String() string {
-	return *(*string)(unsafe.Pointer(&b.B))
+	return string(b.B)
 }
 
 // Reset makes ByteBuffer.B empty.
