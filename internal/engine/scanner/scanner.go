@@ -34,7 +34,7 @@ type Scanner struct {
 	config       *ScannerOpts
 	urls         []string
 	errorHandler *GB403ErrHandler.ErrorHandler
-	progress     *ProgressTracker
+	progress     *ProgressCounter
 }
 
 // New creates a new Scanner instance
@@ -43,7 +43,7 @@ func New(opts *ScannerOpts, urls []string) *Scanner {
 		config:       opts,
 		urls:         urls,
 		errorHandler: GB403ErrHandler.NewErrorHandler(32),
-		progress:     NewProgressTracker(),
+		progress:     NewProgressCounter(),
 	}
 }
 
@@ -51,6 +51,10 @@ func (s *Scanner) Run() error {
 	defer s.Close()
 
 	logger.LogYellowln("Initializing scanner with %d URLs", len(s.urls))
+
+	// Start progress counter here instead
+	s.progress.Start()
+	defer s.progress.Stop() // Move Stop here to ensure it runs after all URLs are processed
 
 	for _, url := range s.urls {
 		if err := s.scanURL(url); err != nil {
@@ -66,7 +70,7 @@ func (s *Scanner) Run() error {
 		}
 	}
 
-	// Add this before returning
+	// print error stats
 	s.errorHandler.PrintErrorStats()
 
 	return nil

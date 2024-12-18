@@ -85,7 +85,7 @@ var bypassModules = map[string]*BypassModule{
 type WorkerContext struct {
 	mode string
 	//progress    *ProgressCounter
-	progress    *ProgressTracker
+	progress    *ProgressCounter
 	cancel      chan struct{}
 	wg          *sync.WaitGroup
 	once        sync.Once
@@ -93,7 +93,7 @@ type WorkerContext struct {
 	requestPool *rawhttp.RequestPool
 }
 
-func NewWorkerContext(mode string, total int, targetURL string, opts *ScannerOpts, errHandler *GB403ErrHandler.ErrorHandler) *WorkerContext {
+func NewWorkerContext(mode string, total int, targetURL string, opts *ScannerOpts, errHandler *GB403ErrHandler.ErrorHandler, progress *ProgressCounter) *WorkerContext {
 	clientOpts := rawhttp.DefaultOptionsSameHost()
 
 	// Override specific settings from user options
@@ -104,7 +104,7 @@ func NewWorkerContext(mode string, total int, targetURL string, opts *ScannerOpt
 
 	return &WorkerContext{
 		mode:     mode,
-		progress: NewProgressTracker(mode, total, targetURL),
+		progress: progress,
 		cancel:   make(chan struct{}),
 		wg:       &sync.WaitGroup{},
 		once:     sync.Once{},
@@ -112,6 +112,7 @@ func NewWorkerContext(mode string, total int, targetURL string, opts *ScannerOpt
 		requestPool: rawhttp.NewRequestPool(clientOpts, &rawhttp.ScannerCliOpts{
 			MatchStatusCodes:        opts.MatchStatusCodes,
 			ResponseBodyPreviewSize: opts.ResponseBodyPreviewSize,
+			ModuleName:              mode,
 		}, errHandler),
 	}
 }
@@ -185,30 +186,37 @@ func (s *Scanner) runBypassForMode(bypassModule string, targetURL string, result
 	if !exists {
 		return
 	}
+
 	allJobs := moduleInstance.GenerateJobs(targetURL, bypassModule, s.config)
 	if len(allJobs) == 0 {
 		logger.LogVerbose("No jobs generated for module: %s", bypassModule)
 		return
 	}
-	// Start tracking this module's progress
+
 	s.progress.StartModule(bypassModule, len(allJobs), targetURL)
-	defer s.progress.MarkModuleAsDone(bypassModule)
+	lastStatsUpdate := time.Now()
+
 	ctx := NewWorkerContext(bypassModule, len(allJobs), targetURL, s.config, s.errorHandler, s.progress)
-	defer ctx.Stop()
+
+	// Use a single defer for cleanup
+	defer func() {
+		ctx.Stop() // This will handle requestPool.Close()
+		s.progress.MarkModuleAsDone(bypassModule)
+	}()
+
 	responses := ctx.requestPool.ProcessRequests(allJobs)
-	successCount := int64(0)
-	failedCount := int64(0)
-	// Process responses directly without intermediate channel
 	for response := range responses {
 		if response == nil {
-			failedCount++
-			s.progress.increment()
+			s.progress.IncrementProgress(bypassModule, false)
 			continue
 		}
-		successCount++
-		s.progress.increment()
-		s.progress.UpdateWorkerStats(successCount+failedCount, successCount, failedCount)
-		// Check for matching status codes
+		s.progress.IncrementProgress(bypassModule, true)
+
+		if time.Since(lastStatsUpdate) > 500*time.Millisecond {
+			s.progress.UpdateWorkerStats(bypassModule, int64(ctx.requestPool.ActiveWorkers()))
+			lastStatsUpdate = time.Now()
+		}
+
 		if matchStatusCodes(response.StatusCode, s.config.MatchStatusCodes) {
 			results <- &Result{
 				TargetURL:       string(response.URL),

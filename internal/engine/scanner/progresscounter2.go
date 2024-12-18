@@ -2,149 +2,145 @@ package scanner
 
 import (
 	"fmt"
-	"os"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/jedib0t/go-pretty/v6/progress"
-	"github.com/jedib0t/go-pretty/v6/text"
 )
 
-type ProgressTracker struct {
-	pw             progress.Writer
-	moduleTrackers map[string]*progress.Tracker
-	workerTracker  *progress.Tracker
-	mu             sync.Mutex
-	renderStarted  bool
-}
-
-// type ProgressTracker struct {
-// 	trackers       map[string]*progress.Tracker
-// 	moduleTrackers map[string]*progress.Tracker
-// 	workerTracker  *progress.Tracker
-// 	mu             sync.Mutex
-// }
-
 type ModuleStats struct {
-	Total     int64
-	Current   int64
-	Workers   int
-	URL       string
-	StartTime time.Time
+	TotalJobs      int64
+	CompletedJobs  int64
+	SuccessfulJobs int64
+	FailedJobs     int64
+	ActiveWorkers  int64
+	StartTime      time.Time
 }
 
-func NewProgressTracker(mode string, total int, targetURL string) *ProgressTracker {
-	pw := progress.NewWriter()
-	pw.SetOutputWriter(os.Stdout)
-	pw.SetAutoStop(false)
-	pw.SetTrackerLength(40)
-	pw.SetUpdateFrequency(time.Millisecond * 100)
+type ProgressCounter struct {
+	pw            progress.Writer
+	trackers      map[string]*progress.Tracker
+	moduleStats   map[string]*ModuleStats
+	mu            sync.RWMutex
+	activeModules int32
+	stopped       atomic.Bool // Add this
+}
 
-	// Custom style for the progress bars
-	pw.SetStyle(progress.Style{
-		Name: "bypass403",
-		Chars: progress.StyleChars{
-			BoxLeft:    "[",
-			BoxRight:   "]",
-			Finished:   "█",
-			Unfinished: "░",
-		},
-		Colors: progress.StyleColors{
-			Message: text.Colors{text.FgCyan},
-			Error:   text.Colors{text.FgRed},
-			Value:   text.Colors{text.FgYellow},
-			Percent: text.Colors{text.FgGreen},
-		},
-	})
-	pt := &ProgressTracker{
-		pw:             pw,
-		moduleTrackers: make(map[string]*progress.Tracker),
+func NewProgressCounter() *ProgressCounter {
+	pw := progress.NewWriter()
+	pw.SetUpdateFrequency(100 * time.Millisecond)
+	pw.SetTrackerLength(40)
+	pw.SetMessageLength(40)
+
+	style := progress.StyleDefault
+	style.Options.Separator = " "
+	style.Options.DoneString = "completed"
+	style.Options.ETAString = "eta"
+	style.Visibility = progress.StyleVisibility{
+		Percentage:     true,
+		Speed:          true,
+		Value:          true,
+		ETA:            true,
+		Time:           true,
+		Tracker:        true,
+		TrackerOverall: false,
 	}
-	// Create module tracker
-	moduleTracker := &progress.Tracker{
-		Message: fmt.Sprintf("[%s] %s", mode, targetURL),
-		Total:   int64(total),
+
+	pw.SetStyle(style)
+	pw.SetTrackerPosition(progress.PositionRight)
+
+	return &ProgressCounter{
+		pw:          pw,
+		trackers:    make(map[string]*progress.Tracker),
+		moduleStats: make(map[string]*ModuleStats),
+	}
+}
+
+func (pc *ProgressCounter) StartModule(moduleName string, totalJobs int, targetURL string) {
+	pc.mu.Lock()
+	defer pc.mu.Unlock()
+
+	atomic.AddInt32(&pc.activeModules, 1)
+
+	pc.moduleStats[moduleName] = &ModuleStats{
+		TotalJobs: int64(totalJobs),
+		StartTime: time.Now(),
+	}
+
+	tracker := &progress.Tracker{
+		Message: fmt.Sprintf("[%s] Processing %d requests", moduleName, totalJobs),
+		Total:   int64(totalJobs),
 		Units:   progress.UnitsDefault,
 	}
-	pt.moduleTrackers[mode] = moduleTracker
-	pw.AppendTracker(moduleTracker)
+
+	pc.trackers[moduleName+"_progress"] = tracker
+	pc.pw.AppendTracker(tracker)
+}
+
+func (pc *ProgressCounter) addTracker(id, message string, total int64) {
+	tracker := &progress.Tracker{
+		Message: message,
+		Total:   total,
+		Units:   progress.UnitsDefault,
+	}
+	pc.trackers[id] = tracker
+	pc.pw.AppendTracker(tracker)
+}
+
+func (pc *ProgressCounter) UpdateWorkerStats(moduleName string, totalWorkers int64) {
+	pc.mu.RLock()
+	stats, exists := pc.moduleStats[moduleName]
+	pc.mu.RUnlock()
+
+	if exists {
+		atomic.StoreInt64(&stats.ActiveWorkers, totalWorkers)
+		if tracker := pc.trackers[moduleName+"_workers"]; tracker != nil {
+			tracker.SetValue(totalWorkers)
+		}
+	}
+}
+
+func (pc *ProgressCounter) IncrementProgress(moduleName string, success bool) {
+	pc.mu.RLock()
+	stats, exists := pc.moduleStats[moduleName]
+	tracker := pc.trackers[moduleName+"_progress"]
+	pc.mu.RUnlock()
+
+	if exists && tracker != nil {
+		atomic.AddInt64(&stats.CompletedJobs, 1)
+		if success {
+			atomic.AddInt64(&stats.SuccessfulJobs, 1)
+		} else {
+			atomic.AddInt64(&stats.FailedJobs, 1)
+		}
+		tracker.Increment(1)
+	}
+}
+
+func (pc *ProgressCounter) MarkModuleAsDone(moduleName string) {
+	pc.mu.RLock()
+	tracker := pc.trackers[moduleName+"_progress"]
+	pc.mu.RUnlock()
+
+	if tracker != nil {
+		tracker.MarkAsDone()
+	}
+	atomic.AddInt32(&pc.activeModules, -1)
+
+	// If this was the last active module, stop the progress writer
+	if atomic.LoadInt32(&pc.activeModules) == 0 {
+		pc.Stop()
+	}
+}
+
+func (pc *ProgressCounter) Start() {
 	// Start rendering in background
-	go pw.Render()
-	return pt
+	go pc.pw.Render()
 }
 
-func (pt *ProgressTracker) increment() {
-	pt.mu.Lock()
-	defer pt.mu.Unlock()
-
-	if pt.Cancelled {
-		return
-	}
-	// Update module trackers
-	for _, tracker := range pt.moduleTrackers {
-		if !tracker.IsDone() {
-			tracker.Increment(1)
-		}
-	}
-	// Update worker tracker if exists
-	if pt.workerTracker != nil {
-		pt.workerTracker.Increment(1)
-	}
-}
-
-func (pt *ProgressTracker) markAsCancelled() {
-	pt.mu.Lock()
-	defer pt.mu.Unlock()
-	if !pt.Cancelled {
-		pt.Cancelled = true
-		for _, tracker := range pt.moduleTrackers {
-			tracker.MarkAsErrored()
-			tracker.UpdateMessage(fmt.Sprintf("%s [ERROR: Permanent error detected - Skipping]", tracker.Message))
-		}
-	}
-}
-
-func (pt *ProgressTracker) Stop() {
-	pt.mu.Lock()
-	defer pt.mu.Unlock()
-
-	// Mark all trackers as done
-	for _, tracker := range pt.moduleTrackers {
-		if !tracker.IsDone() {
-			tracker.MarkAsDone()
-		}
-	}
-
-	pt.pw.Stop()
-}
-
-func (pt *ProgressTracker) isCancelled() bool {
-	pt.mu.Lock()
-	defer pt.mu.Unlock()
-	return pt.Cancelled
-}
-
-func (pt *ProgressTracker) AddWorkerTracker(numWorkers int, totalJobs int) {
-	pt.mu.Lock()
-	defer pt.mu.Unlock()
-	pt.workerTracker = &progress.Tracker{
-		Message: fmt.Sprintf("Workers [%d/%d]", numWorkers, numWorkers),
-		Total:   int64(totalJobs),
-		Units: progress.Units{
-			Formatter: func(value int64) string {
-				return fmt.Sprintf("%d/%d", value, totalJobs)
-			},
-		},
-	}
-	pt.pw.AppendTracker(pt.workerTracker)
-}
-
-// Update worker stats
-func (pt *ProgressTracker) UpdateWorkerStats(processed int64, success int64, failed int64) {
-	pt.mu.Lock()
-	defer pt.mu.Unlock()
-	if pt.workerTracker != nil {
-		pt.workerTracker.SetValue(processed)
-		pt.workerTracker.UpdateMessage(fmt.Sprintf("Workers [✓%d ✗%d]", success, failed))
+func (pc *ProgressCounter) Stop() {
+	if !pc.stopped.Swap(true) { // Only stop once
+		pc.pw.Stop()
 	}
 }

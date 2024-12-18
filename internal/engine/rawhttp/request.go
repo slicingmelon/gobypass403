@@ -23,6 +23,7 @@ type RequestPool struct {
 	results      chan *RawHTTPResponseDetails
 	scanOpts     *ScannerCliOpts
 	errHandler   *GB403ErrHandler.ErrorHandler
+	closeMu      sync.Once
 }
 
 type requestWorkerPool struct {
@@ -44,6 +45,10 @@ type requestWorker struct {
 	errHandler *GB403ErrHandler.ErrorHandler
 }
 
+type ProgressTracker interface {
+	UpdateWorkerStats(moduleName string, totalWorkers int64)
+}
+
 // RequestBuilder handles the lifecycle of fasthttp requests
 type RequestBuilder struct {
 	client *HttpClient
@@ -53,6 +58,7 @@ type RequestBuilder struct {
 type ScannerCliOpts struct {
 	MatchStatusCodes        []int
 	ResponseBodyPreviewSize int
+	ModuleName              string
 }
 
 // ResponseDetails contains processed response information
@@ -111,6 +117,24 @@ func NewRequestPool(clientOpts *ClientOptions, scanOpts *ScannerCliOpts, errHand
 	}
 
 	return pool
+}
+
+// Add this method to the RequestPool struct
+func (p *RequestPool) ActiveWorkers() int {
+	return p.workerPool.activeWorkerCount()
+}
+
+// Add this helper method to requestWorkerPool
+func (p *requestWorkerPool) activeWorkerCount() int {
+	p.lock.Lock()
+	defer p.lock.Unlock()
+	count := 0
+	for _, w := range p.workers {
+		if time.Since(w.lastUsed) < 5*time.Second {
+			count++
+		}
+	}
+	return count
 }
 
 // RequestBuilder handles request construction
@@ -308,6 +332,8 @@ func (w *requestWorker) processResponse(resp *fasthttp.Response, job payload.Pay
 // WorkerPool methods
 func (wp *requestWorkerPool) acquireWorker() *requestWorker {
 	select {
+	case <-wp.stopCh:
+		return nil
 	case worker := <-wp.ready:
 		worker.lastUsed = time.Now()
 		return worker
@@ -316,15 +342,22 @@ func (wp *requestWorkerPool) acquireWorker() *requestWorker {
 		wp.lock.Lock()
 		defer wp.lock.Unlock()
 
-		if len(wp.workers) < cap(wp.ready) {
-			worker := wp.pool.Get().(*requestWorker)
-			wp.workers = append(wp.workers, worker)
-			worker.lastUsed = time.Now()
-			return worker
+		select {
+		case <-wp.stopCh:
+			return nil
+		default:
+			if len(wp.workers) < cap(wp.ready) {
+				worker := wp.pool.Get().(*requestWorker)
+				wp.workers = append(wp.workers, worker)
+				worker.lastUsed = time.Now()
+				return worker
+			}
 		}
 
 		// Wait for available worker
 		select {
+		case <-wp.stopCh:
+			return nil
 		case worker := <-wp.ready:
 			worker.lastUsed = time.Now()
 			return worker
@@ -372,20 +405,56 @@ func (wp *requestWorkerPool) cleanIdleWorkers(maxIdleTime time.Duration) {
 }
 
 func (p *RequestPool) Close() {
-	close(p.workerPool.stopCh)
+	p.closeMu.Do(func() {
+		// 1. Signal stop
+		close(p.workerPool.stopCh)
 
-	// Clean up workers
-	p.workerPool.lock.Lock()
-	for _, w := range p.workerPool.workers {
-		close(w.jobs)
-		close(w.results)
-	}
-	p.workerPool.workers = nil
-	p.workerPool.lock.Unlock()
+		// 2. Wait for workers to finish current jobs
+		var wg sync.WaitGroup
+		p.workerPool.lock.Lock()
+		for _, w := range p.workerPool.workers {
+			wg.Add(1)
+			go func(worker *requestWorker) {
+				defer wg.Done()
+				// Give workers time to finish current job
+				time.Sleep(100 * time.Millisecond)
+			}(w)
+		}
+		p.workerPool.lock.Unlock()
 
-	// Clean up channels
-	close(p.payloadQueue)
-	close(p.results)
+		// 3. Wait with timeout
+		done := make(chan struct{})
+		go func() {
+			wg.Wait()
+			close(done)
+		}()
+
+		select {
+		case <-done:
+		case <-time.After(5 * time.Second):
+			// Timeout reached
+		}
+
+		// 4. Clean up channels
+		p.workerPool.lock.Lock()
+		for _, w := range p.workerPool.workers {
+			safeClose(w.jobs)
+			safeClose(w.results)
+		}
+		p.workerPool.workers = nil
+		p.workerPool.lock.Unlock()
+
+		safeClose(p.payloadQueue)
+		safeClose(p.results)
+	})
+}
+
+func safeClose[T any](ch chan T) {
+	defer func() {
+		// Recover from panic if channel is already closed
+		recover()
+	}()
+	close(ch)
 }
 
 // Helper functions
