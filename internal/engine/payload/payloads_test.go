@@ -128,3 +128,37 @@ func TestGenerateHeaderIPJobs_RequestFormatAllJobs(t *testing.T) {
 		t.Logf("  %s: %d jobs", header, count)
 	}
 }
+
+func TestPayloadSeedRoundTrip(t *testing.T) {
+	// Test case matching your HeaderIP job
+	original := SeedData{
+		FullURL: "https://www.example.com/admin",
+		Headers: []Header{{
+			Header: "X-AppEngine-Trusted-IP-Request",
+			Value:  "1",
+		}},
+	}
+	// Generate seed
+	seed := GenerateDebugToken(original)
+	t.Logf("Generated seed: %s", seed)
+	// Recover data
+	recovered, err := DecodeDebugToken(seed)
+	if err != nil {
+		t.Fatalf("Failed to recover seed: %v", err)
+	}
+	// Compare
+	t.Logf("Original URL: %s, Recovered URL: %s", original.FullURL, recovered.FullURL)
+	t.Logf("Original Headers: %+v", original.Headers)
+	t.Logf("Recovered Headers: %+v", recovered.Headers)
+	if original.FullURL != recovered.FullURL {
+		t.Errorf("URLs don't match")
+	}
+	if len(original.Headers) != len(recovered.Headers) {
+		t.Errorf("Header count mismatch: %d != %d", len(original.Headers), len(recovered.Headers))
+	}
+	for i, h := range original.Headers {
+		if recovered.Headers[i].Header != h.Header || recovered.Headers[i].Value != h.Value {
+			t.Errorf("Header %d mismatch: %+v != %+v", i, h, recovered.Headers[i])
+		}
+	}
+}

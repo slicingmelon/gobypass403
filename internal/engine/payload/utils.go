@@ -3,12 +3,9 @@ package payload
 import (
 	"embed"
 	"fmt"
-	"math/rand"
 	"os"
 	"path/filepath"
 	"strings"
-	"sync"
-	"time"
 
 	"github.com/slicingmelon/go-bypass-403/internal/utils/logger"
 )
@@ -35,10 +32,6 @@ var (
 
 		return table
 	}()
-
-	// Use a concurrent-safe random source
-	rnd = rand.New(rand.NewSource(time.Now().UnixNano()))
-	mu  sync.Mutex
 )
 
 //go:embed payloads/*.lst
@@ -62,7 +55,6 @@ func GetPayloadsDir() (string, error) {
 	return filepath.Join(configDir, "go-bypass-403", "payloads"), nil
 }
 
-// InitializePayloadsDir copies default payloads to the tool directory
 // InitializePayloadsDir ensures all payload files exist in the user's config directory
 func InitializePayloadsDir() error {
 	toolDir, err := GetToolDir()
@@ -258,19 +250,4 @@ func HeadersToMap(headers []Header) map[string]string {
 		m[h.Header] = h.Value
 	}
 	return m
-}
-
-// GeneratePayloadSeed generates a random payload seed used later in debugging, etc
-func GeneratePayloadSeed() string {
-	b := make([]byte, 18)
-	tableSize := uint32(len(charsetTable))
-
-	mu.Lock()
-	for i := range b {
-		// Using uint32 for better performance than modulo
-		b[i] = charsetTable[rnd.Uint32()%tableSize]
-	}
-	mu.Unlock()
-
-	return string(b)
 }

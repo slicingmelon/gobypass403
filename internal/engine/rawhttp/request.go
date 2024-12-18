@@ -16,7 +16,7 @@ import (
 
 // RequestPool manages a pool of FastHTTP requests
 type RequestPool struct {
-	client       *Client
+	client       *HttpClient
 	workerPool   *requestWorkerPool
 	maxWorkers   int
 	payloadQueue chan payload.PayloadJob
@@ -35,7 +35,7 @@ type requestWorkerPool struct {
 
 type requestWorker struct {
 	id           int
-	client       *Client
+	client       *HttpClient
 	jobs         chan payload.PayloadJob
 	results      chan *RawHTTPResponseDetails
 	lastUsed     time.Time
@@ -46,7 +46,7 @@ type requestWorker struct {
 
 // RequestBuilder handles the lifecycle of fasthttp requests
 type RequestBuilder struct {
-	client *Client
+	client *HttpClient
 }
 
 // ScannerCliOpts reference the cli options
@@ -114,7 +114,7 @@ func NewRequestPool(clientOpts *ClientOptions, scanOpts *ScannerCliOpts, errorHa
 }
 
 // RequestBuilder handles request construction
-func NewRequestBuilder(client *Client) *RequestBuilder {
+func NewRequestBuilder(client *HttpClient) *RequestBuilder {
 	return &RequestBuilder{
 		client: client,
 	}

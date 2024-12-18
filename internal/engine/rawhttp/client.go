@@ -34,7 +34,7 @@ type ClientOptions struct {
 }
 
 // Client represents a reusable HTTP client optimized for performance
-type Client struct {
+type HttpClient struct {
 	client       *fasthttp.Client
 	bufPool      sync.Pool
 	maxRetries   int
@@ -77,7 +77,7 @@ func DefaultOptionsSameHost() *ClientOptions {
 }
 
 // / NewHTTPClient creates a new optimized HTTP client
-func NewClient(opts *ClientOptions, errorHandler *GB403ErrorHandler.ErrorHandler) *Client {
+func NewClient(opts *ClientOptions, errorHandler *GB403ErrorHandler.ErrorHandler) *HttpClient {
 	if opts == nil {
 		opts = DefaultOptionsSameHost()
 	}
@@ -136,7 +136,7 @@ func NewClient(opts *ClientOptions, errorHandler *GB403ErrorHandler.ErrorHandler
 		},
 	}
 
-	return &Client{
+	return &HttpClient{
 		client:       client,
 		errorHandler: errorHandler,
 		bufPool:      sync.Pool{New: func() interface{} { return make([]byte, 0, opts.ReadBufferSize) }},
@@ -147,44 +147,44 @@ func NewClient(opts *ClientOptions, errorHandler *GB403ErrorHandler.ErrorHandler
 }
 
 // DoRaw performs a raw HTTP request
-func (c *Client) DoRaw(req *fasthttp.Request, resp *fasthttp.Response) error {
+func (c *HttpClient) DoRaw(req *fasthttp.Request, resp *fasthttp.Response) error {
 	// Set max body size before making the request
 	return c.client.Do(req, resp)
 }
 
 // AcquireBuffer gets a buffer from the pool
-func (c *Client) AcquireBuffer() []byte {
+func (c *HttpClient) AcquireBuffer() []byte {
 	return c.bufPool.Get().([]byte)
 }
 
 // ReleaseBuffer returns a buffer to the pool
-func (c *Client) ReleaseBuffer(buf []byte) {
+func (c *HttpClient) ReleaseBuffer(buf []byte) {
 	// Reset the buffer before returning it to the pool
 	buf = buf[:0]
 	c.bufPool.Put(buf)
 }
 
 // Close releases all idle connections
-func (c *Client) Close() {
+func (c *HttpClient) Close() {
 	c.client.CloseIdleConnections()
 }
 
 // AcquireRequest returns a new Request instance from pool
-func (c *Client) AcquireRequest() *fasthttp.Request {
+func (c *HttpClient) AcquireRequest() *fasthttp.Request {
 	return fasthttp.AcquireRequest()
 }
 
 // ReleaseRequest returns request to pool
-func (c *Client) ReleaseRequest(req *fasthttp.Request) {
+func (c *HttpClient) ReleaseRequest(req *fasthttp.Request) {
 	fasthttp.ReleaseRequest(req)
 }
 
 // AcquireResponse returns a new Response instance from pool
-func (c *Client) AcquireResponse() *fasthttp.Response {
+func (c *HttpClient) AcquireResponse() *fasthttp.Response {
 	return fasthttp.AcquireResponse()
 }
 
 // ReleaseResponse returns response to pool
-func (c *Client) ReleaseResponse(resp *fasthttp.Response) {
+func (c *HttpClient) ReleaseResponse(resp *fasthttp.Response) {
 	fasthttp.ReleaseResponse(resp)
 }

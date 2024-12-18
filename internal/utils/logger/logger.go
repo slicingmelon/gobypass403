@@ -58,6 +58,7 @@ var (
 
 // init initializes the global logger and its functions
 func init() {
+	color.NoColor = false
 	globalLogger = NewLogger()
 
 	// Initialize logging functions (with newlines)
