@@ -7,7 +7,7 @@ import (
 
 	"github.com/slicingmelon/go-bypass-403/internal/engine/payload"
 	"github.com/slicingmelon/go-bypass-403/internal/engine/rawhttp"
-	GB403ErrorHandler "github.com/slicingmelon/go-bypass-403/internal/utils/error"
+	GB403ErrHandler "github.com/slicingmelon/go-bypass-403/internal/utils/error"
 	"github.com/slicingmelon/go-bypass-403/internal/utils/logger"
 	"github.com/slicingmelon/go-rawurlparser"
 )
@@ -92,7 +92,7 @@ type WorkerContext struct {
 	requestPool *rawhttp.RequestPool
 }
 
-func NewWorkerContext(mode string, total int, targetURL string, opts *ScannerOpts, errorHandler *GB403ErrorHandler.ErrorHandler) *WorkerContext {
+func NewWorkerContext(mode string, total int, targetURL string, opts *ScannerOpts, errHandler *GB403ErrHandler.ErrorHandler) *WorkerContext {
 	clientOpts := rawhttp.DefaultOptionsSameHost()
 
 	// Override specific settings from user options
@@ -115,7 +115,7 @@ func NewWorkerContext(mode string, total int, targetURL string, opts *ScannerOpt
 		requestPool: rawhttp.NewRequestPool(clientOpts, &rawhttp.ScannerCliOpts{
 			MatchStatusCodes:        opts.MatchStatusCodes,
 			ResponseBodyPreviewSize: opts.ResponseBodyPreviewSize,
-		}, errorHandler),
+		}, errHandler),
 	}
 }
 
@@ -139,7 +139,7 @@ func (s *Scanner) RunAllBypasses(targetURL string) chan *Result {
 
 	// Validate URL one more time, who knows
 	if _, err := rawurlparser.RawURLParse(targetURL); err != nil {
-		err = s.errorHandler.HandleError(err, GB403ErrorHandler.ErrorContext{
+		err = s.errorHandler.HandleError(err, GB403ErrHandler.ErrorContext{
 			TargetURL:   []byte(targetURL),
 			ErrorSource: []byte("Scanner.RunAllBypasses"),
 		})
@@ -174,7 +174,7 @@ func (s *Scanner) RunAllBypasses(targetURL string) chan *Result {
 			if _, exists := bypassModules[mode]; exists && mode != "dumb_check" {
 				s.runBypassForMode(mode, targetURL, results)
 			} else {
-				logger.LogError("Unknown bypass mode: %s", mode)
+				logger.LogErrorln("Unknown bypass mode: %s", mode)
 			}
 		}
 	}()
@@ -232,7 +232,7 @@ func (s *Scanner) runBypassForMode(bypassModule string, targetURL string, result
 	}
 }
 
-// match HTTP status code in
+// match HTTP status code in list
 func matchStatusCodes(code int, codes []int) bool {
 	for _, c := range codes {
 		if c == code {
