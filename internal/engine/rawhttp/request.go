@@ -122,10 +122,7 @@ func NewRequestBuilder(client *Client) *RequestBuilder {
 
 // BuildRequest creates and configures a request from a payload job
 func (rb *RequestBuilder) BuildRequest(req *fasthttp.Request, job payload.PayloadJob) {
-	// Set UseHostHeader to false initially - we'll handle host header manually
-	//req.UseHostHeader = true
-
-	req.Reset()
+	//req.Reset()
 	req.Header.SetMethod(job.Method)
 
 	// Set the raw URI for the first line of the request
@@ -136,33 +133,50 @@ func (rb *RequestBuilder) BuildRequest(req *fasthttp.Request, job payload.Payloa
 	req.Header.DisableNormalizing()
 	req.Header.SetNoDefaultContentType(true)
 
-	rb.SetRequestHeaders(req, job)
-}
-
-func (rb *RequestBuilder) SetRequestHeaders(req *fasthttp.Request, job payload.PayloadJob) {
-	// Iterate through headers and set them
+	// Set headers directly
 	for _, h := range job.Headers {
-		headerNameBytes := []byte(h.Header)
-		headerValueBytes := []byte(h.Value)
-
-		req.Header.SetBytesKV(headerNameBytes, headerValueBytes)
+		req.Header.Set(h.Header, h.Value)
 	}
 
+	// Set standard headers
 	req.Header.SetUserAgentBytes(CustomUserAgent)
 
 	if logger.IsDebugEnabled() {
-		req.Header.SetBytesKV([]byte("X-GB403-Debug"), []byte(job.PayloadSeed))
+		req.Header.Set("X-GB403-Debug", job.PayloadSeed)
 	}
 
 	// Handle connection settings
-	if rb.client.options.ProxyURL != "" {
-		req.SetConnectionClose()
-	} else if rb.client.options.DisableKeepAlive {
+	if rb.client.options.ProxyURL != "" || rb.client.options.DisableKeepAlive {
 		req.SetConnectionClose()
 	} else {
-		req.Header.SetBytesKV([]byte("Connection"), []byte("keep-alive"))
+		req.Header.Set("Connection", "keep-alive")
 	}
 }
+
+// func (rb *RequestBuilder) SetRequestHeaders(req *fasthttp.Request, job payload.PayloadJob) {
+// 	// Iterate through headers and set them
+// 	for _, h := range job.Headers {
+// 		headerNameBytes := []byte(h.Header)
+// 		headerValueBytes := []byte(h.Value)
+
+// 		req.Header.SetBytesKV(headerNameBytes, headerValueBytes)
+// 	}
+
+// 	req.Header.SetUserAgentBytes(CustomUserAgent)
+
+// 	if logger.IsDebugEnabled() {
+// 		req.Header.SetBytesKV([]byte("X-GB403-Debug"), []byte(job.PayloadSeed))
+// 	}
+
+// 	// Handle connection settings
+// 	if rb.client.options.ProxyURL != "" {
+// 		req.SetConnectionClose()
+// 	} else if rb.client.options.DisableKeepAlive {
+// 		req.SetConnectionClose()
+// 	} else {
+// 		req.Header.SetBytesKV([]byte("Connection"), []byte("keep-alive"))
+// 	}
+// }
 
 // ProcessRequests handles multiple requests "efficiently"
 func (p *RequestPool) ProcessRequests(jobs []payload.PayloadJob) <-chan *RawHTTPResponseDetails {
