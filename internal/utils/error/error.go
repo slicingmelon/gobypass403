@@ -132,7 +132,7 @@ func (e *ErrorHandler) PrintErrorStats() {
 	e.statsLock.RLock()
 	defer e.statsLock.RUnlock()
 
-	fmt.Println("\n=== Error Statistics ===")
+	fmt.Println("=== Error Statistics ===")
 
 	// Calculate memory usage
 	var totalContextSize int64

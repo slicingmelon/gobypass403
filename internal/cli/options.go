@@ -276,7 +276,7 @@ func (o *Options) processProxy() error {
 	if err != nil {
 		o.printUsage("proxy")
 		fmt.Println()
-		return fmt.Errorf("\ninvalid proxy URL: %v\n", err)
+		return fmt.Errorf("invalid proxy URL: %v", err)
 	}
 
 	o.ParsedProxy = parsedProxy

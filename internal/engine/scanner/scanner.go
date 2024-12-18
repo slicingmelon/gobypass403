@@ -34,6 +34,7 @@ type Scanner struct {
 	config       *ScannerOpts
 	urls         []string
 	errorHandler *GB403ErrHandler.ErrorHandler
+	progress     *ProgressTracker
 }
 
 // New creates a new Scanner instance
@@ -42,6 +43,7 @@ func New(opts *ScannerOpts, urls []string) *Scanner {
 		config:       opts,
 		urls:         urls,
 		errorHandler: GB403ErrHandler.NewErrorHandler(32),
+		progress:     NewProgressTracker(),
 	}
 }
 

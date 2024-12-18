@@ -83,8 +83,9 @@ var bypassModules = map[string]*BypassModule{
 }
 
 type WorkerContext struct {
-	mode        string
-	progress    *ProgressCounter
+	mode string
+	//progress    *ProgressCounter
+	progress    *ProgressTracker
 	cancel      chan struct{}
 	wg          *sync.WaitGroup
 	once        sync.Once
@@ -102,16 +103,12 @@ func NewWorkerContext(mode string, total int, targetURL string, opts *ScannerOpt
 	clientOpts.ReadBufferSize = opts.ResponseBodyPreviewSize
 
 	return &WorkerContext{
-		mode: mode,
-		progress: &ProgressCounter{
-			Total: total,
-			Mode:  mode,
-			URL:   targetURL,
-		},
-		cancel: make(chan struct{}),
-		wg:     &sync.WaitGroup{},
-		once:   sync.Once{},
-		opts:   opts,
+		mode:     mode,
+		progress: NewProgressTracker(mode, total, targetURL),
+		cancel:   make(chan struct{}),
+		wg:       &sync.WaitGroup{},
+		once:     sync.Once{},
+		opts:     opts,
 		requestPool: rawhttp.NewRequestPool(clientOpts, &rawhttp.ScannerCliOpts{
 			MatchStatusCodes:        opts.MatchStatusCodes,
 			ResponseBodyPreviewSize: opts.ResponseBodyPreviewSize,
@@ -188,27 +185,29 @@ func (s *Scanner) runBypassForMode(bypassModule string, targetURL string, result
 	if !exists {
 		return
 	}
-
 	allJobs := moduleInstance.GenerateJobs(targetURL, bypassModule, s.config)
 	if len(allJobs) == 0 {
 		logger.LogVerbose("No jobs generated for module: %s", bypassModule)
 		return
 	}
-
-	ctx := NewWorkerContext(bypassModule, len(allJobs), targetURL, s.config, s.errorHandler)
-	//defer ctx.Stop() // Stop the worker context when the function returns
-
+	// Start tracking this module's progress
+	s.progress.StartModule(bypassModule, len(allJobs), targetURL)
+	defer s.progress.MarkModuleAsDone(bypassModule)
+	ctx := NewWorkerContext(bypassModule, len(allJobs), targetURL, s.config, s.errorHandler, s.progress)
+	defer ctx.Stop()
 	responses := ctx.requestPool.ProcessRequests(allJobs)
-
+	successCount := int64(0)
+	failedCount := int64(0)
 	// Process responses directly without intermediate channel
 	for response := range responses {
 		if response == nil {
-			ctx.progress.increment()
+			failedCount++
+			s.progress.increment()
 			continue
 		}
-
-		ctx.progress.increment()
-
+		successCount++
+		s.progress.increment()
+		s.progress.UpdateWorkerStats(successCount+failedCount, successCount, failedCount)
 		// Check for matching status codes
 		if matchStatusCodes(response.StatusCode, s.config.MatchStatusCodes) {
 			results <- &Result{
