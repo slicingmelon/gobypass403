@@ -44,6 +44,20 @@ var (
 	LogPink    func(format string, v ...interface{})
 	LogCyan    func(format string, v ...interface{})
 
+	LogInfoln    func(format string, v ...interface{})
+	LogVerboseln func(format string, v ...interface{})
+	LogDebugln   func(format string, v ...interface{})
+	LogErrorln   func(format string, v ...interface{})
+	LogYellowln  func(format string, v ...interface{})
+	LogOrangeln  func(format string, v ...interface{})
+	LogGreenln   func(format string, v ...interface{})
+	LogBlueln    func(format string, v ...interface{})
+	LogPurpleln  func(format string, v ...interface{})
+	LogGrayln    func(format string, v ...interface{})
+	LogTealln    func(format string, v ...interface{})
+	LogPinkln    func(format string, v ...interface{})
+	LogCyanln    func(format string, v ...interface{})
+
 	// Color-only functions (without newlines)
 	Yellow func(format string, v ...interface{}) string
 	Orange func(format string, v ...interface{}) string
@@ -61,7 +75,7 @@ func init() {
 	color.NoColor = false
 	globalLogger = NewLogger()
 
-	// Initialize logging functions (with newlines)
+	// Initialize regular logging functions (without newlines)
 	LogInfo = globalLogger.LogInfo
 	LogVerbose = globalLogger.LogVerbose
 	LogDebug = globalLogger.LogDebug
@@ -76,7 +90,22 @@ func init() {
 	LogPink = globalLogger.LogPink
 	LogCyan = globalLogger.LogCyan
 
-	// Initialize color-only functions (without newlines)
+	// Initialize ln variants (with newlines)
+	LogInfoln = globalLogger.LogInfoln
+	LogVerboseln = globalLogger.LogVerboseln
+	LogDebugln = globalLogger.LogDebugln
+	LogErrorln = globalLogger.LogErrorln
+	LogYellowln = globalLogger.LogYellowln
+	LogOrangeln = globalLogger.LogOrangeln
+	LogGreenln = globalLogger.LogGreenln
+	LogBlueln = globalLogger.LogBlueln
+	LogPurpleln = globalLogger.LogPurpleln
+	LogGrayln = globalLogger.LogGrayln
+	LogTealln = globalLogger.LogTealln
+	LogPinkln = globalLogger.LogPinkln
+	LogCyanln = globalLogger.LogCyanln
+
+	// Initialize color-only functions
 	Yellow = globalLogger.yellowColor.Sprintf
 	Orange = globalLogger.orangeColor.Sprintf
 	Green = globalLogger.greenColor.Sprintf
@@ -141,9 +170,19 @@ func (l *Logger) LogInfo(format string, v ...interface{}) {
 	l.infoColor.Printf("[INFO] "+format+"\n", v...)
 }
 
+func (l *Logger) LogInfoln(format string, v ...interface{}) {
+	l.infoColor.Printf(format+"\n", v...)
+}
+
 func (l *Logger) LogVerbose(format string, v ...interface{}) {
 	if l.verboseEnabled {
 		l.verboseColor.Printf("[VERBOSE] "+format+"\n", v...)
+	}
+}
+
+func (l *Logger) LogVerboseln(format string, v ...interface{}) {
+	if l.verboseEnabled {
+		l.verboseColor.Printf(format+"\n", v...)
 	}
 }
 
@@ -153,7 +192,17 @@ func (l *Logger) LogDebug(format string, v ...interface{}) {
 	}
 }
 
+func (l *Logger) LogDebugln(format string, v ...interface{}) {
+	if l.debugEnabled {
+		l.debugColor.Printf(format+"\n", v...)
+	}
+}
+
 func (l *Logger) LogError(format string, v ...interface{}) {
+	l.errorColor.Printf("[ERROR] "+format+"\n", v...)
+}
+
+func (l *Logger) LogErrorln(format string, v ...interface{}) {
 	l.errorColor.Printf("[ERROR] "+format+"\n", v...)
 }
 
@@ -203,6 +252,10 @@ func (l *Logger) LogPurple(format string, v ...interface{}) {
 
 func (l *Logger) LogPurpleln(format string, v ...interface{}) {
 	l.purpleColor.Printf(format+"\n", v...)
+}
+
+func (l *Logger) LogPinkln(format string, v ...interface{}) {
+	l.pinkColor.Printf(format+"\n", v...)
 }
 
 func (l *Logger) LogGray(format string, v ...interface{}) {

@@ -48,7 +48,7 @@ func New(opts *ScannerOpts, urls []string) *Scanner {
 func (s *Scanner) Run() error {
 	defer s.Close()
 
-	logger.LogYellow("Initializing scanner with %d URLs", len(s.urls))
+	logger.LogYellowln("Initializing scanner with %d URLs", len(s.urls))
 
 	for _, url := range s.urls {
 		if err := s.scanURL(url); err != nil {
@@ -110,7 +110,8 @@ func (s *Scanner) scanURL(url string) error {
 		}
 
 		// Add notification about where results were saved
-		logger.LogOrange("Results saved to: %s\n", outputFile)
+		fmt.Println()
+		logger.LogOrangeln("Results saved to: %s\n", outputFile)
 	}
 
 	return nil
