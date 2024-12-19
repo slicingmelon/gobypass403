@@ -72,7 +72,7 @@ func TestProgressCounterDemoVariant(t *testing.T) {
 	// features available; do this in async too like a client might do (for ex.
 	// when downloading a bunch of files in parallel)
 	for idx := int64(1); idx <= int64(*flagNumTrackers); idx++ {
-		go trackSomething(pw, idx, idx == int64(*flagNumTrackers))
+		go trackSomething2(pw, idx, idx == int64(*flagNumTrackers))
 
 		// in auto-stop mode, the Render logic terminates the moment it detects
 		// zero active trackers; but in a manual-stop mode, it keeps waiting and
@@ -107,4 +107,30 @@ func TestProgressCounterDemoVariant(t *testing.T) {
 	// Output: All Done!
 	// Tracking Progress of 13 trackers ...
 	// All done!
+}
+
+func trackSomething2(pw progress.Writer, idx int64, updateMessage bool) {
+	total := idx * idx * idx * 250
+	incrementPerCycle := idx * 250
+
+	units := progress.UnitsDefault
+	message := fmt.Sprintf("Task #%d", idx)
+	tracker := progress.Tracker{
+		Message: message,
+		Total:   total,
+		Units:   units,
+	}
+
+	pw.AppendTracker(&tracker)
+
+	ticker := time.Tick(time.Millisecond * 500)
+	for !tracker.IsDone() {
+		select {
+		case <-ticker:
+			tracker.Increment(incrementPerCycle)
+			if tracker.Value() >= total {
+				tracker.MarkAsDone()
+			}
+		}
+	}
 }
