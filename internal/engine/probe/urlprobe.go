@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/projectdiscovery/fastdialer/fastdialer"
-	"github.com/slicingmelon/go-bypass-403/internal/utils/logger"
+	GB403Logger "github.com/slicingmelon/go-bypass-403/internal/utils/logger"
 	"github.com/slicingmelon/go-rawurlparser"
 )
 
@@ -17,14 +17,16 @@ import (
 //var globalProbeURLResults = NewProbeURLResultsCache()
 
 type ProbeService struct {
-	cache Cache
+	cache  Cache
+	logger *GB403Logger.Logger
 }
 
 // Constructor for the probe service//
 // NewProbeService creates a new probe service
 func NewProbeService() *ProbeService {
 	return &ProbeService{
-		cache: NewProbeResultsCache(),
+		cache:  NewProbeResultsCache(),
+		logger: GB403Logger.NewLogger(),
 	}
 }
 
@@ -39,8 +41,8 @@ func (s *ProbeService) FastProbeURLs(urls []string) error {
 		return fmt.Errorf("no URLs provided for validation")
 	}
 
-	logger.LogYellow("[+] Starting URL validation for %d URLs\n", len(urls))
-	logger.LogVerbose("[VERBOSE] URLs to probe: %v", urls)
+	s.logger.LogVerbose("[+] Starting URL validation for %d URLs\n", len(urls))
+	s.logger.LogVerbose("[VERBOSE] URLs to probe: %v", urls)
 
 	opts := fastdialer.DefaultOptions
 	opts.EnableFallback = true
@@ -60,10 +62,10 @@ func (s *ProbeService) FastProbeURLs(urls []string) error {
 	opts.WithZTLS = false
 	opts.DisableZtlsFallback = true
 	opts.OnDialCallback = func(hostname, ip string) {
-		logger.LogVerbose("[DIALER] Connected to %s (%s)", hostname, ip)
+		s.logger.LogVerbose("[DIALER] Connected to %s (%s)", hostname, ip)
 	}
 	opts.OnInvalidTarget = func(hostname, ip, port string) {
-		logger.LogDebug("[DEBUG] Invalid target: %s (%s:%s)", hostname, ip, port)
+		s.logger.LogDebug("[DEBUG] Invalid target: %s (%s:%s)", hostname, ip, port)
 	}
 
 	dialer, err := fastdialer.NewDialer(opts)
@@ -83,7 +85,7 @@ func (s *ProbeService) FastProbeURLs(urls []string) error {
 		ctx := context.TODO()
 
 		for url := range urlChan {
-			logger.LogVerbose("Processing URL: %s", url)
+			s.logger.LogVerbose("Processing URL: %s", url)
 
 			host := url
 			if strings.Contains(url, "://") {
@@ -110,7 +112,7 @@ func (s *ProbeService) FastProbeURLs(urls []string) error {
 				// Only do DNS lookup for domains, not IPs
 				dnsData, err := dialer.GetDNSData(hostname)
 				if err != nil {
-					logger.LogDebug("[DEBUG] DNS lookup failed for %s: %v", hostname, err)
+					s.logger.LogDebug("[DEBUG] DNS lookup failed for %s: %v", hostname, err)
 					continue
 				}
 				result.IPv4 = dnsData.A
@@ -165,10 +167,10 @@ func (s *ProbeService) FastProbeURLs(urls []string) error {
 			// Only update cache if we found any ports
 			if len(result.Ports) > 0 {
 				if err := s.cache.UpdateHost(*result); err != nil {
-					logger.LogError("Failed to update cache for %s: %v", hostname, err)
+					s.logger.LogError("Failed to update cache for %s: %v", hostname, err)
 				}
 			} else {
-				logger.LogVerbose("No open ports found for %s", hostname)
+				s.logger.LogVerbose("No open ports found for %s", hostname)
 			}
 		}
 	}()

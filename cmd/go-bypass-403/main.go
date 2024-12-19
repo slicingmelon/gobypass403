@@ -5,8 +5,14 @@ import (
 
 	"github.com/slicingmelon/go-bypass-403/internal/cli"
 	"github.com/slicingmelon/go-bypass-403/internal/engine/payload"
-	"github.com/slicingmelon/go-bypass-403/internal/utils/logger"
+	GB403Logger "github.com/slicingmelon/go-bypass-403/internal/utils/logger"
 )
+
+var logger *GB403Logger.Logger
+
+func init() {
+	logger = GB403Logger.NewLogger()
+}
 
 func main() {
 	logger.LogInfo("Initializing go-bypass-403...")
@@ -17,7 +23,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	runner := cli.NewRunner()
+	runner := cli.NewRunner(logger)
 
 	if err := runner.Initialize(); err != nil {
 		logger.LogError("Initialization failed: %v", err)

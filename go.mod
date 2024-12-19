@@ -5,7 +5,6 @@ go 1.22.10
 require (
 	github.com/VictoriaMetrics/fastcache v1.12.2
 	github.com/andybalholm/brotli v1.1.1
-	github.com/fatih/color v1.18.0
 	github.com/golang/snappy v0.0.4
 	github.com/jedib0t/go-pretty/v6 v6.6.5
 	github.com/klauspost/compress v1.17.11
@@ -29,7 +28,6 @@ require (
 	github.com/docker/go-units v0.5.0 // indirect
 	github.com/gaissmai/bart v0.9.5 // indirect
 	github.com/gorilla/css v1.0.1 // indirect
-	github.com/mattn/go-colorable v0.1.13 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/mattn/go-runewidth v0.0.16 // indirect
 	github.com/microcosm-cc/bluemonday v1.0.27 // indirect

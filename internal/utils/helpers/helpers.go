@@ -6,12 +6,18 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/slicingmelon/go-bypass-403/internal/utils/logger"
+	GB403Logger "github.com/slicingmelon/go-bypass-403/internal/utils/logger"
 )
 
 type Header struct {
 	Header string
 	Value  string
+}
+
+var logger *GB403Logger.Logger
+
+func init() {
+	logger = GB403Logger.NewLogger()
 }
 
 // Helper function to convert a slice of Header structs to a map
@@ -53,26 +59,26 @@ func IsIP(str string) bool {
 
 // Update IsDNSName with debugging
 func IsDNSName(str string) bool {
-	logger.LogVerbose("[DEBUG] Checking if string is DNS name: %q", str)
+	logger.LogVerbose("Checking if string is DNS name: %q", str)
 
 	host, port, err := net.SplitHostPort(str)
 	if err != nil {
 		host = str
-		logger.LogVerbose("[DEBUG] Using full string as hostname: %q", host)
+		logger.LogVerbose("Using full string as hostname: %q", host)
 	} else {
 		logger.LogVerbose("Split host: %q port: %q", host, port)
 	}
 
 	if host == "" {
-		logger.LogVerbose("[DEBUG] Empty hostname")
+		logger.LogVerbose("Empty hostname")
 		return false
 	}
 
 	if len(strings.Replace(host, ".", "", -1)) > 255 {
-		logger.LogVerbose("[DEBUG] Hostname too long (>255 chars)")
+		logger.LogVerbose("Hostname too long (>255 chars)")
 		return false
 	}
 
-	logger.LogVerbose("[DEBUG] DNS regex match result: %v", rxDNSName.MatchString(host))
+	logger.LogVerbose("DNS regex match result: %v", rxDNSName.MatchString(host))
 	return !IsIP(host) && rxDNSName.MatchString(host)
 }

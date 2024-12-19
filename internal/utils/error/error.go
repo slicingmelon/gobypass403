@@ -154,7 +154,8 @@ func (e *ErrorHandler) PrintErrorStats() {
 	}
 
 	// Print memory stats
-	fmt.Printf("\nMemory Usage:\n")
+	fmt.Println()
+	fmt.Printf("Memory Usage:\n")
 	fmt.Printf("Cache Size: %d MB (allocated)\n", stats.BytesSize/(1024*1024))
 	fmt.Printf("Max Cache Size: %d MB\n", stats.MaxBytesSize/(1024*1024))
 	fmt.Printf("Active Cache Usage: %.2f MB\n", float64(totalContextSize)/(1024*1024))
@@ -167,7 +168,8 @@ func (e *ErrorHandler) PrintErrorStats() {
 
 	// Print error details
 	for errKey, stat := range e.stats {
-		fmt.Printf("\nError: %s\n", errKey)
+		fmt.Println()
+		fmt.Printf("Error: %s\n", errKey)
 		fmt.Printf("Count: %d occurrences\n", stat.Count)
 		fmt.Printf("First Seen: %s\n", stat.FirstSeen.Format(time.RFC3339))
 		fmt.Printf("Last Seen: %s\n", stat.LastSeen.Format(time.RFC3339))

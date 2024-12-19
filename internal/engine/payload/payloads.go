@@ -5,9 +5,15 @@ import (
 	"strings"
 
 	"github.com/slicingmelon/go-bypass-403/internal/engine/probe"
-	"github.com/slicingmelon/go-bypass-403/internal/utils/logger"
+	GB403Logger "github.com/slicingmelon/go-bypass-403/internal/utils/logger"
 	"github.com/slicingmelon/go-rawurlparser"
 )
+
+var logger *GB403Logger.Logger
+
+func init() {
+	logger = GB403Logger.NewLogger()
+}
 
 type PayloadJob struct {
 	OriginalURL  string   // might never be used
@@ -42,7 +48,7 @@ func GenerateDumbJob(targetURL string, bypassModule string) []PayloadJob {
 		PayloadToken: GenerateDebugToken(SeedData{FullURL: targetURL}),
 	})
 
-	logger.LogYellow("\n[%s] Generated 1 payload for %s\n", bypassModule, targetURL)
+	logger.LogInfo("[%s] Generated 1 payload for %s", bypassModule, targetURL)
 	return allJobs
 }
 
@@ -99,7 +105,7 @@ func GenerateMidPathsJobs(targetURL string, bypassModule string) []PayloadJob {
 		}
 	}
 
-	logger.LogYellow("\n[%s] Generated %d payloads for %s\n", bypassModule, len(urls), targetURL)
+	logger.PrintYellow("[%s] Generated %d payloads for %s", bypassModule, len(urls), targetURL)
 
 	// Convert to PayloadJobs
 	for fullURL, rawURI := range urls {
@@ -168,7 +174,7 @@ func GenerateEndPathsJobs(targetURL string, bypassModule string) []PayloadJob {
 		}
 	}
 
-	logger.LogYellow("\n[%s] Generated %d payloads for %s\n", bypassModule, len(urls), targetURL)
+	logger.PrintYellow("[%s] Generated %d payloads for %s", bypassModule, len(urls), targetURL)
 
 	// Convert URLs to PayloadJobs
 	for fullURL, rawURI := range urls {
@@ -212,7 +218,7 @@ func GenerateHeaderIPJobs(targetURL string, bypassModule string, spoofHeader str
 				headerNames = append(headerNames, header)
 			}
 		}
-		logger.LogYellow("[%s] Added [%s] custom headers from -spoof-header\n", bypassModule, strings.Join(customHeaders, ","))
+		logger.PrintYellow("[%s] Added [%s] custom headers from -spoof-header\n", bypassModule, strings.Join(customHeaders, ","))
 	}
 
 	ips, err := ReadPayloadsFromFile("internal_ip_hosts.lst")
@@ -230,7 +236,7 @@ func GenerateHeaderIPJobs(targetURL string, bypassModule string, spoofHeader str
 				ips = append(ips, ip)
 			}
 		}
-		logger.LogYellow("[%s] Added [%s] custom IPs from -spoof-ip\n", bypassModule, strings.Join(customIPs, ","))
+		logger.PrintYellow("[%s] Added [%s] custom IPs from -spoof-ip\n", bypassModule, strings.Join(customIPs, ","))
 	}
 
 	// Special case job
@@ -291,7 +297,7 @@ func GenerateHeaderIPJobs(targetURL string, bypassModule string, spoofHeader str
 		}
 	}
 
-	logger.LogYellow("\n[%s] Generated %d payloads for %s\n", bypassModule, len(allJobs), targetURL)
+	logger.PrintYellow("[%s] Generated %d payloads for %s", bypassModule, len(allJobs), targetURL)
 	return allJobs
 }
 
@@ -341,7 +347,7 @@ func GenerateCaseSubstitutionJobs(targetURL string, bypassModule string) []Paylo
 		})
 	}
 
-	logger.LogYellow("\n[%s] Generated %d payloads for %s\n", bypassModule, len(allJobs), targetURL)
+	logger.PrintYellow("[%s] Generated %d payloads for %s", bypassModule, len(allJobs), targetURL)
 	return allJobs
 }
 
@@ -420,7 +426,7 @@ func GenerateCharEncodeJobs(targetURL string, bypassModule string) []PayloadJob 
 	}
 
 	totalJobs := len(singleUrls) + len(doubleUrls) + len(tripleUrls)
-	logger.LogYellow("\n[%s] Generated %d payloads for %s\n", bypassModule, totalJobs, targetURL)
+	logger.PrintYellow("[%s] Generated %d payloads for %s", bypassModule, totalJobs, targetURL)
 	return allJobs
 }
 
@@ -501,7 +507,7 @@ func GenerateHeaderSchemeJobs(targetURL string, bypassModule string) []PayloadJo
 		}
 	}
 
-	logger.LogYellow("\n[%s] Generated %d payloads for %s\n", bypassModule, len(allJobs), targetURL)
+	logger.PrintYellow("[%s] Generated %d payloads for %s", bypassModule, len(allJobs), targetURL)
 	return allJobs
 }
 
@@ -605,7 +611,7 @@ func GenerateHeaderURLJobs(targetURL string, bypassModule string) []PayloadJob {
 		}
 	}
 
-	logger.LogYellow("\n[%s] Generated %d payloads for %s\n", bypassModule, len(allJobs), targetURL)
+	logger.PrintYellow("[%s] Generated %d payloads for %s", bypassModule, len(allJobs), targetURL)
 	return allJobs
 }
 
@@ -655,7 +661,7 @@ func GenerateHeaderPortJobs(targetURL string, bypassModule string) []PayloadJob 
 		}
 	}
 
-	logger.LogYellow("\n[%s] Generated %d payloads for %s\n", bypassModule, len(allJobs), targetURL)
+	logger.PrintYellow("[%s] Generated %d payloads for %s", bypassModule, len(allJobs), targetURL)
 	return allJobs
 }
 
@@ -731,9 +737,9 @@ func GenerateHostHeaderJobs(targetURL string, bypassModule string, probeCache pr
 			})
 		}
 	} else {
-		logger.LogError("No IPv4 addresses found in cache for %s", targetURL)
+		logger.LogError("No IPv4 addresses found in cache for %s\n", targetURL)
 	}
 
-	logger.LogYellow("\n[%s] Generated %d payloads for %s\n", bypassModule, len(allJobs), targetURL)
+	logger.PrintYellow("[%s] Generated %d payloads for %s", bypassModule, len(allJobs), targetURL)
 	return allJobs
 }

@@ -2,7 +2,7 @@ package cli
 
 import (
 	"github.com/slicingmelon/go-bypass-403/internal/engine/scanner"
-	"github.com/slicingmelon/go-bypass-403/internal/utils/logger"
+	GB403Logger "github.com/slicingmelon/go-bypass-403/internal/utils/logger"
 )
 
 type Runner struct {
@@ -10,10 +10,13 @@ type Runner struct {
 	urls         []string
 	scanner      *scanner.Scanner
 	urlProcessor *URLProcessor
+	logger       *GB403Logger.Logger
 }
 
-func NewRunner() *Runner {
-	return &Runner{}
+func NewRunner(logger *GB403Logger.Logger) *Runner {
+	return &Runner{
+		logger: logger,
+	}
 }
 
 func (r *Runner) Initialize() error {
@@ -26,14 +29,14 @@ func (r *Runner) Initialize() error {
 
 	// Enable Verbose and Debug Logging only when -v and/or -d are used
 	if opts.Verbose {
-		logger.EnableVerbose()
+		r.logger.EnableVerbose()
 	}
 	if opts.Debug {
-		logger.EnableDebug()
+		r.logger.EnableDebug()
 	}
 
 	// Step 2: Initialize URL Processor
-	r.urlProcessor = NewURLProcessor(opts)
+	r.urlProcessor = NewURLProcessor(opts, r.logger)
 
 	// Step 3: Process and validate URLs
 	urls, err := r.urlProcessor.ProcessURLs()
@@ -67,7 +70,7 @@ func (r *Runner) Initialize() error {
 		scannerOpts.Proxy = r.options.ParsedProxy.String()
 	}
 
-	r.scanner = scanner.New(scannerOpts, urls)
+	r.scanner = scanner.NewScanner(scannerOpts, urls)
 	return nil
 }
 

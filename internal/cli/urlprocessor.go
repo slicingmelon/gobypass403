@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	"github.com/slicingmelon/go-bypass-403/internal/engine/probe"
-	"github.com/slicingmelon/go-bypass-403/internal/utils/logger"
+	GB403Logger "github.com/slicingmelon/go-bypass-403/internal/utils/logger"
 	"github.com/slicingmelon/go-rawurlparser"
 )
 
@@ -16,14 +16,16 @@ type URLProcessor struct {
 	opts         *Options
 	probeService *probe.ProbeService
 	probeCache   probe.Cache
+	logger       *GB403Logger.Logger
 }
 
-func NewURLProcessor(opts *Options) *URLProcessor {
+func NewURLProcessor(opts *Options, logger *GB403Logger.Logger) *URLProcessor {
 	probeService := probe.NewProbeService()
 	return &URLProcessor{
 		opts:         opts,
 		probeService: probeService,
 		probeCache:   probeService.GetCache(),
+		logger:       logger,
 	}
 }
 
@@ -36,7 +38,7 @@ func (p *URLProcessor) ProcessURLs() ([]string, error) {
 	}
 
 	// Probe collected URLs
-	logger.LogInfo("Starting URL validation for %d URLs", len(urls))
+	p.logger.LogInfo("Starting URL validation for %d URLs", len(urls))
 	if err := p.probeService.FastProbeURLs(urls); err != nil {
 		return nil, fmt.Errorf("error during URL probing: %v", err)
 	}
@@ -120,7 +122,7 @@ func (p *URLProcessor) processWithSubstituteHosts(targetURL string) ([]string, e
 		if strings.Contains(host, "://") {
 			parsed, err := rawurlparser.RawURLParse(host)
 			if err != nil {
-				logger.LogVerbose("Skipping invalid host URL: %s - %v", host, err)
+				p.logger.LogVerbose("Skipping invalid host URL: %s - %v", host, err)
 				continue
 			}
 			host = parsed.Host

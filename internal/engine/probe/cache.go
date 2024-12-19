@@ -5,7 +5,7 @@ import (
 	"sync"
 
 	"github.com/projectdiscovery/gcache"
-	"github.com/slicingmelon/go-bypass-403/internal/utils/logger"
+	GB403Logger "github.com/slicingmelon/go-bypass-403/internal/utils/logger"
 	"github.com/slicingmelon/go-rawurlparser"
 )
 
@@ -22,6 +22,7 @@ type Cache interface {
 type ProbeResultsCache struct {
 	sync.RWMutex
 	hostResults gcache.Cache[string, *ProbeResult]
+	logger      *GB403Logger.Logger
 }
 
 // NewProbeResultsCache creates a new probe results cache
@@ -30,6 +31,7 @@ func NewProbeResultsCache() Cache { // Note: Returns interface instead of concre
 		hostResults: gcache.New[string, *ProbeResult](1000).
 			LRU().
 			Build(),
+		logger: GB403Logger.NewLogger(),
 	}
 }
 
@@ -54,7 +56,7 @@ func (c *ProbeResultsCache) UpdateHost(r ProbeResult) error {
 	}
 	hostname := parsedURL.Hostname()
 
-	logger.LogVerbose("Updating cache for %s => %s", parsedURL.Host, hostname)
+	c.logger.LogVerbose("Updating cache for %s => %s", parsedURL.Host, hostname)
 
 	result, err := c.hostResults.Get(hostname)
 	if err != nil {
@@ -82,7 +84,7 @@ func (c *ProbeResultsCache) UpdateHost(r ProbeResult) error {
 		}
 	}
 
-	logger.LogVerbose("Final cache entry for host %s:\n"+
+	c.logger.LogVerbose("Final cache entry for host %s:\n"+
 		"Hostname: %s\n"+
 		"Schemes: %v\n"+
 		"Ports: %v\n"+

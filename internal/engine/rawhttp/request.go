@@ -4,13 +4,14 @@ import (
 	"bytes"
 	"runtime"
 	"sync"
+	"sync/atomic"
 	"time"
 	"unsafe"
 
 	"github.com/slicingmelon/go-bypass-403/internal/engine/payload"
 	"github.com/slicingmelon/go-bypass-403/internal/engine/rawhttp/bytebufferpool"
 	GB403ErrHandler "github.com/slicingmelon/go-bypass-403/internal/utils/error"
-	"github.com/slicingmelon/go-bypass-403/internal/utils/logger"
+	GB403Logger "github.com/slicingmelon/go-bypass-403/internal/utils/logger"
 	"github.com/valyala/fasthttp"
 )
 
@@ -22,16 +23,19 @@ type RequestPool struct {
 	payloadQueue chan payload.PayloadJob
 	results      chan *RawHTTPResponseDetails
 	scanOpts     *ScannerCliOpts
+	logger       *GB403Logger.Logger
 	errHandler   *GB403ErrHandler.ErrorHandler
 	closeMu      sync.Once
 }
 
 type requestWorkerPool struct {
-	workers []*requestWorker
-	ready   chan *requestWorker
-	lock    sync.Mutex
-	stopCh  chan struct{}
-	pool    sync.Pool
+	workers       []*requestWorker
+	ready         chan *requestWorker
+	lock          sync.Mutex
+	stopCh        chan struct{}
+	pool          sync.Pool
+	activeWorkers int32 // Add this
+	queuedJobs    int32 // Add this
 }
 
 type requestWorker struct {
@@ -42,7 +46,9 @@ type requestWorker struct {
 	lastUsed   time.Time
 	builder    *RequestBuilder
 	scanOpts   *ScannerCliOpts
+	logger     *GB403Logger.Logger
 	errHandler *GB403ErrHandler.ErrorHandler
+	pool       *requestWorkerPool // Add this
 }
 
 type ProgressTracker interface {
@@ -52,6 +58,7 @@ type ProgressTracker interface {
 // RequestBuilder handles the lifecycle of fasthttp requests
 type RequestBuilder struct {
 	client *HttpClient
+	logger *GB403Logger.Logger
 }
 
 // ScannerCliOpts reference the cli options
@@ -77,19 +84,20 @@ type RawHTTPResponseDetails struct {
 	Title           []byte
 }
 
-func NewRequestPool(clientOpts *ClientOptions, scanOpts *ScannerCliOpts, errHandler *GB403ErrHandler.ErrorHandler) *RequestPool {
+func NewRequestPool(clientOpts *ClientOptions, scanOpts *ScannerCliOpts, errHandler *GB403ErrHandler.ErrorHandler, logger *GB403Logger.Logger) *RequestPool {
 	if clientOpts == nil {
 		clientOpts = DefaultOptionsSameHost()
 	}
 
 	maxWorkers := clientOpts.MaxConnsPerHost
 	pool := &RequestPool{
-		client:       NewClient(clientOpts, errHandler),
+		client:       NewClient(clientOpts, errHandler, logger),
 		maxWorkers:   maxWorkers,
 		payloadQueue: make(chan payload.PayloadJob, maxWorkers*2),
 		results:      make(chan *RawHTTPResponseDetails, maxWorkers*2),
 		scanOpts:     scanOpts,
 		errHandler:   errHandler,
+		logger:       logger,
 		workerPool: &requestWorkerPool{
 			ready:  make(chan *requestWorker, maxWorkers),
 			stopCh: make(chan struct{}),
@@ -103,9 +111,11 @@ func NewRequestPool(clientOpts *ClientOptions, scanOpts *ScannerCliOpts, errHand
 			client:     pool.client,
 			jobs:       make(chan payload.PayloadJob, 1),
 			results:    make(chan *RawHTTPResponseDetails, 1),
-			builder:    NewRequestBuilder(pool.client),
+			builder:    NewRequestBuilder(pool.client, logger),
 			scanOpts:   scanOpts,
 			errHandler: pool.errHandler,
+			pool:       pool.workerPool,
+			logger:     logger,
 		}
 	}
 
@@ -121,7 +131,8 @@ func NewRequestPool(clientOpts *ClientOptions, scanOpts *ScannerCliOpts, errHand
 
 // Add this method to the RequestPool struct
 func (p *RequestPool) ActiveWorkers() int {
-	return p.workerPool.activeWorkerCount()
+	active, _ := p.workerPool.getStats()
+	return int(active)
 }
 
 // Add this helper method to requestWorkerPool
@@ -137,10 +148,16 @@ func (p *requestWorkerPool) activeWorkerCount() int {
 	return count
 }
 
+func (p *requestWorkerPool) getStats() (active int32, queued int32) {
+	return atomic.LoadInt32(&p.activeWorkers),
+		atomic.LoadInt32(&p.queuedJobs)
+}
+
 // RequestBuilder handles request construction
-func NewRequestBuilder(client *HttpClient) *RequestBuilder {
+func NewRequestBuilder(client *HttpClient, logger *GB403Logger.Logger) *RequestBuilder {
 	return &RequestBuilder{
 		client: client,
+		logger: logger,
 	}
 }
 
@@ -165,7 +182,7 @@ func (rb *RequestBuilder) BuildRequest(req *fasthttp.Request, job payload.Payloa
 	// Set standard headers
 	req.Header.SetUserAgentBytes(CustomUserAgent)
 
-	if logger.IsDebugEnabled() {
+	if rb.client.logger.IsDebugEnabled() {
 		req.Header.Set("X-GB403-Token", job.PayloadToken)
 	}
 
@@ -226,7 +243,7 @@ func (p *RequestPool) ProcessRequests(jobs []payload.PayloadJob) <-chan *RawHTTP
 				// Get worker from pool
 				worker := p.workerPool.acquireWorker()
 				if worker == nil {
-					logger.LogDebug("Failed to acquire worker for job: %s", j.FullURL)
+					p.logger.LogDebug("Failed to acquire worker for job: %s", j.FullURL)
 					return
 				}
 
@@ -247,6 +264,9 @@ func (p *RequestPool) ProcessRequests(jobs []payload.PayloadJob) <-chan *RawHTTP
 }
 
 func (w *requestWorker) processRequestJob(job payload.PayloadJob) *RawHTTPResponseDetails {
+	atomic.AddInt32(&w.pool.activeWorkers, 1)
+	defer atomic.AddInt32(&w.pool.activeWorkers, -1)
+
 	req := fasthttp.AcquireRequest()
 	resp := fasthttp.AcquireResponse()
 	defer fasthttp.ReleaseRequest(req)
@@ -260,7 +280,7 @@ func (w *requestWorker) processRequestJob(job payload.PayloadJob) *RawHTTPRespon
 			BypassModule: []byte(job.BypassModule),
 		})
 		if err != nil {
-			logger.LogError("Request failed: %v", err)
+			w.logger.LogError("Request failed: %v", err)
 			return nil
 		}
 	}

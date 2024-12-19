@@ -14,6 +14,8 @@ import (
 	"github.com/valyala/fasthttp/fasthttputil"
 )
 
+var _logger = GB403Logger.NewLogger()
+
 func TestRequestBuilderViaEchoServer(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping test in short mode")
@@ -79,7 +81,7 @@ func TestRequestBuilderViaEchoServer(t *testing.T) {
 		options: DefaultOptionsSameHost(),
 	}
 
-	rb := NewRequestBuilder(client)
+	rb := NewRequestBuilder(client, _logger)
 
 	// Test cases using real payload generators
 	testCases := []struct {
@@ -131,8 +133,8 @@ func TestRequestBuilderViaEchoServer(t *testing.T) {
 				default:
 				}
 
-				GB403Logger.EnableDebug()
-				GB403Logger.EnableVerbose()
+				_logger.EnableDebug()
+				_logger.EnableVerbose()
 
 				req := fasthttp.AcquireRequest()
 				resp := fasthttp.AcquireResponse()
@@ -142,7 +144,7 @@ func TestRequestBuilderViaEchoServer(t *testing.T) {
 				rb.BuildRequest(req, job)
 
 				// Build virtual request
-				GB403Logger.LogYellow("[GB403Logger] Sending request :\n%s", req)
+				_logger.PrintYellow("[GB403Logger] Sending request :\n%s", req)
 
 				// Send request and let server handle the comparison printing
 				if err := client.client.Do(req, resp); err != nil {
@@ -249,7 +251,7 @@ func TestRequestBuilderMidPathsPayloads(t *testing.T) {
 		options: DefaultOptionsSameHost(),
 	}
 
-	rb := NewRequestBuilder(client)
+	rb := NewRequestBuilder(client, _logger)
 
 	// Test cases using real payload generators
 	testCases := []struct {
@@ -287,8 +289,8 @@ func TestRequestBuilderMidPathsPayloads(t *testing.T) {
 				default:
 				}
 
-				GB403Logger.EnableDebug()
-				GB403Logger.EnableVerbose()
+				_logger.EnableDebug()
+				_logger.EnableVerbose()
 
 				req := fasthttp.AcquireRequest()
 				resp := fasthttp.AcquireResponse()
@@ -298,14 +300,14 @@ func TestRequestBuilderMidPathsPayloads(t *testing.T) {
 				rb.BuildRequest(req, job)
 
 				// Build virtual request
-				GB403Logger.LogGreen("[GB403Logger][RequestBuilder] [X-GB403-Token: %s] Sending request: %s\n================>\n%s<================\n", job.PayloadToken, job.FullURL, req)
+				_logger.PrintGreen("[GB403Logger][RequestBuilder] [X-GB403-Token: %s] Sending request: %s\n================>\n%s<================\n", job.PayloadToken, job.FullURL, req)
 
 				// Send request and let server handle the comparison printing
 				if err := client.client.Do(req, resp); err != nil {
 					t.Fatalf("Job %d failed: %v", i, err)
 				}
 
-				GB403Logger.LogYellow("[GB403Logger] [X-GB403-Token: %s] Response received for: %s\n%s", job.PayloadToken, job.FullURL, resp.Body())
+				_logger.PrintYellow("[GB403Logger] [X-GB403-Token: %s] Response received for: %s\n%s", job.PayloadToken, job.FullURL, resp.Body())
 			}
 		})
 	}

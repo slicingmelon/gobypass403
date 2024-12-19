@@ -6,8 +6,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-
-	"github.com/slicingmelon/go-bypass-403/internal/utils/logger"
 )
 
 var (

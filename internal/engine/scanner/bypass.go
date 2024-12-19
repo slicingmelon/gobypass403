@@ -8,7 +8,7 @@ import (
 	"github.com/slicingmelon/go-bypass-403/internal/engine/payload"
 	"github.com/slicingmelon/go-bypass-403/internal/engine/rawhttp"
 	GB403ErrHandler "github.com/slicingmelon/go-bypass-403/internal/utils/error"
-	"github.com/slicingmelon/go-bypass-403/internal/utils/logger"
+	GB403Logger "github.com/slicingmelon/go-bypass-403/internal/utils/logger"
 	"github.com/slicingmelon/go-rawurlparser"
 )
 
@@ -83,14 +83,15 @@ var bypassModules = map[string]*BypassModule{
 }
 
 type WorkerContext struct {
-	mode string
-	//progress    *ProgressCounter
+	mode        string
 	progress    *ProgressCounter
 	cancel      chan struct{}
 	wg          *sync.WaitGroup
 	once        sync.Once
 	opts        *ScannerOpts
+	logger      *GB403Logger.Logger
 	requestPool *rawhttp.RequestPool
+	workerCount int32
 }
 
 func NewWorkerContext(mode string, total int, targetURL string, opts *ScannerOpts, errHandler *GB403ErrHandler.ErrorHandler, progress *ProgressCounter) *WorkerContext {
@@ -109,11 +110,12 @@ func NewWorkerContext(mode string, total int, targetURL string, opts *ScannerOpt
 		wg:       &sync.WaitGroup{},
 		once:     sync.Once{},
 		opts:     opts,
+		logger:   logger,
 		requestPool: rawhttp.NewRequestPool(clientOpts, &rawhttp.ScannerCliOpts{
 			MatchStatusCodes:        opts.MatchStatusCodes,
 			ResponseBodyPreviewSize: opts.ResponseBodyPreviewSize,
 			ModuleName:              mode,
-		}, errHandler),
+		}, errHandler, logger),
 	}
 }
 
@@ -137,12 +139,12 @@ func (s *Scanner) RunAllBypasses(targetURL string) chan *Result {
 
 	// Validate URL one more time, who knows
 	if _, err := rawurlparser.RawURLParse(targetURL); err != nil {
-		err = s.errorHandler.HandleError(err, GB403ErrHandler.ErrorContext{
+		err = s.errHandler.HandleError(err, GB403ErrHandler.ErrorContext{
 			TargetURL:   []byte(targetURL),
 			ErrorSource: []byte("Scanner.RunAllBypasses"),
 		})
 		if err != nil {
-			logger.LogError("Failed to parse URL: %s", targetURL)
+			s.logger.LogError("Failed to parse URL: %s", targetURL)
 			close(results)
 			return results
 		}
@@ -172,7 +174,7 @@ func (s *Scanner) RunAllBypasses(targetURL string) chan *Result {
 			if _, exists := bypassModules[mode]; exists && mode != "dumb_check" {
 				s.runBypassForMode(mode, targetURL, results)
 			} else {
-				logger.LogErrorln("Unknown bypass mode: %s", mode)
+				s.logger.LogError("Unknown bypass mode: %s", mode)
 			}
 		}
 	}()
@@ -189,17 +191,21 @@ func (s *Scanner) runBypassForMode(bypassModule string, targetURL string, result
 
 	allJobs := moduleInstance.GenerateJobs(targetURL, bypassModule, s.config)
 	if len(allJobs) == 0 {
-		logger.LogVerbose("No jobs generated for module: %s", bypassModule)
+		s.logger.LogVerbose("No jobs generated for module: %s", bypassModule)
 		return
 	}
 
 	s.progress.StartModule(bypassModule, len(allJobs), targetURL)
 	lastStatsUpdate := time.Now()
 
-	ctx := NewWorkerContext(bypassModule, len(allJobs), targetURL, s.config, s.errorHandler, s.progress)
+	ctx := NewWorkerContext(bypassModule, len(allJobs), targetURL, s.config, s.errHandler, s.progress)
 	defer func() {
+		// Let the request pool finish and get final worker count
+		finalWorkerCount := ctx.requestPool.ActiveWorkers()
+		s.progress.UpdateWorkerStats(bypassModule, int64(finalWorkerCount))
 		ctx.Stop()
-		// Remove the automatic stop in MarkModuleAsDone
+		// Small delay to allow progress display to update
+		time.Sleep(100 * time.Millisecond)
 		s.progress.MarkModuleAsDone(bypassModule)
 	}()
 

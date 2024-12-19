@@ -11,7 +11,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/slicingmelon/go-bypass-403/internal/utils/logger"
+	GB403Logger "github.com/slicingmelon/go-bypass-403/internal/utils/logger"
 )
 
 // Result represents a single bypass attempt result
@@ -56,23 +56,26 @@ type ResponseDetails struct {
 	Title           string
 }
 
+var logger = GB403Logger.NewLogger()
+
 // PrintTableHeader prints the header for results table
 func PrintTableHeader(targetURL string) {
-	fmt.Print("\n\n")
-	logger.Teal("[##########] Results for ")
-	logger.Yellow(targetURL)
-	logger.Teal(" [##########]")
+	fmt.Println()
+	fmt.Println()
+	logger.PrintTeal("[##########] Results for ")
+	logger.PrintYellow(targetURL)
+	logger.PrintTeal(" [##########]")
 
 	fmt.Printf("%s [%s] %s=> %s [%s] [%s] [%s] [%s] [%s]\n",
-		logger.Blue("[bypass]"),
-		logger.Yellow("[curl poc]"),
+		logger.BlueString("[bypass]"),
+		logger.YellowString("[curl poc]"),
 		strings.Repeat("=", 90),
-		logger.Green("[status]"),
-		logger.Purple("[content-length]"),
-		logger.Orange("[content-type]"),
-		logger.Teal("[title]"),
-		logger.Gray("[server]"),
-		logger.Pink("[redirect]"))
+		logger.GreenString("[status]"),
+		logger.PurpleString("[content-length]"),
+		logger.OrangeString("[content-type]"),
+		logger.TealString("[title]"),
+		logger.GrayString("[server]"),
+		logger.PinkString("[redirect]"))
 
 	fmt.Println(strings.Repeat("-", 170))
 }
