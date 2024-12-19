@@ -2,7 +2,6 @@ package scanner
 
 import (
 	"fmt"
-	"os"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -70,7 +69,6 @@ func NewProgressCounter() *ProgressCounter {
 
 	pw.SetStyle(style)
 	pw.SetTrackerPosition(progress.PositionRight)
-	pw.SetOutputWriter(os.Stdout)
 	return &ProgressCounter{
 		pw:          pw,
 		trackers:    make(map[string]*progress.Tracker),
@@ -96,14 +94,8 @@ func (pc *ProgressCounter) StartModule(moduleName string, totalJobs int, targetU
 	pc.trackers[moduleName+"_progress"] = tracker
 	pc.pw.AppendTracker(tracker)
 
-	// Worker tracker
-	workerTracker := &progress.Tracker{
-		Message: fmt.Sprintf("[%s Status]", moduleName),
-		Total:   100,
-		Units:   progress.UnitsDefault,
-	}
-	pc.trackers[moduleName+"_workers"] = workerTracker
-	pc.pw.AppendTracker(workerTracker)
+	// Start rendering in the background
+	go pc.pw.Render()
 }
 
 func (pc *ProgressCounter) addTracker(id, message string, total int64) {
@@ -119,19 +111,13 @@ func (pc *ProgressCounter) addTracker(id, message string, total int64) {
 func (pc *ProgressCounter) UpdateWorkerStats(moduleName string, totalWorkers int64) {
 	pc.mu.RLock()
 	stats, exists := pc.moduleStats[moduleName]
-	workerTracker := pc.trackers[moduleName+"_workers"]
 	pc.mu.RUnlock()
 
-	if exists && workerTracker != nil {
+	if exists {
 		atomic.StoreInt64(&stats.ActiveWorkers, totalWorkers)
-		workerTracker.SetValue(totalWorkers)
 
-		if totalWorkers > 0 {
-			message := fmt.Sprintf("[%s] %s",
-				text.FgCyan.Sprint(moduleName),
-				text.FgYellow.Sprintf("Processing (%d workers)", totalWorkers))
-			workerTracker.UpdateMessage(message)
-		}
+		// Display active workers as a message
+		pc.pw.Log(fmt.Sprintf("[%s] Processing with %d workers", moduleName, totalWorkers))
 	}
 }
 
@@ -155,7 +141,6 @@ func (pc *ProgressCounter) IncrementProgress(moduleName string, success bool) {
 func (pc *ProgressCounter) MarkModuleAsDone(moduleName string) {
 	pc.mu.RLock()
 	tracker := pc.trackers[moduleName+"_progress"]
-	workerTracker := pc.trackers[moduleName+"_workers"]
 	stats := pc.moduleStats[moduleName]
 	pc.mu.RUnlock()
 
@@ -163,17 +148,35 @@ func (pc *ProgressCounter) MarkModuleAsDone(moduleName string) {
 		tracker.MarkAsDone()
 	}
 
-	if workerTracker != nil {
+	if stats != nil {
 		completedJobs := atomic.LoadInt64(&stats.CompletedJobs)
 		duration := time.Since(stats.StartTime).Round(time.Millisecond)
 
-		message := fmt.Sprintf("[%s] %s",
-			text.FgCyan.Sprint(moduleName),
-			text.FgGreen.Sprintf("Completed %d jobs in %s", completedJobs, duration))
+		// Assign random colors to each bypass mode
+		colorMap := map[string]text.Color{
+			"dumb_check":        text.FgRed,
+			"end_paths":         text.FgGreen,
+			"case_substitution": text.FgBlue,
+			"char_encode":       text.FgMagenta,
+			"http_headers_url":  text.FgYellow,
+			"mid_paths":         text.FgCyan,
+			// Add more mappings as needed
+		}
 
-		workerTracker.UpdateMessage(message)
-		workerTracker.SetValue(100) // Set to 100% complete
-		workerTracker.MarkAsDone()
+		// Use the color for the module name
+		moduleColor := colorMap[moduleName]
+
+		// Update the completion message for better alignment and readability
+		message := fmt.Sprintf("[%s] Completed %d requests in %s (avg: %s req/s)",
+			moduleColor.Sprintf("%-20s", moduleName), // Align module name
+			completedJobs,
+			text.FgCyan.Sprintf("%-8s", duration), // Align duration
+			text.FgMagenta.Sprintf("%-8s", fmt.Sprintf("%.2f", float64(completedJobs)/duration.Seconds())))
+
+		// Log the final result with a separator
+		pc.pw.Log("----------------------------------------")
+		pc.pw.Log(message)
+		pc.pw.Log("----------------------------------------")
 	}
 
 	atomic.AddInt32(&pc.activeModules, -1)

@@ -97,30 +97,30 @@ func (s *Scanner) scanURL(url string) error {
 		return findings[i].StatusCode < findings[j].StatusCode
 	})
 
-	// Then process and display them
-	if len(findings) > 0 {
-		PrintTableHeader(url)
-		for _, result := range findings {
-			PrintTableRow(result)
-		}
-		fmt.Println()
+	// // Then process and display them
+	// if len(findings) > 0 {
+	// 	PrintTableHeader(url)
+	// 	for _, re := range findings {
+	// 		//PrintTableRow(result)
+	// 		s.logger.PrintGreen("Result would have been here!")
+	// 	}
+	fmt.Println()
 
-		outputFile := filepath.Join(s.config.OutDir, "findings.json")
-		if err := AppendResultsToJSON(outputFile, url, s.config.BypassModule, findings); err != nil {
-			if handleErr := s.errHandler.HandleError(err, GB403ErrHandler.ErrorContext{
-				TargetURL:    []byte(url),
-				ErrorSource:  []byte("Scanner.scanURL"),
-				BypassModule: []byte(s.config.BypassModule),
-			}); handleErr != nil {
-				return fmt.Errorf("failed to handle error (%v) while processing error: %w", handleErr, err)
-			}
-			return fmt.Errorf("failed to append results to JSON: %w", err)
+	outputFile := filepath.Join(s.config.OutDir, "findings.json")
+	if err := AppendResultsToJSON(outputFile, url, s.config.BypassModule, findings); err != nil {
+		if handleErr := s.errHandler.HandleError(err, GB403ErrHandler.ErrorContext{
+			TargetURL:    []byte(url),
+			ErrorSource:  []byte("Scanner.scanURL"),
+			BypassModule: []byte(s.config.BypassModule),
+		}); handleErr != nil {
+			return fmt.Errorf("failed to handle error (%v) while processing error: %w", handleErr, err)
 		}
-
-		// Add notification about where results were saved
-		fmt.Println()
-		s.logger.PrintOrange("Results saved to: %s\n", outputFile)
+		return fmt.Errorf("failed to append results to JSON: %w", err)
 	}
+
+	// Add notification about where results were saved
+	fmt.Println()
+	s.logger.PrintOrange("Results saved to: %s\n", outputFile)
 
 	return nil
 }

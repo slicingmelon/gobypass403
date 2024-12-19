@@ -65,7 +65,7 @@ func DefaultOptionsMultiHost() *ClientOptions {
 func DefaultOptionsSameHost() *ClientOptions {
 	return &ClientOptions{
 		Timeout:             30 * time.Second,
-		MaxConnsPerHost:     64,
+		MaxConnsPerHost:     512,
 		MaxIdleConnDuration: 10 * time.Second,
 		MaxConnWaitTimeout:  2 * time.Second,
 		NoDefaultUserAgent:  true,

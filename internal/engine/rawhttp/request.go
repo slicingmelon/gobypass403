@@ -8,6 +8,7 @@ import (
 	"time"
 	"unsafe"
 
+	"github.com/jedib0t/go-pretty/v6/progress"
 	"github.com/slicingmelon/go-bypass-403/internal/engine/payload"
 	"github.com/slicingmelon/go-bypass-403/internal/engine/rawhttp/bytebufferpool"
 	GB403ErrHandler "github.com/slicingmelon/go-bypass-403/internal/utils/error"
@@ -129,13 +130,11 @@ func NewRequestPool(clientOpts *ClientOptions, scanOpts *ScannerCliOpts, errHand
 	return pool
 }
 
-// Add this method to the RequestPool struct
 func (p *RequestPool) ActiveWorkers() int {
 	active, _ := p.workerPool.getStats()
 	return int(active)
 }
 
-// Add this helper method to requestWorkerPool
 func (p *requestWorkerPool) activeWorkerCount() int {
 	p.lock.Lock()
 	defer p.lock.Unlock()
@@ -231,6 +230,39 @@ func (p *RequestPool) ProcessRequests(jobs []payload.PayloadJob) <-chan *RawHTTP
 		sem := make(chan struct{}, maxConcurrent)
 		var wg sync.WaitGroup
 
+		// Initialize progress writer
+		pw := progress.NewWriter()
+		pw.SetUpdateFrequency(100 * time.Millisecond)
+		pw.SetStyle(progress.StyleCircle)
+		pw.SetTrackerPosition(progress.PositionRight)
+
+		// Ensure the progress writer is rendered in a separate goroutine
+		pw.Render()
+
+		// Use a ticker to update the progress writer periodically
+		ticker := time.NewTicker(100 * time.Millisecond)
+		defer ticker.Stop()
+		go func() {
+			for range ticker.C {
+				pw.Render()
+			}
+		}()
+
+		// Add trackers for workers and requests
+		workerTracker := &progress.Tracker{
+			Message: "Active Workers",
+			Total:   int64(p.maxWorkers),
+			Units:   progress.UnitsDefault,
+		}
+		requestTracker := &progress.Tracker{
+			Message: "Completed Requests",
+			Total:   int64(len(jobs)),
+			Units:   progress.UnitsDefault,
+		}
+
+		// Append trackers to the progress writer
+		pw.AppendTrackers([]*progress.Tracker{workerTracker, requestTracker})
+
 		for _, job := range jobs {
 			wg.Add(1)
 			go func(j payload.PayloadJob) {
@@ -248,24 +280,37 @@ func (p *RequestPool) ProcessRequests(jobs []payload.PayloadJob) <-chan *RawHTTP
 				}
 
 				// Process job and release worker
-				result := worker.processRequestJob(j)
+				result := worker.processRequestJob(j, workerTracker, requestTracker)
 				p.workerPool.releaseWorker(worker)
 
 				if result != nil {
 					results <- result
 				}
+
+				// Update request tracker
+				requestTracker.Increment(1)
 			}(job)
 		}
 
 		wg.Wait()
+
+		// Ensure progress is updated for a single job
+		if len(jobs) == 1 {
+			requestTracker.SetValue(requestTracker.Total)
+		}
 	}()
 
 	return results
 }
 
-func (w *requestWorker) processRequestJob(job payload.PayloadJob) *RawHTTPResponseDetails {
+func (w *requestWorker) processRequestJob(job payload.PayloadJob, workerTracker, requestTracker *progress.Tracker) *RawHTTPResponseDetails {
+	// Update worker tracker
 	atomic.AddInt32(&w.pool.activeWorkers, 1)
 	defer atomic.AddInt32(&w.pool.activeWorkers, -1)
+	workerTracker.SetValue(int64(w.pool.activeWorkers))
+
+	// Update request tracker after processing each request
+	requestTracker.Increment(1)
 
 	req := fasthttp.AcquireRequest()
 	resp := fasthttp.AcquireResponse()
