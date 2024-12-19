@@ -10,12 +10,6 @@ import (
 	"github.com/jedib0t/go-pretty/v6/text"
 )
 
-// const (
-//     UnitsDefault = iota
-//     UnitsBytes
-//     UnitsPercentage
-// )
-
 type ModuleStats struct {
 	TotalJobs      int64
 	CompletedJobs  int64
@@ -34,6 +28,12 @@ type ProgressCounter struct {
 	stopped       atomic.Bool // Add this
 }
 
+// const (
+//     UnitsDefault = iota
+//     UnitsBytes
+//     UnitsPercentage
+// )
+
 func NewProgressCounter() *ProgressCounter {
 	pw := progress.NewWriter()
 	pw.SetUpdateFrequency(100 * time.Millisecond)
@@ -51,7 +51,7 @@ func NewProgressCounter() *ProgressCounter {
 		Percent: text.Colors{text.FgHiCyan},
 	}
 	style.Options.Separator = " │ "
-	style.Options.DoneString = "✓"
+	style.Options.DoneString = "✔"
 	style.Options.ErrorString = "⨯"
 	style.Options.SpeedSuffix = " req/s"
 
@@ -87,7 +87,7 @@ func (pc *ProgressCounter) StartModule(moduleName string, totalJobs int, targetU
 
 	// Main progress tracker
 	tracker := &progress.Tracker{
-		Message: fmt.Sprintf("[%s]", moduleName),
+		Message: fmt.Sprintf("[%s] (0 workers)", moduleName),
 		Total:   int64(totalJobs),
 		Units:   progress.UnitsDefault,
 	}
@@ -111,13 +111,17 @@ func (pc *ProgressCounter) addTracker(id, message string, total int64) {
 func (pc *ProgressCounter) UpdateWorkerStats(moduleName string, totalWorkers int64) {
 	pc.mu.RLock()
 	stats, exists := pc.moduleStats[moduleName]
+	tracker := pc.trackers[moduleName+"_progress"]
 	pc.mu.RUnlock()
 
 	if exists {
 		atomic.StoreInt64(&stats.ActiveWorkers, totalWorkers)
 
-		// Display active workers as a message
-		pc.pw.Log(fmt.Sprintf("[%s] Processing with %d workers", moduleName, totalWorkers))
+		// Update the tracker message to include worker count
+		if tracker != nil {
+			newMessage := fmt.Sprintf("[%s] (%d workers)", moduleName, totalWorkers)
+			tracker.UpdateMessage(newMessage)
+		}
 	}
 }
 
@@ -145,6 +149,8 @@ func (pc *ProgressCounter) MarkModuleAsDone(moduleName string) {
 	pc.mu.RUnlock()
 
 	if tracker != nil {
+		// Update message to show completion instead of worker count
+		tracker.UpdateMessage(fmt.Sprintf("[%s] (completed)", moduleName))
 		tracker.MarkAsDone()
 	}
 
@@ -168,9 +174,9 @@ func (pc *ProgressCounter) MarkModuleAsDone(moduleName string) {
 
 		// Update the completion message for better alignment and readability
 		message := fmt.Sprintf("[%s] Completed %d requests in %s (avg: %s req/s)",
-			moduleColor.Sprintf("%-20s", moduleName), // Align module name
+			moduleColor.Sprintf("%-20s", moduleName),
 			completedJobs,
-			text.FgCyan.Sprintf("%-8s", duration), // Align duration
+			text.FgCyan.Sprintf("%-8s", duration),
 			text.FgMagenta.Sprintf("%-8s", fmt.Sprintf("%.2f", float64(completedJobs)/duration.Seconds())))
 
 		// Log the final result with a separator
