@@ -71,8 +71,6 @@ var AvailableModules = map[string]bool{
 	"http_host":           true,
 }
 
-// Add this method to your Options struct
-// printUsage prints either full usage or specific flag usage
 func (o *Options) printUsage(flagName ...string) {
 	if len(flagName) == 0 {
 		flag.Usage()

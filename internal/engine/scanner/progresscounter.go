@@ -25,7 +25,7 @@ type ProgressCounter struct {
 	moduleStats   map[string]*ModuleStats
 	mu            sync.RWMutex
 	activeModules int32
-	stopped       atomic.Bool // Add this
+	stopped       atomic.Bool
 }
 
 func NewProgressCounter() *ProgressCounter {
@@ -44,7 +44,7 @@ func NewProgressCounter() *ProgressCounter {
 		Value:   text.Colors{text.FgYellow},
 		Speed:   text.Colors{text.FgMagenta},
 		Percent: text.Colors{text.FgHiCyan},
-		// Add pinned message color
+
 		Pinned: text.Colors{text.BgHiBlack, text.FgWhite, text.Bold},
 	}
 	// Enhanced options
@@ -55,7 +55,7 @@ func NewProgressCounter() *ProgressCounter {
 		PercentFormat: "%4.1f%%",
 		SpeedPosition: progress.PositionRight,
 		SpeedSuffix:   " req/s",
-		// Add snip indicator for long messages
+
 		SnipIndicator: "~",
 	}
 	// Enhanced visibility settings
@@ -68,7 +68,7 @@ func NewProgressCounter() *ProgressCounter {
 		Tracker:        true,
 		TrackerOverall: true,
 		Value:          true,
-		Pinned:         true, // Enable pinned messages
+		Pinned:         true,
 	}
 	pw.SetStyle(style)
 	pw.SetTrackerPosition(progress.PositionRight)
@@ -87,7 +87,7 @@ func (pc *ProgressCounter) StartModule(moduleName string, totalJobs int, targetU
 		TotalJobs: int64(totalJobs),
 		StartTime: time.Now(),
 	}
-	// Main progress tracker
+
 	tracker := &progress.Tracker{
 		Message: fmt.Sprintf("[%s] (0 workers)", moduleName),
 		Total:   int64(totalJobs),
@@ -95,7 +95,7 @@ func (pc *ProgressCounter) StartModule(moduleName string, totalJobs int, targetU
 	}
 	pc.trackers[moduleName+"_progress"] = tracker
 	pc.pw.AppendTracker(tracker)
-	// Set initial pinned messages
+
 	pc.pw.SetPinnedMessages(
 		text.FgCyan.Sprintf("Target URL: %s", targetURL),
 		text.FgYellow.Sprintf("Active Module: %s", moduleName),
@@ -126,7 +126,6 @@ func (pc *ProgressCounter) UpdateWorkerStats(moduleName string, totalWorkers int
 	if exists {
 		atomic.StoreInt64(&stats.ActiveWorkers, totalWorkers)
 
-		// Update the tracker message to include worker count
 		if tracker != nil {
 			newMessage := fmt.Sprintf("[%s] (%d workers)", moduleName, totalWorkers)
 			tracker.UpdateMessage(newMessage)
@@ -167,7 +166,7 @@ func (pc *ProgressCounter) MarkModuleAsDone(moduleName string) {
 		failedJobs := atomic.LoadInt64(&stats.FailedJobs)
 		duration := time.Since(stats.StartTime).Round(time.Millisecond)
 		reqPerSec := float64(completedJobs) / duration.Seconds()
-		// Update pinned messages with completion stats
+
 		pc.pw.SetPinnedMessages(
 			text.FgCyan.Sprintf("Module: %s (Completed)", moduleName),
 			text.FgGreen.Sprintf("Success: %d/%d (%.1f%%)",

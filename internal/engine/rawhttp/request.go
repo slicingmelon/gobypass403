@@ -34,8 +34,8 @@ type requestWorkerPool struct {
 	lock          sync.Mutex
 	stopCh        chan struct{}
 	pool          sync.Pool
-	activeWorkers int32 // Add this
-	queuedJobs    int32 // Add this
+	activeWorkers int32
+	queuedJobs    int32
 }
 
 type requestWorker struct {
@@ -48,7 +48,7 @@ type requestWorker struct {
 	scanOpts   *ScannerCliOpts
 	logger     *GB403Logger.Logger
 	errHandler *GB403ErrHandler.ErrorHandler
-	pool       *requestWorkerPool // Add this
+	pool       *requestWorkerPool
 }
 
 type ProgressTracker interface {
@@ -129,13 +129,11 @@ func NewRequestPool(clientOpts *ClientOptions, scanOpts *ScannerCliOpts, errHand
 	return pool
 }
 
-// Add this method to the RequestPool struct
 func (p *RequestPool) ActiveWorkers() int {
 	active, _ := p.workerPool.getStats()
 	return int(active)
 }
 
-// Add this helper method to requestWorkerPool
 func (p *requestWorkerPool) activeWorkerCount() int {
 	p.lock.Lock()
 	defer p.lock.Unlock()
