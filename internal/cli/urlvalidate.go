@@ -235,33 +235,31 @@ func (p *URLRecon) expandURLSchemes(targetURL string) ([]string, error) {
 		return nil, fmt.Errorf("failed to parse URL: %v", err)
 	}
 
-	// Get host without port
 	host := parsedURL.Host
 	if strings.Contains(host, ":") {
 		host = strings.Split(host, ":")[0]
 	}
 
-	// Build path and query
 	pathAndQuery := parsedURL.Path
 	if parsedURL.Query != "" {
 		pathAndQuery += "?" + parsedURL.Query
 	}
 
-	// Check recon cache for available schemes
 	result, err := p.reconCache.Get(host)
 	if err != nil || result == nil {
-		// If no recon data, keep original URL
 		return []string{targetURL}, nil
 	}
 
-	var urls []string
-	// Add URLs for each available scheme
-	for scheme := range result.IPv4Services {
-		urls = append(urls, fmt.Sprintf("%s://%s%s", scheme, parsedURL.Host, pathAndQuery))
+	urls := make([]string, 0, 2) // Most hosts have max 2 schemes: http/https
+
+	// Add both schemes if they exist in either IPv4 or IPv6
+	if len(result.IPv4Services["http"]) > 0 || len(result.IPv6Services["http"]) > 0 {
+		urls = append(urls, fmt.Sprintf("http://%s%s", parsedURL.Host, pathAndQuery))
 	}
-	for scheme := range result.IPv6Services {
-		urls = append(urls, fmt.Sprintf("%s://%s%s", scheme, parsedURL.Host, pathAndQuery))
+	if len(result.IPv4Services["https"]) > 0 || len(result.IPv6Services["https"]) > 0 {
+		urls = append(urls, fmt.Sprintf("https://%s%s", parsedURL.Host, pathAndQuery))
 	}
 
+	p.logger.LogVerbose("Found %d schemes for %s", len(urls), host)
 	return urls, nil
 }
