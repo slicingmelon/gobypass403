@@ -111,7 +111,6 @@ func NewWorkerContext(mode string, total int, targetURL string, opts *ScannerOpt
 	clientOpts.Timeout = time.Duration(opts.Timeout) * time.Second
 	clientOpts.MaxConnsPerHost = opts.Threads
 	clientOpts.ProxyURL = opts.Proxy
-	clientOpts.ReadBufferSize = opts.ResponseBodyPreviewSize
 
 	return &WorkerContext{
 		mode:     mode,

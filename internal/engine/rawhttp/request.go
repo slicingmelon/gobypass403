@@ -85,6 +85,7 @@ type RawHTTPResponseDetails struct {
 }
 
 func NewRequestPool(clientOpts *ClientOptions, scanOpts *ScannerCliOpts, errorHandler *GB403ErrorHandler.ErrorHandler, logger GB403Logger.ILogger) *RequestPool {
+	// Just use the options as provided, with a fallback to defaults
 	if clientOpts == nil {
 		clientOpts = DefaultOptionsSameHost()
 	}
@@ -332,8 +333,11 @@ func (w *requestWorker) processResponse(resp *fasthttp.Response, job payload.Pay
 
 	// Get preview if configured
 	if w.scanOpts.ResponseBodyPreviewSize > 0 && len(body) > 0 {
-		previewSize := min(len(body), w.scanOpts.ResponseBodyPreviewSize)
-		result.ResponsePreview = append([]byte(nil), body[:previewSize]...)
+		if len(body) > w.scanOpts.ResponseBodyPreviewSize {
+			result.ResponsePreview = append([]byte(nil), body[:w.scanOpts.ResponseBodyPreviewSize]...)
+		} else {
+			result.ResponsePreview = append([]byte(nil), body...)
+		}
 	}
 
 	// Extract title if needed

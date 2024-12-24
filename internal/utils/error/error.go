@@ -19,9 +19,9 @@ const (
 )
 
 var (
-	ErrBodyTooLarge     = fasthttp.ErrBodyTooLarge
-	ErrConnectionClosed = fasthttp.ErrConnectionClosed
-	ErrNoFreeConns      = fasthttp.ErrNoFreeConns
+	ErrBodyTooLarge = fasthttp.ErrBodyTooLarge
+	// ErrConnectionClosed = fasthttp.ErrConnectionClosed
+	// ErrNoFreeConns      = fasthttp.ErrNoFreeConns
 )
 
 // ErrorContext holds metadata about where/when the error occurred

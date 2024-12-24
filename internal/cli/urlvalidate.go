@@ -236,16 +236,24 @@ func (p *URLRecon) expandURLSchemes(targetURL string) ([]string, error) {
 	host := parsedURL.Host
 	result, err := p.reconService.GetCache().Get(host)
 	if err != nil || result == nil {
+		p.logger.LogVerbose("No cache result for %s: %v", host, err)
 		return []string{targetURL}, nil
 	}
+
+	// Debug logging
+	p.logger.LogVerbose("Cache result for %s:", host)
+	p.logger.LogVerbose("IPv4 Services: %+v", result.IPv4Services)
+	p.logger.LogVerbose("IPv6 Services: %+v", result.IPv6Services)
 
 	// Get unique schemes from both IPv4 and IPv6 services
 	schemes := make(map[string]bool)
 	for scheme := range result.IPv4Services {
 		schemes[scheme] = true
+		p.logger.LogVerbose("Found IPv4 scheme: %s", scheme)
 	}
 	for scheme := range result.IPv6Services {
 		schemes[scheme] = true
+		p.logger.LogVerbose("Found IPv6 scheme: %s", scheme)
 	}
 
 	// Generate URLs for each unique scheme
@@ -256,7 +264,9 @@ func (p *URLRecon) expandURLSchemes(targetURL string) ([]string, error) {
 	}
 
 	for scheme := range schemes {
-		urls = append(urls, fmt.Sprintf("%s://%s%s", scheme, host, pathAndQuery))
+		newURL := fmt.Sprintf("%s://%s%s", scheme, host, pathAndQuery)
+		p.logger.LogVerbose("Generated URL: %s", newURL)
+		urls = append(urls, newURL)
 	}
 
 	return urls, nil
