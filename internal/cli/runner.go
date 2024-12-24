@@ -62,7 +62,7 @@ func (r *Runner) Initialize() error {
 		Debug:                   r.options.Debug,
 		Verbose:                 r.options.Verbose,
 		ResponseBodyPreviewSize: r.options.ResponseBodyPreviewSize,
-		ReconCache:              r.urlRecon.reconCache,
+		ReconCache:              r.urlRecon.reconService.GetCache(),
 	}
 
 	// Only set proxy if ParsedProxy exists

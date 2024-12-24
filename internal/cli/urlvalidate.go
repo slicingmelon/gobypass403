@@ -15,7 +15,6 @@ import (
 type URLRecon struct {
 	opts         *Options
 	reconService *recon.ReconService
-	reconCache   *recon.ReconCache
 	logger       GB403Logger.ILogger
 }
 
@@ -24,7 +23,6 @@ func NewURLRecon(opts *Options, logger GB403Logger.ILogger) *URLRecon {
 	return &URLRecon{
 		opts:         opts,
 		reconService: reconService,
-		reconCache:   reconService.GetCache(),
 		logger:       logger,
 	}
 }
@@ -149,7 +147,7 @@ func (p *URLRecon) processWithSubstituteHosts(targetURL string) ([]string, error
 		}
 
 		// Check recon cache for available schemes
-		result, err := p.reconCache.Get(cleanHost)
+		result, err := p.reconService.GetCache().Get(cleanHost)
 		if err != nil || result == nil {
 			p.logger.LogVerbose("No cache data for host %s, skipping", cleanHost)
 			continue
@@ -189,7 +187,7 @@ func (p *URLRecon) constructBaseURL(scheme, host, port string) string {
 
 // GetReconCache returns the recon cache for use by other components
 func (p *URLRecon) GetReconCache() *recon.ReconCache {
-	return p.reconCache
+	return p.reconService.GetCache()
 }
 
 func (p *URLRecon) readAndReconHosts() error {
@@ -245,7 +243,7 @@ func (p *URLRecon) expandURLSchemes(targetURL string) ([]string, error) {
 		pathAndQuery += "?" + parsedURL.Query
 	}
 
-	result, err := p.reconCache.Get(host)
+	result, err := p.reconService.GetCache().Get(host)
 	if err != nil || result == nil {
 		return []string{targetURL}, nil
 	}
