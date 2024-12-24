@@ -188,7 +188,17 @@ func (p *URLRecon) readAndReconHosts() error {
 	var hosts []string
 	for _, host := range strings.Split(strings.TrimSpace(string(content)), "\n") {
 		if host = strings.TrimSpace(host); host != "" {
-			hosts = append(hosts, fmt.Sprintf("http://%s", host))
+			// Extract clean hostname without scheme
+			cleanHost := host
+			if strings.Contains(host, "://") {
+				parsed, err := rawurlparser.RawURLParse(host)
+				if err != nil {
+					p.logger.LogVerbose("Skipping invalid host URL: %s - %v", host, err)
+					continue
+				}
+				cleanHost = parsed.Host
+			}
+			hosts = append(hosts, cleanHost)
 		}
 	}
 
@@ -196,5 +206,12 @@ func (p *URLRecon) readAndReconHosts() error {
 		return fmt.Errorf("no valid hosts found in substitute hosts file")
 	}
 
-	return p.reconService.Run(hosts)
+	// Run recon on clean hostnames
+	for _, host := range hosts {
+		if err := p.reconService.Run([]string{host}); err != nil {
+			p.logger.LogError("Failed recon for host %s: %v", host, err)
+		}
+	}
+
+	return nil
 }

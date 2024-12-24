@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"strings"
 	"sync"
 	"time"
 
@@ -71,8 +72,8 @@ func (s *ReconService) Run(urls []string) error {
 	var wg sync.WaitGroup
 	sem := make(chan struct{}, 10)
 
-	// Track unique hosts to avoid duplicate scans
-	uniqueHosts := make(map[string]bool)
+	// Track unique hosts/IPs to avoid duplicate scans
+	uniqueTargets := make(map[string]bool)
 
 	for _, rawURL := range urls {
 		parsedURL, err := rawurlparser.RawURLParse(rawURL)
@@ -81,82 +82,98 @@ func (s *ReconService) Run(urls []string) error {
 			continue
 		}
 
-		// Skip if we've already processed this host
-		if uniqueHosts[parsedURL.Host] {
+		// Skip if we've already processed this host/IP
+		if uniqueTargets[parsedURL.Host] {
 			continue
 		}
-		uniqueHosts[parsedURL.Host] = true
+		uniqueTargets[parsedURL.Host] = true
 
 		wg.Add(1)
-		go func(url string, host string) {
+		go func(host string) {
 			defer wg.Done()
 			sem <- struct{}{}
 			defer func() { <-sem }()
 
-			// Check if we already have this host in cache
-			existingResult, _ := s.cache.Get(host)
-			if existingResult == nil {
-				existingResult = &ReconResult{
-					Hostname:     host,
-					IPv4Services: make(map[string]map[string][]string),
-					IPv6Services: make(map[string]map[string][]string),
-				}
-			}
-
-			// Resolve IPs only once per host
-			ips, err := s.resolveHost(host)
-			if err != nil {
-				s.logger.LogError("Failed to resolve host %s: %v", host, err)
+			// Check if it's an IP address
+			if net.ParseIP(host) != nil {
+				s.handleIP(host)
 				return
 			}
 
-			// Initialize service maps if needed
-			if existingResult.IPv4Services == nil {
-				existingResult.IPv4Services = make(map[string]map[string][]string)
-			}
-			if existingResult.IPv6Services == nil {
-				existingResult.IPv6Services = make(map[string]map[string][]string)
-			}
-
-			// Check ports only for the resolved IPs
-			portsToCheck := []string{"80", "443"}
-			if parsedURL.Port() != "" {
-				portsToCheck = append(portsToCheck, parsedURL.Port())
-			}
-
-			// Process IPv4
-			for _, ip := range ips.IPv4 {
-				for _, port := range portsToCheck {
-					if scheme := s.probePort(ip, port); scheme != "" {
-						if existingResult.IPv4Services[scheme] == nil {
-							existingResult.IPv4Services[scheme] = make(map[string][]string)
-						}
-						existingResult.IPv4Services[scheme][ip] = append(existingResult.IPv4Services[scheme][ip], port)
-					}
-				}
-			}
-
-			// Process IPv6
-			for _, ip := range ips.IPv6 {
-				for _, port := range portsToCheck {
-					if scheme := s.probePort(ip, port); scheme != "" {
-						if existingResult.IPv6Services[scheme] == nil {
-							existingResult.IPv6Services[scheme] = make(map[string][]string)
-						}
-						existingResult.IPv6Services[scheme][ip] = append(existingResult.IPv6Services[scheme][ip], port)
-					}
-				}
-			}
-
-			// Update cache
-			if err := s.cache.Set(host, existingResult); err != nil {
-				s.logger.LogError("Failed to cache results for %s: %v", host, err)
-			}
-		}(rawURL, parsedURL.Host)
+			// For domains: resolve, store IPs, and port scan once
+			s.handleDomain(host)
+		}(parsedURL.Host)
 	}
 
 	wg.Wait()
 	return nil
+}
+
+func (s *ReconService) handleIP(ip string) {
+	result := &ReconResult{
+		Hostname:     ip,
+		IPv4Services: make(map[string]map[string][]string),
+		IPv6Services: make(map[string]map[string][]string),
+	}
+
+	// Determine service map based on IP version
+	services := result.IPv4Services
+	if strings.Contains(ip, ":") {
+		services = result.IPv6Services
+	}
+
+	// Just check 80/443 for web service
+	for _, port := range []string{"80", "443"} {
+		if scheme := s.probePort(ip, port); scheme != "" {
+			if services[scheme] == nil {
+				services[scheme] = make(map[string][]string)
+			}
+			services[scheme][ip] = append(services[scheme][ip], port)
+		}
+	}
+
+	s.cache.Set(ip, result)
+}
+
+func (s *ReconService) handleDomain(host string) {
+	ips, err := s.resolveHost(host)
+	if err != nil {
+		s.logger.LogError("Failed to resolve host %s: %v", host, err)
+		return
+	}
+
+	result := &ReconResult{
+		Hostname:     host,
+		IPv4Services: make(map[string]map[string][]string),
+		IPv6Services: make(map[string]map[string][]string),
+		CNAMEs:       ips.CNAMEs,
+	}
+
+	// Port scan IPv4 addresses
+	for _, ip := range ips.IPv4 {
+		for _, port := range []string{"80", "443"} {
+			if scheme := s.probePort(ip, port); scheme != "" {
+				if result.IPv4Services[scheme] == nil {
+					result.IPv4Services[scheme] = make(map[string][]string)
+				}
+				result.IPv4Services[scheme][ip] = append(result.IPv4Services[scheme][ip], port)
+			}
+		}
+	}
+
+	// Port scan IPv6 addresses
+	for _, ip := range ips.IPv6 {
+		for _, port := range []string{"80", "443"} {
+			if scheme := s.probePort(ip, port); scheme != "" {
+				if result.IPv6Services[scheme] == nil {
+					result.IPv6Services[scheme] = make(map[string][]string)
+				}
+				result.IPv6Services[scheme][ip] = append(result.IPv6Services[scheme][ip], port)
+			}
+		}
+	}
+
+	s.cache.Set(host, result)
 }
 
 func (s *ReconService) resolveHost(hostname string) (*IPAddrs, error) {
