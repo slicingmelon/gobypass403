@@ -71,15 +71,15 @@ func (l *Logger) IsVerboseEnabled() bool {
 }
 
 // Core log function
-func (l *Logger) log(w io.Writer, color text.Color, prefix, format string, args ...interface{}) {
+func (l *Logger) log(w io.Writer, colors text.Colors, prefix, format string, args ...interface{}) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
 	// Format the message
 	msg := fmt.Sprintf(format, args...)
 
-	// Add color and prefix
-	formattedMsg := color.Sprintf("%s%s", prefix, msg)
+	// Add colors and prefix
+	formattedMsg := colors.Sprintf("%s%s", prefix, msg)
 
 	// Write to the buffer and flush to the writer
 	l.buffer.Reset()
@@ -104,30 +104,40 @@ func (l *Logger) print(w io.Writer, color text.Color, format string, args ...int
 
 // LogInfo for status updates
 func (l *Logger) LogInfo(format string, args ...interface{}) {
-	l.log(l.stderr, text.FgWhite, "[INFO] ", format, args...)
+	l.log(l.stderr, text.Colors{text.FgWhite}, "[INFO] ", format, args...)
 }
 
 // LogVerbose for verbose logs, only shown if verbose is enabled
 func (l *Logger) LogVerbose(format string, args ...interface{}) {
-	if !l.verboseEnabled {
+	if l.debugEnabled {
 		return
 	}
-	l.log(l.stderr, text.FgCyan, "[VERBOSE] ", format, args...)
+
+	if l.verboseEnabled {
+		prefix := text.Colors{text.BgHiCyan, text.FgBlack, text.Bold, text.Italic}.Sprint("[VERBOSE]")
+		l.log(l.stderr, text.Colors{text.FgHiWhite, text.Underline}, prefix+" ", format, args...)
+	}
 }
 
-// LogDebug for debug logs with custom metadata
-func (l *Logger) LogDebug(requestID string, format string, args ...interface{}) {
+// LogDebug for debug logs with request ID
+func (l *Logger) LogDebug(debugToken string, format string, args ...interface{}) {
 	if !l.debugEnabled {
+		if l.verboseEnabled {
+			prefix := text.Colors{text.BgHiCyan, text.FgBlack, text.Bold, text.Italic}.Sprint("[VERBOSE]")
+			l.log(l.stderr, text.Colors{text.FgHiWhite, text.Underline}, prefix+" ", format, args...)
+		}
 		return
 	}
-	// Include the requestID dynamically in the message
-	fullFormat := fmt.Sprintf("[%s] %s", requestID, format)
-	l.log(l.stderr, text.FgMagenta, "[DEBUG] ", fullFormat, args...)
+
+	prefix := text.Colors{text.BgHiMagenta, text.FgBlack, text.Bold, text.Italic}.Sprint("[DEBUG]")
+	tokenPart := text.Colors{text.FgHiYellow, text.ReverseVideo, text.Bold}.Sprintf("[%s]", debugToken)
+	fullFormat := fmt.Sprintf("%s %s %s", prefix, tokenPart, format)
+	l.log(l.stderr, text.Colors{text.FgHiMagenta, text.Underline}, "", fullFormat, args...)
 }
 
 // LogError for errors
 func (l *Logger) LogError(format string, args ...interface{}) {
-	l.log(l.stderr, text.FgRed, "[ERROR] ", format, args...)
+	l.log(l.stderr, text.Colors{text.FgRed}, "[ERROR] ", format, args...)
 }
 
 // Custom-colored messages (stdout)
