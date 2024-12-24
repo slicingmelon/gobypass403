@@ -43,15 +43,12 @@ func NewScanner(opts *ScannerOpts, urls []string, logger GB403Logger.ILogger) *S
 	// Initialize bypass modules first
 	InitializeBypassModules(logger)
 
-	errorHandler := GB403ErrorHandler.NewErrorHandler(32)
-	progress := NewProgressCounter()
-
 	return &Scanner{
 		config:       opts,
 		urls:         urls,
 		logger:       logger,
-		errorHandler: errorHandler,
-		progress:     progress,
+		errorHandler: GB403ErrorHandler.NewErrorHandler(32),
+		progress:     NewProgressCounter(),
 	}
 }
 

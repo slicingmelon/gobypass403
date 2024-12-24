@@ -65,14 +65,27 @@ func (p *URLRecon) collectURLs() ([]string, error) {
 		if p.opts.SubstituteHostsFile != "" {
 			return p.processWithSubstituteHosts(p.opts.URL)
 		}
-		urls = []string{p.opts.URL}
+		// Expand single URL for available schemes
+		urls, err = p.expandURLSchemes(p.opts.URL)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	// Process URLs from file
 	if p.opts.URLsFile != "" {
-		urls, err = p.readURLsFromFile()
+		fileURLs, err := p.readURLsFromFile()
 		if err != nil {
 			return nil, err
+		}
+		// Expand each URL from file
+		for _, url := range fileURLs {
+			expanded, err := p.expandURLSchemes(url)
+			if err != nil {
+				p.logger.LogError("Error expanding URL %s: %v", url, err)
+				continue
+			}
+			urls = append(urls, expanded...)
 		}
 	}
 
@@ -214,4 +227,41 @@ func (p *URLRecon) readAndReconHosts() error {
 	}
 
 	return nil
+}
+
+func (p *URLRecon) expandURLSchemes(targetURL string) ([]string, error) {
+	parsedURL, err := rawurlparser.RawURLParse(targetURL)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse URL: %v", err)
+	}
+
+	// Get host without port
+	host := parsedURL.Host
+	if strings.Contains(host, ":") {
+		host = strings.Split(host, ":")[0]
+	}
+
+	// Build path and query
+	pathAndQuery := parsedURL.Path
+	if parsedURL.Query != "" {
+		pathAndQuery += "?" + parsedURL.Query
+	}
+
+	// Check recon cache for available schemes
+	result, err := p.reconCache.Get(host)
+	if err != nil || result == nil {
+		// If no recon data, keep original URL
+		return []string{targetURL}, nil
+	}
+
+	var urls []string
+	// Add URLs for each available scheme
+	for scheme := range result.IPv4Services {
+		urls = append(urls, fmt.Sprintf("%s://%s%s", scheme, parsedURL.Host, pathAndQuery))
+	}
+	for scheme := range result.IPv6Services {
+		urls = append(urls, fmt.Sprintf("%s://%s%s", scheme, parsedURL.Host, pathAndQuery))
+	}
+
+	return urls, nil
 }
