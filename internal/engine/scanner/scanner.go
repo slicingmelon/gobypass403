@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"sort"
 
-	"github.com/slicingmelon/go-bypass-403/internal/engine/probe"
+	"github.com/slicingmelon/go-bypass-403/internal/engine/recon"
 	GB403ErrorHandler "github.com/slicingmelon/go-bypass-403/internal/utils/error"
 	GB403Logger "github.com/slicingmelon/go-bypass-403/internal/utils/logger"
 )
@@ -26,7 +26,7 @@ type ScannerOpts struct {
 	SpoofIP                 string
 	FollowRedirects         bool
 	ResponseBodyPreviewSize int
-	ProbeCache              probe.Cache
+	ReconCache              *recon.ReconCache
 }
 
 // Scanner represents the main scanner structure, perhaps the highest level in the hierarchy of the tool
@@ -103,13 +103,16 @@ func (s *Scanner) scanURL(url string) error {
 		return findings[i].StatusCode < findings[j].StatusCode
 	})
 
-	// // Then process and display them
-	// if len(findings) > 0 {
-	// 	PrintTableHeader(url)
-	// 	for _, re := range findings {
-	// 		//PrintTableRow(result)
-	// 		s.logger.PrintGreen("Result would have been here!")
-	// 	}
+	// Then process and display them
+	if len(findings) > 0 {
+		fmt.Println()
+		fmt.Println()
+		PrintTableHeader(url)
+		for _, re := range findings {
+			PrintTableRow(re)
+		}
+	}
+
 	fmt.Println()
 
 	outputFile := filepath.Join(s.config.OutDir, "findings.json")

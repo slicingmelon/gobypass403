@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/slicingmelon/go-bypass-403/internal/engine/probe"
+	"github.com/slicingmelon/go-bypass-403/internal/engine/recon"
 	GB403Logger "github.com/slicingmelon/go-bypass-403/internal/utils/logger"
 	"github.com/slicingmelon/go-rawurlparser"
 )
@@ -669,7 +669,7 @@ func (pg *PayloadGenerator) GenerateHeaderPortJobs(targetURL string, bypassModul
 	return allJobs
 }
 
-func (pg *PayloadGenerator) GenerateHostHeaderJobs(targetURL string, bypassModule string, probeCache probe.Cache) []PayloadJob {
+func (pg *PayloadGenerator) GenerateHostHeaderJobs(targetURL string, bypassModule string, reconCache *recon.ReconCache) []PayloadJob {
 	var allJobs []PayloadJob
 
 	pg.logger.LogVerbose("Starting HostHeader payload generation for: %s", targetURL)
@@ -687,61 +687,106 @@ func (pg *PayloadGenerator) GenerateHostHeaderJobs(targetURL string, bypassModul
 	}
 
 	// Get IP information from cache
-	if probeCacheResult, exists := probeCache.Get(parsedURL.Hostname()); exists && len(probeCacheResult.IPv4) > 0 {
-		// Variation 1: URL with IP, Host header with original host
-		for _, ip := range probeCacheResult.IPv4 {
-			ipURL := fmt.Sprintf("%s://%s%s", parsedURL.Scheme, ip, pathAndQuery)
-			allJobs = append(allJobs, PayloadJob{
-				OriginalURL: targetURL,
-				Method:      "GET",
-				Host:        parsedURL.Host,
-				RawURI:      pathAndQuery,
-				Headers: []Header{{
-					Header: "Host",
-					Value:  parsedURL.Host,
-				}},
-				FullURL:      ipURL,
-				BypassModule: bypassModule,
-				PayloadToken: GenerateDebugToken(SeedData{Headers: []Header{{Header: "Host", Value: parsedURL.Host}}, FullURL: ipURL}),
-			})
-		}
+	probeCacheResult, err := reconCache.Get(parsedURL.Hostname())
+	if err != nil || probeCacheResult == nil {
+		pg.logger.LogError("No cache result found for %s: %v", targetURL, err)
+		return allJobs
+	}
 
-		// Variation 2: Original URL, Host header with IP
-		for _, ip := range probeCacheResult.IPv4 {
-			allJobs = append(allJobs, PayloadJob{
-				OriginalURL: targetURL,
-				Method:      "GET",
-				Host:        parsedURL.Host,
-				RawURI:      pathAndQuery,
-				Headers: []Header{{
-					Header: "Host",
-					Value:  ip,
-				}},
-				FullURL:      targetURL,
-				BypassModule: bypassModule,
-				PayloadToken: GenerateDebugToken(SeedData{Headers: []Header{{Header: "Host", Value: ip}}, FullURL: targetURL}),
-			})
-		}
+	// Process IPv4 Services
+	for scheme, ips := range probeCacheResult.IPv4Services {
+		for ip, ports := range ips {
+			for _, port := range ports {
+				// Create temporary URL object for base URL construction
+				ipURL := &rawurlparser.RawURL{
+					Scheme: scheme,
+					Host:   ip,
+				}
+				if port != "80" && port != "443" {
+					ipURL.Host = fmt.Sprintf("%s:%s", ip, port)
+				}
 
-		// Variation 3: URL with IP, no Host header
-		for _, ip := range probeCacheResult.IPv4 {
-			ipURL := fmt.Sprintf("%s://%s%s", parsedURL.Scheme, ip, pathAndQuery)
-			allJobs = append(allJobs, PayloadJob{
-				OriginalURL: targetURL,
-				Method:      "GET",
-				Host:        parsedURL.Host, // Use IP as host since we're not setting Host header
-				RawURI:      pathAndQuery,
-				Headers: []Header{{
-					Header: "Host",
-					Value:  ip,
-				}},
-				FullURL:      ipURL,
-				BypassModule: bypassModule,
-				PayloadToken: GenerateDebugToken(SeedData{Headers: []Header{{Header: "Host", Value: ip}}, FullURL: ipURL}),
-			})
+				// Variation 1: URL with IP, Host header with original host
+				fullURL := ipURL.BaseURL() + pathAndQuery
+				allJobs = append(allJobs, PayloadJob{
+					OriginalURL: targetURL,
+					Method:      "GET",
+					Host:        ipURL.Host,
+					RawURI:      pathAndQuery,
+					Headers: []Header{{
+						Header: "Host",
+						Value:  parsedURL.Host,
+					}},
+					FullURL:      fullURL,
+					BypassModule: bypassModule,
+					PayloadToken: GenerateDebugToken(SeedData{Headers: []Header{{Header: "Host", Value: parsedURL.Host}}, FullURL: fullURL}),
+				})
+
+				// Variation 2: Original URL, Host header with IP:port
+				hostValue := ipURL.Host
+				allJobs = append(allJobs, PayloadJob{
+					OriginalURL: targetURL,
+					Method:      "GET",
+					Host:        parsedURL.Host,
+					RawURI:      pathAndQuery,
+					Headers: []Header{{
+						Header: "Host",
+						Value:  hostValue,
+					}},
+					FullURL:      targetURL,
+					BypassModule: bypassModule,
+					PayloadToken: GenerateDebugToken(SeedData{Headers: []Header{{Header: "Host", Value: hostValue}}, FullURL: targetURL}),
+				})
+			}
 		}
-	} else {
-		pg.logger.LogError("No IPv4 addresses found in cache for %s\n", targetURL)
+	}
+
+	// Process IPv6 Services
+	for scheme, ips := range probeCacheResult.IPv6Services {
+		for ip, ports := range ips {
+			for _, port := range ports {
+				// Create temporary URL object for base URL construction
+				ipURL := &rawurlparser.RawURL{
+					Scheme: scheme,
+					Host:   fmt.Sprintf("[%s]", ip),
+				}
+				if port != "80" && port != "443" {
+					ipURL.Host = fmt.Sprintf("[%s]:%s", ip, port)
+				}
+
+				// Variation 1: URL with IPv6, Host header with original host
+				fullURL := ipURL.BaseURL() + pathAndQuery
+				allJobs = append(allJobs, PayloadJob{
+					OriginalURL: targetURL,
+					Method:      "GET",
+					Host:        ipURL.Host,
+					RawURI:      pathAndQuery,
+					Headers: []Header{{
+						Header: "Host",
+						Value:  parsedURL.Host,
+					}},
+					FullURL:      fullURL,
+					BypassModule: bypassModule,
+					PayloadToken: GenerateDebugToken(SeedData{Headers: []Header{{Header: "Host", Value: parsedURL.Host}}, FullURL: fullURL}),
+				})
+
+				// Variation 2: Original URL, Host header with IPv6
+				hostValue := ipURL.Host
+				allJobs = append(allJobs, PayloadJob{
+					OriginalURL: targetURL,
+					Method:      "GET",
+					Host:        parsedURL.Host,
+					RawURI:      pathAndQuery,
+					Headers: []Header{{
+						Header: "Host",
+						Value:  hostValue,
+					}},
+					FullURL:      targetURL,
+					BypassModule: bypassModule,
+					PayloadToken: GenerateDebugToken(SeedData{Headers: []Header{{Header: "Host", Value: hostValue}}, FullURL: targetURL}),
+				})
+			}
+		}
 	}
 
 	pg.logger.LogInfo("[%s] Generated %d payloads for %s", bypassModule, len(allJobs), targetURL)

@@ -8,11 +8,11 @@ import (
 )
 
 type Runner struct {
-	options      *Options
-	urls         []string
-	scanner      *scanner.Scanner
-	urlProcessor *URLProcessor
-	logger       GB403Logger.ILogger
+	options  *Options
+	urls     []string
+	scanner  *scanner.Scanner
+	urlRecon *URLRecon
+	logger   GB403Logger.ILogger
 }
 
 func NewRunner(logger GB403Logger.ILogger) *Runner {
@@ -38,8 +38,8 @@ func (r *Runner) Initialize() error {
 	}
 
 	// Step 2: Initialize URL Processor and process (recon) URLs
-	r.urlProcessor = NewURLProcessor(r.options, r.logger)
-	urls, err := r.urlProcessor.ProcessURLs()
+	r.urlRecon = NewURLRecon(r.options, r.logger)
+	urls, err := r.urlRecon.ProcessURLs()
 	if err != nil {
 		return fmt.Errorf("failed to process URLs: %w", err)
 	}
@@ -62,7 +62,7 @@ func (r *Runner) Initialize() error {
 		Debug:                   r.options.Debug,
 		Verbose:                 r.options.Verbose,
 		ResponseBodyPreviewSize: r.options.ResponseBodyPreviewSize,
-		ProbeCache:              r.urlProcessor.GetProbeCache(),
+		ReconCache:              r.urlRecon.reconCache,
 	}
 
 	// Only set proxy if ParsedProxy exists

@@ -15,7 +15,7 @@ import (
 type URLRecon struct {
 	opts         *Options
 	reconService *recon.ReconService
-	reconCache   recon.Cache
+	reconCache   *recon.ReconCache
 	logger       GB403Logger.ILogger
 }
 
@@ -92,7 +92,7 @@ func (p *URLRecon) readURLsFromFile() ([]string, error) {
 }
 
 // processWithSubstituteHosts handles URL substitution with hosts from file
-func (p *URLProcessor) processWithSubstituteHosts(targetURL string) ([]string, error) {
+func (p *URLRecon) processWithSubstituteHosts(targetURL string) ([]string, error) {
 	// Parse original URL to keep path and query
 	parsedURL, err := rawurlparser.RawURLParse(targetURL)
 	if err != nil {
@@ -141,7 +141,7 @@ func (p *URLProcessor) processWithSubstituteHosts(targetURL string) ([]string, e
 }
 
 // Helper methods for URL processing and validation
-func (p *URLProcessor) getPathAndQuery(parsedURL *url.URL) string {
+func (p *URLRecon) getPathAndQuery(parsedURL *url.URL) string {
 	path := parsedURL.Path
 	if parsedURL.RawQuery != "" {
 		path += "?" + parsedURL.RawQuery
@@ -149,14 +149,14 @@ func (p *URLProcessor) getPathAndQuery(parsedURL *url.URL) string {
 	return path
 }
 
-func (p *URLProcessor) constructBaseURL(scheme, host, port string) string {
+func (p *URLRecon) constructBaseURL(scheme, host, port string) string {
 	if (scheme == "http" && port == "80") || (scheme == "https" && port == "443") {
 		return fmt.Sprintf("%s://%s", scheme, host)
 	}
 	return fmt.Sprintf("%s://%s:%s", scheme, host, port)
 }
 
-// GetProbeCache returns the probe cache
-func (p *URLProcessor) GetProbeCache() probe.Cache {
-	return p.probeCache
+// GetReconCache returns the recon cache for use by other components
+func (p *URLRecon) GetReconCache() *recon.ReconCache {
+	return p.reconCache
 }

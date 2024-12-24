@@ -9,9 +9,26 @@ func TestReconService_Run(t *testing.T) {
 	service := NewReconService()
 
 	testURLs := []string{
+		// Valid hosts
 		"https://revoked.badssl.com/",
 		"http://httpbin.org/get",
 		"https://scanme.sh",
+
+		// IP addresses
+		"http://1.1.1.1/",
+		"https://8.8.8.8/",
+		"http://[2606:4700:4700::1111]",
+
+		// Edge cases
+		"http://127.0.0.1:89/", // Closed port
+		"http://[::1]:80/",     // IPv6 localhost
+		"http://127.0.0.1:98/", // Another closed port
+		"http://[::1]/",        // IPv6 localhost without port
+
+		// Invalid cases
+		"https://thisisnotarealdomainname123456789.com/",
+		"http://localhost:65536/",  // Invalid port number
+		"https://scanme.sh:12345/", // Non-standard port
 	}
 
 	// Test Run function
@@ -47,21 +64,171 @@ func TestReconService_Run(t *testing.T) {
 			t.Errorf("Expected hostname %s, got %s", host, result.Hostname)
 		}
 
-		// Verify ports
-		if len(result.Ports) == 0 {
-			t.Errorf("No ports found for %s", host)
+		// Verify IPv4 services
+		if len(result.IPv4Services) == 0 {
+			t.Errorf("No IPv4 services found for %s", host)
 		}
 
-		// Verify IP addresses
-		if len(result.IPv4) == 0 && len(result.IPv6) == 0 {
-			t.Errorf("No IP addresses found for %s", host)
+		// Check for expected schemes
+		for scheme, ips := range result.IPv4Services {
+			if scheme != "http" && scheme != "https" {
+				t.Errorf("Unexpected scheme %s for %s", scheme, host)
+			}
+			if len(ips) == 0 {
+				t.Errorf("No IPs found for scheme %s on %s", scheme, host)
+			}
+
+			// Check ports for each IP
+			for ip, ports := range ips {
+				if len(ports) == 0 {
+					t.Errorf("No ports found for IP %s on %s", ip, host)
+				}
+				t.Logf("IPv4 %s service on %s: %s -> %v", scheme, host, ip, ports)
+			}
 		}
 
-		// Log results for debugging
+		// Verify IPv6 services if present
+		if len(result.IPv6Services) > 0 {
+			for scheme, ips := range result.IPv6Services {
+				if scheme != "http" && scheme != "https" {
+					t.Errorf("Unexpected scheme %s for %s", scheme, host)
+				}
+				for ip, ports := range ips {
+					t.Logf("IPv6 %s service on %s: %s -> %v", scheme, host, ip, ports)
+				}
+			}
+		}
+
+		// Log full results for debugging
 		t.Logf("Results for %s:", host)
-		t.Logf("  Ports: %v", result.Ports)
-		t.Logf("  IPv4: %v", result.IPv4)
-		t.Logf("  IPv6: %v", result.IPv6)
+		t.Logf("  IPv4 Services: %+v", result.IPv4Services)
+		t.Logf("  IPv6 Services: %+v", result.IPv6Services)
+		t.Logf("  CNAMEs: %v", result.CNAMEs)
+	}
+}
+
+func TestReconService_Run_ValidateDuplicates(t *testing.T) {
+	service := NewReconService()
+
+	testURLs := []string{
+		// Valid hosts
+		"https://revoked.badssl.com/",
+		"http://httpbin.org/get",
+		"http://httpbin.org/post", // Duplicate host with different path
+		"https://scanme.sh",
+
+		// IP addresses with different paths
+		"http://1.1.1.1/dns-query",
+		"http://1.1.1.1/", // Duplicate IP with different path
+		"https://8.8.8.8/",
+		"http://[2606:4700:4700::1111]/test",
+		"http://[2606:4700:4700::1111]/", // Duplicate IPv6 with different path
+
+		// Edge cases
+		"http://127.0.0.1:89/", // Closed port
+		"http://[::1]:80/",     // IPv6 localhost
+		"http://127.0.0.1:98/", // Another closed port
+		"http://[::1]/",        // IPv6 localhost without port
+
+		// Invalid cases
+		"https://thisisnotarealdomainname123456789.com/",
+		"http://localhost:65536/",  // Invalid port number
+		"https://scanme.sh:12345/", // Non-standard port
+	}
+
+	// Test Run function
+	err := service.Run(testURLs)
+	if err != nil {
+		t.Errorf("Run failed: %v", err)
+	}
+
+	// Allow time for async operations to complete
+	time.Sleep(2 * time.Second)
+
+	// Verify duplicate handling
+	result, err := service.cache.Get("httpbin.org")
+	if err != nil {
+		t.Errorf("Failed to get cache for httpbin.org: %v", err)
+	} else {
+		// Should only have one entry despite multiple paths
+		t.Logf("httpbin.org results (should be same for /get and /post):")
+		t.Logf("  IPv4 Services: %+v", result.IPv4Services)
+		t.Logf("  IPv6 Services: %+v", result.IPv6Services)
+	}
+
+	// Verify duplicate IP handling
+	result, err = service.cache.Get("1.1.1.1")
+	if err != nil {
+		t.Errorf("Failed to get cache for 1.1.1.1: %v", err)
+	} else {
+		// Should only have one entry despite multiple paths
+		t.Logf("1.1.1.1 results (should be same for both paths):")
+		t.Logf("  IPv4 Services: %+v", result.IPv4Services)
+	}
+
+	// Continue with existing test cases...
+	expectedHosts := []string{
+		"revoked.badssl.com",
+		"httpbin.org",
+		"scanme.sh",
+	}
+
+	for _, host := range expectedHosts {
+		result, err := service.cache.Get(host)
+		if err != nil {
+			t.Errorf("Failed to get cache for %s: %v", host, err)
+			continue
+		}
+
+		if result == nil {
+			t.Errorf("No cache result for %s", host)
+			continue
+		}
+
+		// Verify basic structure
+		if result.Hostname != host {
+			t.Errorf("Expected hostname %s, got %s", host, result.Hostname)
+		}
+
+		// Verify IPv4 services
+		if len(result.IPv4Services) == 0 {
+			t.Errorf("No IPv4 services found for %s", host)
+		}
+
+		// Check for expected schemes
+		for scheme, ips := range result.IPv4Services {
+			if scheme != "http" && scheme != "https" {
+				t.Errorf("Unexpected scheme %s for %s", scheme, host)
+			}
+			if len(ips) == 0 {
+				t.Errorf("No IPs found for scheme %s on %s", scheme, host)
+			}
+
+			// Check ports for each IP
+			for ip, ports := range ips {
+				if len(ports) == 0 {
+					t.Errorf("No ports found for IP %s on %s", ip, host)
+				}
+				t.Logf("IPv4 %s service on %s: %s -> %v", scheme, host, ip, ports)
+			}
+		}
+
+		// Verify IPv6 services if present
+		if len(result.IPv6Services) > 0 {
+			for scheme, ips := range result.IPv6Services {
+				if scheme != "http" && scheme != "https" {
+					t.Errorf("Unexpected scheme %s for %s", scheme, host)
+				}
+				for ip, ports := range ips {
+					t.Logf("IPv6 %s service on %s: %s -> %v", scheme, host, ip, ports)
+				}
+			}
+		}
+
+		// Log full results for debugging
+		t.Logf("Results for %s:", host)
+		t.Logf("  IPv4 Services: %+v", result.IPv4Services)
+		t.Logf("  IPv6 Services: %+v", result.IPv6Services)
 		t.Logf("  CNAMEs: %v", result.CNAMEs)
 	}
 }
@@ -71,13 +238,23 @@ func TestReconCache(t *testing.T) {
 
 	testData := &ReconResult{
 		Hostname: "test.com",
-		Ports: map[string]string{
-			"80":  "http",
-			"443": "https",
+		IPv4Services: map[string]map[string][]string{
+			"http": {
+				"192.168.1.1": {"80", "8080"},
+			},
+			"https": {
+				"192.168.1.1": {"443"},
+			},
 		},
-		IPv4:   []string{"1.2.3.4"},
-		IPv6:   []string{"2001:db8::1"},
-		CNAMEs: []string{"alias.test.com"},
+		IPv6Services: map[string]map[string][]string{
+			"http": {
+				"2001:db8::1": {"80"},
+			},
+			"https": {
+				"2001:db8::1": {"443"},
+			},
+		},
+		CNAMEs: []string{"www.test.com"},
 	}
 
 	// Test Set
@@ -97,15 +274,25 @@ func TestReconCache(t *testing.T) {
 		t.Errorf("Expected hostname %s, got %s", testData.Hostname, result.Hostname)
 	}
 
-	if len(result.Ports) != len(testData.Ports) {
-		t.Errorf("Expected %d ports, got %d", len(testData.Ports), len(result.Ports))
+	// Check IPv4 services
+	for scheme, ips := range testData.IPv4Services {
+		for ip, expectedPorts := range ips {
+			gotPorts := result.IPv4Services[scheme][ip]
+			if len(gotPorts) != len(expectedPorts) {
+				t.Errorf("IPv4 %s service on %s: expected ports %v, got %v",
+					scheme, ip, expectedPorts, gotPorts)
+			}
+		}
 	}
 
-	if len(result.IPv4) != len(testData.IPv4) {
-		t.Errorf("Expected %d IPv4 addresses, got %d", len(testData.IPv4), len(result.IPv4))
-	}
-
-	if len(result.IPv6) != len(testData.IPv6) {
-		t.Errorf("Expected %d IPv6 addresses, got %d", len(testData.IPv6), len(result.IPv6))
+	// Check IPv6 services
+	for scheme, ips := range testData.IPv6Services {
+		for ip, expectedPorts := range ips {
+			gotPorts := result.IPv6Services[scheme][ip]
+			if len(gotPorts) != len(expectedPorts) {
+				t.Errorf("IPv6 %s service on %s: expected ports %v, got %v",
+					scheme, ip, expectedPorts, gotPorts)
+			}
+		}
 	}
 }

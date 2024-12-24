@@ -75,7 +75,7 @@ func InitializeBypassModules(logger GB403Logger.ILogger) {
 			}
 		case "http_host":
 			module.GenerateJobs = func(targetURL string, mode string, opts *ScannerOpts) []payload.PayloadJob {
-				return module.payloadGen.GenerateHostHeaderJobs(targetURL, mode, opts.ProbeCache)
+				return module.payloadGen.GenerateHostHeaderJobs(targetURL, mode, opts.ReconCache)
 			}
 		case "http_headers_scheme":
 			module.GenerateJobs = func(targetURL string, mode string, opts *ScannerOpts) []payload.PayloadJob {
