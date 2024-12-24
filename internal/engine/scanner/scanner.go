@@ -6,7 +6,6 @@ import (
 	"sort"
 
 	"github.com/slicingmelon/go-bypass-403/internal/engine/probe"
-	"github.com/slicingmelon/go-bypass-403/internal/engine/rawhttp"
 	GB403ErrorHandler "github.com/slicingmelon/go-bypass-403/internal/utils/error"
 	GB403Logger "github.com/slicingmelon/go-bypass-403/internal/utils/logger"
 )
@@ -35,22 +34,21 @@ type Scanner struct {
 	config       *ScannerOpts
 	urls         []string
 	errorHandler *GB403ErrorHandler.ErrorHandler
-	logger       *GB403Logger.ILogger
+	logger       GB403Logger.ILogger
 	progress     *ProgressCounter
 }
 
 // NewScanner creates a new Scanner instance
 func NewScanner(opts *ScannerOpts, urls []string, logger GB403Logger.ILogger) *Scanner {
-	client := rawhttp.NewHTTPClient(clientOpts, errorHandler)
-	requestPool := rawhttp.NewRequestPool(clientOpts, scanOpts, errorHandler, logger)
+	errorHandler := GB403ErrorHandler.NewErrorHandler(32)
+	progress := NewProgressCounter()
 
 	return &Scanner{
 		config:       opts,
 		urls:         urls,
 		logger:       logger,
-		errorHandler: GB403ErrorHandler.NewErrorHandler(15),
-		requestPool:  requestPool,
-		client:       client,
+		errorHandler: errorHandler,
+		progress:     progress,
 	}
 }
 

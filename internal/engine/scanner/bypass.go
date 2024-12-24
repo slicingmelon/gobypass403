@@ -16,79 +16,81 @@ import (
 type BypassModule struct {
 	Name         string
 	payloadGen   *payload.PayloadGenerator
+	logger       GB403Logger.ILogger
 	GenerateJobs func(targetURL string, mode string, opts *ScannerOpts) []payload.PayloadJob
 }
 
 func NewBypassModule(name string, logger GB403Logger.ILogger) *BypassModule {
-	payloadGen := payload.NewPayloadGenerator(logger)
 	return &BypassModule{
 		Name:       name,
-		payloadGen: payloadGen,
+		logger:     logger,
+		payloadGen: payload.NewPayloadGenerator(logger),
 	}
 }
 
 // Registry of all bypass modules
 var bypassModules = map[string]*BypassModule{
-	"dumb_check": {
-		Name: "dumb_check",
-		GenerateJobs: func(targetURL string, mode string, opts *ScannerOpts) []payload.PayloadJob {
-			return payload.GenerateDumbJob(targetURL, mode)
-		},
-	},
-	"mid_paths": {
-		Name: "mid_paths",
-		GenerateJobs: func(targetURL string, mode string, opts *ScannerOpts) []payload.PayloadJob {
-			return payload.GenerateMidPathsJobs(targetURL, mode)
-		},
-	},
-	"end_paths": {
-		Name: "end_paths",
-		GenerateJobs: func(targetURL string, mode string, opts *ScannerOpts) []payload.PayloadJob {
-			return payload.GenerateEndPathsJobs(targetURL, mode)
-		},
-	},
-	"http_headers_ip": {
-		Name: "http_headers_ip",
-		GenerateJobs: func(targetURL string, mode string, opts *ScannerOpts) []payload.PayloadJob {
-			return payload.GenerateHeaderIPJobs(targetURL, mode, opts.SpoofHeader, opts.SpoofIP)
-		},
-	},
-	"case_substitution": {
-		Name: "case_substitution",
-		GenerateJobs: func(targetURL string, mode string, opts *ScannerOpts) []payload.PayloadJob {
-			return payload.GenerateCaseSubstitutionJobs(targetURL, mode)
-		},
-	},
-	"char_encode": {
-		Name: "char_encode",
-		GenerateJobs: func(targetURL string, mode string, opts *ScannerOpts) []payload.PayloadJob {
-			return payload.GenerateCharEncodeJobs(targetURL, mode)
-		},
-	},
-	"http_host": {
-		Name: "http_host",
-		GenerateJobs: func(targetURL string, mode string, opts *ScannerOpts) []payload.PayloadJob {
-			return payload.GenerateHostHeaderJobs(targetURL, mode, opts.ProbeCache)
-		},
-	},
-	"http_headers_scheme": {
-		Name: "http_headers_scheme",
-		GenerateJobs: func(targetURL string, mode string, opts *ScannerOpts) []payload.PayloadJob {
-			return payload.GenerateHeaderSchemeJobs(targetURL, mode)
-		},
-	},
-	"http_headers_port": {
-		Name: "http_headers_port",
-		GenerateJobs: func(targetURL string, mode string, opts *ScannerOpts) []payload.PayloadJob {
-			return payload.GenerateHeaderPortJobs(targetURL, mode)
-		},
-	},
-	"http_headers_url": {
-		Name: "http_headers_url",
-		GenerateJobs: func(targetURL string, mode string, opts *ScannerOpts) []payload.PayloadJob {
-			return payload.GenerateHeaderURLJobs(targetURL, mode)
-		},
-	},
+	"dumb_check":          NewBypassModule("dumb_check", nil), // logger will be set later
+	"mid_paths":           NewBypassModule("mid_paths", nil),
+	"end_paths":           NewBypassModule("end_paths", nil),
+	"http_headers_ip":     NewBypassModule("http_headers_ip", nil),
+	"case_substitution":   NewBypassModule("case_substitution", nil),
+	"char_encode":         NewBypassModule("char_encode", nil),
+	"http_host":           NewBypassModule("http_host", nil),
+	"http_headers_scheme": NewBypassModule("http_headers_scheme", nil),
+	"http_headers_port":   NewBypassModule("http_headers_port", nil),
+	"http_headers_url":    NewBypassModule("http_headers_url", nil),
+}
+
+// Registry of all bypass modules
+func InitializeBypassModules(logger GB403Logger.ILogger) {
+	for _, module := range bypassModules {
+		module.logger = logger
+		module.payloadGen = payload.NewPayloadGenerator(logger)
+
+		switch module.Name {
+		case "dumb_check":
+			module.GenerateJobs = func(targetURL string, mode string, opts *ScannerOpts) []payload.PayloadJob {
+				return module.payloadGen.GenerateDumbJob(targetURL, mode)
+			}
+		case "mid_paths":
+			module.GenerateJobs = func(targetURL string, mode string, opts *ScannerOpts) []payload.PayloadJob {
+				return module.payloadGen.GenerateMidPathsJobs(targetURL, mode)
+			}
+		case "end_paths":
+			module.GenerateJobs = func(targetURL string, mode string, opts *ScannerOpts) []payload.PayloadJob {
+				return module.payloadGen.GenerateEndPathsJobs(targetURL, mode)
+			}
+		case "http_headers_ip":
+			module.GenerateJobs = func(targetURL string, mode string, opts *ScannerOpts) []payload.PayloadJob {
+				return module.payloadGen.GenerateHeaderIPJobs(targetURL, mode, opts.SpoofHeader, opts.SpoofIP)
+			}
+		case "case_substitution":
+			module.GenerateJobs = func(targetURL string, mode string, opts *ScannerOpts) []payload.PayloadJob {
+				return module.payloadGen.GenerateCaseSubstitutionJobs(targetURL, mode)
+			}
+		case "char_encode":
+			module.GenerateJobs = func(targetURL string, mode string, opts *ScannerOpts) []payload.PayloadJob {
+				return module.payloadGen.GenerateCharEncodeJobs(targetURL, mode)
+			}
+		case "http_host":
+			module.GenerateJobs = func(targetURL string, mode string, opts *ScannerOpts) []payload.PayloadJob {
+				return module.payloadGen.GenerateHostHeaderJobs(targetURL, mode, opts.ProbeCache)
+			}
+		case "http_headers_scheme":
+			module.GenerateJobs = func(targetURL string, mode string, opts *ScannerOpts) []payload.PayloadJob {
+				return module.payloadGen.GenerateHeaderSchemeJobs(targetURL, mode)
+			}
+		case "http_headers_port":
+			module.GenerateJobs = func(targetURL string, mode string, opts *ScannerOpts) []payload.PayloadJob {
+				return module.payloadGen.GenerateHeaderPortJobs(targetURL, mode)
+			}
+		case "http_headers_url":
+			module.GenerateJobs = func(targetURL string, mode string, opts *ScannerOpts) []payload.PayloadJob {
+				return module.payloadGen.GenerateHeaderURLJobs(targetURL, mode)
+			}
+		}
+	}
 }
 
 type WorkerContext struct {
@@ -98,12 +100,11 @@ type WorkerContext struct {
 	wg          *sync.WaitGroup
 	once        sync.Once
 	opts        *ScannerOpts
-	logger      *GB403Logger.ILogger
 	requestPool *rawhttp.RequestPool
 	workerCount int32
 }
 
-func NewWorkerContext(mode string, total int, targetURL string, opts *ScannerOpts, errorHandler *GB403ErrorHandler.ErrorHandler, progress *ProgressCounter) *WorkerContext {
+func NewWorkerContext(mode string, total int, targetURL string, opts *ScannerOpts, errorHandler *GB403ErrorHandler.ErrorHandler, progress *ProgressCounter, logger GB403Logger.ILogger) *WorkerContext {
 	clientOpts := rawhttp.DefaultOptionsSameHost()
 
 	// Override specific settings from user options
@@ -119,7 +120,6 @@ func NewWorkerContext(mode string, total int, targetURL string, opts *ScannerOpt
 		wg:       &sync.WaitGroup{},
 		once:     sync.Once{},
 		opts:     opts,
-		logger:   logger,
 		requestPool: rawhttp.NewRequestPool(clientOpts, &rawhttp.ScannerCliOpts{
 			MatchStatusCodes:        opts.MatchStatusCodes,
 			ResponseBodyPreviewSize: opts.ResponseBodyPreviewSize,
@@ -207,7 +207,7 @@ func (s *Scanner) runBypassForMode(bypassModule string, targetURL string, result
 	s.progress.StartModule(bypassModule, len(allJobs), targetURL)
 	lastStatsUpdate := time.Now()
 
-	ctx := NewWorkerContext(bypassModule, len(allJobs), targetURL, s.config, s.errorHandler, s.progress)
+	ctx := NewWorkerContext(bypassModule, len(allJobs), targetURL, s.config, s.errorHandler, s.progress, s.logger)
 	defer func() {
 		// Let the request pool finish and get final worker count
 		finalWorkerCount := ctx.requestPool.ActiveWorkers()

@@ -23,7 +23,7 @@ type RequestPool struct {
 	payloadQueue chan payload.PayloadJob
 	results      chan *RawHTTPResponseDetails
 	scanOpts     *ScannerCliOpts
-	logger       *GB403Logger.Logger
+	logger       GB403Logger.ILogger
 	errorHandler *GB403ErrorHandler.ErrorHandler
 	closeMu      sync.Once
 }
@@ -46,7 +46,7 @@ type requestWorker struct {
 	lastUsed     time.Time
 	builder      *RequestBuilder
 	scanOpts     *ScannerCliOpts
-	logger       *GB403Logger.Logger
+	logger       GB403Logger.ILogger
 	errorHandler *GB403ErrorHandler.ErrorHandler
 	pool         *requestWorkerPool
 }
@@ -58,7 +58,7 @@ type ProgressTracker interface {
 // RequestBuilder handles the lifecycle of fasthttp requests
 type RequestBuilder struct {
 	client *HttpClient
-	logger *GB403Logger.Logger
+	logger GB403Logger.ILogger
 }
 
 // ScannerCliOpts reference the cli options
@@ -84,7 +84,7 @@ type RawHTTPResponseDetails struct {
 	Title           []byte
 }
 
-func NewRequestPool(clientOpts *ClientOptions, scanOpts *ScannerCliOpts, errorHandler *GB403ErrorHandler.ErrorHandler, logger *GB403Logger.Logger) *RequestPool {
+func NewRequestPool(clientOpts *ClientOptions, scanOpts *ScannerCliOpts, errorHandler *GB403ErrorHandler.ErrorHandler, logger GB403Logger.ILogger) *RequestPool {
 	if clientOpts == nil {
 		clientOpts = DefaultOptionsSameHost()
 	}
@@ -152,7 +152,7 @@ func (p *requestWorkerPool) getStats() (active int32, queued int32) {
 }
 
 // RequestBuilder handles request construction
-func NewRequestBuilder(client *HttpClient, logger *GB403Logger.Logger) *RequestBuilder {
+func NewRequestBuilder(client *HttpClient, logger GB403Logger.ILogger) *RequestBuilder {
 	return &RequestBuilder{
 		client: client,
 		logger: logger,

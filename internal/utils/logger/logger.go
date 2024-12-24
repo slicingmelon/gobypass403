@@ -22,6 +22,12 @@ type ILogger interface {
 
 	PrintYellow(format string, args ...interface{})
 	PrintGreen(format string, args ...interface{})
+	PrintOrange(format string, args ...interface{})
+	PrintCyan(format string, args ...interface{})
+	PrintTeal(format string, args ...interface{})
+	PrintPurple(format string, args ...interface{})
+	PrintGray(format string, args ...interface{})
+	PrintPink(format string, args ...interface{})
 }
 
 type Logger struct {
@@ -147,6 +153,14 @@ func (l *Logger) PrintCyan(format string, args ...interface{}) {
 
 func (l *Logger) PrintTeal(format string, args ...interface{}) {
 	l.print(l.stdout, text.FgHiCyan, format, args...)
+}
+
+func (l *Logger) PrintGray(format string, args ...interface{}) {
+	l.print(l.stdout, text.FgHiBlack, format, args...)
+}
+
+func (l *Logger) PrintPink(format string, args ...interface{}) {
+	l.print(l.stdout, text.FgHiMagenta, format, args...)
 }
 
 // String color helpers

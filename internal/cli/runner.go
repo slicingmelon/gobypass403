@@ -37,19 +37,11 @@ func (r *Runner) Initialize() error {
 		r.logger.EnableDebug()
 	}
 
-	// Step 2: Initialize URL Processor
-	// Initialize URL processor with logger
+	// Step 2: Initialize URL Processor and process (recon) URLs
 	r.urlProcessor = NewURLProcessor(r.options, r.logger)
 	urls, err := r.urlProcessor.ProcessURLs()
 	if err != nil {
 		return fmt.Errorf("failed to process URLs: %w", err)
-	}
-	r.urls = urls
-
-	// Step 3: Process and validate URLs
-	urls, err = r.urlProcessor.ProcessURLs()
-	if err != nil {
-		return err
 	}
 	r.urls = urls
 
