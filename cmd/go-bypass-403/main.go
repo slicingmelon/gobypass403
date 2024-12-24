@@ -14,7 +14,7 @@ func main() {
 	logger.LogInfo("Initializing go-bypass-403...")
 
 	// Initialize payloads first
-	if err := payload.InitializePayloadsDir(); err != nil {
+	if err := payload.InitializePayloadsDir(logger); err != nil {
 		logger.LogError("Failed to initialize payloads: %v", err)
 		os.Exit(1)
 	}

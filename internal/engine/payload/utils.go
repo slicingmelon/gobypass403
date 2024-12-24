@@ -6,6 +6,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	GB403Logger "github.com/slicingmelon/go-bypass-403/internal/utils/logger"
 )
 
 var (
@@ -54,7 +56,7 @@ func GetPayloadsDir() (string, error) {
 }
 
 // InitializePayloadsDir ensures all payload files exist in the user's config directory
-func InitializePayloadsDir() error {
+func InitializePayloadsDir(logger GB403Logger.ILogger) error {
 	toolDir, err := GetToolDir()
 	if err != nil {
 		return fmt.Errorf("failed to get tool directory: %w", err)
@@ -94,7 +96,7 @@ func InitializePayloadsDir() error {
 }
 
 // UpdatePayloads forcefully updates all payload files
-func UpdatePayloads() error {
+func UpdatePayloads(logger GB403Logger.ILogger) error {
 	payloadsDir, err := GetPayloadsDir()
 	if err != nil {
 		return fmt.Errorf("failed to get payloads directory: %w", err)
@@ -138,9 +140,9 @@ func CopyPayloadFile(src, dst string) error {
 }
 
 // ReadPayloadsFromFile reads all payloads from the specified file
-func ReadPayloadsFromFile(filename string) ([]string, error) {
+func ReadPayloadsFromFile(filename string, logger GB403Logger.ILogger) ([]string, error) {
 	// Try reading from local directory first
-	payloads, err := ReadMaxPayloadsFromFile(filename, -1)
+	payloads, err := ReadMaxPayloadsFromFile(filename, -1, logger)
 	if err == nil {
 		return payloads, nil
 	}
@@ -170,7 +172,7 @@ func ReadPayloadsFromFile(filename string) ([]string, error) {
 
 // ReadMaxPayloadsFromFile reads up to maxNum payloads from the specified file
 // -1 means all payloads (lines)
-func ReadMaxPayloadsFromFile(filename string, maxNum int) ([]string, error) {
+func ReadMaxPayloadsFromFile(filename string, maxNum int, logger GB403Logger.ILogger) ([]string, error) {
 	payloadsDir, err := GetPayloadsDir()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get payloads directory: %w", err)
