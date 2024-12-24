@@ -33,7 +33,7 @@ func NewProgressCounter() *ProgressCounter {
 	pw.SetUpdateFrequency(100 * time.Millisecond)
 	pw.SetTrackerLength(45)
 	pw.SetMessageLength(45)
-	pw.SetAutoStop(true)
+	pw.SetAutoStop(false)
 	pw.SetSortBy(progress.SortByPercentDsc)
 	style := progress.StyleBlocks
 	style.Colors = progress.StyleColors{

@@ -21,11 +21,11 @@ var (
 	flagNumTrackers        = flag.Int("num-trackers", 13, "Number of Trackers")
 	flagShowSpeed          = flag.Bool("show-speed", false, "Show the tracker speed?")
 	flagShowSpeedOverall   = flag.Bool("show-speed-overall", false, "Show the overall tracker speed?")
-	flagShowPinned         = flag.Bool("show-pinned", false, "Show a pinned message?")
+	flagShowPinned         = flag.Bool("show-pinned", true, "Show a pinned message?")
 	flagRandomFail         = flag.Bool("rnd-fail", false, "Introduce random failures in tracking")
 	flagRandomDefer        = flag.Bool("rnd-defer", false, "Introduce random deferred starts")
 	flagRandomRemove       = flag.Bool("rnd-remove", false, "Introduce random remove of trackers on completion")
-	flagRandomLogs         = flag.Bool("rnd-logs", false, "Output random logs in the middle of tracking")
+	flagRandomLogs         = flag.Bool("rnd-logs", true, "Output random logs in the middle of tracking")
 
 	messageColors = []text.Color{
 		text.FgRed,
@@ -103,7 +103,7 @@ func TestProgressCounterDemoVariant(t *testing.T) {
 		time.Sleep(time.Millisecond * 100)
 	}
 
-	fmt.Println("\nAll done!")
+	fmt.Println("All done!")
 	// Output: All Done!
 	// Tracking Progress of 13 trackers ...
 	// All done!

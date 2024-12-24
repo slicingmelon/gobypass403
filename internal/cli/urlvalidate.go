@@ -6,31 +6,31 @@ import (
 	"os"
 	"strings"
 
-	"github.com/slicingmelon/go-bypass-403/internal/engine/probe"
+	"github.com/slicingmelon/go-bypass-403/internal/engine/recon"
 	GB403Logger "github.com/slicingmelon/go-bypass-403/internal/utils/logger"
 	"github.com/slicingmelon/go-rawurlparser"
 )
 
 // URLProcessor handles URL processing and validation
-type URLProcessor struct {
+type URLRecon struct {
 	opts         *Options
-	probeService *probe.ProbeService
-	probeCache   probe.Cache
+	reconService *recon.ReconService
+	reconCache   recon.Cache
 	logger       GB403Logger.ILogger
 }
 
-func NewURLProcessor(opts *Options, logger GB403Logger.ILogger) *URLProcessor {
-	probeService := probe.NewProbeService()
-	return &URLProcessor{
+func NewURLRecon(opts *Options, logger GB403Logger.ILogger) *URLRecon {
+	reconService := recon.NewReconService()
+	return &URLRecon{
 		opts:         opts,
-		probeService: probeService,
-		probeCache:   probeService.GetCache(),
+		reconService: reconService,
+		reconCache:   reconService.GetCache(),
 		logger:       logger,
 	}
 }
 
 // ProcessURLs handles URL collection and probing
-func (p *URLProcessor) ProcessURLs() ([]string, error) {
+func (p *URLRecon) ProcessURLs() ([]string, error) {
 	// Collect URLs from input sources
 	urls, err := p.collectURLs()
 	if err != nil {
@@ -39,7 +39,7 @@ func (p *URLProcessor) ProcessURLs() ([]string, error) {
 
 	// Probe collected URLs
 	p.logger.LogInfo("Starting URL validation for %d URLs", len(urls))
-	if err := p.probeService.FastProbeURLs(urls); err != nil {
+	if err := p.reconService.Run(urls); err != nil {
 		return nil, fmt.Errorf("error during URL probing: %v", err)
 	}
 
@@ -47,7 +47,7 @@ func (p *URLProcessor) ProcessURLs() ([]string, error) {
 }
 
 // collectURLs gathers URLs from all configured sources
-func (p *URLProcessor) collectURLs() ([]string, error) {
+func (p *URLRecon) collectURLs() ([]string, error) {
 	var urls []string
 	var err error
 
@@ -75,7 +75,7 @@ func (p *URLProcessor) collectURLs() ([]string, error) {
 }
 
 // readURLsFromFile reads URLs from the specified file
-func (p *URLProcessor) readURLsFromFile() ([]string, error) {
+func (p *URLRecon) readURLsFromFile() ([]string, error) {
 	content, err := os.ReadFile(p.opts.URLsFile)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read URLs file: %v", err)
