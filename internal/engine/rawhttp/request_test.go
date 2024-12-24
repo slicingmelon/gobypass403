@@ -88,27 +88,31 @@ func TestRequestBuilderViaEchoServer(t *testing.T) {
 		name         string
 		targetURL    string
 		bypassModule string
-		generator    func(string, string) []payload.PayloadJob
+		generator    func(pg *payload.PayloadGenerator, url, module string) []payload.PayloadJob
 	}{
 		{
 			name:         "HeaderIP Payloads",
 			targetURL:    "http://example.com/test",
 			bypassModule: "http_headers_ip",
-			generator: func(url, module string) []payload.PayloadJob {
-				return payload.GenerateHeaderIPJobs(url, module, "", "")
+			generator: func(pg *payload.PayloadGenerator, url, module string) []payload.PayloadJob {
+				return pg.GenerateHeaderIPJobs(url, module, "", "")
 			},
 		},
 		{
 			name:         "MidPaths Payloads",
 			targetURL:    "http://example.com/test/path",
 			bypassModule: "mid_paths",
-			generator:    payload.GenerateMidPathsJobs,
+			generator: func(pg *payload.PayloadGenerator, url, module string) []payload.PayloadJob {
+				return pg.GenerateMidPathsJobs(url, module)
+			},
 		},
 		{
 			name:         "HeaderScheme Payloads",
 			targetURL:    "http://example.com/admin",
 			bypassModule: "header_scheme",
-			generator:    payload.GenerateHeaderSchemeJobs,
+			generator: func(pg *payload.PayloadGenerator, url, module string) []payload.PayloadJob {
+				return pg.GenerateHeaderSchemeJobs(url, module)
+			},
 		},
 	}
 
@@ -121,7 +125,8 @@ func TestRequestBuilderViaEchoServer(t *testing.T) {
 			default:
 			}
 
-			jobs := tc.generator(tc.targetURL, tc.bypassModule)
+			pg := payload.NewPayloadGenerator(_logger)
+			jobs := tc.generator(pg, tc.targetURL, tc.bypassModule)
 			if len(jobs) == 0 {
 				t.Fatalf("No payloads generated for %s", tc.name)
 			}
@@ -258,13 +263,15 @@ func TestRequestBuilderMidPathsPayloads(t *testing.T) {
 		name         string
 		targetURL    string
 		bypassModule string
-		generator    func(string, string) []payload.PayloadJob
+		generator    func(pg *payload.PayloadGenerator, url, module string) []payload.PayloadJob
 	}{
 		{
 			name:         "MidPaths Payloads",
 			targetURL:    "http://example.com/admin",
 			bypassModule: "mid_paths",
-			generator:    payload.GenerateMidPathsJobs,
+			generator: func(pg *payload.PayloadGenerator, url, module string) []payload.PayloadJob {
+				return pg.GenerateMidPathsJobs(url, module)
+			},
 		},
 	}
 
@@ -277,7 +284,8 @@ func TestRequestBuilderMidPathsPayloads(t *testing.T) {
 			default:
 			}
 
-			jobs := tc.generator(tc.targetURL, tc.bypassModule)
+			pg := payload.NewPayloadGenerator(_logger)
+			jobs := tc.generator(pg, tc.targetURL, tc.bypassModule)
 			if len(jobs) == 0 {
 				t.Fatalf("No payloads generated for %s", tc.name)
 			}

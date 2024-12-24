@@ -2,14 +2,20 @@ package payload
 
 import (
 	"testing"
+
+	GB403Logger "github.com/slicingmelon/go-bypass-403/internal/utils/logger"
 )
 
 func TestGenerateHeaderIPJobs_RequestFormat(t *testing.T) {
 	targetURL := "https://www.example.com/admin"
 	bypassModule := "header_ip"
+	logger := GB403Logger.NewLogger()
+
+	// Create PayloadGenerator instance
+	pg := NewPayloadGenerator(logger)
 
 	// Generate sample jobs
-	jobs := GenerateHeaderIPJobs(targetURL, bypassModule, "", "")
+	jobs := pg.GenerateHeaderIPJobs(targetURL, bypassModule, "", "")
 
 	// Print a few sample jobs to demonstrate the structure
 	t.Log("\nSample PayloadJobs generated for:", targetURL)
@@ -75,9 +81,13 @@ func TestGenerateHeaderIPJobs_RequestFormat(t *testing.T) {
 func TestGenerateHeaderIPJobs_RequestFormatAllJobs(t *testing.T) {
 	targetURL := "https://www.example.com/admin"
 	bypassModule := "header_ip"
+	logger := GB403Logger.NewLogger()
+
+	// Create PayloadGenerator instance
+	pg := NewPayloadGenerator(logger)
 
 	// Generate all jobs
-	jobs := GenerateHeaderIPJobs(targetURL, bypassModule, "", "")
+	jobs := pg.GenerateHeaderIPJobs(targetURL, bypassModule, "", "")
 
 	t.Logf("\nAll PayloadJobs generated for: %s", targetURL)
 	t.Logf("Total jobs generated: %d\n", len(jobs))

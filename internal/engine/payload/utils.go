@@ -11,6 +11,8 @@ import (
 )
 
 var (
+	internalLogger GB403Logger.ILogger
+
 	charsetTable = func() [62]byte {
 		// Initialize with 62 chars (26 lowercase + 26 uppercase + 10 digits)
 		var table [62]byte
@@ -96,7 +98,7 @@ func InitializePayloadsDir(logger GB403Logger.ILogger) error {
 }
 
 // UpdatePayloads forcefully updates all payload files
-func UpdatePayloads(logger GB403Logger.ILogger) error {
+func UpdatePayloads() error {
 	payloadsDir, err := GetPayloadsDir()
 	if err != nil {
 		return fmt.Errorf("failed to get payloads directory: %w", err)
@@ -122,7 +124,7 @@ func UpdatePayloads(logger GB403Logger.ILogger) error {
 		if err := os.WriteFile(dstPath, data, 0644); err != nil {
 			return fmt.Errorf("failed to write file %s: %w", dstPath, err)
 		}
-		logger.LogInfo("Updated payload file: %s", dstPath)
+		internalLogger.LogInfo("Updated payload file: %s", dstPath)
 	}
 	return nil
 }
@@ -140,9 +142,9 @@ func CopyPayloadFile(src, dst string) error {
 }
 
 // ReadPayloadsFromFile reads all payloads from the specified file
-func ReadPayloadsFromFile(filename string, logger GB403Logger.ILogger) ([]string, error) {
+func ReadPayloadsFromFile(filename string) ([]string, error) {
 	// Try reading from local directory first
-	payloads, err := ReadMaxPayloadsFromFile(filename, -1, logger)
+	payloads, err := ReadMaxPayloadsFromFile(filename, -1)
 	if err == nil {
 		return payloads, nil
 	}
@@ -157,7 +159,7 @@ func ReadPayloadsFromFile(filename string, logger GB403Logger.ILogger) ([]string
 	var embeddedPayloads []string
 	lines := strings.Split(text, "\n")
 
-	logger.LogVerbose("Read %d raw lines from embedded payload file", len(lines))
+	internalLogger.LogVerbose("Read %d raw lines from embedded payload file", len(lines))
 
 	for _, line := range lines {
 		line = strings.TrimSpace(line)
@@ -166,13 +168,13 @@ func ReadPayloadsFromFile(filename string, logger GB403Logger.ILogger) ([]string
 		}
 	}
 
-	logger.LogVerbose("Processed %d valid payloads", len(embeddedPayloads))
+	internalLogger.LogVerbose("Processed %d valid payloads", len(embeddedPayloads))
 	return embeddedPayloads, nil
 }
 
 // ReadMaxPayloadsFromFile reads up to maxNum payloads from the specified file
 // -1 means all payloads (lines)
-func ReadMaxPayloadsFromFile(filename string, maxNum int, logger GB403Logger.ILogger) ([]string, error) {
+func ReadMaxPayloadsFromFile(filename string, maxNum int) ([]string, error) {
 	payloadsDir, err := GetPayloadsDir()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get payloads directory: %w", err)
@@ -188,7 +190,7 @@ func ReadMaxPayloadsFromFile(filename string, maxNum int, logger GB403Logger.ILo
 	var payloads []string
 	lines := strings.Split(text, "\n")
 
-	logger.LogVerbose("Read %d raw lines from payload file", len(lines))
+	internalLogger.LogVerbose("Read %d raw lines from payload file", len(lines))
 
 	for i, line := range lines {
 		if maxNum != -1 && i >= maxNum {
@@ -200,7 +202,7 @@ func ReadMaxPayloadsFromFile(filename string, maxNum int, logger GB403Logger.ILo
 		}
 	}
 
-	logger.LogVerbose("Processed %d valid payloads", len(payloads))
+	internalLogger.LogVerbose("Processed %d valid payloads", len(payloads))
 	return payloads, nil
 }
 
