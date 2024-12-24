@@ -71,161 +71,88 @@ func (s *ReconService) Run(urls []string) error {
 	var wg sync.WaitGroup
 	sem := make(chan struct{}, 10)
 
+	// Track unique hosts to avoid duplicate scans
+	uniqueHosts := make(map[string]bool)
+
 	for _, rawURL := range urls {
+		parsedURL, err := rawurlparser.RawURLParse(rawURL)
+		if err != nil {
+			s.logger.LogError("Failed to parse URL %s: %v", rawURL, err)
+			continue
+		}
+
+		// Skip if we've already processed this host
+		if uniqueHosts[parsedURL.Host] {
+			continue
+		}
+		uniqueHosts[parsedURL.Host] = true
+
 		wg.Add(1)
-		go func(url string) {
+		go func(url string, host string) {
 			defer wg.Done()
 			sem <- struct{}{}
 			defer func() { <-sem }()
 
-			parsedURL, err := rawurlparser.RawURLParse(url)
-			if err != nil {
-				s.logger.LogError("Failed to parse URL %s: %v", url, err)
-				return
-			}
-
 			// Check if we already have this host in cache
-			existingResult, _ := s.cache.Get(parsedURL.Host)
+			existingResult, _ := s.cache.Get(host)
 			if existingResult == nil {
 				existingResult = &ReconResult{
-					Hostname:     parsedURL.Host,
+					Hostname:     host,
 					IPv4Services: make(map[string]map[string][]string),
 					IPv6Services: make(map[string]map[string][]string),
 				}
 			}
 
-			result := &ReconResult{
-				Hostname:     parsedURL.Host,
-				IPv4Services: make(map[string]map[string][]string),
-				IPv6Services: make(map[string]map[string][]string),
+			// Resolve IPs only once per host
+			ips, err := s.resolveHost(host)
+			if err != nil {
+				s.logger.LogError("Failed to resolve host %s: %v", host, err)
+				return
 			}
 
-			// Check if the host is an IP address
-			ipBytes := []byte(parsedURL.Host)
-			ip := make(net.IP, net.IPv4len)
-			ip, err = fasthttp.ParseIPv4(ip, ipBytes)
-			if err == nil {
-				// IPv4 address
-				result.IPv4Services["http"] = make(map[string][]string)
-				result.IPv6Services["https"] = make(map[string][]string)
-				ipStr := ip.String()
-				portsToCheck := []string{"80", "443"}
-				if parsedURL.Port() != "" {
-					portsToCheck = append(portsToCheck, parsedURL.Port())
-				}
+			// Initialize service maps if needed
+			if existingResult.IPv4Services == nil {
+				existingResult.IPv4Services = make(map[string]map[string][]string)
+			}
+			if existingResult.IPv6Services == nil {
+				existingResult.IPv6Services = make(map[string]map[string][]string)
+			}
 
+			// Check ports only for the resolved IPs
+			portsToCheck := []string{"80", "443"}
+			if parsedURL.Port() != "" {
+				portsToCheck = append(portsToCheck, parsedURL.Port())
+			}
+
+			// Process IPv4
+			for _, ip := range ips.IPv4 {
 				for _, port := range portsToCheck {
-					if scheme := s.probePort(ipStr, port); scheme != "" {
-						if result.IPv4Services[scheme] == nil {
-							result.IPv4Services[scheme] = make(map[string][]string)
+					if scheme := s.probePort(ip, port); scheme != "" {
+						if existingResult.IPv4Services[scheme] == nil {
+							existingResult.IPv4Services[scheme] = make(map[string][]string)
 						}
-						result.IPv4Services[scheme][ipStr] = append(result.IPv4Services[scheme][ipStr], port)
-					}
-				}
-			} else {
-				// Try IPv6 or hostname
-				ip := net.ParseIP(parsedURL.Host)
-				if ip != nil && ip.To4() == nil {
-					// IPv6 address
-					result.IPv6Services["http"] = make(map[string][]string)
-					result.IPv6Services["https"] = make(map[string][]string)
-					ipStr := ip.String()
-					portsToCheck := []string{"80", "443"}
-					if parsedURL.Port() != "" {
-						portsToCheck = append(portsToCheck, parsedURL.Port())
-					}
-
-					for _, port := range portsToCheck {
-						if scheme := s.probePort(ipStr, port); scheme != "" {
-							if result.IPv6Services[scheme] == nil {
-								result.IPv6Services[scheme] = make(map[string][]string)
-							}
-							result.IPv6Services[scheme][ipStr] = append(result.IPv6Services[scheme][ipStr], port)
-						}
-					}
-				} else {
-					// Regular hostname handling (existing code)
-					ips, err := s.resolveHost(parsedURL.Host)
-					if err != nil {
-						s.logger.LogError("Failed to resolve %s: %v", parsedURL.Host, err)
-						return
-					}
-					result.CNAMEs = ips.CNAMEs
-
-					// Initialize maps for both schemes
-					result.IPv4Services["http"] = make(map[string][]string)
-					result.IPv4Services["https"] = make(map[string][]string)
-					result.IPv6Services["http"] = make(map[string][]string)
-					result.IPv6Services["https"] = make(map[string][]string)
-
-					portsToCheck := []string{"80", "443"}
-					if parsedURL.Port() != "" {
-						portsToCheck = append(portsToCheck, parsedURL.Port())
-					}
-
-					// Check IPv4
-					for _, ip := range ips.IPv4 {
-						for _, port := range portsToCheck {
-							if scheme := s.probePort(ip, port); scheme != "" {
-								if result.IPv4Services[scheme] == nil {
-									result.IPv4Services[scheme] = make(map[string][]string)
-								}
-								result.IPv4Services[scheme][ip] = append(result.IPv4Services[scheme][ip], port)
-							}
-						}
-					}
-
-					// Check IPv6
-					for _, ip := range ips.IPv6 {
-						for _, port := range portsToCheck {
-							if scheme := s.probePort(ip, port); scheme != "" {
-								if result.IPv6Services[scheme] == nil {
-									result.IPv6Services[scheme] = make(map[string][]string)
-								}
-								result.IPv6Services[scheme][ip] = append(result.IPv6Services[scheme][ip], port)
-							}
-						}
+						existingResult.IPv4Services[scheme][ip] = append(existingResult.IPv4Services[scheme][ip], port)
 					}
 				}
 			}
 
-			// Same for IPv4
-			for scheme, ips := range result.IPv4Services {
-				for ip, ports := range ips {
-					if existingResult.IPv4Services[scheme] == nil {
-						existingResult.IPv4Services[scheme] = make(map[string][]string)
-					}
-					// Merge ports without duplicates
-					existingPorts := existingResult.IPv4Services[scheme][ip]
-					for _, port := range ports {
-						if !contains(existingPorts, port) {
-							existingPorts = append(existingPorts, port)
+			// Process IPv6
+			for _, ip := range ips.IPv6 {
+				for _, port := range portsToCheck {
+					if scheme := s.probePort(ip, port); scheme != "" {
+						if existingResult.IPv6Services[scheme] == nil {
+							existingResult.IPv6Services[scheme] = make(map[string][]string)
 						}
+						existingResult.IPv6Services[scheme][ip] = append(existingResult.IPv6Services[scheme][ip], port)
 					}
-					existingResult.IPv4Services[scheme][ip] = existingPorts
 				}
 			}
 
-			// Same for IPv6
-			for scheme, ips := range result.IPv6Services {
-				for ip, ports := range ips {
-					if existingResult.IPv6Services[scheme] == nil {
-						existingResult.IPv6Services[scheme] = make(map[string][]string)
-					}
-					existingPorts := existingResult.IPv6Services[scheme][ip]
-					for _, port := range ports {
-						if !contains(existingPorts, port) {
-							existingPorts = append(existingPorts, port)
-						}
-					}
-					existingResult.IPv6Services[scheme][ip] = existingPorts
-				}
+			// Update cache
+			if err := s.cache.Set(host, existingResult); err != nil {
+				s.logger.LogError("Failed to cache results for %s: %v", host, err)
 			}
-
-			if err := s.cache.Set(parsedURL.Host, existingResult); err != nil {
-				s.logger.LogError("Failed to cache results for %s: %v", parsedURL.Host, err)
-			}
-		}(rawURL)
+		}(rawURL, parsedURL.Host)
 	}
 
 	wg.Wait()
