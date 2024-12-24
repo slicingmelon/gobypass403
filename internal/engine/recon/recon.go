@@ -15,7 +15,7 @@ import (
 
 type ReconService struct {
 	cache  *ReconCache
-	logger *GB403Logger.Logger
+	logger GB403Logger.ILogger
 	dialer *fasthttp.TCPDialer
 }
 
@@ -32,7 +32,11 @@ type IPAddrs struct {
 	CNAMEs []string
 }
 
-func NewReconService() *ReconService {
+func NewReconService(logger GB403Logger.ILogger) *ReconService {
+	if logger == nil {
+		logger = GB403Logger.NewLogger()
+	}
+
 	dialer := &fasthttp.TCPDialer{
 		Resolver: &net.Resolver{
 			PreferGo: true,
@@ -63,7 +67,7 @@ func NewReconService() *ReconService {
 
 	return &ReconService{
 		cache:  NewReconCache(),
-		logger: GB403Logger.NewLogger(),
+		logger: logger,
 		dialer: dialer,
 	}
 }
@@ -120,11 +124,16 @@ func (s *ReconService) handleIP(ip string) {
 	services := result.IPv4Services
 	if strings.Contains(ip, ":") {
 		services = result.IPv6Services
+		s.logger.LogVerbose("Handling IPv6: %s", ip)
+	} else {
+		s.logger.LogVerbose("Handling IPv4: %s", ip)
 	}
 
 	// Just check 80/443 for web service
 	for _, port := range []string{"80", "443"} {
+		s.logger.LogVerbose("Probing %s:%s", ip, port)
 		if scheme := s.probePort(ip, port); scheme != "" {
+			s.logger.LogVerbose("Found open port %s:%s -> %s", ip, port, scheme)
 			if services[scheme] == nil {
 				services[scheme] = make(map[string][]string)
 			}
@@ -132,6 +141,8 @@ func (s *ReconService) handleIP(ip string) {
 		}
 	}
 
+	s.logger.LogVerbose("Caching result for %s: IPv4=%v, IPv6=%v",
+		ip, result.IPv4Services, result.IPv6Services)
 	s.cache.Set(ip, result)
 }
 
@@ -207,21 +218,25 @@ func (s *ReconService) resolveHost(hostname string) (*IPAddrs, error) {
 
 func (s *ReconService) probePort(host, port string) string {
 	addr := net.JoinHostPort(host, port)
+	s.logger.LogVerbose("Attempting to probe %s", addr)
 
-	// Use DialDualStack to attempt both IPv4 and IPv6
 	conn, err := s.dialer.DialDualStackTimeout(addr, 5*time.Second)
 	if err != nil {
 		s.logger.LogVerbose("Port %s closed for host %s: %v", port, host, err)
 		return ""
 	}
 	defer conn.Close()
+	s.logger.LogVerbose("Successfully connected to %s", addr)
 
 	switch port {
 	case "80":
+		s.logger.LogVerbose("Port 80 open on %s -> http", host)
 		return "http"
 	case "443":
+		s.logger.LogVerbose("Port 443 open on %s -> https", host)
 		return "https"
 	default:
+		s.logger.LogVerbose("Custom port %s open on %s, probing for HTTP/HTTPS", port, host)
 		// For custom ports, try HTTP first then HTTPS
 		req := fasthttp.AcquireRequest()
 		defer fasthttp.ReleaseRequest(req)

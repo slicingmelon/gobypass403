@@ -19,7 +19,7 @@ type URLRecon struct {
 }
 
 func NewURLRecon(opts *Options, logger GB403Logger.ILogger) *URLRecon {
-	reconService := recon.NewReconService()
+	reconService := recon.NewReconService(logger)
 	return &URLRecon{
 		opts:         opts,
 		reconService: reconService,
