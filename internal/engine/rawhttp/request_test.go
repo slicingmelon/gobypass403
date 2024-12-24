@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/slicingmelon/go-bypass-403/internal/engine/payload"
+	GB403ErrorHandler "github.com/slicingmelon/go-bypass-403/internal/utils/error"
 	GB403Logger "github.com/slicingmelon/go-bypass-403/internal/utils/logger"
 	"github.com/valyala/fasthttp"
 	"github.com/valyala/fasthttp/fasthttputil"
@@ -317,6 +318,84 @@ func TestRequestBuilderMidPathsPayloads(t *testing.T) {
 
 				_logger.PrintYellow("[GB403Logger] [X-GB403-Token: %s] Response received for: %s\n%s", job.PayloadToken, job.FullURL, resp.Body())
 			}
+		})
+	}
+}
+
+// ... existing imports ...
+
+func TestRequestBuilderHostHeaders(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping test in short mode")
+	}
+
+	clientOpts := &ClientOptions{
+		MaxConnsPerHost:     100,
+		MaxIdleConnDuration: 10 * time.Second,
+		MaxConnWaitTimeout:  30 * time.Second,
+		MaxResponseBodySize: 1024 * 1024 * 10,
+		ProxyURL:            "http://127.0.0.1:8080",
+	}
+
+	client := NewHTTPClient(clientOpts, GB403ErrorHandler.NewErrorHandler(15), _logger)
+	//rb := NewRequestBuilder(client, _logger)
+
+	testCases := []struct {
+		name string
+		url  string
+	}{
+		// {
+		// 	name: "Basic GET Request",
+		// 	url:  "http://httpbin.org/get",
+		// },
+		{
+			name: "HTTPS GET Request PH",
+			url:  "https://cms.pornhub.com",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			req := client.AcquireRequest()
+			resp := client.AcquireResponse()
+			defer client.ReleaseRequest(req)
+			defer client.ReleaseResponse(resp)
+
+			// Create minimal payload job with just Method and FullURL
+			job := payload.PayloadJob{
+				Method:  "GET",
+				Host:    "google.com",
+				FullURL: tc.url,
+				Headers: []payload.Header{
+					{Header: "Host", Value: "yahoo.com"},
+				},
+			}
+			req.UseHostHeader = false
+			req.Header.SetMethod(job.Method)
+			req.SetRequestURI(job.FullURL)
+			req.URI().DisablePathNormalizing = true
+			req.Header.DisableNormalizing()
+			req.Header.SetNoDefaultContentType(true)
+
+			for _, h := range job.Headers {
+				if h.Header == "Host" {
+					req.UseHostHeader = true
+					req.Header.Set(h.Header, h.Value)
+				}
+			}
+
+			_logger.PrintYellow("\n=== Sending Request ===")
+			_logger.PrintYellow("Test Case: %s", tc.name)
+			_logger.PrintYellow("Request URI: %s", req.URI().FullURI())
+			_logger.PrintYellow("===================\n")
+
+			if err := client.DoRaw(req, resp); err != nil {
+				t.Fatalf("Request failed: %v", err)
+			}
+
+			// Verify response
+			statusCode := resp.StatusCode()
+			_logger.PrintGreen("Response Status Code: %d", statusCode)
 		})
 	}
 }

@@ -29,25 +29,16 @@ func NewURLRecon(opts *Options, logger GB403Logger.ILogger) *URLRecon {
 
 // ProcessURLs handles URL collection and probing
 func (p *URLRecon) ProcessURLs() ([]string, error) {
-	// First, do recon on the substitute hosts if provided
-	if p.opts.SubstituteHostsFile != "" {
-		err := p.readAndReconHosts()
-		if err != nil {
-			return nil, err
-		}
-		p.logger.LogInfo("Completed reconnaissance for substitute hosts")
+	// First do recon to populate the cache
+	p.logger.LogInfo("Starting URL validation")
+	if err := p.reconService.Run([]string{p.opts.URL}); err != nil {
+		return nil, fmt.Errorf("error during URL probing: %v", err)
 	}
 
-	// Now collect URLs (which will use the populated cache)
+	// Then collect URLs using the populated cache
 	urls, err := p.collectURLs()
 	if err != nil {
 		return nil, err
-	}
-
-	// Finally do recon on the actual target URLs
-	p.logger.LogInfo("Starting URL validation for %d URLs", len(urls))
-	if err := p.reconService.Run(urls); err != nil {
-		return nil, fmt.Errorf("error during URL probing: %v", err)
 	}
 
 	return urls, nil
@@ -253,7 +244,6 @@ func (p *URLRecon) expandURLSchemes(targetURL string) ([]string, error) {
 	}
 	for scheme := range result.IPv6Services {
 		schemes[scheme] = true
-		p.logger.LogVerbose("Found IPv6 scheme: %s", scheme)
 	}
 
 	// Generate URLs for each unique scheme
@@ -264,9 +254,7 @@ func (p *URLRecon) expandURLSchemes(targetURL string) ([]string, error) {
 	}
 
 	for scheme := range schemes {
-		newURL := fmt.Sprintf("%s://%s%s", scheme, host, pathAndQuery)
-		p.logger.LogVerbose("Generated URL: %s", newURL)
-		urls = append(urls, newURL)
+		urls = append(urls, fmt.Sprintf("%s://%s%s", scheme, host, pathAndQuery))
 	}
 
 	return urls, nil

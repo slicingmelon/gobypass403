@@ -160,9 +160,23 @@ func NewRequestBuilder(client *HttpClient, logger GB403Logger.ILogger) *RequestB
 	}
 }
 
+// Request must contain at least non-zero RequestURI with full url (including
+// scheme and host) or non-zero Host header + RequestURI.
+//
+// Client determines the server to be requested in the following order:
+//
+//   - from RequestURI if it contains full url with scheme and host;
+//   - from Host header otherwise.
+//
+// The function doesn't follow redirects. Use Get* for following redirects.
+// Response is ignored if resp is nil.
+//
+// ErrNoFreeConns is returned if all DefaultMaxConnsPerHost connections
+// to the requested host are busy.
 // BuildRequest creates and configures a HTTP request from a bypass job (payload job)
 func (rb *RequestBuilder) BuildRequest(req *fasthttp.Request, job payload.PayloadJob) {
 	//req.Reset()
+	req.UseHostHeader = false
 	req.Header.SetMethod(job.Method)
 
 	// Set the raw URI for the first line of the request
@@ -173,23 +187,32 @@ func (rb *RequestBuilder) BuildRequest(req *fasthttp.Request, job payload.Payloa
 	req.Header.DisableNormalizing()
 	req.Header.SetNoDefaultContentType(true)
 
+	// !!Always close connection when custom headers are present
+	shouldCloseConn := len(job.Headers) > 0 ||
+		rb.client.options.DisableKeepAlive ||
+		rb.client.options.ProxyURL != ""
+
 	// Set headers directly
 	for _, h := range job.Headers {
+		if h.Header == "Host" {
+			req.UseHostHeader = true
+			shouldCloseConn = true
+		}
 		req.Header.Set(h.Header, h.Value)
 	}
 
 	// Set standard headers
 	req.Header.SetUserAgentBytes(CustomUserAgent)
 
-	if rb.client.logger.IsDebugEnabled() {
+	if rb.logger.IsDebugEnabled() {
 		req.Header.Set("X-GB403-Token", job.PayloadToken)
 	}
 
 	// Handle connection settings
-	if rb.client.options.ProxyURL != "" || rb.client.options.DisableKeepAlive {
+	if shouldCloseConn {
 		req.SetConnectionClose()
 	} else {
-		req.Header.Set("Connection", "keep-alive")
+		req.Header.Set("Connection", "Keep-Alive")
 	}
 }
 
@@ -261,6 +284,21 @@ func (p *RequestPool) ProcessRequests(jobs []payload.PayloadJob) <-chan *RawHTTP
 
 	return results
 }
+
+// To remember!
+// ErrNoFreeConns is returned when no free connections available
+// to the given host.
+//
+// Increase the allowed number of connections per host if you
+// see this error.
+//
+// ErrNoFreeConns ErrConnectionClosed may be returned from client methods if the server
+// closes connection before returning the first response byte.
+//
+// If you see this error, then either fix the server by returning
+// 'Connection: close' response header before closing the connection
+// or add 'Connection: close' request header before sending requests
+// to broken server.
 
 func (w *requestWorker) processRequestJob(job payload.PayloadJob) *RawHTTPResponseDetails {
 	atomic.AddInt32(&w.pool.activeWorkers, 1)
