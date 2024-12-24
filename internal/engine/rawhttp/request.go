@@ -212,7 +212,7 @@ func (rb *RequestBuilder) BuildRequest(req *fasthttp.Request, job payload.Payloa
 	if shouldCloseConn {
 		req.SetConnectionClose()
 	} else {
-		req.Header.Set("Connection", "Keep-Alive")
+		req.Header.Set("Connection", "keep-alive")
 	}
 }
 

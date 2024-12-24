@@ -83,50 +83,38 @@ func (s *Scanner) Run() error {
 
 func (s *Scanner) scanURL(url string) error {
 	resultsChannel := s.RunAllBypasses(url)
-	var findings []*Result
 
-	// Collect all results first
+	// Process results as they come in
+	var moduleFindings = make(map[string][]*Result)
+
 	for result := range resultsChannel {
 		if result != nil {
-			findings = append(findings, result)
+			// Group findings by module
+			moduleFindings[result.BypassModule] = append(moduleFindings[result.BypassModule], result)
+
+			// When we have all findings for a module, display them
+			if len(moduleFindings[result.BypassModule]) > 0 {
+				findings := moduleFindings[result.BypassModule]
+				// Sort findings by status code
+				sort.Slice(findings, func(i, j int) bool {
+					return findings[i].StatusCode < findings[j].StatusCode
+				})
+
+				fmt.Println()
+				PrintTableHeader(url)
+				PrintTableRow(findings)
+
+				// Save findings for this module
+				outputFile := filepath.Join(s.config.OutDir, "findings.json")
+				if err := AppendResultsToJSON(outputFile, url, result.BypassModule, findings); err != nil {
+					s.logger.LogError("Failed to save findings for %s: %v", url, err)
+				}
+
+				// Clear the findings for this module
+				delete(moduleFindings, result.BypassModule)
+			}
 		}
 	}
-
-	// Sort findings by module and status code for better presentation
-	sort.Slice(findings, func(i, j int) bool {
-		if findings[i].BypassModule != findings[j].BypassModule {
-			return findings[i].BypassModule < findings[j].BypassModule
-		}
-		return findings[i].StatusCode < findings[j].StatusCode
-	})
-
-	// Then process and display them
-	if len(findings) > 0 {
-		fmt.Println()
-		fmt.Println()
-		PrintTableHeader(url)
-		for _, re := range findings {
-			PrintTableRow(re)
-		}
-	}
-
-	fmt.Println()
-
-	outputFile := filepath.Join(s.config.OutDir, "findings.json")
-	if err := AppendResultsToJSON(outputFile, url, s.config.BypassModule, findings); err != nil {
-		if handleErr := s.errorHandler.HandleError(err, GB403ErrorHandler.ErrorContext{
-			TargetURL:    []byte(url),
-			ErrorSource:  []byte("Scanner.scanURL"),
-			BypassModule: []byte(s.config.BypassModule),
-		}); handleErr != nil {
-			return fmt.Errorf("failed to handle error (%v) while processing error: %w", handleErr, err)
-		}
-		return fmt.Errorf("failed to append results to JSON: %w", err)
-	}
-
-	// Add notification about where results were saved
-	fmt.Println()
-	s.logger.PrintOrange("Results saved to: %s\n", outputFile)
 
 	return nil
 }

@@ -11,6 +11,8 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/jedib0t/go-pretty/v6/table"
+	"github.com/jedib0t/go-pretty/v6/text"
 	GB403Logger "github.com/slicingmelon/go-bypass-403/internal/utils/logger"
 )
 
@@ -60,56 +62,140 @@ var logger = GB403Logger.NewLogger()
 
 // PrintTableHeader prints the header for results table
 func PrintTableHeader(targetURL string) {
+	// Title only
 	fmt.Println()
 	fmt.Println()
 	logger.PrintTeal("[##########] Results for ")
 	logger.PrintYellow(targetURL)
 	logger.PrintTeal(" [##########]")
+	fmt.Println()
+}
 
-	fmt.Printf("%s [%s] %s=> %s [%s] [%s] [%s] [%s] [%s]\n",
-		logger.BlueString("[bypass]"),
-		logger.YellowString("[curl poc]"),
-		strings.Repeat("=", 90),
-		logger.GreenString("[status]"),
-		logger.PurpleString("[content-length]"),
-		logger.OrangeString("[content-type]"),
-		logger.TealString("[title]"),
-		logger.GrayString("[server]"),
-		logger.PinkString("[redirect]"))
-
-	fmt.Println(strings.Repeat("-", 170))
+func formatValue(val string) string {
+	if val == "" {
+		return "[-]"
+	}
+	return val
 }
 
 // PrintTableRow prints a single result row
-func PrintTableRow(result *Result) {
-	formatValue := func(val string) string {
-		if val == "" {
-			return "[-]"
+func PrintTableRow(results []*Result) {
+	const rowsPerPage = 50
+	pages := (len(results) + rowsPerPage - 1) / rowsPerPage // Calculate total pages
+
+	for page := 0; page < pages; page++ {
+		start := page * rowsPerPage
+		end := start + rowsPerPage
+		if end > len(results) {
+			end = len(results)
 		}
-		return val
-	}
 
-	title := formatValue(result.Title)
-	if len(title) > 20 {
-		title = title[:14] + "..."
-	}
+		t := table.NewWriter()
+		t.SetOutputMirror(os.Stdout)
 
-	contentType := formatValue(result.ContentType)
-	if strings.Contains(contentType, ";") {
-		contentType = strings.TrimSpace(strings.Split(contentType, ";")[0])
-	}
+		// Configure columns
+		t.AppendHeader(table.Row{
+			"Module",
+			"Curl PoC",
+			"Status",
+			"Length",
+			"Type",
+			"Title",
+			"Server",
+			"Redirect",
+		})
 
-	// Format everything in a single line
-	fmt.Printf("%s [%s] %s=> %s [%s] [%s] [%s] [%s] [%s]\n",
-		logger.BlueString("[%s]", result.BypassModule),
-		logger.YellowString("%s", result.CurlPocCommand),
-		strings.Repeat("=", 5),
-		logger.GreenString("[%d]", result.StatusCode),
-		logger.PurpleString("[%s]", formatBytes(result.ContentLength)),
-		logger.OrangeString("[%s]", contentType),
-		logger.TealString("[%s]", title),
-		logger.GrayString("[%s]", formatValue(result.ServerInfo)),
-		logger.PinkString("[%s]", formatValue(result.RedirectURL)))
+		// Calculate max width for Curl PoC based on actual content
+		maxCurlWidth := 80 // default
+		for _, result := range results {
+			if len(result.CurlPocCommand) > maxCurlWidth {
+				maxCurlWidth = len(result.CurlPocCommand)
+			}
+		}
+
+		// Set column configs with dynamic width for Curl PoC
+		t.SetColumnConfigs([]table.ColumnConfig{
+			{Name: "Module", WidthMax: 20},
+			{Name: "Curl PoC", WidthMax: maxCurlWidth + 5}, // Add small padding
+			{Name: "Status", Align: text.AlignRight, WidthMax: 6},
+			{Name: "Length", Align: text.AlignRight, WidthMax: 10},
+			{Name: "Type", WidthMax: 15},
+			{Name: "Title", WidthMax: 30},
+			{Name: "Server", WidthMax: 20},
+			{Name: "Redirect", WidthMax: 40},
+		})
+
+		// Add rows for this page
+		for _, result := range results[start:end] {
+			title := formatValue(result.Title)
+			if len(title) > 30 {
+				title = title[:27] + "..."
+			}
+
+			locationHeader := formatValue(result.RedirectURL)
+			if len(locationHeader) > 15 {
+				locationHeader = locationHeader[:12] + "..."
+			}
+
+			contentType := formatValue(result.ContentType)
+			if strings.Contains(contentType, ";") {
+				contentType = strings.TrimSpace(strings.Split(contentType, ";")[0])
+			}
+
+			t.AppendRow(table.Row{
+				text.Colors{text.FgBlue}.Sprint(result.BypassModule),
+				text.Colors{text.FgYellow}.Sprint(result.CurlPocCommand),
+				text.Colors{text.FgGreen}.Sprintf("%d", result.StatusCode),
+				text.Colors{text.FgMagenta}.Sprint(formatBytes(result.ContentLength)),
+				text.Colors{text.FgHiYellow}.Sprint(contentType),
+				text.Colors{text.FgHiCyan}.Sprint(title),
+				text.Colors{text.FgHiBlack}.Sprint(formatValue(result.ServerInfo)),
+				text.Colors{text.FgHiMagenta}.Sprint(locationHeader),
+			})
+		}
+
+		t.SetStyle(table.StyleLight)
+		t.Style().Color.Header = text.Colors{text.FgHiCyan, text.Bold}
+		t.Style().Options.SeparateRows = true
+
+		if pages > 1 {
+			fmt.Printf("\nPage %d/%d\n", page+1, pages)
+		}
+		fmt.Println(t.Render())
+
+		if page < pages-1 {
+			fmt.Println("\nPress Enter to see next page...")
+			bufio.NewReader(os.Stdin).ReadBytes('\n')
+		}
+	}
+}
+
+func ProcessResults(results chan *Result, targetURL string, outputFile string) {
+	var moduleFindings = make(map[string][]*Result)
+
+	for result := range results {
+		if result != nil {
+			// Group findings by module
+			moduleFindings[result.BypassModule] = append(moduleFindings[result.BypassModule], result)
+
+			// When we have findings for a module, display them
+			if len(moduleFindings[result.BypassModule]) > 0 {
+				findings := moduleFindings[result.BypassModule]
+
+				fmt.Println()
+				PrintTableHeader(targetURL)
+				PrintTableRow(findings)
+
+				// Save findings for this module
+				if err := AppendResultsToJSON(outputFile, targetURL, result.BypassModule, findings); err != nil {
+					logger.LogError("Failed to save findings for %s: %v", targetURL, err)
+				}
+
+				// Clear the findings for this module
+				delete(moduleFindings, result.BypassModule)
+			}
+		}
+	}
 }
 
 // AppendResultsToJSON appends scan results to JSON file

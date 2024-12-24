@@ -47,21 +47,30 @@ func (p *URLRecon) ProcessURLs() ([]string, error) {
 // collectURLs gathers URLs from all configured sources
 func (p *URLRecon) collectURLs() ([]string, error) {
 	var urls []string
-	var err error
+	//var err error
 
 	// Process single URL with optional substitute hosts
 	if p.opts.URL != "" {
-		if p.opts.SubstituteHostsFile != "" {
-			return p.processWithSubstituteHosts(p.opts.URL)
-		}
-		// Expand single URL for available schemes
-		urls, err = p.expandURLSchemes(p.opts.URL)
+		// First expand the original URL for available schemes
+		originalURLs, err := p.expandURLSchemes(p.opts.URL)
 		if err != nil {
 			return nil, err
 		}
+		urls = append(urls, originalURLs...)
+
+		// Then process substitute hosts if provided
+		if p.opts.SubstituteHostsFile != "" {
+			substituteURLs, err := p.processWithSubstituteHosts(p.opts.URL)
+			if err != nil {
+				p.logger.LogError("Error processing substitute hosts: %v", err)
+				// Continue with original URL even if substitute hosts fail
+			} else {
+				urls = append(urls, substituteURLs...)
+			}
+		}
 	}
 
-	// Process URLs from file
+	// Process URLs from file (if provided)
 	if p.opts.URLsFile != "" {
 		fileURLs, err := p.readURLsFromFile()
 		if err != nil {
@@ -79,7 +88,7 @@ func (p *URLRecon) collectURLs() ([]string, error) {
 	}
 
 	if len(urls) == 0 {
-		return nil, fmt.Errorf("no URLs provided")
+		return nil, fmt.Errorf("no valid URLs to process")
 	}
 
 	return urls, nil
@@ -104,57 +113,58 @@ func (p *URLRecon) readURLsFromFile() ([]string, error) {
 
 // processWithSubstituteHosts handles URL substitution with hosts from file
 func (p *URLRecon) processWithSubstituteHosts(targetURL string) ([]string, error) {
+	// Read and validate hosts
+	data, err := os.ReadFile(p.opts.SubstituteHostsFile)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read substitute hosts file: %v", err)
+	}
+
+	var hosts []string
+	for _, host := range strings.Split(string(data), "\n") {
+		if host = strings.TrimSpace(host); host != "" {
+			// Extract clean hostname without scheme
+			cleanHost := host
+			if strings.Contains(host, "://") {
+				parsed, err := rawurlparser.RawURLParse(host)
+				if err != nil {
+					p.logger.LogVerbose("Skipping invalid host URL: %s - %v", host, err)
+					continue
+				}
+				cleanHost = parsed.Host
+			}
+			hosts = append(hosts, cleanHost)
+			// Run recon immediately for each host
+			if err := p.reconService.Run([]string{cleanHost}); err != nil {
+				p.logger.LogError("Failed recon for host %s: %v", cleanHost, err)
+				// Continue with next host instead of returning error
+			}
+		}
+	}
+
+	if len(hosts) == 0 {
+		return nil, fmt.Errorf("no valid hosts found in substitute hosts file")
+	}
+
+	// Now generate URLs with the validated hosts
+	var urls []string
 	parsedURL, err := rawurlparser.RawURLParse(targetURL)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse target URL: %v", err)
 	}
 
-	originalPathAndQuery := parsedURL.Path
+	pathAndQuery := parsedURL.Path
 	if parsedURL.Query != "" {
-		originalPathAndQuery += "?" + parsedURL.Query
+		pathAndQuery += "?" + parsedURL.Query
 	}
 
-	content, err := os.ReadFile(p.opts.SubstituteHostsFile)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read substitute hosts file: %v", err)
-	}
-
-	var urls []string
-	for _, host := range strings.Split(strings.TrimSpace(string(content)), "\n") {
-		host = strings.TrimSpace(host)
-		if host == "" {
+	// Use each host to create new URLs
+	for _, host := range hosts {
+		expandedURLs, err := p.expandURLSchemes(fmt.Sprintf("http://%s%s", host, pathAndQuery))
+		if err != nil {
+			p.logger.LogError("Failed to expand URL schemes for host %s: %v", host, err)
 			continue
 		}
-
-		// Extract clean hostname without scheme
-		cleanHost := host
-		if strings.Contains(host, "://") {
-			parsed, err := rawurlparser.RawURLParse(host)
-			if err != nil {
-				p.logger.LogVerbose("Skipping invalid host URL: %s - %v", host, err)
-				continue
-			}
-			cleanHost = parsed.Host
-		}
-
-		// Check recon cache for available schemes
-		result, err := p.reconService.GetCache().Get(cleanHost)
-		if err != nil || result == nil {
-			p.logger.LogVerbose("No cache data for host %s, skipping", cleanHost)
-			continue
-		}
-
-		// Generate URLs only for schemes that are available
-		for scheme := range result.IPv4Services {
-			urls = append(urls, fmt.Sprintf("%s://%s%s", scheme, cleanHost, originalPathAndQuery))
-		}
-		for scheme := range result.IPv6Services {
-			urls = append(urls, fmt.Sprintf("%s://%s%s", scheme, cleanHost, originalPathAndQuery))
-		}
-	}
-
-	if len(urls) == 0 {
-		return nil, fmt.Errorf("no valid URLs generated from substitute hosts file")
+		urls = append(urls, expandedURLs...)
 	}
 
 	return urls, nil
