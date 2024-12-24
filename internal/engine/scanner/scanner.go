@@ -6,7 +6,7 @@ import (
 	"sort"
 
 	"github.com/slicingmelon/go-bypass-403/internal/engine/probe"
-	GB403ErrHandler "github.com/slicingmelon/go-bypass-403/internal/utils/error"
+	GB403ErrorHandler "github.com/slicingmelon/go-bypass-403/internal/utils/error"
 	GB403Logger "github.com/slicingmelon/go-bypass-403/internal/utils/logger"
 )
 
@@ -31,21 +31,21 @@ type ScannerOpts struct {
 
 // Scanner represents the main scanner structure, perhaps the highest level in the hierarchy of the tool
 type Scanner struct {
-	config     *ScannerOpts
-	urls       []string
-	errHandler *GB403ErrHandler.ErrorHandler
-	logger     *GB403Logger.Logger
-	progress   *ProgressCounter
+	config       *ScannerOpts
+	urls         []string
+	errorHandler *GB403ErrorHandler.ErrorHandler
+	logger       *GB403Logger.Logger
+	progress     *ProgressCounter
 }
 
 // NewScanner creates a new Scanner instance
 func NewScanner(opts *ScannerOpts, urls []string) *Scanner {
 	return &Scanner{
-		config:     opts,
-		urls:       urls,
-		errHandler: GB403ErrHandler.NewErrorHandler(32),
-		logger:     GB403Logger.NewLogger(),
-		progress:   NewProgressCounter(),
+		config:       opts,
+		urls:         urls,
+		errorHandler: GB403ErrorHandler.NewErrorHandler(32),
+		logger:       GB403Logger.NewLogger(),
+		progress:     NewProgressCounter(),
 	}
 }
 
@@ -61,7 +61,7 @@ func (s *Scanner) Run() error {
 	for _, url := range s.urls {
 		if err := s.scanURL(url); err != nil {
 			s.logger.LogError("Error scanning %s: %v", url, err)
-			if handleErr := s.errHandler.HandleError(err, GB403ErrHandler.ErrorContext{
+			if handleErr := s.errorHandler.HandleError(err, GB403ErrorHandler.ErrorContext{
 				TargetURL:    []byte(url),
 				ErrorSource:  []byte("Scanner.Run"),
 				BypassModule: []byte(s.config.BypassModule),
@@ -73,7 +73,7 @@ func (s *Scanner) Run() error {
 	}
 
 	// print error stats
-	s.errHandler.PrintErrorStats()
+	s.errorHandler.PrintErrorStats()
 
 	return nil
 }
@@ -108,7 +108,7 @@ func (s *Scanner) scanURL(url string) error {
 
 	outputFile := filepath.Join(s.config.OutDir, "findings.json")
 	if err := AppendResultsToJSON(outputFile, url, s.config.BypassModule, findings); err != nil {
-		if handleErr := s.errHandler.HandleError(err, GB403ErrHandler.ErrorContext{
+		if handleErr := s.errorHandler.HandleError(err, GB403ErrorHandler.ErrorContext{
 			TargetURL:    []byte(url),
 			ErrorSource:  []byte("Scanner.scanURL"),
 			BypassModule: []byte(s.config.BypassModule),
@@ -127,7 +127,7 @@ func (s *Scanner) scanURL(url string) error {
 
 func (s *Scanner) Close() {
 	// Close error handler
-	if s.errHandler != nil {
-		s.errHandler.Reset()
+	if s.errorHandler != nil {
+		s.errorHandler.Reset()
 	}
 }

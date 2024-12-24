@@ -7,7 +7,7 @@ import (
 
 	"github.com/slicingmelon/go-bypass-403/internal/engine/payload"
 	"github.com/slicingmelon/go-bypass-403/internal/engine/rawhttp"
-	GB403ErrHandler "github.com/slicingmelon/go-bypass-403/internal/utils/error"
+	GB403ErrorHandler "github.com/slicingmelon/go-bypass-403/internal/utils/error"
 	GB403Logger "github.com/slicingmelon/go-bypass-403/internal/utils/logger"
 	"github.com/slicingmelon/go-rawurlparser"
 )
@@ -94,7 +94,7 @@ type WorkerContext struct {
 	workerCount int32
 }
 
-func NewWorkerContext(mode string, total int, targetURL string, opts *ScannerOpts, errHandler *GB403ErrHandler.ErrorHandler, progress *ProgressCounter) *WorkerContext {
+func NewWorkerContext(mode string, total int, targetURL string, opts *ScannerOpts, errorHandler *GB403ErrorHandler.ErrorHandler, progress *ProgressCounter) *WorkerContext {
 	clientOpts := rawhttp.DefaultOptionsSameHost()
 
 	// Override specific settings from user options
@@ -115,7 +115,7 @@ func NewWorkerContext(mode string, total int, targetURL string, opts *ScannerOpt
 			MatchStatusCodes:        opts.MatchStatusCodes,
 			ResponseBodyPreviewSize: opts.ResponseBodyPreviewSize,
 			ModuleName:              mode,
-		}, errHandler, logger),
+		}, errorHandler, logger),
 	}
 }
 
@@ -139,7 +139,7 @@ func (s *Scanner) RunAllBypasses(targetURL string) chan *Result {
 
 	// Validate URL one more time, who knows
 	if _, err := rawurlparser.RawURLParse(targetURL); err != nil {
-		err = s.errHandler.HandleError(err, GB403ErrHandler.ErrorContext{
+		err = s.errorHandler.HandleError(err, GB403ErrorHandler.ErrorContext{
 			TargetURL:   []byte(targetURL),
 			ErrorSource: []byte("Scanner.RunAllBypasses"),
 		})
@@ -198,7 +198,7 @@ func (s *Scanner) runBypassForMode(bypassModule string, targetURL string, result
 	s.progress.StartModule(bypassModule, len(allJobs), targetURL)
 	lastStatsUpdate := time.Now()
 
-	ctx := NewWorkerContext(bypassModule, len(allJobs), targetURL, s.config, s.errHandler, s.progress)
+	ctx := NewWorkerContext(bypassModule, len(allJobs), targetURL, s.config, s.errorHandler, s.progress)
 	defer func() {
 		// Let the request pool finish and get final worker count
 		finalWorkerCount := ctx.requestPool.ActiveWorkers()

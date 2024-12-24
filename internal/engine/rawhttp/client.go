@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	GB403ErrHandler "github.com/slicingmelon/go-bypass-403/internal/utils/error"
+	GB403ErrorHandler "github.com/slicingmelon/go-bypass-403/internal/utils/error"
 	GB403Logger "github.com/slicingmelon/go-bypass-403/internal/utils/logger"
 	"github.com/valyala/fasthttp"
 	"github.com/valyala/fasthttp/fasthttpproxy"
@@ -36,13 +36,13 @@ type ClientOptions struct {
 
 // Client represents a reusable HTTP client optimized for performance
 type HttpClient struct {
-	client     *fasthttp.Client
-	bufPool    sync.Pool
-	maxRetries int
-	retryDelay time.Duration
-	options    *ClientOptions
-	logger     *GB403Logger.Logger
-	errHandler *GB403ErrHandler.ErrorHandler
+	client       *fasthttp.Client
+	bufPool      sync.Pool
+	maxRetries   int
+	retryDelay   time.Duration
+	options      *ClientOptions
+	logger       *GB403Logger.Logger
+	errorHandler *GB403ErrorHandler.ErrorHandler
 }
 
 // DefaultOptionsMultiHost returns options optimized for scanning multiple hosts
@@ -79,7 +79,7 @@ func DefaultOptionsSameHost() *ClientOptions {
 }
 
 // / NewHTTPClient creates a new optimized HTTP client
-func NewClient(opts *ClientOptions, errHandler *GB403ErrHandler.ErrorHandler, logger *GB403Logger.Logger) *HttpClient {
+func NewClient(opts *ClientOptions, errorHandler *GB403ErrorHandler.ErrorHandler, logger *GB403Logger.Logger) *HttpClient {
 	if opts == nil {
 		opts = DefaultOptionsSameHost()
 	}
@@ -96,7 +96,7 @@ func NewClient(opts *ClientOptions, errHandler *GB403ErrHandler.ErrorHandler, lo
 			proxyDialer := fasthttpproxy.FasthttpHTTPDialerTimeout(opts.ProxyURL, 3*time.Second)
 			conn, err := proxyDialer(addr)
 			if err != nil {
-				if handleErr := errHandler.HandleError(err, GB403ErrHandler.ErrorContext{
+				if handleErr := errorHandler.HandleError(err, GB403ErrorHandler.ErrorContext{
 					ErrorSource: []byte("Client.proxyDial"),
 					Host:        []byte(addr),
 				}); handleErr != nil {
@@ -110,7 +110,7 @@ func NewClient(opts *ClientOptions, errHandler *GB403ErrHandler.ErrorHandler, lo
 		// No proxy, use our TCPDialer with timeout
 		conn, err := dialer.DialTimeout(addr, 5*time.Second)
 		if err != nil {
-			if handleErr := errHandler.HandleError(err, GB403ErrHandler.ErrorContext{
+			if handleErr := errorHandler.HandleError(err, GB403ErrorHandler.ErrorContext{
 				ErrorSource: []byte("Client.directDial"),
 				Host:        []byte(addr),
 			}); handleErr != nil {
@@ -139,13 +139,13 @@ func NewClient(opts *ClientOptions, errHandler *GB403ErrHandler.ErrorHandler, lo
 	}
 
 	return &HttpClient{
-		client:     client,
-		errHandler: errHandler,
-		bufPool:    sync.Pool{New: func() interface{} { return make([]byte, 0, opts.ReadBufferSize) }},
-		maxRetries: opts.MaxRetries,
-		retryDelay: opts.RetryDelay,
-		options:    opts,
-		logger:     logger,
+		client:       client,
+		errorHandler: errorHandler,
+		bufPool:      sync.Pool{New: func() interface{} { return make([]byte, 0, opts.ReadBufferSize) }},
+		maxRetries:   opts.MaxRetries,
+		retryDelay:   opts.RetryDelay,
+		options:      opts,
+		logger:       logger,
 	}
 }
 
