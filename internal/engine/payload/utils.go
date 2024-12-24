@@ -11,7 +11,7 @@ import (
 )
 
 var (
-	internalLogger GB403Logger.ILogger
+	internalLogger = GB403Logger.NewLogger()
 
 	charsetTable = func() [62]byte {
 		// Initialize with 62 chars (26 lowercase + 26 uppercase + 10 digits)
@@ -58,7 +58,7 @@ func GetPayloadsDir() (string, error) {
 }
 
 // InitializePayloadsDir ensures all payload files exist in the user's config directory
-func InitializePayloadsDir(logger GB403Logger.ILogger) error {
+func InitializePayloadsDir() error {
 	toolDir, err := GetToolDir()
 	if err != nil {
 		return fmt.Errorf("failed to get tool directory: %w", err)
@@ -91,7 +91,7 @@ func InitializePayloadsDir(logger GB403Logger.ILogger) error {
 			if err := os.WriteFile(dstPath, data, 0644); err != nil {
 				return fmt.Errorf("failed to write file %s: %w", dstPath, err)
 			}
-			logger.LogInfo("Created payload file: %s", dstPath)
+			internalLogger.LogInfo("Created payload file: %s", dstPath)
 		}
 	}
 	return nil

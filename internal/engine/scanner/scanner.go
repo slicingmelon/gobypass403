@@ -40,6 +40,9 @@ type Scanner struct {
 
 // NewScanner creates a new Scanner instance
 func NewScanner(opts *ScannerOpts, urls []string, logger GB403Logger.ILogger) *Scanner {
+	// Initialize bypass modules first
+	InitializeBypassModules(logger)
+
 	errorHandler := GB403ErrorHandler.NewErrorHandler(32)
 	progress := NewProgressCounter()
 
