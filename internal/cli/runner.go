@@ -1,6 +1,8 @@
 package cli
 
 import (
+	"fmt"
+
 	"github.com/slicingmelon/go-bypass-403/internal/engine/scanner"
 	GB403Logger "github.com/slicingmelon/go-bypass-403/internal/utils/logger"
 )
@@ -10,10 +12,10 @@ type Runner struct {
 	urls         []string
 	scanner      *scanner.Scanner
 	urlProcessor *URLProcessor
-	logger       *GB403Logger.Logger
+	logger       GB403Logger.ILogger
 }
 
-func NewRunner(logger *GB403Logger.Logger) *Runner {
+func NewRunner(logger GB403Logger.ILogger) *Runner {
 	return &Runner{
 		logger: logger,
 	}
@@ -36,7 +38,11 @@ func (r *Runner) Initialize() error {
 	}
 
 	// Step 2: Initialize URL Processor
-	r.urlProcessor = NewURLProcessor(opts, r.logger)
+	// Initialize URL processor with logger
+	r.urlProcessor = NewURLProcessor(r.logger)
+	if err := r.urlProcessor.ProcessURLs(r.options.URLs); err != nil {
+		return fmt.Errorf("failed to process URLs: %w", err)
+	}
 
 	// Step 3: Process and validate URLs
 	urls, err := r.urlProcessor.ProcessURLs()
@@ -70,7 +76,7 @@ func (r *Runner) Initialize() error {
 		scannerOpts.Proxy = r.options.ParsedProxy.String()
 	}
 
-	r.scanner = scanner.NewScanner(scannerOpts, urls)
+	r.scanner = scanner.NewScanner(scannerOpts, urls, r.logger)
 	return nil
 }
 

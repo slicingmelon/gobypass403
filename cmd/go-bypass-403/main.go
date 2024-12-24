@@ -8,13 +8,9 @@ import (
 	GB403Logger "github.com/slicingmelon/go-bypass-403/internal/utils/logger"
 )
 
-var logger *GB403Logger.Logger
-
-func init() {
-	logger = GB403Logger.NewLogger()
-}
-
 func main() {
+	logger := GB403Logger.NewLogger()
+
 	logger.LogInfo("Initializing go-bypass-403...")
 
 	// Initialize payloads first

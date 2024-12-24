@@ -10,6 +10,20 @@ import (
 	"github.com/jedib0t/go-pretty/v6/text"
 )
 
+type ILogger interface {
+	EnableVerbose()
+	EnableDebug()
+	IsDebugEnabled() bool
+	IsVerboseEnabled() bool
+	LogInfo(format string, args ...interface{})
+	LogError(format string, args ...interface{})
+	LogDebug(requestID string, format string, args ...interface{})
+	LogVerbose(format string, args ...interface{})
+
+	PrintYellow(format string, args ...interface{})
+	PrintGreen(format string, args ...interface{})
+}
+
 type Logger struct {
 	mu             sync.Mutex
 	buffer         *bytes.Buffer

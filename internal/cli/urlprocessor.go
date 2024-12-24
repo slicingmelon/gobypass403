@@ -16,10 +16,10 @@ type URLProcessor struct {
 	opts         *Options
 	probeService *probe.ProbeService
 	probeCache   probe.Cache
-	logger       *GB403Logger.Logger
+	logger       *GB403Logger.ILogger
 }
 
-func NewURLProcessor(opts *Options, logger *GB403Logger.Logger) *URLProcessor {
+func NewURLProcessor(opts *Options, logger *GB403Logger.ILogger) *URLProcessor {
 	probeService := probe.NewProbeService()
 	return &URLProcessor{
 		opts:         opts,

@@ -15,7 +15,16 @@ import (
 // BypassModule defines the interface for all bypass modules
 type BypassModule struct {
 	Name         string
+	payloadGen   *payload.PayloadGenerator
 	GenerateJobs func(targetURL string, mode string, opts *ScannerOpts) []payload.PayloadJob
+}
+
+func NewBypassModule(name string, logger GB403Logger.ILogger) *BypassModule {
+	payloadGen := payload.NewPayloadGenerator(logger)
+	return &BypassModule{
+		Name:       name,
+		payloadGen: payloadGen,
+	}
 }
 
 // Registry of all bypass modules
