@@ -76,8 +76,8 @@ func (s *ReconService) Run(urls []string) error {
 	var wg sync.WaitGroup
 	sem := make(chan struct{}, 10)
 
-	// Track unique hosts/IPs to avoid duplicate scans
-	uniqueTargets := make(map[string]bool)
+	// Track unique hosts/IPs but preserve original schemes
+	uniqueTargets := make(map[string]map[string]bool) // host -> schemes
 
 	for _, rawURL := range urls {
 		parsedURL, err := rawurlparser.RawURLParse(rawURL)
@@ -86,27 +86,27 @@ func (s *ReconService) Run(urls []string) error {
 			continue
 		}
 
-		// Skip if we've already processed this host/IP
-		if uniqueTargets[parsedURL.Host] {
-			continue
+		// Track both host and scheme
+		if uniqueTargets[parsedURL.Host] == nil {
+			uniqueTargets[parsedURL.Host] = make(map[string]bool)
+
+			wg.Add(1)
+			go func(host string) {
+				defer wg.Done()
+				sem <- struct{}{}
+				defer func() { <-sem }()
+
+				// Check if it's an IP address
+				if net.ParseIP(host) != nil {
+					s.handleIP(host)
+					return
+				}
+
+				// For domains: resolve, store IPs, and port scan once
+				s.handleDomain(host)
+			}(parsedURL.Host)
 		}
-		uniqueTargets[parsedURL.Host] = true
-
-		wg.Add(1)
-		go func(host string) {
-			defer wg.Done()
-			sem <- struct{}{}
-			defer func() { <-sem }()
-
-			// Check if it's an IP address
-			if net.ParseIP(host) != nil {
-				s.handleIP(host)
-				return
-			}
-
-			// For domains: resolve, store IPs, and port scan once
-			s.handleDomain(host)
-		}(parsedURL.Host)
+		uniqueTargets[parsedURL.Host][parsedURL.Scheme] = true
 	}
 
 	wg.Wait()

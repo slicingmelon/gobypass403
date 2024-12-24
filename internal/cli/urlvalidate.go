@@ -234,30 +234,42 @@ func (p *URLRecon) expandURLSchemes(targetURL string) ([]string, error) {
 	}
 
 	host := parsedURL.Host
-	if strings.Contains(host, ":") {
-		host = strings.Split(host, ":")[0]
-	}
-
-	pathAndQuery := parsedURL.Path
-	if parsedURL.Query != "" {
-		pathAndQuery += "?" + parsedURL.Query
-	}
-
 	result, err := p.reconService.GetCache().Get(host)
 	if err != nil || result == nil {
 		return []string{targetURL}, nil
 	}
 
-	urls := make([]string, 0, 2) // Most hosts have max 2 schemes: http/https
+	urls := make([]string, 0, 2)
+	seenSchemes := make(map[string]bool)
 
-	// Add both schemes if they exist in either IPv4 or IPv6
-	if len(result.IPv4Services["http"]) > 0 || len(result.IPv6Services["http"]) > 0 {
-		urls = append(urls, fmt.Sprintf("http://%s%s", parsedURL.Host, pathAndQuery))
-	}
-	if len(result.IPv4Services["https"]) > 0 || len(result.IPv6Services["https"]) > 0 {
-		urls = append(urls, fmt.Sprintf("https://%s%s", parsedURL.Host, pathAndQuery))
+	// Check both IPv4 and IPv6 services for available schemes
+	for scheme := range result.IPv4Services {
+		if !seenSchemes[scheme] {
+			seenSchemes[scheme] = true
+			newURL := fmt.Sprintf("%s://%s%s", scheme, host, parsedURL.Path)
+			if parsedURL.Query != "" {
+				newURL += "?" + parsedURL.Query
+			}
+			urls = append(urls, newURL)
+			p.logger.LogVerbose("Added URL with scheme %s: %s", scheme, newURL)
+		}
 	}
 
-	p.logger.LogVerbose("Found %d schemes for %s", len(urls), host)
+	for scheme := range result.IPv6Services {
+		if !seenSchemes[scheme] {
+			seenSchemes[scheme] = true
+			newURL := fmt.Sprintf("%s://%s%s", scheme, host, parsedURL.Path)
+			if parsedURL.Query != "" {
+				newURL += "?" + parsedURL.Query
+			}
+			urls = append(urls, newURL)
+			p.logger.LogVerbose("Added URL with scheme %s: %s", scheme, newURL)
+		}
+	}
+
+	if len(urls) == 0 {
+		return []string{targetURL}, nil
+	}
+
 	return urls, nil
 }
