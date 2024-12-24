@@ -310,11 +310,15 @@ func (w *requestWorker) processRequestJob(job payload.PayloadJob) *RawHTTPRespon
 	defer fasthttp.ReleaseResponse(resp)
 
 	w.builder.BuildRequest(req, job)
+
+	w.logger.LogDebug(job.PayloadToken, "[%s] Sending request %s\n", job.BypassModule, job.FullURL)
+
 	if err := w.client.DoRaw(req, resp); err != nil {
 		err = w.errorHandler.HandleError(err, GB403ErrorHandler.ErrorContext{
 			TargetURL:    []byte(job.FullURL),
 			ErrorSource:  []byte("Worker.processJob"),
 			BypassModule: []byte(job.BypassModule),
+			DebugToken:   []byte(job.PayloadToken),
 		})
 		if err != nil {
 			w.logger.LogError("Request failed: %v", err)

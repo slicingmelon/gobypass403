@@ -30,6 +30,7 @@ type ErrorContext struct {
 	BypassModule []byte    `json:"bypass_module"`
 	TargetURL    []byte    `json:"url"`
 	ErrorSource  []byte    `json:"error_source"`
+	DebugToken   []byte    `json:"debug_token"`
 	Timestamp    time.Time `json:"timestamp"`
 }
 

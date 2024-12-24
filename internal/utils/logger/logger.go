@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 	"sync"
 
 	"github.com/jedib0t/go-pretty/v6/text"
@@ -122,17 +123,25 @@ func (l *Logger) LogVerbose(format string, args ...interface{}) {
 // LogDebug for debug logs with request ID
 func (l *Logger) LogDebug(debugToken string, format string, args ...interface{}) {
 	if !l.debugEnabled {
-		if l.verboseEnabled {
-			prefix := text.Colors{text.BgHiCyan, text.FgBlack, text.Bold, text.Italic}.Sprint("[VERBOSE]")
-			l.log(l.stderr, text.Colors{text.FgHiWhite, text.Underline}, prefix+" ", format, args...)
-		}
 		return
 	}
 
-	prefix := text.Colors{text.BgHiMagenta, text.FgBlack, text.Bold, text.Italic}.Sprint("[DEBUG]")
-	tokenPart := text.Colors{text.FgHiYellow, text.ReverseVideo, text.Bold}.Sprintf("[%s]", debugToken)
-	fullFormat := fmt.Sprintf("%s %s %s", prefix, tokenPart, format)
-	l.log(l.stderr, text.Colors{text.FgHiMagenta, text.Underline}, "", fullFormat, args...)
+	// First line: DEBUG header and token
+	tokenLine := fmt.Sprintf("%s [%s]",
+		text.Colors{text.BgHiRed, text.FgWhite, text.Bold}.Sprint("[DEBUG]"), // Bright red background with white text
+		text.Colors{text.FgYellow, text.Bold}.Sprint(debugToken),             // Bold yellow token
+	)
+
+	// Second line: The actual message with cyan module and white message
+	messageLine := fmt.Sprintf("%s %s",
+		text.Colors{text.FgHiCyan, text.Bold}.Sprint(format[:strings.Index(format, "]")+1]), // Bright cyan module
+		text.Colors{text.FgGreen}.Sprint("Sending request"),                                 // Green "Sending request"
+	) + format[strings.Index(format, "Sending request")+len("Sending request"):] // Rest of the message
+
+	// Combine with newline
+	fullFormat := fmt.Sprintf("%s\n%s", tokenLine, messageLine)
+
+	l.log(l.stderr, text.Colors{text.FgWhite}, "", fullFormat, args...)
 }
 
 // LogError for errors
