@@ -39,13 +39,15 @@ func (r *Runner) Initialize() error {
 
 	// Step 2: Initialize URL Processor
 	// Initialize URL processor with logger
-	r.urlProcessor = NewURLProcessor(r.logger)
-	if err := r.urlProcessor.ProcessURLs(r.options.URLs); err != nil {
+	r.urlProcessor = NewURLProcessor(r.options, r.logger)
+	urls, err := r.urlProcessor.ProcessURLs()
+	if err != nil {
 		return fmt.Errorf("failed to process URLs: %w", err)
 	}
+	r.urls = urls
 
 	// Step 3: Process and validate URLs
-	urls, err := r.urlProcessor.ProcessURLs()
+	urls, err = r.urlProcessor.ProcessURLs()
 	if err != nil {
 		return err
 	}

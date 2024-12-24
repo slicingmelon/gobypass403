@@ -98,7 +98,7 @@ type WorkerContext struct {
 	wg          *sync.WaitGroup
 	once        sync.Once
 	opts        *ScannerOpts
-	logger      *GB403Logger.Logger
+	logger      *GB403Logger.ILogger
 	requestPool *rawhttp.RequestPool
 	workerCount int32
 }

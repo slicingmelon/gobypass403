@@ -91,7 +91,7 @@ func NewRequestPool(clientOpts *ClientOptions, scanOpts *ScannerCliOpts, errorHa
 
 	maxWorkers := clientOpts.MaxConnsPerHost
 	pool := &RequestPool{
-		client:       NewClient(clientOpts, errorHandler, logger),
+		client:       NewHTTPClient(clientOpts, errorHandler, logger),
 		maxWorkers:   maxWorkers,
 		payloadQueue: make(chan payload.PayloadJob, maxWorkers*2),
 		results:      make(chan *RawHTTPResponseDetails, maxWorkers*2),

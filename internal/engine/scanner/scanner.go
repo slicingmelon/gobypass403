@@ -35,20 +35,20 @@ type Scanner struct {
 	config       *ScannerOpts
 	urls         []string
 	errorHandler *GB403ErrorHandler.ErrorHandler
-	logger       *GB403Logger.Logger
+	logger       *GB403Logger.ILogger
 	progress     *ProgressCounter
 }
 
 // NewScanner creates a new Scanner instance
 func NewScanner(opts *ScannerOpts, urls []string, logger GB403Logger.ILogger) *Scanner {
-	client := rawhttp.NewClient(clientOpts, errorHandler, logger)
+	client := rawhttp.NewHTTPClient(clientOpts, errorHandler)
 	requestPool := rawhttp.NewRequestPool(clientOpts, scanOpts, errorHandler, logger)
 
 	return &Scanner{
 		config:       opts,
 		urls:         urls,
 		logger:       logger,
-		errorHandler: GB403ErrorHandler.NewErrorHandler(logger),
+		errorHandler: GB403ErrorHandler.NewErrorHandler(15),
 		requestPool:  requestPool,
 		client:       client,
 	}
