@@ -239,36 +239,24 @@ func (p *URLRecon) expandURLSchemes(targetURL string) ([]string, error) {
 		return []string{targetURL}, nil
 	}
 
-	urls := make([]string, 0, 2)
-	seenSchemes := make(map[string]bool)
-
-	// Check both IPv4 and IPv6 services for available schemes
+	// Get unique schemes from both IPv4 and IPv6 services
+	schemes := make(map[string]bool)
 	for scheme := range result.IPv4Services {
-		if !seenSchemes[scheme] {
-			seenSchemes[scheme] = true
-			newURL := fmt.Sprintf("%s://%s%s", scheme, host, parsedURL.Path)
-			if parsedURL.Query != "" {
-				newURL += "?" + parsedURL.Query
-			}
-			urls = append(urls, newURL)
-			p.logger.LogVerbose("Added URL with scheme %s: %s", scheme, newURL)
-		}
+		schemes[scheme] = true
 	}
-
 	for scheme := range result.IPv6Services {
-		if !seenSchemes[scheme] {
-			seenSchemes[scheme] = true
-			newURL := fmt.Sprintf("%s://%s%s", scheme, host, parsedURL.Path)
-			if parsedURL.Query != "" {
-				newURL += "?" + parsedURL.Query
-			}
-			urls = append(urls, newURL)
-			p.logger.LogVerbose("Added URL with scheme %s: %s", scheme, newURL)
-		}
+		schemes[scheme] = true
 	}
 
-	if len(urls) == 0 {
-		return []string{targetURL}, nil
+	// Generate URLs for each unique scheme
+	urls := make([]string, 0, len(schemes))
+	pathAndQuery := parsedURL.Path
+	if parsedURL.Query != "" {
+		pathAndQuery += "?" + parsedURL.Query
+	}
+
+	for scheme := range schemes {
+		urls = append(urls, fmt.Sprintf("%s://%s%s", scheme, host, pathAndQuery))
 	}
 
 	return urls, nil

@@ -129,7 +129,7 @@ func (s *ReconService) handleIP(ip string) {
 		s.logger.LogVerbose("Handling IPv4: %s", ip)
 	}
 
-	// Just check 80/443 for web service
+	// Check both ports and store all available schemes
 	for _, port := range []string{"80", "443"} {
 		s.logger.LogVerbose("Probing %s:%s", ip, port)
 		if scheme := s.probePort(ip, port); scheme != "" {
