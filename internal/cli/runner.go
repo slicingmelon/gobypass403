@@ -74,26 +74,30 @@ func (r *Runner) Initialize() error {
 	return nil
 }
 
+// func (r *Runner) Run() error {
+// 	// Get validated URLs
+// 	urls, err := r.urlRecon.ProcessURLs()
+// 	if err != nil {
+// 		return err
+// 	}
+
+// 	r.logger.LogInfo("Initializing scanner with %d URLs", len(urls))
+
+// 	// Process each URL sequentially
+// 	for _, url := range urls {
+// 		r.logger.LogInfo("\nScanning URL: %s", url)
+
+// 		results := r.scanner.RunAllBypasses(url)
+
+// 		// Just drain the results channel - printing is handled per-URL now
+// 		for range results {
+// 			continue
+// 		}
+// 	}
+
+// 	return nil
+// }
+
 func (r *Runner) Run() error {
-	// Get validated URLs
-	urls, err := r.urlRecon.ProcessURLs()
-	if err != nil {
-		return err
-	}
-
-	r.logger.LogInfo("Initializing scanner with %d URLs", len(urls))
-
-	// Process each URL sequentially
-	for _, url := range urls {
-		r.logger.LogInfo("\nScanning URL: %s", url)
-
-		results := r.scanner.RunAllBypasses(url)
-
-		// Just drain the results channel - printing is handled per-URL now
-		for range results {
-			continue
-		}
-	}
-
-	return nil
+	return r.scanner.Run()
 }

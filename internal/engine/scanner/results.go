@@ -66,7 +66,7 @@ func PrintTableHeader(targetURL string) {
 	fmt.Println()
 	fmt.Println()
 	logger.PrintTeal("[##########] Results for ")
-	logger.PrintYellow(targetURL)
+	logger.PrintYellow("%s\n", targetURL)
 	logger.PrintTeal(" [##########]")
 	fmt.Println()
 }
@@ -80,122 +80,75 @@ func formatValue(val string) string {
 
 // PrintTableRow prints a single result row
 func PrintTableRow(results []*Result) {
-	const rowsPerPage = 50
-	pages := (len(results) + rowsPerPage - 1) / rowsPerPage // Calculate total pages
+	t := table.NewWriter()
+	t.SetOutputMirror(os.Stdout)
 
-	for page := 0; page < pages; page++ {
-		start := page * rowsPerPage
-		end := start + rowsPerPage
-		if end > len(results) {
-			end = len(results)
-		}
+	// Configure columns
+	t.AppendHeader(table.Row{
+		"Module",
+		"Curl PoC",
+		"Status",
+		"Length",
+		"Type",
+		"Title",
+		"Server",
+		"Redirect",
+	})
 
-		t := table.NewWriter()
-		t.SetOutputMirror(os.Stdout)
-
-		// Configure columns
-		t.AppendHeader(table.Row{
-			"Module",
-			"Curl PoC",
-			"Status",
-			"Length",
-			"Type",
-			"Title",
-			"Server",
-			"Redirect",
-		})
-
-		// Calculate max width for Curl PoC based on actual content
-		maxCurlWidth := 80 // default
-		for _, result := range results {
-			if len(result.CurlPocCommand) > maxCurlWidth {
-				maxCurlWidth = len(result.CurlPocCommand)
-			}
-		}
-
-		// Set column configs with dynamic width for Curl PoC
-		t.SetColumnConfigs([]table.ColumnConfig{
-			{Name: "Module", WidthMax: 20},
-			{Name: "Curl PoC", WidthMax: maxCurlWidth + 5}, // Add small padding
-			{Name: "Status", Align: text.AlignRight, WidthMax: 6},
-			{Name: "Length", Align: text.AlignRight, WidthMax: 10},
-			{Name: "Type", WidthMax: 15},
-			{Name: "Title", WidthMax: 30},
-			{Name: "Server", WidthMax: 20},
-			{Name: "Redirect", WidthMax: 40},
-		})
-
-		// Add rows for this page
-		for _, result := range results[start:end] {
-			title := formatValue(result.Title)
-			if len(title) > 30 {
-				title = title[:27] + "..."
-			}
-
-			locationHeader := formatValue(result.RedirectURL)
-			if len(locationHeader) > 15 {
-				locationHeader = locationHeader[:12] + "..."
-			}
-
-			contentType := formatValue(result.ContentType)
-			if strings.Contains(contentType, ";") {
-				contentType = strings.TrimSpace(strings.Split(contentType, ";")[0])
-			}
-
-			t.AppendRow(table.Row{
-				text.Colors{text.FgBlue}.Sprint(result.BypassModule),
-				text.Colors{text.FgYellow}.Sprint(result.CurlPocCommand),
-				text.Colors{text.FgGreen}.Sprintf("%d", result.StatusCode),
-				text.Colors{text.FgMagenta}.Sprint(formatBytes(result.ContentLength)),
-				text.Colors{text.FgHiYellow}.Sprint(contentType),
-				text.Colors{text.FgHiCyan}.Sprint(title),
-				text.Colors{text.FgHiBlack}.Sprint(formatValue(result.ServerInfo)),
-				text.Colors{text.FgHiMagenta}.Sprint(locationHeader),
-			})
-		}
-
-		t.SetStyle(table.StyleLight)
-		t.Style().Color.Header = text.Colors{text.FgHiCyan, text.Bold}
-		t.Style().Options.SeparateRows = true
-
-		if pages > 1 {
-			fmt.Printf("\nPage %d/%d\n", page+1, pages)
-		}
-		fmt.Println(t.Render())
-
-		if page < pages-1 {
-			fmt.Println("\nPress Enter to see next page...")
-			bufio.NewReader(os.Stdin).ReadBytes('\n')
+	// Calculate max width for Curl PoC based on actual content
+	maxCurlWidth := 80 // default
+	for _, result := range results {
+		if len(result.CurlPocCommand) > maxCurlWidth {
+			maxCurlWidth = len(result.CurlPocCommand)
 		}
 	}
-}
 
-func ProcessResults(results chan *Result, targetURL string, outputFile string) {
-	var moduleFindings = make(map[string][]*Result)
+	// Set column configs with dynamic width for Curl PoC
+	t.SetColumnConfigs([]table.ColumnConfig{
+		{Name: "MODULE", WidthMax: 20},
+		{Name: "CURL POC", WidthMax: maxCurlWidth + 5}, // Dynamic width based on content
+		{Name: "STATUS", WidthMax: 6, WidthMin: 6},
+		{Name: "LENGTH", WidthMax: 8, WidthMin: 6},
+		{Name: "TYPE", WidthMax: 15},
+		{Name: "TITLE", WidthMax: 15},
+		{Name: "SERVER", WidthMax: 15},
+		{Name: "REDIRECT", WidthMax: 8, WidthMin: 8}, // Fixed small width since we truncate it anyway
+	})
 
-	for result := range results {
-		if result != nil {
-			// Group findings by module
-			moduleFindings[result.BypassModule] = append(moduleFindings[result.BypassModule], result)
-
-			// When we have findings for a module, display them
-			if len(moduleFindings[result.BypassModule]) > 0 {
-				findings := moduleFindings[result.BypassModule]
-
-				fmt.Println()
-				PrintTableHeader(targetURL)
-				PrintTableRow(findings)
-
-				// Save findings for this module
-				if err := AppendResultsToJSON(outputFile, targetURL, result.BypassModule, findings); err != nil {
-					logger.LogError("Failed to save findings for %s: %v", targetURL, err)
-				}
-
-				// Clear the findings for this module
-				delete(moduleFindings, result.BypassModule)
-			}
+	// Add all rows
+	for _, result := range results {
+		title := formatValue(result.Title)
+		if len(title) > 30 {
+			title = title[:27] + "..."
 		}
+
+		locationHeader := formatValue(result.RedirectURL)
+		if len(locationHeader) > 15 {
+			locationHeader = locationHeader[:12] + "..."
+		}
+
+		contentType := formatValue(result.ContentType)
+		if strings.Contains(contentType, ";") {
+			contentType = strings.TrimSpace(strings.Split(contentType, ";")[0])
+		}
+
+		t.AppendRow(table.Row{
+			text.Colors{text.FgBlue}.Sprint(result.BypassModule),
+			text.Colors{text.FgYellow}.Sprint(result.CurlPocCommand),
+			text.Colors{text.FgGreen}.Sprintf("%d", result.StatusCode),
+			text.Colors{text.FgMagenta}.Sprint(formatBytes(result.ContentLength)),
+			text.Colors{text.FgHiYellow}.Sprint(contentType),
+			text.Colors{text.FgHiCyan}.Sprint(title),
+			text.Colors{text.FgHiBlack}.Sprint(formatValue(result.ServerInfo)),
+			text.Colors{text.FgHiMagenta}.Sprint(locationHeader),
+		})
 	}
+
+	t.SetStyle(table.StyleLight)
+	t.Style().Color.Header = text.Colors{text.FgHiCyan, text.Bold}
+	t.Style().Options.SeparateRows = true
+
+	fmt.Println(t.Render())
 }
 
 // AppendResultsToJSON appends scan results to JSON file

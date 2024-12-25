@@ -83,37 +83,36 @@ func (s *Scanner) Run() error {
 
 func (s *Scanner) scanURL(url string) error {
 	resultsChannel := s.RunAllBypasses(url)
+	var allFindings []*Result
 
 	// Process results as they come in
-	var moduleFindings = make(map[string][]*Result)
-
 	for result := range resultsChannel {
 		if result != nil {
-			// Group findings by module
-			moduleFindings[result.BypassModule] = append(moduleFindings[result.BypassModule], result)
-
-			// When we have all findings for a module, display them
-			if len(moduleFindings[result.BypassModule]) > 0 {
-				findings := moduleFindings[result.BypassModule]
-				// Sort findings by status code
-				sort.Slice(findings, func(i, j int) bool {
-					return findings[i].StatusCode < findings[j].StatusCode
-				})
-
-				fmt.Println()
-				PrintTableHeader(url)
-				PrintTableRow(findings)
-
-				// Save findings for this module
-				outputFile := filepath.Join(s.config.OutDir, "findings.json")
-				if err := AppendResultsToJSON(outputFile, url, result.BypassModule, findings); err != nil {
-					s.logger.LogError("Failed to save findings for %s: %v", url, err)
-				}
-
-				// Clear the findings for this module
-				delete(moduleFindings, result.BypassModule)
-			}
+			s.logger.LogDebug("Processing result for module: %s, status: %d", result.BypassModule, result.StatusCode)
+			allFindings = append(allFindings, result)
 		}
+	}
+
+	// If we have any findings, sort and save them
+	if len(allFindings) > 0 {
+		// Sort findings by module and status code
+		sort.Slice(allFindings, func(i, j int) bool {
+			if allFindings[i].BypassModule != allFindings[j].BypassModule {
+				return allFindings[i].BypassModule < allFindings[j].BypassModule
+			}
+			return allFindings[i].StatusCode < allFindings[j].StatusCode
+		})
+
+		// Save findings first
+		outputFile := filepath.Join(s.config.OutDir, "findings.json")
+		if err := AppendResultsToJSON(outputFile, url, s.config.BypassModule, allFindings); err != nil {
+			s.logger.LogError("Failed to save findings for %s: %v", url, err)
+		}
+
+		// Print results only once
+		fmt.Println()
+		PrintTableHeader(url)
+		PrintTableRow(allFindings)
 	}
 
 	return nil
