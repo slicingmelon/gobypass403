@@ -14,6 +14,7 @@ import (
 	"github.com/jedib0t/go-pretty/v6/table"
 	"github.com/jedib0t/go-pretty/v6/text"
 	GB403Logger "github.com/slicingmelon/go-bypass-403/internal/utils/logger"
+	"golang.org/x/term"
 )
 
 // Result represents a single bypass attempt result
@@ -95,8 +96,14 @@ func PrintTableRow(results []*Result) {
 		"Redirect",
 	})
 
+	// Get terminal width
+	width := 80
+	if w, _, err := term.GetSize(int(os.Stdout.Fd())); err == nil {
+		width = w
+	}
+
 	// Calculate max width for Curl PoC based on actual content
-	maxCurlWidth := 80 // default
+	maxCurlWidth := width - 80 // Reserve space for other columns
 	for _, result := range results {
 		if len(result.CurlPocCommand) > maxCurlWidth {
 			maxCurlWidth = len(result.CurlPocCommand)
@@ -105,14 +112,14 @@ func PrintTableRow(results []*Result) {
 
 	// Set column configs with dynamic width for Curl PoC
 	t.SetColumnConfigs([]table.ColumnConfig{
-		{Name: "MODULE", WidthMax: 20},
-		{Name: "CURL POC", WidthMax: maxCurlWidth + 5}, // Dynamic width based on content
+		{Name: "MODULE", WidthMax: 15, WidthMin: 10},
+		{Name: "CURL POC", WidthMax: maxCurlWidth, WidthMin: maxCurlWidth / 2}, // Dynamic width
 		{Name: "STATUS", WidthMax: 6, WidthMin: 6},
 		{Name: "LENGTH", WidthMax: 8, WidthMin: 6},
-		{Name: "TYPE", WidthMax: 15},
-		{Name: "TITLE", WidthMax: 15},
-		{Name: "SERVER", WidthMax: 15},
-		{Name: "REDIRECT", WidthMax: 8, WidthMin: 8}, // Fixed small width since we truncate it anyway
+		{Name: "TYPE", WidthMax: 12, WidthMin: 8},
+		{Name: "TITLE", WidthMax: 15, WidthMin: 10},
+		{Name: "SERVER", WidthMax: 12, WidthMin: 8},
+		{Name: "REDIRECT", WidthMax: 8, WidthMin: 8},
 	})
 
 	// Add all rows
@@ -148,7 +155,8 @@ func PrintTableRow(results []*Result) {
 	t.Style().Color.Header = text.Colors{text.FgHiCyan, text.Bold}
 	t.Style().Options.SeparateRows = true
 
-	fmt.Println(t.Render())
+	//fmt.Println(t.Render())
+	t.Render()
 }
 
 // AppendResultsToJSON appends scan results to JSON file

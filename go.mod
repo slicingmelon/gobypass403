@@ -12,6 +12,7 @@ require (
 	github.com/slicingmelon/go-rawurlparser v0.2.8
 	github.com/valyala/fasthttp v1.58.0
 	github.com/vmihailenco/msgpack/v5 v5.4.1
+	golang.org/x/term v0.26.0
 )
 
 require (
@@ -23,6 +24,5 @@ require (
 	github.com/vmihailenco/tagparser/v2 v2.0.0 // indirect
 	golang.org/x/net v0.31.0 // indirect
 	golang.org/x/sys v0.27.0 // indirect
-	golang.org/x/term v0.26.0 // indirect
 	golang.org/x/text v0.21.0 // indirect
 )

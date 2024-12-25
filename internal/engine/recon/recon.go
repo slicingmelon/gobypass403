@@ -32,6 +32,15 @@ type IPAddrs struct {
 	CNAMEs []string
 }
 
+func (s *ReconService) processHost(host string) error {
+	if net.ParseIP(host) != nil {
+		s.handleIP(host)
+	} else {
+		s.handleDomain(host)
+	}
+	return nil
+}
+
 func NewReconService(logger GB403Logger.ILogger) *ReconService {
 	if logger == nil {
 		logger = GB403Logger.NewLogger()
@@ -41,7 +50,12 @@ func NewReconService(logger GB403Logger.ILogger) *ReconService {
 		Resolver: &net.Resolver{
 			PreferGo: true,
 			Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
-				d := net.Dialer{}
+				d := net.Dialer{
+					Timeout: 5 * time.Second,
+					// Add connection pooling
+					KeepAlive: 30 * time.Second,
+					DualStack: true,
+				}
 				switch network {
 				case "udp", "udp4", "udp6":
 					// Round-robin between multiple resolvers for redundancy
@@ -49,8 +63,13 @@ func NewReconService(logger GB403Logger.ILogger) *ReconService {
 						"8.8.8.8:53",                // Google
 						"1.1.1.1:53",                // Cloudflare
 						"9.9.9.9:53",                // Quad9
+						"208.67.222.222:53",         // OpenDNS
+						"8.8.4.4:53",                // Google Secondary
+						"1.0.0.1:53",                // Cloudflare Secondary
 						"[2001:4860:4860::8888]:53", // Google IPv6
 						"[2606:4700:4700::1111]:53", // Cloudflare IPv6
+						"[2620:fe::fe]:53",          // Quad9 IPv6
+						"[2620:0:ccc::2]:53",        // OpenDNS IPv6
 					}
 					// Try each resolver until one works
 					for _, resolver := range resolvers {
@@ -62,7 +81,7 @@ func NewReconService(logger GB403Logger.ILogger) *ReconService {
 				return d.DialContext(ctx, network, address)
 			},
 		},
-		DNSCacheDuration: 5 * time.Minute,
+		DNSCacheDuration: 10 * time.Minute,
 	}
 
 	return &ReconService{
@@ -73,43 +92,53 @@ func NewReconService(logger GB403Logger.ILogger) *ReconService {
 }
 
 func (s *ReconService) Run(urls []string) error {
-	var wg sync.WaitGroup
-	sem := make(chan struct{}, 10)
+	maxWorkers := 50
+	jobs := make(chan string, len(urls))
+	results := make(chan error, len(urls))
 
-	// Track unique hosts/IPs but preserve original schemes
-	uniqueTargets := make(map[string]map[string]bool) // host -> schemes
-
-	for _, rawURL := range urls {
-		parsedURL, err := rawurlparser.RawURLParse(rawURL)
-		if err != nil {
-			s.logger.LogError("Failed to parse URL %s: %v", rawURL, err)
-			continue
+	// Process unique hosts first to avoid duplicate work
+	uniqueHosts := make(map[string]bool)
+	for _, url := range urls {
+		if parsedURL, err := rawurlparser.RawURLParse(url); err == nil {
+			uniqueHosts[parsedURL.Host] = true
 		}
-
-		// Track both host and scheme
-		if uniqueTargets[parsedURL.Host] == nil {
-			uniqueTargets[parsedURL.Host] = make(map[string]bool)
-
-			wg.Add(1)
-			go func(host string) {
-				defer wg.Done()
-				sem <- struct{}{}
-				defer func() { <-sem }()
-
-				// Check if it's an IP address
-				if net.ParseIP(host) != nil {
-					s.handleIP(host)
-					return
-				}
-
-				// For domains: resolve, store IPs, and port scan once
-				s.handleDomain(host)
-			}(parsedURL.Host)
-		}
-		uniqueTargets[parsedURL.Host][parsedURL.Scheme] = true
 	}
 
-	wg.Wait()
+	// Start workers before feeding jobs
+	var wg sync.WaitGroup
+	for i := 0; i < maxWorkers; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for host := range jobs {
+				if err := s.processHost(host); err != nil {
+					select {
+					case results <- fmt.Errorf("host %s: %v", host, err):
+					default:
+					}
+				}
+			}
+		}()
+	}
+
+	// Feed all jobs at once
+	for host := range uniqueHosts {
+		jobs <- host
+	}
+	close(jobs)
+
+	// Wait and process results
+	go func() {
+		wg.Wait()
+		close(results)
+	}()
+
+	for err := range results {
+		if err != nil {
+			s.logger.LogError("%v", err)
+		}
+	}
+
 	return nil
 }
 
