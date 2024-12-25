@@ -47,6 +47,8 @@ func NewReconService(logger GB403Logger.ILogger) *ReconService {
 	}
 
 	dialer := &fasthttp.TCPDialer{
+		Concurrency:      2048,
+		DNSCacheDuration: 15 * time.Minute,
 		Resolver: &net.Resolver{
 			PreferGo: true,
 			Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
@@ -81,7 +83,6 @@ func NewReconService(logger GB403Logger.ILogger) *ReconService {
 				return d.DialContext(ctx, network, address)
 			},
 		},
-		DNSCacheDuration: 10 * time.Minute,
 	}
 
 	return &ReconService{
