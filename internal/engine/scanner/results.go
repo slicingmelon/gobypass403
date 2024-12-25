@@ -68,7 +68,7 @@ func PrintTableHeader(targetURL string) {
 	fmt.Println()
 	logger.PrintTeal("[##########] Results for ")
 	logger.PrintYellow("%s\n", targetURL)
-	logger.PrintTeal(" [##########]")
+	logger.PrintTeal("[##########]")
 	fmt.Println()
 }
 
@@ -125,8 +125,8 @@ func PrintTableRow(results []*Result) {
 	// Add all rows
 	for _, result := range results {
 		title := formatValue(result.Title)
-		if len(title) > 30 {
-			title = title[:27] + "..."
+		if len(title) > 15 {
+			title = title[:12] + "..."
 		}
 
 		locationHeader := formatValue(result.RedirectURL)

@@ -28,6 +28,14 @@ type RequestPool struct {
 	closeMu      sync.Once
 }
 
+// ConnPoolStrategyType define strategy of connection pool enqueue/dequeue.
+type ConnPoolStrategyType int
+
+const (
+	FIFO ConnPoolStrategyType = iota
+	LIFO
+)
+
 type requestWorkerPool struct {
 	workers       []*requestWorker
 	ready         chan *requestWorker
@@ -36,6 +44,11 @@ type requestWorkerPool struct {
 	pool          sync.Pool
 	activeWorkers int32
 	queuedJobs    int32
+
+	// news
+	maxIdleWorkerDuration time.Duration
+	lastCleanup           time.Time
+	strategy              ConnPoolStrategyType // FIFO or LIFO
 }
 
 type requestWorker struct {
@@ -127,6 +140,9 @@ func NewRequestPool(clientOpts *ClientOptions, scanOpts *ScannerCliOpts, errorHa
 		pool.workerPool.ready <- worker
 	}
 
+	// Start the cleanup routine
+	pool.workerPool.startCleanupRoutine()
+
 	return pool
 }
 
@@ -215,31 +231,6 @@ func (rb *RequestBuilder) BuildRequest(req *fasthttp.Request, job payload.Payloa
 		req.Header.Set("Connection", "keep-alive")
 	}
 }
-
-// func (rb *RequestBuilder) SetRequestHeaders(req *fasthttp.Request, job payload.PayloadJob) {
-// 	// Iterate through headers and set them
-// 	for _, h := range job.Headers {
-// 		headerNameBytes := []byte(h.Header)
-// 		headerValueBytes := []byte(h.Value)
-
-// 		req.Header.SetBytesKV(headerNameBytes, headerValueBytes)
-// 	}
-
-// 	req.Header.SetUserAgentBytes(CustomUserAgent)
-
-// 	if logger.IsDebugEnabled() {
-// 		req.Header.SetBytesKV([]byte("X-GB403-Debug"), []byte(job.PayloadSeed))
-// 	}
-
-// 	// Handle connection settings
-// 	if rb.client.options.ProxyURL != "" {
-// 		req.SetConnectionClose()
-// 	} else if rb.client.options.DisableKeepAlive {
-// 		req.SetConnectionClose()
-// 	} else {
-// 		req.Header.SetBytesKV([]byte("Connection"), []byte("keep-alive"))
-// 	}
-// }
 
 // ProcessRequests handles multiple requests "efficiently"
 func (p *RequestPool) ProcessRequests(jobs []payload.PayloadJob) <-chan *RawHTTPResponseDetails {
@@ -433,22 +424,33 @@ func (wp *requestWorkerPool) acquireWorker() *requestWorker {
 
 func (wp *requestWorkerPool) releaseWorker(w *requestWorker) {
 	w.lastUsed = time.Now()
-	select {
-	case wp.ready <- w:
-		// Worker successfully returned to pool
-	default:
-		// Pool is full, clean up worker
-		wp.lock.Lock()
-		for i, worker := range wp.workers {
-			if worker == w {
-				wp.workers[i] = wp.workers[len(wp.workers)-1]
-				wp.workers = wp.workers[:len(wp.workers)-1]
-				break
+
+	wp.lock.Lock()
+	defer wp.lock.Unlock()
+
+	if wp.strategy == LIFO {
+		// Add to end for LIFO (faster reuse)
+		wp.workers = append(wp.workers, w)
+	} else {
+		// Add to beginning for FIFO
+		wp.workers = append([]*requestWorker{w}, wp.workers...)
+	}
+}
+
+func (wp *requestWorkerPool) startCleanupRoutine() {
+	go func() {
+		ticker := time.NewTicker(30 * time.Second)
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-wp.stopCh:
+				return
+			case <-ticker.C:
+				wp.cleanIdleWorkers(wp.maxIdleWorkerDuration)
 			}
 		}
-		wp.lock.Unlock()
-		wp.pool.Put(w)
-	}
+	}()
 }
 
 func (wp *requestWorkerPool) cleanIdleWorkers(maxIdleTime time.Duration) {

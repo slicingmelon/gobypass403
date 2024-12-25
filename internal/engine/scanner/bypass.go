@@ -192,36 +192,6 @@ func (s *Scanner) RunAllBypasses(targetURL string) chan *Result {
 	return results
 }
 
-// func (s *Scanner) RunAllBypasses(targetURL string) chan *Result {
-// 	results := make(chan *Result)
-
-// 	go func() {
-// 		defer close(results)
-
-// 		modes := strings.Split(s.config.BypassModule, ",")
-// 		for _, mode := range modes {
-// 			mode = strings.TrimSpace(mode)
-
-// 			if mode == "all" {
-// 				// Run all registered modules
-// 				for modeName := range bypassModules {
-// 					s.runBypassForMode(modeName, targetURL, results)
-// 				}
-// 				continue
-// 			}
-
-// 			// Check if module exists in registry
-// 			if _, exists := bypassModules[mode]; exists {
-// 				s.runBypassForMode(mode, targetURL, results)
-// 			} else {
-// 				s.logger.LogError("Unknown bypass mode: %s", mode)
-// 			}
-// 		}
-// 	}()
-
-// 	return results
-// }
-
 // Generic runner that replaces all individual run*Bypass functions
 func (s *Scanner) runBypassForMode(bypassModule string, targetURL string, results chan<- *Result) {
 	moduleInstance, exists := bypassModules[bypassModule]

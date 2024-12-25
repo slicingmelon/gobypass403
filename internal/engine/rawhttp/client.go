@@ -65,7 +65,7 @@ func DefaultOptionsMultiHost() *ClientOptions {
 func DefaultOptionsSameHost() *ClientOptions {
 	return &ClientOptions{
 		Timeout:             30 * time.Second,
-		MaxConnsPerHost:     512,
+		MaxConnsPerHost:     128,
 		MaxIdleConnDuration: 10 * time.Second,
 		MaxConnWaitTimeout:  2 * time.Second,
 		NoDefaultUserAgent:  true,
@@ -151,7 +151,6 @@ func NewHTTPClient(opts *ClientOptions, errorHandler *GB403ErrorHandler.ErrorHan
 
 // DoRaw performs a raw HTTP request
 func (c *HttpClient) DoRaw(req *fasthttp.Request, resp *fasthttp.Response) error {
-	// Set max body size before making the request
 	return c.client.Do(req, resp)
 }
 
