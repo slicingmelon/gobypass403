@@ -23,7 +23,6 @@ type RequestPool struct {
 	payloadQueue chan payload.PayloadJob
 	results      chan *RawHTTPResponseDetails
 	scanOpts     *ScannerCliOpts
-	logger       GB403Logger.ILogger
 	errorHandler *GB403ErrorHandler.ErrorHandler
 	closeMu      sync.Once
 }
@@ -59,7 +58,6 @@ type requestWorker struct {
 	lastUsed     time.Time
 	builder      *RequestBuilder
 	scanOpts     *ScannerCliOpts
-	logger       GB403Logger.ILogger
 	errorHandler *GB403ErrorHandler.ErrorHandler
 	pool         *requestWorkerPool
 }
@@ -71,7 +69,6 @@ type ProgressTracker interface {
 // RequestBuilder handles the lifecycle of fasthttp requests
 type RequestBuilder struct {
 	client *HttpClient
-	logger GB403Logger.ILogger
 }
 
 // ScannerCliOpts reference the cli options
@@ -97,7 +94,7 @@ type RawHTTPResponseDetails struct {
 	Title           []byte
 }
 
-func NewRequestPool(clientOpts *ClientOptions, scanOpts *ScannerCliOpts, errorHandler *GB403ErrorHandler.ErrorHandler, logger GB403Logger.ILogger) *RequestPool {
+func NewRequestPool(clientOpts *ClientOptions, scanOpts *ScannerCliOpts, errorHandler *GB403ErrorHandler.ErrorHandler) *RequestPool {
 	// Just use the options as provided, with a fallback to defaults
 	if clientOpts == nil {
 		clientOpts = DefaultOptionsSameHost()
@@ -105,13 +102,12 @@ func NewRequestPool(clientOpts *ClientOptions, scanOpts *ScannerCliOpts, errorHa
 
 	maxWorkers := clientOpts.MaxConnsPerHost
 	pool := &RequestPool{
-		client:       NewHTTPClient(clientOpts, errorHandler, logger),
+		client:       NewHTTPClient(clientOpts, errorHandler),
 		maxWorkers:   maxWorkers,
 		payloadQueue: make(chan payload.PayloadJob, maxWorkers*2),
 		results:      make(chan *RawHTTPResponseDetails, maxWorkers*2),
 		scanOpts:     scanOpts,
 		errorHandler: errorHandler,
-		logger:       logger,
 		workerPool: &requestWorkerPool{
 			ready:  make(chan *requestWorker, maxWorkers),
 			stopCh: make(chan struct{}),
@@ -125,11 +121,10 @@ func NewRequestPool(clientOpts *ClientOptions, scanOpts *ScannerCliOpts, errorHa
 			client:       pool.client,
 			jobs:         make(chan payload.PayloadJob, 1),
 			results:      make(chan *RawHTTPResponseDetails, 1),
-			builder:      NewRequestBuilder(pool.client, logger),
+			builder:      NewRequestBuilder(pool.client),
 			scanOpts:     scanOpts,
 			errorHandler: pool.errorHandler,
 			pool:         pool.workerPool,
-			logger:       logger,
 		}
 	}
 
@@ -139,9 +134,6 @@ func NewRequestPool(clientOpts *ClientOptions, scanOpts *ScannerCliOpts, errorHa
 		pool.workerPool.workers = append(pool.workerPool.workers, worker)
 		pool.workerPool.ready <- worker
 	}
-
-	// Start the cleanup routine
-	pool.workerPool.startCleanupRoutine()
 
 	return pool
 }
@@ -169,10 +161,9 @@ func (p *requestWorkerPool) getStats() (active int32, queued int32) {
 }
 
 // RequestBuilder handles request construction
-func NewRequestBuilder(client *HttpClient, logger GB403Logger.ILogger) *RequestBuilder {
+func NewRequestBuilder(client *HttpClient) *RequestBuilder {
 	return &RequestBuilder{
 		client: client,
-		logger: logger,
 	}
 }
 
@@ -220,7 +211,7 @@ func (rb *RequestBuilder) BuildRequest(req *fasthttp.Request, job payload.Payloa
 	// Set standard headers
 	req.Header.SetUserAgentBytes(CustomUserAgent)
 
-	if rb.logger.IsDebugEnabled() {
+	if GB403Logger.IsDebugEnabled() {
 		req.Header.Set("X-GB403-Token", job.PayloadToken)
 	}
 
@@ -235,42 +226,36 @@ func (rb *RequestBuilder) BuildRequest(req *fasthttp.Request, job payload.Payloa
 // ProcessRequests handles multiple requests "efficiently"
 func (p *RequestPool) ProcessRequests(jobs []payload.PayloadJob) <-chan *RawHTTPResponseDetails {
 	results := make(chan *RawHTTPResponseDetails, len(jobs))
+	jobsChan := make(chan payload.PayloadJob, p.maxWorkers)
 
-	go func() {
-		defer close(results)
+	// Start fixed number of workers
+	var wg sync.WaitGroup
+	for i := 0; i < p.maxWorkers; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			worker := p.workerPool.acquireWorker()
+			if worker == nil {
+				return
+			}
+			defer p.workerPool.releaseWorker(worker)
 
-		// Use both worker pool limits and connection limits for optimal concurrency
-		maxConcurrent := min(p.maxWorkers, p.client.options.MaxConnsPerHost)
-		sem := make(chan struct{}, maxConcurrent)
-		var wg sync.WaitGroup
-
-		for _, job := range jobs {
-			wg.Add(1)
-			go func(j payload.PayloadJob) {
-				defer wg.Done()
-
-				// Acquire semaphore slot
-				sem <- struct{}{}
-				defer func() { <-sem }()
-
-				// Get worker from pool
-				worker := p.workerPool.acquireWorker()
-				if worker == nil {
-					p.logger.LogDebug("Failed to acquire worker for job: %s", j.FullURL)
-					return
-				}
-
-				// Process job and release worker
-				result := worker.processRequestJob(j)
-				p.workerPool.releaseWorker(worker)
-
-				if result != nil {
+			for job := range jobsChan {
+				if result := worker.processRequestJob(job); result != nil {
 					results <- result
 				}
-			}(job)
-		}
+			}
+		}()
+	}
 
+	// Feed jobs
+	go func() {
+		for _, job := range jobs {
+			jobsChan <- job
+		}
+		close(jobsChan)
 		wg.Wait()
+		close(results)
 	}()
 
 	return results
@@ -302,7 +287,7 @@ func (w *requestWorker) processRequestJob(job payload.PayloadJob) *RawHTTPRespon
 
 	w.builder.BuildRequest(req, job)
 
-	w.logger.LogDebug(job.PayloadToken, "[%s] Sending request %s\n", job.BypassModule, job.FullURL)
+	GB403Logger.Debug().WithToken(job.PayloadToken).Msgf("[%s] Sending request %s\n", job.BypassModule, job.FullURL)
 
 	if err := w.client.DoRaw(req, resp); err != nil {
 		err = w.errorHandler.HandleError(err, GB403ErrorHandler.ErrorContext{
@@ -312,7 +297,7 @@ func (w *requestWorker) processRequestJob(job payload.PayloadJob) *RawHTTPRespon
 			DebugToken:   []byte(job.PayloadToken),
 		})
 		if err != nil {
-			w.logger.LogError("Request failed: %v", err)
+			GB403Logger.Error().WithToken(job.PayloadToken).Msgf("Request failed: %v", err)
 			return nil
 		}
 	}
@@ -392,33 +377,17 @@ func (wp *requestWorkerPool) acquireWorker() *requestWorker {
 	case worker := <-wp.ready:
 		worker.lastUsed = time.Now()
 		return worker
-	default:
-		// If no workers available, try to create new one
+	case <-time.After(100 * time.Millisecond):
 		wp.lock.Lock()
 		defer wp.lock.Unlock()
 
-		select {
-		case <-wp.stopCh:
-			return nil
-		default:
-			if len(wp.workers) < cap(wp.ready) {
-				worker := wp.pool.Get().(*requestWorker)
-				wp.workers = append(wp.workers, worker)
-				worker.lastUsed = time.Now()
-				return worker
-			}
-		}
-
-		// Wait for available worker
-		select {
-		case <-wp.stopCh:
-			return nil
-		case worker := <-wp.ready:
+		if len(wp.workers) < cap(wp.ready) {
+			worker := wp.pool.Get().(*requestWorker)
+			wp.workers = append(wp.workers, worker)
 			worker.lastUsed = time.Now()
 			return worker
-		case <-time.After(5 * time.Second):
-			return nil
 		}
+		return nil
 	}
 }
 

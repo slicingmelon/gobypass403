@@ -16,37 +16,34 @@ import (
 type BypassModule struct {
 	Name         string
 	payloadGen   *payload.PayloadGenerator
-	logger       GB403Logger.ILogger
 	GenerateJobs func(targetURL string, mode string, opts *ScannerOpts) []payload.PayloadJob
 }
 
-func NewBypassModule(name string, logger GB403Logger.ILogger) *BypassModule {
+func NewBypassModule(name string) *BypassModule {
 	return &BypassModule{
 		Name:       name,
-		logger:     logger,
-		payloadGen: payload.NewPayloadGenerator(logger),
+		payloadGen: payload.NewPayloadGenerator(),
 	}
 }
 
 // Registry of all bypass modules
 var bypassModules = map[string]*BypassModule{
-	"dumb_check":          NewBypassModule("dumb_check", nil), // logger will be set later
-	"mid_paths":           NewBypassModule("mid_paths", nil),
-	"end_paths":           NewBypassModule("end_paths", nil),
-	"http_headers_ip":     NewBypassModule("http_headers_ip", nil),
-	"case_substitution":   NewBypassModule("case_substitution", nil),
-	"char_encode":         NewBypassModule("char_encode", nil),
-	"http_host":           NewBypassModule("http_host", nil),
-	"http_headers_scheme": NewBypassModule("http_headers_scheme", nil),
-	"http_headers_port":   NewBypassModule("http_headers_port", nil),
-	"http_headers_url":    NewBypassModule("http_headers_url", nil),
+	"dumb_check":          NewBypassModule("dumb_check"), // logger will be set later
+	"mid_paths":           NewBypassModule("mid_paths"),
+	"end_paths":           NewBypassModule("end_paths"),
+	"http_headers_ip":     NewBypassModule("http_headers_ip"),
+	"case_substitution":   NewBypassModule("case_substitution"),
+	"char_encode":         NewBypassModule("char_encode"),
+	"http_host":           NewBypassModule("http_host"),
+	"http_headers_scheme": NewBypassModule("http_headers_scheme"),
+	"http_headers_port":   NewBypassModule("http_headers_port"),
+	"http_headers_url":    NewBypassModule("http_headers_url"),
 }
 
 // Registry of all bypass modules
-func InitializeBypassModules(logger GB403Logger.ILogger) {
+func InitializeBypassModules() {
 	for _, module := range bypassModules {
-		module.logger = logger
-		module.payloadGen = payload.NewPayloadGenerator(logger)
+		module.payloadGen = payload.NewPayloadGenerator()
 
 		switch module.Name {
 		case "dumb_check":
@@ -104,7 +101,7 @@ type WorkerContext struct {
 	workerCount int32
 }
 
-func NewWorkerContext(mode string, total int, targetURL string, opts *ScannerOpts, errorHandler *GB403ErrorHandler.ErrorHandler, progress *ProgressCounter, logger GB403Logger.ILogger) *WorkerContext {
+func NewWorkerContext(mode string, total int, targetURL string, opts *ScannerOpts, errorHandler *GB403ErrorHandler.ErrorHandler, progress *ProgressCounter) *WorkerContext {
 	clientOpts := rawhttp.DefaultOptionsSameHost()
 
 	// Override specific settings from user options
@@ -125,7 +122,7 @@ func NewWorkerContext(mode string, total int, targetURL string, opts *ScannerOpt
 			MatchStatusCodes:        opts.MatchStatusCodes,
 			ResponseBodyPreviewSize: opts.ResponseBodyPreviewSize,
 			ModuleName:              mode,
-		}, errorHandler, logger),
+		}, errorHandler),
 	}
 }
 
@@ -154,7 +151,7 @@ func (s *Scanner) RunAllBypasses(targetURL string) chan *Result {
 			ErrorSource: []byte("Scanner.RunAllBypasses"),
 		})
 		if err != nil {
-			s.logger.LogError("Failed to parse URL: %s", targetURL)
+			GB403Logger.Error().Msgf("Failed to parse URL: %s", targetURL)
 			close(results)
 			return results
 		}
@@ -184,7 +181,7 @@ func (s *Scanner) RunAllBypasses(targetURL string) chan *Result {
 			if _, exists := bypassModules[mode]; exists && mode != "dumb_check" {
 				s.runBypassForMode(mode, targetURL, results)
 			} else {
-				s.logger.LogError("Unknown bypass mode: %s", mode)
+				GB403Logger.Error().Msgf("Unknown bypass mode: %s", mode)
 			}
 		}
 	}()
@@ -201,14 +198,14 @@ func (s *Scanner) runBypassForMode(bypassModule string, targetURL string, result
 
 	allJobs := moduleInstance.GenerateJobs(targetURL, bypassModule, s.config)
 	if len(allJobs) == 0 {
-		s.logger.LogVerbose("No jobs generated for module: %s", bypassModule)
+		GB403Logger.Verbose().Msgf("No jobs generated for module: %s", bypassModule)
 		return
 	}
 
 	s.progress.StartModule(bypassModule, len(allJobs), targetURL)
 	lastStatsUpdate := time.Now()
 
-	ctx := NewWorkerContext(bypassModule, len(allJobs), targetURL, s.config, s.errorHandler, s.progress, s.logger)
+	ctx := NewWorkerContext(bypassModule, len(allJobs), targetURL, s.config, s.errorHandler, s.progress)
 	defer func() {
 		// Let the request pool finish and get final worker count
 		finalWorkerCount := ctx.requestPool.ActiveWorkers()

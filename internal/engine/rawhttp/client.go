@@ -8,7 +8,6 @@ import (
 	"time"
 
 	GB403ErrorHandler "github.com/slicingmelon/go-bypass-403/internal/utils/error"
-	GB403Logger "github.com/slicingmelon/go-bypass-403/internal/utils/logger"
 	"github.com/valyala/fasthttp"
 	"github.com/valyala/fasthttp/fasthttpproxy"
 )
@@ -41,7 +40,6 @@ type HttpClient struct {
 	maxRetries   int
 	retryDelay   time.Duration
 	options      *ClientOptions
-	logger       GB403Logger.ILogger
 	errorHandler *GB403ErrorHandler.ErrorHandler
 }
 
@@ -79,7 +77,7 @@ func DefaultOptionsSameHost() *ClientOptions {
 }
 
 // / NewHTTPClient creates a new optimized HTTP client
-func NewHTTPClient(opts *ClientOptions, errorHandler *GB403ErrorHandler.ErrorHandler, logger GB403Logger.ILogger) *HttpClient {
+func NewHTTPClient(opts *ClientOptions, errorHandler *GB403ErrorHandler.ErrorHandler) *HttpClient {
 	if opts == nil {
 		opts = DefaultOptionsSameHost()
 	}
@@ -145,7 +143,6 @@ func NewHTTPClient(opts *ClientOptions, errorHandler *GB403ErrorHandler.ErrorHan
 		maxRetries:   opts.MaxRetries,
 		retryDelay:   opts.RetryDelay,
 		options:      opts,
-		logger:       logger,
 	}
 }
 

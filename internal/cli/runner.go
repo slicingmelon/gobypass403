@@ -12,13 +12,10 @@ type Runner struct {
 	urls     []string
 	scanner  *scanner.Scanner
 	urlRecon *URLRecon
-	logger   GB403Logger.ILogger
 }
 
-func NewRunner(logger GB403Logger.ILogger) *Runner {
-	return &Runner{
-		logger: logger,
-	}
+func NewRunner() *Runner {
+	return &Runner{}
 }
 
 func (r *Runner) Initialize() error {
@@ -31,14 +28,14 @@ func (r *Runner) Initialize() error {
 
 	// Enable Verbose and Debug Logging only when -v and/or -d are used
 	if opts.Verbose {
-		r.logger.EnableVerbose()
+		GB403Logger.DefaultLogger.EnableVerbose()
 	}
 	if opts.Debug {
-		r.logger.EnableDebug()
+		GB403Logger.DefaultLogger.EnableDebug()
 	}
 
 	// Step 2: Initialize URL Processor and process (recon) URLs
-	r.urlRecon = NewURLRecon(r.options, r.logger)
+	r.urlRecon = NewURLRecon(r.options)
 	urls, err := r.urlRecon.ProcessURLs()
 	if err != nil {
 		return fmt.Errorf("failed to process URLs: %w", err)
@@ -70,33 +67,9 @@ func (r *Runner) Initialize() error {
 		scannerOpts.Proxy = r.options.ParsedProxy.String()
 	}
 
-	r.scanner = scanner.NewScanner(scannerOpts, urls, r.logger)
+	r.scanner = scanner.NewScanner(scannerOpts, urls)
 	return nil
 }
-
-// func (r *Runner) Run() error {
-// 	// Get validated URLs
-// 	urls, err := r.urlRecon.ProcessURLs()
-// 	if err != nil {
-// 		return err
-// 	}
-
-// 	r.logger.LogInfo("Initializing scanner with %d URLs", len(urls))
-
-// 	// Process each URL sequentially
-// 	for _, url := range urls {
-// 		r.logger.LogInfo("\nScanning URL: %s", url)
-
-// 		results := r.scanner.RunAllBypasses(url)
-
-// 		// Just drain the results channel - printing is handled per-URL now
-// 		for range results {
-// 			continue
-// 		}
-// 	}
-
-// 	return nil
-// }
 
 func (r *Runner) Run() error {
 	return r.scanner.Run()

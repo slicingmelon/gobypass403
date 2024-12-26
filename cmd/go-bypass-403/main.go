@@ -9,25 +9,24 @@ import (
 )
 
 func main() {
-	logger := GB403Logger.NewLogger()
 
-	logger.LogInfo("Initializing go-bypass-403...")
+	GB403Logger.Info().Msgf("Initializing go-bypass-403...")
 
 	// Initialize payloads first
 	if err := payload.InitializePayloadsDir(); err != nil {
-		logger.LogError("Failed to initialize payloads: %v", err)
+		GB403Logger.Error().Msgf("Failed to initialize payloads: %v", err)
 		os.Exit(1)
 	}
 
-	runner := cli.NewRunner(logger)
+	runner := cli.NewRunner()
 
 	if err := runner.Initialize(); err != nil {
-		logger.LogError("Initialization failed: %v", err)
+		GB403Logger.Error().Msgf("Initialization failed: %v", err)
 		os.Exit(1)
 	}
 
 	if err := runner.Run(); err != nil {
-		logger.LogError("Execution failed: %v", err)
+		GB403Logger.Error().Msgf("Execution failed: %v", err)
 		os.Exit(1)
 	}
 }

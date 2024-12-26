@@ -3,13 +3,10 @@ package recon
 import (
 	"testing"
 	"time"
-
-	GB403Logger "github.com/slicingmelon/go-bypass-403/internal/utils/logger"
 )
 
 func TestReconService_Run(t *testing.T) {
-	logger := GB403Logger.NewLogger()
-	service := NewReconService(logger)
+	service := NewReconService()
 
 	testURLs := []string{
 		// Valid hosts
@@ -111,8 +108,7 @@ func TestReconService_Run(t *testing.T) {
 }
 
 func TestReconService_Run_ValidateDuplicates(t *testing.T) {
-	logger := GB403Logger.NewLogger()
-	service := NewReconService(logger)
+	service := NewReconService()
 
 	testURLs := []string{
 		// Valid hosts

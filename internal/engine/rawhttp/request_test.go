@@ -15,8 +15,6 @@ import (
 	"github.com/valyala/fasthttp/fasthttputil"
 )
 
-var _logger = GB403Logger.NewLogger()
-
 func TestRequestBuilderViaEchoServer(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping test in short mode")
@@ -82,7 +80,7 @@ func TestRequestBuilderViaEchoServer(t *testing.T) {
 		options: DefaultOptionsSameHost(),
 	}
 
-	rb := NewRequestBuilder(client, _logger)
+	rb := NewRequestBuilder(client)
 
 	// Test cases using real payload generators
 	testCases := []struct {
@@ -126,7 +124,7 @@ func TestRequestBuilderViaEchoServer(t *testing.T) {
 			default:
 			}
 
-			pg := payload.NewPayloadGenerator(_logger)
+			pg := payload.NewPayloadGenerator()
 			jobs := tc.generator(pg, tc.targetURL, tc.bypassModule)
 			if len(jobs) == 0 {
 				t.Fatalf("No payloads generated for %s", tc.name)
@@ -139,8 +137,8 @@ func TestRequestBuilderViaEchoServer(t *testing.T) {
 				default:
 				}
 
-				_logger.EnableDebug()
-				_logger.EnableVerbose()
+				GB403Logger.DefaultLogger.EnableDebug()
+				GB403Logger.DefaultLogger.EnableVerbose()
 
 				req := fasthttp.AcquireRequest()
 				resp := fasthttp.AcquireResponse()
@@ -150,7 +148,7 @@ func TestRequestBuilderViaEchoServer(t *testing.T) {
 				rb.BuildRequest(req, job)
 
 				// Build virtual request
-				_logger.PrintYellow("[GB403Logger] Sending request :\n%s", req)
+				GB403Logger.PrintYellow("[GB403Logger] Sending request :\n%s", req)
 
 				// Send request and let server handle the comparison printing
 				if err := client.client.Do(req, resp); err != nil {
@@ -257,7 +255,7 @@ func TestRequestBuilderMidPathsPayloads(t *testing.T) {
 		options: DefaultOptionsSameHost(),
 	}
 
-	rb := NewRequestBuilder(client, _logger)
+	rb := NewRequestBuilder(client)
 
 	// Test cases using real payload generators
 	testCases := []struct {
@@ -285,7 +283,7 @@ func TestRequestBuilderMidPathsPayloads(t *testing.T) {
 			default:
 			}
 
-			pg := payload.NewPayloadGenerator(_logger)
+			pg := payload.NewPayloadGenerator()
 			jobs := tc.generator(pg, tc.targetURL, tc.bypassModule)
 			if len(jobs) == 0 {
 				t.Fatalf("No payloads generated for %s", tc.name)
@@ -298,8 +296,8 @@ func TestRequestBuilderMidPathsPayloads(t *testing.T) {
 				default:
 				}
 
-				_logger.EnableDebug()
-				_logger.EnableVerbose()
+				GB403Logger.DefaultLogger.EnableDebug()
+				GB403Logger.DefaultLogger.EnableVerbose()
 
 				req := fasthttp.AcquireRequest()
 				resp := fasthttp.AcquireResponse()
@@ -309,20 +307,18 @@ func TestRequestBuilderMidPathsPayloads(t *testing.T) {
 				rb.BuildRequest(req, job)
 
 				// Build virtual request
-				_logger.PrintGreen("[GB403Logger][RequestBuilder] [X-GB403-Token: %s] Sending request: %s\n================>\n%s<================\n", job.PayloadToken, job.FullURL, req)
+				GB403Logger.PrintGreen("[GB403Logger][RequestBuilder] [X-GB403-Token: %s] Sending request: %s\n================>\n%s<================\n", job.PayloadToken, job.FullURL, req)
 
 				// Send request and let server handle the comparison printing
 				if err := client.client.Do(req, resp); err != nil {
 					t.Fatalf("Job %d failed: %v", i, err)
 				}
 
-				_logger.PrintYellow("[GB403Logger] [X-GB403-Token: %s] Response received for: %s\n%s", job.PayloadToken, job.FullURL, resp.Body())
+				GB403Logger.PrintYellow("[GB403Logger] [X-GB403-Token: %s] Response received for: %s\n%s", job.PayloadToken, job.FullURL, resp.Body())
 			}
 		})
 	}
 }
-
-// ... existing imports ...
 
 func TestRequestBuilderHostHeaders(t *testing.T) {
 	if testing.Short() {
@@ -337,7 +333,7 @@ func TestRequestBuilderHostHeaders(t *testing.T) {
 		ProxyURL:            "http://127.0.0.1:8080",
 	}
 
-	client := NewHTTPClient(clientOpts, GB403ErrorHandler.NewErrorHandler(15), _logger)
+	client := NewHTTPClient(clientOpts, GB403ErrorHandler.NewErrorHandler(15))
 	//rb := NewRequestBuilder(client, _logger)
 
 	testCases := []struct {
@@ -384,10 +380,10 @@ func TestRequestBuilderHostHeaders(t *testing.T) {
 				}
 			}
 
-			_logger.PrintYellow("\n=== Sending Request ===")
-			_logger.PrintYellow("Test Case: %s", tc.name)
-			_logger.PrintYellow("Request URI: %s", req.URI().FullURI())
-			_logger.PrintYellow("===================\n")
+			GB403Logger.PrintGreen("\n=== Sending Request ===")
+			GB403Logger.PrintYellow("Test Case: %s", tc.name)
+			GB403Logger.PrintYellow("Request URI: %s", req.URI().FullURI())
+			GB403Logger.PrintYellow("===================\n")
 
 			if err := client.DoRaw(req, resp); err != nil {
 				t.Fatalf("Request failed: %v", err)
@@ -395,7 +391,7 @@ func TestRequestBuilderHostHeaders(t *testing.T) {
 
 			// Verify response
 			statusCode := resp.StatusCode()
-			_logger.PrintGreen("Response Status Code: %d", statusCode)
+			GB403Logger.PrintGreen("Response Status Code: %d", statusCode)
 		})
 	}
 }

@@ -11,8 +11,6 @@ import (
 )
 
 var (
-	internalLogger = GB403Logger.NewLogger()
-
 	charsetTable = func() [62]byte {
 		// Initialize with 62 chars (26 lowercase + 26 uppercase + 10 digits)
 		var table [62]byte
@@ -91,7 +89,7 @@ func InitializePayloadsDir() error {
 			if err := os.WriteFile(dstPath, data, 0644); err != nil {
 				return fmt.Errorf("failed to write file %s: %w", dstPath, err)
 			}
-			internalLogger.LogInfo("Created payload file: %s", dstPath)
+			GB403Logger.Verbose().Msgf("Created payload file: %s", dstPath)
 		}
 	}
 	return nil
@@ -124,7 +122,7 @@ func UpdatePayloads() error {
 		if err := os.WriteFile(dstPath, data, 0644); err != nil {
 			return fmt.Errorf("failed to write file %s: %w", dstPath, err)
 		}
-		internalLogger.LogInfo("Updated payload file: %s", dstPath)
+		GB403Logger.Verbose().Msgf("Updated payload file: %s", dstPath)
 	}
 	return nil
 }
@@ -159,7 +157,7 @@ func ReadPayloadsFromFile(filename string) ([]string, error) {
 	var embeddedPayloads []string
 	lines := strings.Split(text, "\n")
 
-	internalLogger.LogVerbose("Read %d raw lines from embedded payload file", len(lines))
+	GB403Logger.Verbose().Msgf("Read %d raw lines from embedded payload file", len(lines))
 
 	for _, line := range lines {
 		line = strings.TrimSpace(line)
@@ -168,7 +166,7 @@ func ReadPayloadsFromFile(filename string) ([]string, error) {
 		}
 	}
 
-	internalLogger.LogVerbose("Processed %d valid payloads", len(embeddedPayloads))
+	GB403Logger.Verbose().Msgf("Processed %d valid payloads", len(embeddedPayloads))
 	return embeddedPayloads, nil
 }
 
@@ -190,7 +188,7 @@ func ReadMaxPayloadsFromFile(filename string, maxNum int) ([]string, error) {
 	var payloads []string
 	lines := strings.Split(text, "\n")
 
-	internalLogger.LogVerbose("Read %d raw lines from payload file", len(lines))
+	GB403Logger.Verbose().Msgf("Read %d raw lines from payload file", len(lines))
 
 	for i, line := range lines {
 		if maxNum != -1 && i >= maxNum {
@@ -202,7 +200,7 @@ func ReadMaxPayloadsFromFile(filename string, maxNum int) ([]string, error) {
 		}
 	}
 
-	internalLogger.LogVerbose("Processed %d valid payloads", len(payloads))
+	GB403Logger.Verbose().Msgf("Processed %d valid payloads", len(payloads))
 	return payloads, nil
 }
 

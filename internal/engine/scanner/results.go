@@ -59,16 +59,14 @@ type ResponseDetails struct {
 	Title           string
 }
 
-var logger = GB403Logger.NewLogger()
-
 // PrintTableHeader prints the header for results table
 func PrintTableHeader(targetURL string) {
 	// Title only
 	fmt.Println()
 	fmt.Println()
-	logger.PrintTeal("[##########] Results for ")
-	logger.PrintYellow("%s\n", targetURL)
-	logger.PrintTeal("[##########]")
+	GB403Logger.PrintGreen("[##########] Results for %s", targetURL)
+	GB403Logger.PrintYellow("%s\n", targetURL)
+	GB403Logger.PrintGreen("[##########]")
 	fmt.Println()
 }
 
@@ -79,22 +77,56 @@ func formatValue(val string) string {
 	return val
 }
 
+type columnStats struct {
+	maxModuleWidth int
+	maxCurlWidth   int
+	maxContentType int
+	maxTitleLen    int
+	hasServer      bool
+}
+
+func analyzeResults(results []*Result) columnStats {
+	stats := columnStats{}
+
+	// Analyze all results for maximum widths
+	for _, result := range results {
+		// Module width
+		if len(result.BypassModule) > stats.maxModuleWidth {
+			stats.maxModuleWidth = len(result.BypassModule)
+		}
+
+		// Curl command width
+		if len(result.CurlPocCommand) > stats.maxCurlWidth {
+			stats.maxCurlWidth = len(result.CurlPocCommand)
+		}
+
+		// Content Type width (up to semicolon)
+		contentType := formatContentType(result.ContentType)
+		if len(contentType) > stats.maxContentType {
+			stats.maxContentType = len(contentType)
+		}
+
+		// Title length (up to 15 chars)
+		if len(result.Title) > stats.maxTitleLen {
+			stats.maxTitleLen = min(len(result.Title), 15)
+		}
+
+		// Check if any result has server info
+		if result.ServerInfo != "" {
+			stats.hasServer = true
+		}
+	}
+
+	return stats
+}
+
+// PrintTableRow prints a single result row
 // PrintTableRow prints a single result row
 func PrintTableRow(results []*Result) {
+	stats := analyzeResults(results)
+
 	t := table.NewWriter()
 	t.SetOutputMirror(os.Stdout)
-
-	// Configure columns
-	t.AppendHeader(table.Row{
-		"Module",
-		"Curl PoC",
-		"Status",
-		"Length",
-		"Type",
-		"Title",
-		"Server",
-		"Redirect",
-	})
 
 	// Get terminal width
 	width := 80
@@ -102,60 +134,80 @@ func PrintTableRow(results []*Result) {
 		width = w
 	}
 
-	// Calculate max width for Curl PoC based on actual content
-	maxCurlWidth := width - 80 // Reserve space for other columns
-	for _, result := range results {
-		if len(result.CurlPocCommand) > maxCurlWidth {
-			maxCurlWidth = len(result.CurlPocCommand)
-		}
+	// Base headers
+	headers := []interface{}{
+		"Module",
+		"Curl PoC",
+		"Status",
+		"Length",
+		"Type",
+		"Title",
 	}
 
-	// Set column configs with dynamic width for Curl PoC
-	t.SetColumnConfigs([]table.ColumnConfig{
-		{Name: "MODULE", WidthMax: 15, WidthMin: 10},
-		{Name: "CURL POC", WidthMax: maxCurlWidth, WidthMin: maxCurlWidth / 2}, // Dynamic width
-		{Name: "STATUS", WidthMax: 6, WidthMin: 6},
-		{Name: "LENGTH", WidthMax: 8, WidthMin: 6},
-		{Name: "TYPE", WidthMax: 12, WidthMin: 8},
-		{Name: "TITLE", WidthMax: 15, WidthMin: 10},
-		{Name: "SERVER", WidthMax: 12, WidthMin: 8},
-		{Name: "REDIRECT", WidthMax: 8, WidthMin: 8},
-	})
+	// Calculate column widths
+	moduleWidth := min(stats.maxModuleWidth+2, 15) // +2 for padding
+	statusWidth := 3                               // Always 3 digits
+	lengthWidth := 8                               // Enough for formatted sizes
+	typeWidth := min(stats.maxContentType+2, 12)
+	titleWidth := min(stats.maxTitleLen+2, 15)
+	serverWidth := 12
 
-	// Add all rows
-	for _, result := range results {
-		title := formatValue(result.Title)
-		if len(title) > 15 {
-			title = title[:12] + "..."
-		}
+	// Calculate remaining width for CURL POC
+	reservedWidth := moduleWidth + statusWidth + lengthWidth + typeWidth + titleWidth
+	if stats.hasServer {
+		reservedWidth += serverWidth
+		headers = append(headers, "Server")
+	}
 
-		locationHeader := formatValue(result.RedirectURL)
-		if len(locationHeader) > 15 {
-			locationHeader = locationHeader[:12] + "..."
-		}
+	curlWidth := min(stats.maxCurlWidth, width-reservedWidth-5) // -5 for padding and borders
 
-		contentType := formatValue(result.ContentType)
-		if strings.Contains(contentType, ";") {
-			contentType = strings.TrimSpace(strings.Split(contentType, ";")[0])
-		}
+	// Configure columns
+	columns := []table.ColumnConfig{
+		{Name: "MODULE", WidthMax: moduleWidth, WidthMin: moduleWidth},
+		{Name: "CURL POC", WidthMax: curlWidth, WidthMin: curlWidth / 2},
+		{Name: "STATUS", WidthMax: statusWidth, WidthMin: statusWidth},
+		{Name: "LENGTH", WidthMax: lengthWidth, WidthMin: lengthWidth},
+		{Name: "TYPE", WidthMax: typeWidth, WidthMin: typeWidth},
+		{Name: "TITLE", WidthMax: titleWidth, WidthMin: titleWidth},
+	}
 
-		t.AppendRow(table.Row{
-			text.Colors{text.FgBlue}.Sprint(result.BypassModule),
-			text.Colors{text.FgYellow}.Sprint(result.CurlPocCommand),
-			text.Colors{text.FgGreen}.Sprintf("%d", result.StatusCode),
-			text.Colors{text.FgMagenta}.Sprint(formatBytes(result.ContentLength)),
-			text.Colors{text.FgHiYellow}.Sprint(contentType),
-			text.Colors{text.FgHiCyan}.Sprint(title),
-			text.Colors{text.FgHiBlack}.Sprint(formatValue(result.ServerInfo)),
-			text.Colors{text.FgHiMagenta}.Sprint(locationHeader),
+	if stats.hasServer {
+		columns = append(columns, table.ColumnConfig{
+			Name:     "SERVER",
+			WidthMax: serverWidth,
+			WidthMin: serverWidth,
 		})
 	}
 
+	// Set styling
 	t.SetStyle(table.StyleLight)
 	t.Style().Color.Header = text.Colors{text.FgHiCyan, text.Bold}
 	t.Style().Options.SeparateRows = true
+	t.Style().Options.DrawBorder = true
+	t.Style().Box.PaddingLeft = " "
+	t.Style().Box.PaddingRight = " "
 
-	//fmt.Println(t.Render())
+	t.SetColumnConfigs(columns)
+	t.AppendHeader(headers)
+
+	// Add rows
+	for _, result := range results {
+		row := []interface{}{
+			text.Colors{text.FgBlue}.Sprint(result.BypassModule),
+			text.Colors{text.FgYellow}.Sprint(result.CurlPocCommand),
+			text.Colors{text.FgGreen}.Sprintf("%d", result.StatusCode),
+			text.Colors{text.FgMagenta}.Sprint(FormatBytesH(result.ContentLength)),
+			text.Colors{text.FgHiYellow}.Sprint(formatContentType(result.ContentType)),
+			text.Colors{text.FgHiCyan}.Sprint(formatValue(result.Title)),
+		}
+
+		if stats.hasServer {
+			row = append(row, text.Colors{text.FgHiBlack}.Sprint(formatValue(result.ServerInfo)))
+		}
+
+		t.AppendRow(row)
+	}
+
 	t.Render()
 }
 
@@ -176,12 +228,12 @@ func AppendResultsToJSON(outputFile, url, mode string, findings []*Result) error
 		data = JSONData{
 			Scans: make([]ScanResult, 0),
 		}
-		logger.LogVerbose("[JSON] Initializing new JSON file")
+		GB403Logger.Verbose().Msgf("[JSON] Initializing new JSON file")
 	} else {
 		if err := json.Unmarshal(fileData, &data); err != nil {
 			return fmt.Errorf("failed to parse existing JSON: %v", err)
 		}
-		logger.LogVerbose("[JSON] Read existing JSON file with %d scans", len(data.Scans))
+		GB403Logger.Verbose().Msgf("[JSON] Read existing JSON file with %d scans", len(data.Scans))
 	}
 
 	// Clean up findings
@@ -201,7 +253,7 @@ func AppendResultsToJSON(outputFile, url, mode string, findings []*Result) error
 	}
 
 	data.Scans = append(data.Scans, scan)
-	logger.LogVerbose("[JSON] Updated JSON now has %d scans", len(data.Scans))
+	GB403Logger.Verbose().Msgf("[JSON] Updated JSON now has %d scans", len(data.Scans))
 
 	// Create a buffered writer
 	file, err := os.OpenFile(outputFile, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
@@ -220,6 +272,16 @@ func AppendResultsToJSON(outputFile, url, mode string, findings []*Result) error
 	}
 
 	return writer.Flush()
+}
+
+func formatContentType(contentType string) string {
+	if contentType == "" {
+		return "[-]"
+	}
+	if strings.Contains(contentType, ";") {
+		return strings.TrimSpace(strings.Split(contentType, ";")[0])
+	}
+	return contentType
 }
 
 // Helper function to format bytes

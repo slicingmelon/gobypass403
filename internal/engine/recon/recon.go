@@ -15,7 +15,6 @@ import (
 
 type ReconService struct {
 	cache  *ReconCache
-	logger GB403Logger.ILogger
 	dialer *fasthttp.TCPDialer
 }
 
@@ -41,11 +40,7 @@ func (s *ReconService) processHost(host string) error {
 	return nil
 }
 
-func NewReconService(logger GB403Logger.ILogger) *ReconService {
-	if logger == nil {
-		logger = GB403Logger.NewLogger()
-	}
-
+func NewReconService() *ReconService {
 	dialer := &fasthttp.TCPDialer{
 		Concurrency:      2048,
 		DNSCacheDuration: 15 * time.Minute,
@@ -87,7 +82,6 @@ func NewReconService(logger GB403Logger.ILogger) *ReconService {
 
 	return &ReconService{
 		cache:  NewReconCache(),
-		logger: logger,
 		dialer: dialer,
 	}
 }
@@ -136,7 +130,7 @@ func (s *ReconService) Run(urls []string) error {
 
 	for err := range results {
 		if err != nil {
-			s.logger.LogError("%v", err)
+			GB403Logger.Error().Msgf("%v", err)
 		}
 	}
 
@@ -154,16 +148,16 @@ func (s *ReconService) handleIP(ip string) {
 	services := result.IPv4Services
 	if strings.Contains(ip, ":") {
 		services = result.IPv6Services
-		s.logger.LogVerbose("Handling IPv6: %s", ip)
+		GB403Logger.Verbose().Msgf("Handling IPv6: %s", ip)
 	} else {
-		s.logger.LogVerbose("Handling IPv4: %s", ip)
+		GB403Logger.Verbose().Msgf("Handling IPv4: %s", ip)
 	}
 
 	// Check both ports and store all available schemes
 	for _, port := range []string{"80", "443"} {
-		s.logger.LogVerbose("Probing %s:%s", ip, port)
+		GB403Logger.Verbose().Msgf("Probing %s:%s", ip, port)
 		if scheme := s.probePort(ip, port); scheme != "" {
-			s.logger.LogVerbose("Found open port %s:%s -> %s", ip, port, scheme)
+			GB403Logger.Verbose().Msgf("Found open port %s:%s -> %s", ip, port, scheme)
 			if services[scheme] == nil {
 				services[scheme] = make(map[string][]string)
 			}
@@ -171,7 +165,7 @@ func (s *ReconService) handleIP(ip string) {
 		}
 	}
 
-	s.logger.LogVerbose("Caching result for %s: IPv4=%v, IPv6=%v",
+	GB403Logger.Verbose().Msgf("Caching result for %s: IPv4=%v, IPv6=%v",
 		ip, result.IPv4Services, result.IPv6Services)
 	s.cache.Set(ip, result)
 }
@@ -179,7 +173,7 @@ func (s *ReconService) handleIP(ip string) {
 func (s *ReconService) handleDomain(host string) {
 	ips, err := s.resolveHost(host)
 	if err != nil {
-		s.logger.LogError("Failed to resolve host %s: %v", host, err)
+		GB403Logger.Error().Msgf("Failed to resolve host %s: %v", host, err)
 		return
 	}
 
@@ -248,25 +242,25 @@ func (s *ReconService) resolveHost(hostname string) (*IPAddrs, error) {
 
 func (s *ReconService) probePort(host, port string) string {
 	addr := net.JoinHostPort(host, port)
-	s.logger.LogVerbose("Attempting to probe %s", addr)
+	GB403Logger.Verbose().Msgf("Attempting to probe %s", addr)
 
 	conn, err := s.dialer.DialDualStackTimeout(addr, 5*time.Second)
 	if err != nil {
-		s.logger.LogVerbose("Port %s closed for host %s: %v", port, host, err)
+		GB403Logger.Verbose().Msgf("Port %s closed for host %s: %v", port, host, err)
 		return ""
 	}
 	defer conn.Close()
-	s.logger.LogVerbose("Successfully connected to %s", addr)
+	GB403Logger.Verbose().Msgf("Successfully connected to %s", addr)
 
 	switch port {
 	case "80":
-		s.logger.LogVerbose("Port 80 open on %s -> http", host)
+		GB403Logger.Verbose().Msgf("Port 80 open on %s -> http", host)
 		return "http"
 	case "443":
-		s.logger.LogVerbose("Port 443 open on %s -> https", host)
+		GB403Logger.Verbose().Msgf("Port 443 open on %s -> https", host)
 		return "https"
 	default:
-		s.logger.LogVerbose("Custom port %s open on %s, probing for HTTP/HTTPS", port, host)
+		GB403Logger.Verbose().Msgf("Custom port %s open on %s, probing for HTTP/HTTPS", port, host)
 		// For custom ports, try HTTP first then HTTPS
 		req := fasthttp.AcquireRequest()
 		defer fasthttp.ReleaseRequest(req)

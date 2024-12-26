@@ -34,19 +34,17 @@ type Scanner struct {
 	config       *ScannerOpts
 	urls         []string
 	errorHandler *GB403ErrorHandler.ErrorHandler
-	logger       GB403Logger.ILogger
 	progress     *ProgressCounter
 }
 
 // NewScanner creates a new Scanner instance
-func NewScanner(opts *ScannerOpts, urls []string, logger GB403Logger.ILogger) *Scanner {
+func NewScanner(opts *ScannerOpts, urls []string) *Scanner {
 	// Initialize bypass modules first
-	InitializeBypassModules(logger)
+	InitializeBypassModules()
 
 	return &Scanner{
 		config:       opts,
 		urls:         urls,
-		logger:       logger,
 		errorHandler: GB403ErrorHandler.NewErrorHandler(32),
 		progress:     NewProgressCounter(),
 	}
@@ -55,7 +53,7 @@ func NewScanner(opts *ScannerOpts, urls []string, logger GB403Logger.ILogger) *S
 func (s *Scanner) Run() error {
 	defer s.Close()
 
-	s.logger.PrintYellow("Initializing scanner with %d URLs", len(s.urls))
+	GB403Logger.Info().Msgf("Initializing scanner with %d URLs", len(s.urls))
 
 	// Start progress counter here instead
 	s.progress.Start()
@@ -63,13 +61,13 @@ func (s *Scanner) Run() error {
 
 	for _, url := range s.urls {
 		if err := s.scanURL(url); err != nil {
-			s.logger.LogError("Error scanning %s: %v", url, err)
+			GB403Logger.Error().Msgf("Error scanning %s: %v", url, err)
 			if handleErr := s.errorHandler.HandleError(err, GB403ErrorHandler.ErrorContext{
 				TargetURL:    []byte(url),
 				ErrorSource:  []byte("Scanner.Run"),
 				BypassModule: []byte(s.config.BypassModule),
 			}); handleErr != nil {
-				s.logger.LogError("Error handling error: %v", handleErr)
+				GB403Logger.Error().Msgf("Error handling error: %v", handleErr)
 			}
 			continue
 		}
@@ -88,7 +86,7 @@ func (s *Scanner) scanURL(url string) error {
 	// Process results as they come in
 	for result := range resultsChannel {
 		if result != nil {
-			s.logger.LogDebug("Processing result for module: %s, status: %d", result.BypassModule, result.StatusCode)
+			GB403Logger.Verbose().Msgf("Processing result for module: %s, status: %d", result.BypassModule, result.StatusCode)
 			allFindings = append(allFindings, result)
 		}
 	}
@@ -106,7 +104,7 @@ func (s *Scanner) scanURL(url string) error {
 		// Save findings first
 		outputFile := filepath.Join(s.config.OutDir, "findings.json")
 		if err := AppendResultsToJSON(outputFile, url, s.config.BypassModule, allFindings); err != nil {
-			s.logger.LogError("Failed to save findings for %s: %v", url, err)
+			GB403Logger.Error().Msgf("Failed to save findings for %s: %v", url, err)
 		}
 
 		// Print results only once

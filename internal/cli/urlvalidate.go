@@ -15,22 +15,20 @@ import (
 type URLRecon struct {
 	opts         *Options
 	reconService *recon.ReconService
-	logger       GB403Logger.ILogger
 }
 
-func NewURLRecon(opts *Options, logger GB403Logger.ILogger) *URLRecon {
-	reconService := recon.NewReconService(logger)
+func NewURLRecon(opts *Options) *URLRecon {
+	reconService := recon.NewReconService()
 	return &URLRecon{
 		opts:         opts,
 		reconService: reconService,
-		logger:       logger,
 	}
 }
 
 // ProcessURLs handles URL collection and probing
 func (p *URLRecon) ProcessURLs() ([]string, error) {
 	// First do recon to populate the cache
-	p.logger.LogInfo("Starting URL validation")
+	GB403Logger.Info().Msgf("Starting URL validation")
 	if err := p.reconService.Run([]string{p.opts.URL}); err != nil {
 		return nil, fmt.Errorf("error during URL probing: %v", err)
 	}
@@ -62,7 +60,7 @@ func (p *URLRecon) collectURLs() ([]string, error) {
 		if p.opts.SubstituteHostsFile != "" {
 			substituteURLs, err := p.processWithSubstituteHosts(p.opts.URL)
 			if err != nil {
-				p.logger.LogError("Error processing substitute hosts: %v", err)
+				GB403Logger.Error().Msgf("Error processing substitute hosts: %v", err)
 				// Continue with original URL even if substitute hosts fail
 			} else {
 				urls = append(urls, substituteURLs...)
@@ -80,7 +78,7 @@ func (p *URLRecon) collectURLs() ([]string, error) {
 		for _, url := range fileURLs {
 			expanded, err := p.expandURLSchemes(url)
 			if err != nil {
-				p.logger.LogError("Error expanding URL %s: %v", url, err)
+				GB403Logger.Error().Msgf("Error expanding URL %s: %v", url, err)
 				continue
 			}
 			urls = append(urls, expanded...)
@@ -127,7 +125,7 @@ func (p *URLRecon) processWithSubstituteHosts(targetURL string) ([]string, error
 			if strings.Contains(host, "://") {
 				parsed, err := rawurlparser.RawURLParse(host)
 				if err != nil {
-					p.logger.LogVerbose("Skipping invalid host URL: %s - %v", host, err)
+					GB403Logger.Verbose().Msgf("Skipping invalid host URL: %s - %v", host, err)
 					continue
 				}
 				cleanHost = parsed.Host
@@ -135,7 +133,7 @@ func (p *URLRecon) processWithSubstituteHosts(targetURL string) ([]string, error
 			hosts = append(hosts, cleanHost)
 			// Run recon immediately for each host
 			if err := p.reconService.Run([]string{cleanHost}); err != nil {
-				p.logger.LogError("Failed recon for host %s: %v", cleanHost, err)
+				GB403Logger.Error().Msgf("Failed recon for host %s: %v", cleanHost, err)
 				// Continue with next host instead of returning error
 			}
 		}
@@ -161,7 +159,7 @@ func (p *URLRecon) processWithSubstituteHosts(targetURL string) ([]string, error
 	for _, host := range hosts {
 		expandedURLs, err := p.expandURLSchemes(fmt.Sprintf("http://%s%s", host, pathAndQuery))
 		if err != nil {
-			p.logger.LogError("Failed to expand URL schemes for host %s: %v", host, err)
+			GB403Logger.Error().Msgf("Failed to expand URL schemes for host %s: %v", host, err)
 			continue
 		}
 		urls = append(urls, expandedURLs...)
@@ -205,7 +203,7 @@ func (p *URLRecon) readAndReconHosts() error {
 			if strings.Contains(host, "://") {
 				parsed, err := rawurlparser.RawURLParse(host)
 				if err != nil {
-					p.logger.LogVerbose("Skipping invalid host URL: %s - %v", host, err)
+					GB403Logger.Verbose().Msgf("Skipping invalid host URL: %s - %v", host, err)
 					continue
 				}
 				cleanHost = parsed.Host
@@ -221,7 +219,7 @@ func (p *URLRecon) readAndReconHosts() error {
 	// Run recon on clean hostnames
 	for _, host := range hosts {
 		if err := p.reconService.Run([]string{host}); err != nil {
-			p.logger.LogError("Failed recon for host %s: %v", host, err)
+			GB403Logger.Error().Msgf("Failed recon for host %s: %v", host, err)
 		}
 	}
 
@@ -237,20 +235,20 @@ func (p *URLRecon) expandURLSchemes(targetURL string) ([]string, error) {
 	host := parsedURL.Host
 	result, err := p.reconService.GetCache().Get(host)
 	if err != nil || result == nil {
-		p.logger.LogVerbose("No cache result for %s: %v", host, err)
+		GB403Logger.Verbose().Msgf("No cache result for %s: %v", host, err)
 		return []string{targetURL}, nil
 	}
 
 	// Debug logging
-	p.logger.LogVerbose("Cache result for %s:", host)
-	p.logger.LogVerbose("IPv4 Services: %+v", result.IPv4Services)
-	p.logger.LogVerbose("IPv6 Services: %+v", result.IPv6Services)
+	GB403Logger.Verbose().Msgf("Cache result for %s:", host)
+	GB403Logger.Verbose().Msgf("IPv4 Services: %+v", result.IPv4Services)
+	GB403Logger.Verbose().Msgf("IPv6 Services: %+v", result.IPv6Services)
 
 	// Get unique schemes from both IPv4 and IPv6 services
 	schemes := make(map[string]bool)
 	for scheme := range result.IPv4Services {
 		schemes[scheme] = true
-		p.logger.LogVerbose("Found IPv4 scheme: %s", scheme)
+		GB403Logger.Verbose().Msgf("Found IPv4 scheme: %s", scheme)
 	}
 	for scheme := range result.IPv6Services {
 		schemes[scheme] = true

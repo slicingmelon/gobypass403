@@ -3,221 +3,177 @@ package logger
 import (
 	"bytes"
 	"fmt"
-	"io"
-	"os"
-	"strings"
 	"sync"
 
 	"github.com/jedib0t/go-pretty/v6/text"
 )
 
-type ILogger interface {
-	EnableVerbose()
-	EnableDebug()
-	IsDebugEnabled() bool
-	IsVerboseEnabled() bool
-	LogInfo(format string, args ...interface{})
-	LogError(format string, args ...interface{})
-	LogDebug(requestID string, format string, args ...interface{})
-	LogVerbose(format string, args ...interface{})
+///
+// Enable debug/verbose if needed
+// logger.DefaultLogger.EnableDebug()
+// logger.DefaultLogger.EnableVerbose()
 
-	PrintYellow(format string, args ...interface{})
-	PrintGreen(format string, args ...interface{})
-	PrintOrange(format string, args ...interface{})
-	PrintCyan(format string, args ...interface{})
-	PrintTeal(format string, args ...interface{})
-	PrintPurple(format string, args ...interface{})
-	PrintGray(format string, args ...interface{})
-	PrintPink(format string, args ...interface{})
-}
+// // Basic logging
+// logger.Info().Msgf("Starting scan...")
+// logger.Error().Msgf("Error occurred: %v", err)
 
-type Logger struct {
-	mu             sync.Mutex
-	buffer         *bytes.Buffer
-	stderr         io.Writer
-	stdout         io.Writer
-	verboseEnabled bool
-	debugEnabled   bool
-}
+// // With metadata
+// logger.Info().Str("module", "scanner").Msgf("Scan complete")
 
-func NewLogger() *Logger {
-	return &Logger{
-		buffer: &bytes.Buffer{},
-		stdout: os.Stdout, // For custom-colored messages
-		stderr: os.Stderr, // For logs
+// // Debug with token
+// logger.Debug().WithToken(debugToken).Msgf("Sending request...")
+
+// // Colored output
+// logger.PrintGreen("Success!")
+//
+
+var (
+	DefaultLogger *Logger
+)
+
+func init() {
+	DefaultLogger = &Logger{
+		buffer:  &bytes.Buffer{},
+		mu:      sync.Mutex{},
+		verbose: false,
+		debug:   false,
 	}
 }
 
-// Enable verbose mode
-func (l *Logger) EnableVerbose() {
-	l.verboseEnabled = true
+type Logger struct {
+	buffer  *bytes.Buffer
+	mu      sync.Mutex
+	verbose bool
+	debug   bool
 }
 
-// Enable debug mode
-func (l *Logger) EnableDebug() {
-	l.debugEnabled = true
+type Event struct {
+	logger   *Logger
+	message  string
+	token    string // For debug messages
+	metadata map[string]string
 }
 
 func (l *Logger) IsDebugEnabled() bool {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	return l.debugEnabled
+	return l.debug
 }
 
-// Add the IsDebugEnabled method
-func (l *Logger) IsVerboseEnabled() bool {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	return l.verboseEnabled
+func IsDebugEnabled() bool {
+	return DefaultLogger.IsDebugEnabled()
 }
 
-// Core log function
-func (l *Logger) log(w io.Writer, colors text.Colors, prefix, format string, args ...interface{}) {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-
-	// Format the message
-	msg := fmt.Sprintf(format, args...)
-
-	// Add colors and prefix
-	formattedMsg := colors.Sprintf("%s%s", prefix, msg)
-
-	// Write to the buffer and flush to the writer
-	l.buffer.Reset()
-	l.buffer.WriteString(formattedMsg)
-	l.buffer.WriteRune('\n')
-	w.Write(l.buffer.Bytes())
+// Core logging methods that return *Event
+func Info() *Event {
+	return DefaultLogger.newEvent()
 }
 
-// Core print function (messages to stdout)
-func (l *Logger) print(w io.Writer, color text.Color, format string, args ...interface{}) {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-
-	msg := fmt.Sprintf(format, args...)
-	formattedMsg := color.Sprintf("%s", msg)
-
-	l.buffer.Reset()
-	l.buffer.WriteString(formattedMsg)
-	l.buffer.WriteRune('\n')
-	w.Write(l.buffer.Bytes())
+func Error() *Event {
+	return DefaultLogger.newEvent()
 }
 
-// LogInfo for status updates
-func (l *Logger) LogInfo(format string, args ...interface{}) {
-	l.log(l.stderr, text.Colors{text.FgWhite}, "[INFO] ", format, args...)
+func Debug() *Event {
+	if !DefaultLogger.debug {
+		return nil
+	}
+	return DefaultLogger.newEvent()
 }
 
-// LogVerbose for verbose logs, only shown if verbose is enabled
-func (l *Logger) LogVerbose(format string, args ...interface{}) {
-	if l.debugEnabled {
+func Verbose() *Event {
+	if !DefaultLogger.verbose {
+		return nil
+	}
+	return DefaultLogger.newEvent()
+}
+
+// Print methods for colored output
+func PrintYellow(format string, args ...interface{}) {
+	DefaultLogger.print(text.FgYellow, format, args...)
+}
+
+func PrintGreen(format string, args ...interface{}) {
+	DefaultLogger.print(text.FgGreen, format, args...)
+}
+
+func PrintCyan(format string, args ...interface{}) {
+	DefaultLogger.print(text.FgCyan, format, args...)
+}
+
+// Event methods
+func (e *Event) Msgf(format string, args ...interface{}) {
+	if e == nil {
 		return
 	}
+	e.message = fmt.Sprintf(format, args...)
+	e.logger.log(e)
+}
 
-	if l.verboseEnabled {
-		prefix := text.Colors{text.BgHiCyan, text.FgBlack, text.Bold, text.Italic}.Sprint("[VERBOSE]")
-		l.log(l.stderr, text.Colors{text.FgHiWhite, text.Underline}, prefix+" ", format, args...)
+func (e *Event) WithToken(token string) *Event {
+	if e == nil {
+		return nil
+	}
+	e.token = token
+	return e
+}
+
+func (e *Event) Str(key, value string) *Event {
+	if e == nil {
+		return nil
+	}
+	if e.metadata == nil {
+		e.metadata = make(map[string]string)
+	}
+	e.metadata[key] = value
+	return e
+}
+
+// Logger methods
+func (l *Logger) newEvent() *Event {
+	return &Event{
+		logger:   l,
+		metadata: make(map[string]string),
 	}
 }
 
-// LogDebug for debug logs with request ID
-func (l *Logger) LogDebug(debugToken string, format string, args ...interface{}) {
-	if !l.debugEnabled {
-		return
-	}
-
-	// First line: DEBUG header and token
-	tokenLine := fmt.Sprintf("%s [%s]",
-		text.Colors{text.BgHiRed, text.FgWhite, text.Bold}.Sprint("[DEBUG]"), // Bright red background with white text
-		text.Colors{text.FgYellow, text.Bold}.Sprint(debugToken),             // Bold yellow token
-	)
-
-	// Second line: The actual message with cyan module and white message
-	messageLine := fmt.Sprintf("%s %s",
-		text.Colors{text.FgHiCyan, text.Bold}.Sprint(format[:strings.Index(format, "]")+1]), // Bright cyan module
-		text.Colors{text.FgGreen}.Sprint("Sending request"),                                 // Green "Sending request"
-	) + format[strings.Index(format, "Sending request")+len("Sending request"):] // Rest of the message
-
-	// Combine with newline
-	fullFormat := fmt.Sprintf("%s\n%s", tokenLine, messageLine)
-
-	l.log(l.stderr, text.Colors{text.FgWhite}, "", fullFormat, args...)
-}
-
-// LogError for errors
-func (l *Logger) LogError(format string, args ...interface{}) {
-	l.log(l.stderr, text.Colors{text.FgRed}, "[ERROR] ", format, args...)
-}
-
-// Custom-colored messages (stdout)
-func (l *Logger) PrintYellow(format string, args ...interface{}) {
-	l.print(l.stdout, text.FgYellow, format, args...)
-}
-
-func (l *Logger) PrintPurple(format string, args ...interface{}) {
-	l.print(l.stdout, text.FgMagenta, format, args...)
-}
-
-func (l *Logger) PrintGreen(format string, args ...interface{}) {
-	l.print(l.stdout, text.FgGreen, format, args...)
-}
-
-func (l *Logger) PrintOrange(format string, args ...interface{}) {
-	l.print(l.stdout, text.FgHiYellow, format, args...)
-}
-
-func (l *Logger) PrintCyan(format string, args ...interface{}) {
-	l.print(l.stdout, text.FgCyan, format, args...)
-}
-
-func (l *Logger) PrintTeal(format string, args ...interface{}) {
-	l.print(l.stdout, text.FgHiCyan, format, args...)
-}
-
-func (l *Logger) PrintGray(format string, args ...interface{}) {
-	l.print(l.stdout, text.FgHiBlack, format, args...)
-}
-
-func (l *Logger) PrintPink(format string, args ...interface{}) {
-	l.print(l.stdout, text.FgHiMagenta, format, args...)
-}
-
-// String color helpers
-func (l *Logger) BlueString(format string, args ...interface{}) string {
-	return text.FgBlue.Sprintf(format, args...)
-}
-
-func (l *Logger) YellowString(format string, args ...interface{}) string {
-	return text.FgYellow.Sprintf(format, args...)
-}
-
-func (l *Logger) GreenString(format string, args ...interface{}) string {
-	return text.FgGreen.Sprintf(format, args...)
-}
-
-func (l *Logger) PurpleString(format string, args ...interface{}) string {
-	return text.FgMagenta.Sprintf(format, args...)
-}
-
-func (l *Logger) OrangeString(format string, args ...interface{}) string {
-	return text.FgHiYellow.Sprintf(format, args...)
-}
-
-func (l *Logger) TealString(format string, args ...interface{}) string {
-	return text.FgHiCyan.Sprintf(format, args...)
-}
-
-func (l *Logger) GrayString(format string, args ...interface{}) string {
-	return text.FgHiBlack.Sprintf(format, args...)
-}
-
-func (l *Logger) PinkString(format string, args ...interface{}) string {
-	return text.FgHiMagenta.Sprintf(format, args...)
-}
-
-// Optional: Change output for testing or redirection
-func (l *Logger) SetOutput(stderr io.Writer) {
+func (l *Logger) EnableVerbose() {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	l.stderr = stderr
+	l.verbose = true
+}
+
+func (l *Logger) EnableDebug() {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.debug = true
+}
+
+func (l *Logger) log(e *Event) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
+	l.buffer.Reset()
+
+	// Add metadata if any
+	var meta string
+	for k, v := range e.metadata {
+		meta += fmt.Sprintf(" %s=%s", text.Bold.Sprint(k), v)
+	}
+
+	// Format based on token presence (debug) or metadata
+	if e.token != "" {
+		header := text.Colors{text.BgHiRed, text.FgWhite, text.Bold}.Sprint("[DEBUG]")
+		token := text.Colors{text.FgYellow, text.Bold}.Sprintf("[%s]", e.token)
+		fmt.Printf("%s %s %s%s\n", header, token, e.message, meta)
+	} else {
+		fmt.Printf("%s%s\n", e.message, meta)
+	}
+}
+
+func (l *Logger) print(color text.Color, format string, args ...interface{}) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
+	msg := fmt.Sprintf(format, args...)
+	fmt.Printf("%s\n", color.Sprint(msg))
 }

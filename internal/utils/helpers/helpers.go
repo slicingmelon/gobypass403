@@ -14,12 +14,6 @@ type Header struct {
 	Value  string
 }
 
-var logger *GB403Logger.Logger
-
-func init() {
-	logger = GB403Logger.NewLogger()
-}
-
 // Helper function to convert a slice of Header structs to a map
 func headersToMap(headers []Header) map[string]string {
 	m := make(map[string]string)
@@ -53,32 +47,32 @@ func IsIP(str string) bool {
 		return net.ParseIP(str) != nil
 	}
 
-	logger.LogVerbose("Split host: %q port: %q", host, port)
+	GB403Logger.Verbose().Msgf("Split host: %q port: %q", host, port)
 	return net.ParseIP(host) != nil
 }
 
 // Update IsDNSName with debugging
 func IsDNSName(str string) bool {
-	logger.LogVerbose("Checking if string is DNS name: %q", str)
+	GB403Logger.Verbose().Msgf("Checking if string is DNS name: %q", str)
 
 	host, port, err := net.SplitHostPort(str)
 	if err != nil {
 		host = str
-		logger.LogVerbose("Using full string as hostname: %q", host)
+		GB403Logger.Verbose().Msgf("Using full string as hostname: %q", host)
 	} else {
-		logger.LogVerbose("Split host: %q port: %q", host, port)
+		GB403Logger.Verbose().Msgf("Split host: %q port: %q", host, port)
 	}
 
 	if host == "" {
-		logger.LogVerbose("Empty hostname")
+		GB403Logger.Verbose().Msgf("Empty hostname")
 		return false
 	}
 
 	if len(strings.Replace(host, ".", "", -1)) > 255 {
-		logger.LogVerbose("Hostname too long (>255 chars)")
+		GB403Logger.Verbose().Msgf("Hostname too long (>255 chars)")
 		return false
 	}
 
-	logger.LogVerbose("DNS regex match result: %v", rxDNSName.MatchString(host))
+	GB403Logger.Verbose().Msgf("DNS regex match result: %v", rxDNSName.MatchString(host))
 	return !IsIP(host) && rxDNSName.MatchString(host)
 }
