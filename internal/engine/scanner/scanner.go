@@ -86,7 +86,7 @@ func (s *Scanner) scanURL(url string) error {
 	// Process results as they come in
 	for result := range resultsChannel {
 		if result != nil {
-			GB403Logger.Verbose().Msgf("Processing result for module: %s, status: %d", result.BypassModule, result.StatusCode)
+			//GB403Logger.Verbose().Msgf("Processing result for module: %s, status: %d", result.BypassModule, result.StatusCode)
 			allFindings = append(allFindings, result)
 		}
 	}

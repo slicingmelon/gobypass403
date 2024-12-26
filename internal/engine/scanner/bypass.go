@@ -28,7 +28,7 @@ func NewBypassModule(name string) *BypassModule {
 
 // Registry of all bypass modules
 var bypassModules = map[string]*BypassModule{
-	"dumb_check":          NewBypassModule("dumb_check"), // logger will be set later
+	"dumb_check":          NewBypassModule("dumb_check"),
 	"mid_paths":           NewBypassModule("mid_paths"),
 	"end_paths":           NewBypassModule("end_paths"),
 	"http_headers_ip":     NewBypassModule("http_headers_ip"),
