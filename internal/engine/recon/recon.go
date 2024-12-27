@@ -1,9 +1,12 @@
 package recon
 
 import (
+	"bufio"
 	"context"
 	"fmt"
 	"net"
+	"os"
+	"runtime"
 	"strings"
 	"sync"
 	"time"
@@ -42,7 +45,7 @@ func (s *ReconService) processHost(host string) error {
 
 func NewReconService() *ReconService {
 	dialer := &fasthttp.TCPDialer{
-		Concurrency:      2048,
+		Concurrency:      1024,
 		DNSCacheDuration: 15 * time.Minute,
 		Resolver: &net.Resolver{
 			PreferGo: true,
@@ -53,6 +56,18 @@ func NewReconService() *ReconService {
 					KeepAlive: 30 * time.Second,
 					DualStack: true,
 				}
+
+				// Extract host from address (removes port)
+				host := strings.Split(address, ":")[0]
+
+				// Try local resolution first
+				if ip := resolveFromHostsFile(host); ip != "" {
+					GB403Logger.Verbose().
+						Metadata("resolveFromHosts()", "success").
+						Msgf("Resolved %s to %s from hosts file", host, ip)
+					return d.DialContext(ctx, network, ip+":53")
+				}
+
 				switch network {
 				case "udp", "udp4", "udp6":
 					// Round-robin between multiple resolvers for redundancy
@@ -84,6 +99,55 @@ func NewReconService() *ReconService {
 		cache:  NewReconCache(),
 		dialer: dialer,
 	}
+}
+
+// Simple hosts file parser
+func resolveFromHostsFile(host string) string {
+	// Handle localhost explicitly
+	if host == "localhost" {
+		return "127.0.0.1"
+	}
+
+	// Read /etc/hosts file
+	hostsFile := "/etc/hosts"
+	if runtime.GOOS == "windows" {
+		hostsFile = `C:\Windows\System32\drivers\etc\hosts`
+	}
+
+	file, err := os.Open(hostsFile)
+	if err != nil {
+		return ""
+	}
+	defer file.Close()
+
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+
+		fields := strings.Fields(line)
+		if len(fields) < 2 {
+			continue
+		}
+
+		ip := fields[0]
+		for _, h := range fields[1:] {
+			if h == host {
+				return ip
+			}
+		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		GB403Logger.Error().
+			Metadata("resolveFromHostsFile()", "failed").
+			Msgf("Error reading hosts file: %v", err)
+		return ""
+	}
+
+	return ""
 }
 
 func (s *ReconService) Run(urls []string) error {
@@ -212,10 +276,24 @@ func (s *ReconService) handleDomain(host string) {
 }
 
 func (s *ReconService) resolveHost(hostname string) (*IPAddrs, error) {
+	result := &IPAddrs{}
+
+	// Special handling for localhost and hosts file entries
+	if ip := resolveFromHostsFile(hostname); ip != "" {
+		GB403Logger.Verbose().
+			Msgf("Resolved %s locally to %s", hostname, ip)
+
+		// Determine if IPv4 or IPv6
+		if strings.Contains(ip, ":") {
+			result.IPv6 = append(result.IPv6, ip)
+		} else {
+			result.IPv4 = append(result.IPv4, ip)
+		}
+		return result, nil
+	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-
-	result := &IPAddrs{}
 
 	// Use LookupIPAddr to get both IPv4 and IPv6
 	ips, err := s.dialer.Resolver.LookupIPAddr(ctx, hostname)

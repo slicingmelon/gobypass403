@@ -287,7 +287,7 @@ func (w *requestWorker) processRequestJob(job payload.PayloadJob) *RawHTTPRespon
 
 	w.builder.BuildRequest(req, job)
 
-	GB403Logger.Debug().WithToken(job.PayloadToken).Msgf("[%s] Sending request %s\n", job.BypassModule, job.FullURL)
+	GB403Logger.Debug().DebugToken(job.PayloadToken).Msgf("[%s] Sending request %s\n", job.BypassModule, job.FullURL)
 
 	if err := w.client.DoRaw(req, resp); err != nil {
 		err = w.errorHandler.HandleError(err, GB403ErrorHandler.ErrorContext{
@@ -297,7 +297,7 @@ func (w *requestWorker) processRequestJob(job payload.PayloadJob) *RawHTTPRespon
 			DebugToken:   []byte(job.PayloadToken),
 		})
 		if err != nil {
-			GB403Logger.Error().WithToken(job.PayloadToken).Msgf("Request failed: %v", err)
+			GB403Logger.Error().DebugToken(job.PayloadToken).Msgf("Request failed: %v", err)
 			return nil
 		}
 	}

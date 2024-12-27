@@ -8,7 +8,7 @@ import (
 	"github.com/jedib0t/go-pretty/v6/text"
 )
 
-///
+///Information
 // Enable debug/verbose if needed
 // logger.DefaultLogger.EnableDebug()
 // logger.DefaultLogger.EnableVerbose()
@@ -20,12 +20,30 @@ import (
 // // With metadata
 // logger.Info().Str("module", "scanner").Msgf("Scan complete")
 
-// // Debug with token
+// // Debug with Debug Token
 // logger.Debug().WithToken(debugToken).Msgf("Sending request...")
 
 // // Colored output
 // logger.PrintGreen("Success!")
 //
+
+const (
+	labelInfo    = "ℹ️"
+	labelWarning = "⚠️"
+	labelError   = "❌"
+	labelDebug   = "[DEBUG]"
+	labelVerbose = "📜"
+	labelDone    = "✅"
+)
+
+const (
+	labelInfoFallback    = "[INFO]"
+	labelWarningFallback = "[WARNING]"
+	labelErrorFallback   = "[ERROR]"
+	labelDebugFallback   = "[DEBUG]"
+	labelVerboseFallback = "[VERBOSE]"
+	labelDoneFallback    = "[DONE]"
+)
 
 var (
 	DefaultLogger *Logger
@@ -48,10 +66,27 @@ type Logger struct {
 }
 
 type Event struct {
-	logger   *Logger
-	message  string
-	token    string // For debug messages
-	metadata map[string]string
+	logger       *Logger
+	message      string
+	debugToken   string // For debug messages
+	bypassModule string
+	metadata     map[string]string
+	isVerbose    bool
+	isError      bool
+	isWarning    bool
+	isDone       bool
+}
+
+func (l *Logger) EnableVerbose() {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.verbose = true
+}
+
+func (l *Logger) EnableDebug() {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.debug = true
 }
 
 func (l *Logger) IsDebugEnabled() bool {
@@ -70,7 +105,9 @@ func Info() *Event {
 }
 
 func Error() *Event {
-	return DefaultLogger.newEvent()
+	e := DefaultLogger.newEvent()
+	e.isError = true
+	return e
 }
 
 func Debug() *Event {
@@ -84,7 +121,21 @@ func Verbose() *Event {
 	if !DefaultLogger.verbose {
 		return nil
 	}
-	return DefaultLogger.newEvent()
+	e := DefaultLogger.newEvent()
+	e.isVerbose = true
+	return e
+}
+
+func Warning() *Event {
+	e := DefaultLogger.newEvent()
+	e.isWarning = true
+	return e
+}
+
+func Done() *Event {
+	e := DefaultLogger.newEvent()
+	e.isDone = true
+	return e
 }
 
 // Print methods for colored output
@@ -109,15 +160,32 @@ func (e *Event) Msgf(format string, args ...interface{}) {
 	e.logger.log(e)
 }
 
-func (e *Event) WithToken(token string) *Event {
+func (e *Event) Msg(message string) {
+	if e == nil {
+		return
+	}
+	e.message = message
+	e.logger.log(e)
+}
+
+func (e *Event) BypassModule(module string) *Event {
 	if e == nil {
 		return nil
 	}
-	e.token = token
+	e.bypassModule = module
 	return e
 }
 
-func (e *Event) Str(key, value string) *Event {
+func (e *Event) DebugToken(token string) *Event {
+	if e == nil {
+		return nil
+	}
+	e.debugToken = token
+	return e
+}
+
+// Add more context to the log message "status
+func (e *Event) Metadata(key, value string) *Event {
 	if e == nil {
 		return nil
 	}
@@ -136,37 +204,45 @@ func (l *Logger) newEvent() *Event {
 	}
 }
 
-func (l *Logger) EnableVerbose() {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	l.verbose = true
-}
-
-func (l *Logger) EnableDebug() {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	l.debug = true
-}
-
 func (l *Logger) log(e *Event) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
 	l.buffer.Reset()
 
-	// Add metadata if any
+	// Build metadata string
 	var meta string
 	for k, v := range e.metadata {
 		meta += fmt.Sprintf(" %s=%s", text.Bold.Sprint(k), v)
 	}
 
-	// Format based on token presence (debug) or metadata
-	if e.token != "" {
-		header := text.Colors{text.BgHiRed, text.FgWhite, text.Bold}.Sprint("[DEBUG]")
-		token := text.Colors{text.FgYellow, text.Bold}.Sprintf("[%s]", e.token)
-		fmt.Printf("%s %s %s%s\n", header, token, e.message, meta)
-	} else {
-		fmt.Printf("%s%s\n", e.message, meta)
+	// Build bypass module string if present
+	var moduleStr string
+	if e.bypassModule != "" {
+		moduleStr = text.Colors{text.FgCyan, text.Bold}.Sprintf("[%s] ", e.bypassModule)
+	}
+
+	var header string
+	switch {
+	case e.debugToken != "":
+		header = text.Colors{text.BgHiRed, text.FgWhite, text.Bold}.Sprint(labelDebug)
+		token := text.Colors{text.FgYellow, text.Bold}.Sprintf("[%s]", e.debugToken)
+		fmt.Printf("%s %s %s%s%s\n", header, token, moduleStr, e.message, meta)
+	case e.isVerbose:
+		header = text.Colors{text.FgBlue, text.Bold}.Sprint(labelVerbose)
+		fmt.Printf("%s %s%s%s\n", header, moduleStr, e.message, meta)
+	case e.isError:
+		header = text.Colors{text.FgRed, text.Bold}.Sprint(labelError)
+		fmt.Printf("%s %s%s%s\n", header, moduleStr, e.message, meta)
+	case e.isWarning:
+		header = text.Colors{text.FgYellow, text.Bold}.Sprint(labelWarning)
+		fmt.Printf("%s %s%s%s\n", header, moduleStr, e.message, meta)
+	case e.isDone:
+		header = text.Colors{text.FgGreen, text.Bold}.Sprint(labelDone)
+		fmt.Printf("%s %s%s%s\n", header, moduleStr, e.message, meta)
+	default:
+		header = text.Colors{text.FgGreen, text.Bold}.Sprint(labelInfo)
+		fmt.Printf("%s %s%s%s\n", header, moduleStr, e.message, meta)
 	}
 }
 

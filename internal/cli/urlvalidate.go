@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"bufio"
 	"fmt"
 	"net/url"
 	"os"
@@ -94,16 +95,23 @@ func (p *URLRecon) collectURLs() ([]string, error) {
 
 // readURLsFromFile reads URLs from the specified file
 func (p *URLRecon) readURLsFromFile() ([]string, error) {
-	content, err := os.ReadFile(p.opts.URLsFile)
+	file, err := os.Open(p.opts.URLsFile)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read URLs file: %v", err)
+		return nil, fmt.Errorf("failed to open URLs file: %v", err)
 	}
+	defer file.Close()
 
 	var urls []string
-	for _, line := range strings.Split(strings.TrimSpace(string(content)), "\n") {
-		if line = strings.TrimSpace(line); line != "" {
+	scanner := bufio.NewScanner(file)
+
+	for scanner.Scan() {
+		if line := strings.TrimSpace(scanner.Text()); line != "" {
 			urls = append(urls, line)
 		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		return nil, fmt.Errorf("error reading URLs file: %v", err)
 	}
 
 	return urls, nil
