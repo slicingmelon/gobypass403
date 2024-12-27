@@ -219,7 +219,7 @@ func (s *ReconService) handleIP(ip string) {
 	// Check both ports and store all available schemes
 	for _, port := range []string{"80", "443"} {
 		GB403Logger.Verbose().Msgf("Probing %s:%s", ip, port)
-		if scheme := s.probePort(ip, port); scheme != "" {
+		if scheme := s.probeScheme(ip, port); scheme != "" {
 			GB403Logger.Verbose().Msgf("Found open port %s:%s -> %s", ip, port, scheme)
 			if services[scheme] == nil {
 				services[scheme] = make(map[string][]string)
@@ -248,26 +248,37 @@ func (s *ReconService) handleDomain(host string) {
 	}
 
 	// Port scan IPv4 addresses
+	// Probe IPv4 addresses
 	for _, ip := range ips.IPv4 {
-		for _, port := range []string{"80", "443"} {
-			if scheme := s.probePort(ip, port); scheme != "" {
-				if result.IPv4Services[scheme] == nil {
-					result.IPv4Services[scheme] = make(map[string][]string)
-				}
-				result.IPv4Services[scheme][ip] = append(result.IPv4Services[scheme][ip], port)
+		if scheme := s.probeScheme(host, "443"); scheme != "" {
+			if result.IPv4Services[scheme] == nil {
+				result.IPv4Services[scheme] = make(map[string][]string)
 			}
+			result.IPv4Services[scheme][ip] = append(result.IPv4Services[scheme][ip], "443")
+		}
+
+		if scheme := s.probeScheme(host, "80"); scheme != "" {
+			if result.IPv4Services[scheme] == nil {
+				result.IPv4Services[scheme] = make(map[string][]string)
+			}
+			result.IPv4Services[scheme][ip] = append(result.IPv4Services[scheme][ip], "80")
 		}
 	}
 
-	// Port scan IPv6 addresses
+	// Probe IPv6 addresses
 	for _, ip := range ips.IPv6 {
-		for _, port := range []string{"80", "443"} {
-			if scheme := s.probePort(ip, port); scheme != "" {
-				if result.IPv6Services[scheme] == nil {
-					result.IPv6Services[scheme] = make(map[string][]string)
-				}
-				result.IPv6Services[scheme][ip] = append(result.IPv6Services[scheme][ip], port)
+		if scheme := s.probeScheme(host, "443"); scheme != "" {
+			if result.IPv6Services[scheme] == nil {
+				result.IPv6Services[scheme] = make(map[string][]string)
 			}
+			result.IPv6Services[scheme][ip] = append(result.IPv6Services[scheme][ip], "443")
+		}
+
+		if scheme := s.probeScheme(host, "80"); scheme != "" {
+			if result.IPv6Services[scheme] == nil {
+				result.IPv6Services[scheme] = make(map[string][]string)
+			}
+			result.IPv6Services[scheme][ip] = append(result.IPv6Services[scheme][ip], "80")
 		}
 	}
 
@@ -317,51 +328,41 @@ func (s *ReconService) resolveHost(hostname string) (*IPAddrs, error) {
 	return result, nil
 }
 
-func (s *ReconService) probePort(host, port string) string {
+func (s *ReconService) probeScheme(host, port string) string {
 	addr := net.JoinHostPort(host, port)
-	GB403Logger.Verbose().Msgf("Attempting to probe %s", addr)
+	GB403Logger.Verbose().Msgf("Probing %s", addr)
 
-	conn, err := s.dialer.DialDualStackTimeout(addr, 5*time.Second)
-	if err != nil {
-		GB403Logger.Verbose().Msgf("Port %s closed for host %s: %v", port, host, err)
-		return ""
+	hClient := &fasthttp.HostClient{
+		Addr:                     addr,
+		NoDefaultUserAgentHeader: true,
 	}
-	defer conn.Close()
-	GB403Logger.Verbose().Msgf("Successfully connected to %s", addr)
 
-	switch port {
-	case "80":
-		GB403Logger.Verbose().Msgf("Port 80 open on %s -> http", host)
-		return "http"
-	case "443":
-		GB403Logger.Verbose().Msgf("Port 443 open on %s -> https", host)
-		return "https"
-	default:
-		GB403Logger.Verbose().Msgf("Custom port %s open on %s, probing for HTTP/HTTPS", port, host)
-		// For custom ports, try HTTP first then HTTPS
-		req := fasthttp.AcquireRequest()
-		defer fasthttp.ReleaseRequest(req)
-		resp := fasthttp.AcquireResponse()
-		defer fasthttp.ReleaseResponse(resp)
+	req := fasthttp.AcquireRequest()
+	resp := fasthttp.AcquireResponse()
+	defer fasthttp.ReleaseRequest(req)
+	defer fasthttp.ReleaseResponse(resp)
 
-		client := &fasthttp.Client{
-			Dial: s.dialer.DialDualStack,
-		}
-
-		// Try HTTP first
-		req.SetRequestURI(fmt.Sprintf("http://%s", addr))
-		if err := client.DoTimeout(req, resp, 5*time.Second); err == nil {
-			return "http"
-		}
-
-		// Try HTTPS
-		req.URI().SetScheme("https")
-		if err := client.DoTimeout(req, resp, 5*time.Second); err == nil {
+	// Try HTTPS for port 443
+	if port == "443" {
+		req.SetRequestURI(fmt.Sprintf("https://%s/", host))
+		if err := hClient.DoTimeout(req, resp, 5*time.Second); err != nil {
+			GB403Logger.Verbose().Msgf("HTTPS error on %s: %v", addr, err)
+		} else {
 			return "https"
 		}
-
-		return "unknown"
 	}
+
+	// Try HTTP for port 80 or if HTTPS failed on 443
+	if port == "80" || port == "443" {
+		req.SetRequestURI(fmt.Sprintf("http://%s/", host))
+		if err := hClient.DoTimeout(req, resp, 5*time.Second); err != nil {
+			GB403Logger.Verbose().Msgf("HTTP error on %s: %v", addr, err)
+		} else {
+			return "http"
+		}
+	}
+
+	return ""
 }
 
 // Helper function to check if a port exists in a slice

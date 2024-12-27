@@ -3,6 +3,7 @@ package error
 // Custom Error Handler
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -19,7 +20,8 @@ const (
 )
 
 var (
-	ErrBodyTooLarge = fasthttp.ErrBodyTooLarge
+	ErrBodyTooLarge          = fasthttp.ErrBodyTooLarge
+	ErrInvalidResponseHeader = errors.New("invalid header")
 	// ErrConnectionClosed = fasthttp.ErrConnectionClosed
 	// ErrNoFreeConns      = fasthttp.ErrNoFreeConns
 )
@@ -62,6 +64,7 @@ func NewErrorHandler(cacheSizeMB int) *ErrorHandler {
 	// Initialize default whitelisted errors with actual error messages
 	handler.AddWhitelistedErrors(
 		ErrBodyTooLarge.Error(),
+		ErrInvalidResponseHeader.Error(),
 	)
 
 	return handler
@@ -133,13 +136,11 @@ func (e *ErrorHandler) PrintErrorStats() {
 	e.statsLock.RLock()
 	defer e.statsLock.RUnlock()
 
-	fmt.Println("=== Error Statistics ===")
-
-	// Calculate memory usage
+	var buf bytes.Buffer
+	var stats fastcache.Stats
 	var totalContextSize int64
 	var totalErrorKeys int
 	var totalErrorSources int
-	var stats fastcache.Stats
 
 	// Get cache stats
 	e.cache.UpdateStats(&stats)
@@ -147,39 +148,50 @@ func (e *ErrorHandler) PrintErrorStats() {
 	for errKey, stat := range e.stats {
 		totalErrorKeys += len(errKey)
 		totalErrorSources += len(stat.ErrorSources)
-
-		// Calculate JSON size for each stored context
 		if data := e.cache.Get(nil, []byte(fmt.Sprintf("%s:%d", errKey, stat.Count))); data != nil {
 			totalContextSize += int64(len(data))
 		}
 	}
 
-	// Print memory stats
-	fmt.Println()
-	fmt.Printf("Memory Usage:\n")
-	fmt.Printf("Cache Size: %d MB (allocated)\n", stats.BytesSize/(1024*1024))
-	fmt.Printf("Max Cache Size: %d MB\n", stats.MaxBytesSize/(1024*1024))
-	fmt.Printf("Active Cache Usage: %.2f MB\n", float64(totalContextSize)/(1024*1024))
-	fmt.Printf("Unique Errors: %d\n", len(e.stats))
-	fmt.Printf("Total Error Sources: %d\n", totalErrorSources)
-	fmt.Printf("Cache Entries: %d\n", stats.EntriesCount)
-	fmt.Printf("Cache Get Calls: %d\n", stats.GetCalls)
-	fmt.Printf("Cache Set Calls: %d\n", stats.SetCalls)
-	fmt.Printf("Cache Misses: %d\n", stats.Misses)
+	// Build the complete output in memory first
+	fmt.Fprintln(&buf, "=== Error Statistics ===")
+	fmt.Fprintln(&buf, "Memory Usage:")
+	fmt.Fprintf(&buf, "Cache Size: %d MB (allocated)\n", stats.BytesSize/(1024*1024))
+	fmt.Fprintf(&buf, "Max Cache Size: %d MB\n", stats.MaxBytesSize/(1024*1024))
+	fmt.Fprintf(&buf, "Active Cache Usage: %.2f MB\n", float64(totalContextSize)/(1024*1024))
+	fmt.Fprintf(&buf, "Unique Errors: %d\n", len(e.stats))
+	fmt.Fprintf(&buf, "Total Error Sources: %d\n", totalErrorSources)
+	fmt.Fprintf(&buf, "Cache Entries: %d\n", stats.EntriesCount)
+	fmt.Fprintf(&buf, "Cache Get Calls: %d\n", stats.GetCalls)
+	fmt.Fprintf(&buf, "Cache Set Calls: %d\n", stats.SetCalls)
+	fmt.Fprintf(&buf, "Cache Misses: %d\n", stats.Misses)
 
 	// Print error details
 	for errKey, stat := range e.stats {
-		fmt.Println()
-		fmt.Printf("Error: %s\n", errKey)
-		fmt.Printf("Count: %d occurrences\n", stat.Count)
-		fmt.Printf("First Seen: %s\n", stat.FirstSeen.Format(time.RFC3339))
-		fmt.Printf("Last Seen: %s\n", stat.LastSeen.Format(time.RFC3339))
+		fmt.Fprintln(&buf) // Single blank line between errors
+		fmt.Fprintf(&buf, "Error: %s\n", errKey)
+		fmt.Fprintf(&buf, "Count: %d occurrences\n", stat.Count)
+		fmt.Fprintf(&buf, "First Seen: %s\n", stat.FirstSeen.Format(time.RFC3339))
+		fmt.Fprintf(&buf, "Last Seen: %s\n", stat.LastSeen.Format(time.RFC3339))
 
-		fmt.Println("Error Sources:")
+		fmt.Fprintln(&buf, "Error Sources:")
 		for source, count := range stat.ErrorSources {
-			fmt.Printf("  - %s: %d times\n", source, count)
+			fmt.Fprintf(&buf, "  - %s: %d times\n", source, count)
+		}
+
+		fmt.Fprintln(&buf, "Affected URLs:")
+		for i := int64(1); i <= stat.Count; i++ {
+			if contextJSON := e.cache.Get(nil, []byte(fmt.Sprintf("%s:%d", errKey, i))); contextJSON != nil {
+				var ctx ErrorContext
+				if err := json.Unmarshal(contextJSON, &ctx); err == nil {
+					fmt.Fprintf(&buf, "  - %s\n", ctx.TargetURL)
+				}
+			}
 		}
 	}
+
+	// Print everything at once
+	fmt.Println(buf.String())
 }
 
 func (e *ErrorHandler) Reset() {
