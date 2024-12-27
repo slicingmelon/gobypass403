@@ -1,5 +1,55 @@
 # Go Bypass 403 - Flow Architecture
 
+## High Level Diagram
+
+```mermaid
+---
+config:
+  layout: elk
+  theme: base
+  look: neo
+---
+flowchart LR
+ subgraph Profiling["Profiling"]
+        PV["Profile Visualizer"]
+        PM["Profile Manager"]
+        P["pprof Server"]
+  end
+ subgraph subGraph1["Core Engine"]
+    direction LR
+        RS["Recon Service"]
+        R["Runner"]
+        SE["Scanner Engine"]
+        PE["Payloads Engine"]
+        WP["Worker Pool"]
+        RH["Raw HTTP Engine"]
+        RP["Results Processor"]
+  end
+ subgraph subGraph2["Results Processing"]
+        PC["Progress Counter"]
+        RF["Results File"]
+        TO["Terminal Output"]
+  end
+ subgraph subGraph3["Utilities"]
+    direction TB
+        L["Logger"]
+        E["Error Handler"]
+        D["Debug Token System"]
+  end
+    P --> PM
+    PM --> PV
+    R --> RS & SE
+    SE --> PE
+    SE -- Orchestrates --> WP
+    PE -- Provides Payloads --> RH
+    WP -- Executes --> RH
+    RP --> PC & RF & TO
+    Main["Main"] --> P & R
+    RH --> RP
+    subGraph3 --> subGraph1
+
+```
+
 ## Command Line Interface (CLI Layer)
 
 User input processing and execution control.
