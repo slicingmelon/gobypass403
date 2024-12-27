@@ -59,3 +59,77 @@ digraph G {
 
 ```
 
+
+## 1. Memory Profile (heap and allocs) Analysis
+Key Observations:
+
+- High Memory Usage in rawhttp Module:
+    - Significant memory allocation (~120MB) occurs in rawhttp.(*RequestPool).ProcessRequests.func1 and its worker functions (rawhttp.(*requestWorker).processRequestJob)​.
+    - This suggests a potential inefficiency in the way payloads or requests are being managed.
+
+- JSON Handling (scanner.AppendResultsToJSON):
+    - Noticeable memory allocation during results serialization and writing to JSON files​.
+    - Functions like encoding/json.(*Encoder).Encode are consuming significant memory.
+
+-Buffer Growth:
+    - Excessive memory allocation in bytes.growSlice indicates that buffer resizing may not be optimized for larger payloads​.
+
+Recommendations:
+
+- Optimize Worker Memory Usage:
+  - Reuse Buffers: Use sync.Pool to manage and reuse byte buffers for requests and responses to avoid repeated allocations.
+  - Payload Segmentation: Consider breaking down payloads into smaller, manageable chunks to reduce memory pressure.
+
+- Optimize JSON Serialization:
+  - Serialize results incrementally to avoid loading all results into memory at once.
+  - If feasible, use a more memory-efficient library or custom serialization.
+
+- Buffer Preallocation:
+  - For known or estimated payload sizes, preallocate buffers to minimize resizing overhead.
+
+## 2. CPU Profile (cpu) Analysis
+
+Key Observations:
+
+- Heavy CPU Usage in fasthttp Transport Layer:
+    - fasthttp.(*transport).RoundTrip and related functions dominate the CPU profile​
+
+  - TLS Handshake and Buffer Flushing:
+    - TLS handshake functions (crypto/tls.*) and buffer flushing (bufio.(*Writer).Flush) are significant contributors​
+
+- JSON Encoding Overhead:
+    - JSON serialization (encoding/json) contributes to CPU usage during result handling​
+​
+
+Recommendations:
+
+- Connection Reuse:
+    - Ensure connections are reused wherever possible, especially for the same host, to reduce the overhead of repeated TLS handshakes.
+
+- Optimize Buffer Flushing:
+  - Reduce the frequency of flushing in bufio.Writer by increasing the buffer size.
+
+- Parallelize Non-blocking Tasks:
+    - Offload JSON serialization to a separate goroutine or worker to reduce blocking impact on request handling.
+
+- Parallelize Non-blocking Tasks:
+    - Offload JSON serialization to a separate goroutine or worker to reduce blocking impact on request handling.
+  
+# 3. Goroutine Profile Analysis
+
+Key Observations:
+
+- Excessive Idle Goroutines:
+  - Many goroutines are in a parked state (runtime.gopark), indicating potential inefficiency in worker utilization​.
+
+- Limited Active Goroutines:
+  - Goroutines related to fasthttp tasks (fasthttp.(*TCPDialer)) dominate active states but may not be optimally utilized​.
+
+Recommendations:
+
+- Improve Worker Utilization:
+    - Dynamically adjust the worker pool size based on payload size and response times to minimize idle workers.
+    - Implement backpressure mechanisms to avoid overwhelming the pool with pending tasks.
+
+- Monitor Goroutine Lifetimes:
+    - Ensure goroutines exit cleanly after task completion to avoid leaks.

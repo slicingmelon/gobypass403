@@ -54,7 +54,6 @@ func NewReconService() *ReconService {
 					Timeout: 5 * time.Second,
 					// Add connection pooling
 					KeepAlive: 30 * time.Second,
-					DualStack: true,
 				}
 
 				// Extract host from address (removes port)
