@@ -1,3 +1,3 @@
-# This folder contains documentation for the tool.
+# This folder contains varioss documentations.
 
 and for other folders
