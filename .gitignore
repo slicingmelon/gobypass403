@@ -17,7 +17,9 @@
 !images/**
 !internal/
 !internal/**
-!tests/
-!tests/**
-!tools/
-!tools/**
+#!tests/
+!tests/*.go
+!tests/*.md
+#!tools/
+!tools/*.go
+!tools/*.md
