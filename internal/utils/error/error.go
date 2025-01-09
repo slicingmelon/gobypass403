@@ -168,7 +168,7 @@ func (e *ErrorHandler) PrintErrorStats() {
 
 	// Print error details
 	for errKey, stat := range e.stats {
-		fmt.Fprintln(&buf) // Single blank line between errors
+		fmt.Fprintln(&buf)
 		fmt.Fprintf(&buf, "Error: %s\n", errKey)
 		fmt.Fprintf(&buf, "Count: %d occurrences\n", stat.Count)
 		fmt.Fprintf(&buf, "First Seen: %s\n", stat.FirstSeen.Format(time.RFC3339))
@@ -179,18 +179,33 @@ func (e *ErrorHandler) PrintErrorStats() {
 			fmt.Fprintf(&buf, "  - %s: %d times\n", source, count)
 		}
 
-		fmt.Fprintln(&buf, "Affected URLs:")
+		// Group by host and bypass module
+		hostStats := make(map[string]map[string]int) // host -> bypassModule -> count
 		for i := int64(1); i <= stat.Count; i++ {
 			if contextJSON := e.cache.Get(nil, []byte(fmt.Sprintf("%s:%d", errKey, i))); contextJSON != nil {
 				var ctx ErrorContext
 				if err := json.Unmarshal(contextJSON, &ctx); err == nil {
-					fmt.Fprintf(&buf, "  - %s\n", ctx.TargetURL)
+					host := string(ctx.Host)
+					bypassModule := string(ctx.BypassModule)
+					if _, exists := hostStats[host]; !exists {
+						hostStats[host] = make(map[string]int)
+					}
+					hostStats[host][bypassModule]++
+				}
+			}
+		}
+
+		fmt.Fprintln(&buf, "Affected Hosts:")
+		for host, modules := range hostStats {
+			fmt.Fprintf(&buf, "  Host: %s\n", host)
+			for module, count := range modules {
+				if module != "" {
+					fmt.Fprintf(&buf, "    - Module %s: %d times\n", module, count)
 				}
 			}
 		}
 	}
 
-	// Print everything at once
 	fmt.Println(buf.String())
 }
 
