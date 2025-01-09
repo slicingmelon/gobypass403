@@ -248,34 +248,33 @@ func (s *ReconService) handleDomain(host string) {
 		CNAMEs:       ips.CNAMEs,
 	}
 
-	// Port scan IPv4 addresses
-	// Probe IPv4 addresses
-	for _, ip := range ips.IPv4 {
-		if scheme := s.probeScheme(host, "443"); scheme != "" {
+	// Store IPs for later use but probe the domain
+	// Try both HTTP and HTTPS regardless of original scheme
+	if scheme := s.probeScheme(host, "443"); scheme != "" {
+		// Store all resolved IPs under this scheme
+		for _, ip := range ips.IPv4 {
 			if result.IPv4Services[scheme] == nil {
 				result.IPv4Services[scheme] = make(map[string][]string)
 			}
 			result.IPv4Services[scheme][ip] = append(result.IPv4Services[scheme][ip], "443")
 		}
-
-		if scheme := s.probeScheme(host, "80"); scheme != "" {
-			if result.IPv4Services[scheme] == nil {
-				result.IPv4Services[scheme] = make(map[string][]string)
-			}
-			result.IPv4Services[scheme][ip] = append(result.IPv4Services[scheme][ip], "80")
-		}
-	}
-
-	// Probe IPv6 addresses
-	for _, ip := range ips.IPv6 {
-		if scheme := s.probeScheme(host, "443"); scheme != "" {
+		for _, ip := range ips.IPv6 {
 			if result.IPv6Services[scheme] == nil {
 				result.IPv6Services[scheme] = make(map[string][]string)
 			}
 			result.IPv6Services[scheme][ip] = append(result.IPv6Services[scheme][ip], "443")
 		}
+	}
 
-		if scheme := s.probeScheme(host, "80"); scheme != "" {
+	if scheme := s.probeScheme(host, "80"); scheme != "" {
+		// Store all resolved IPs under this scheme
+		for _, ip := range ips.IPv4 {
+			if result.IPv4Services[scheme] == nil {
+				result.IPv4Services[scheme] = make(map[string][]string)
+			}
+			result.IPv4Services[scheme][ip] = append(result.IPv4Services[scheme][ip], "80")
+		}
+		for _, ip := range ips.IPv6 {
 			if result.IPv6Services[scheme] == nil {
 				result.IPv6Services[scheme] = make(map[string][]string)
 			}
@@ -335,12 +334,12 @@ func (s *ReconService) probeScheme(host, port string) string {
 
 	client := &fasthttp.Client{
 		NoDefaultUserAgentHeader:      true,
-		ReadTimeout:                   5 * time.Second,
-		WriteTimeout:                  5 * time.Second,
 		DisableHeaderNamesNormalizing: true,
 		DisablePathNormalizing:        true,
 		TLSConfig: &tls.Config{
 			InsecureSkipVerify: true,
+			MinVersion:         tls.VersionTLS10,
+			MaxVersion:         tls.VersionTLS13,
 		},
 	}
 
@@ -349,24 +348,22 @@ func (s *ReconService) probeScheme(host, port string) string {
 	defer fasthttp.ReleaseRequest(req)
 	defer fasthttp.ReleaseResponse(resp)
 
-	// Try HTTPS for port 443
-	if port == "443" {
-		req.SetRequestURI(fmt.Sprintf("https://%s/", host))
-		if err := client.DoTimeout(req, resp, 5*time.Second); err != nil {
+	switch port {
+	case "443":
+		req.SetRequestURI(fmt.Sprintf("https://%s", addr))
+		err := client.DoTimeout(req, resp, 5*time.Second)
+		if err != nil {
 			GB403Logger.Verbose().Msgf("HTTPS error on %s: %v", addr, err)
-		} else {
-			return "https"
 		}
-	}
+		return "https"
 
-	// Try HTTP for port 80 or if HTTPS failed on 443
-	if port == "80" || port == "443" {
-		req.SetRequestURI(fmt.Sprintf("http://%s/", host))
-		if err := client.DoTimeout(req, resp, 5*time.Second); err != nil {
+	case "80":
+		req.SetRequestURI(fmt.Sprintf("http://%s", addr))
+		err := client.DoTimeout(req, resp, 5*time.Second)
+		if err != nil {
 			GB403Logger.Verbose().Msgf("HTTP error on %s: %v", addr, err)
-		} else {
-			return "http"
 		}
+		return "http"
 	}
 
 	return ""
