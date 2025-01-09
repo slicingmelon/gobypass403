@@ -6,6 +6,7 @@
 !README.md
 !go.mod
 !go.sum
+!.exe
 
 # Allow specific folders and their contents
 !cmd/
@@ -16,3 +17,9 @@
 !images/**
 !internal/
 !internal/**
+#!tests/
+!tests/*.go
+!tests/*.md
+#!tools/
+!tools/*.go
+!tools/*.md
