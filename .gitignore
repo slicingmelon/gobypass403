@@ -16,3 +16,7 @@
 !images/**
 !internal/
 !internal/**
+tests/
+tests/**
+tools/
+tools/**

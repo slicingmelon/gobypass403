@@ -346,7 +346,7 @@ func TestRequestBuilderHostHeaders(t *testing.T) {
 		// },
 		{
 			name: "HTTPS GET Request PH",
-			url:  "https://cms.pornhub.com",
+			url:  "https://cms.example.com",
 		},
 	}
 
