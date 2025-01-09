@@ -1,7 +1,7 @@
-# Ignore everything by default
+# Ignore everything
 *
 
-# Allow specific files and folders
+# Allow some root files
 !.gitignore
 !README.md
 !go.mod
