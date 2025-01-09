@@ -22,8 +22,6 @@ const (
 var (
 	ErrBodyTooLarge          = fasthttp.ErrBodyTooLarge
 	ErrInvalidResponseHeader = errors.New("invalid header")
-	// ErrConnectionClosed = fasthttp.ErrConnectionClosed
-	// ErrNoFreeConns      = fasthttp.ErrNoFreeConns
 )
 
 // ErrorContext holds metadata about where/when the error occurred
@@ -45,23 +43,28 @@ type ErrorStats struct {
 	Contexts     []ErrorContext   `json:"contexts,omitempty"`
 }
 
-// ErrorHandler manages error tracking and caching
 type ErrorHandler struct {
 	cache         *fastcache.Cache
-	statsLock     sync.RWMutex
-	stats         map[string]*ErrorStats
-	whitelistLock sync.RWMutex
+	cacheLock     sync.RWMutex
 	whitelist     map[string]struct{}
+	whitelistLock sync.RWMutex
+}
+
+type ErrorCache struct {
+	Count         int64            `json:"count"`
+	FirstSeen     time.Time        `json:"first_seen"`
+	LastSeen      time.Time        `json:"last_seen"`
+	BypassModules map[string]int64 `json:"bypass_modules,omitempty"`
+	ErrorSources  map[string]int64 `json:"error_sources"`
 }
 
 func NewErrorHandler(cacheSizeMB int) *ErrorHandler {
 	handler := &ErrorHandler{
 		cache:     fastcache.New(cacheSizeMB * 1024 * 1024),
-		stats:     make(map[string]*ErrorStats),
 		whitelist: make(map[string]struct{}),
 	}
 
-	// Initialize default whitelisted errors with actual error messages
+	// Initialize default whitelisted errors
 	handler.AddWhitelistedErrors(
 		ErrBodyTooLarge.Error(),
 		ErrInvalidResponseHeader.Error(),
@@ -98,37 +101,40 @@ func (e *ErrorHandler) HandleError(err error, ctx ErrorContext) error {
 		return nil
 	}
 
-	// Get the root error
-	rootErr := errors.Unwrap(err)
-	if rootErr == nil {
-		rootErr = err
-	}
-	errKey := rootErr.Error()
+	host := string(ctx.Host)
+	errMsg := err.Error()
 
-	ctx.Timestamp = time.Now()
+	// Update host error stats
+	hostKey := fmt.Sprintf("h:%s:e:%s", host, errMsg)
 
-	// Update stats
-	e.statsLock.Lock()
-	if _, exists := e.stats[errKey]; !exists {
-		e.stats[errKey] = &ErrorStats{
-			FirstSeen:    ctx.Timestamp,
-			ErrorSources: make(map[string]int64),
+	e.cacheLock.Lock()
+	defer e.cacheLock.Unlock()
+
+	var errorStats ErrorCache
+	if data := e.cache.Get(nil, []byte(hostKey)); data != nil {
+		json.Unmarshal(data, &errorStats)
+	} else {
+		errorStats = ErrorCache{
+			FirstSeen:     time.Now(),
+			BypassModules: make(map[string]int64),
+			ErrorSources:  make(map[string]int64),
 		}
 	}
 
-	stat := e.stats[errKey]
-	stat.Count++
-	stat.LastSeen = ctx.Timestamp
-	stat.ErrorSources[string(ctx.ErrorSource)]++
-	e.statsLock.Unlock()
+	// Update stats
+	errorStats.Count++
+	errorStats.LastSeen = time.Now()
+	errorStats.ErrorSources[string(ctx.ErrorSource)]++
 
-	// Cache error context
-	contextJSON, marshalErr := json.Marshal(ctx)
-	if marshalErr != nil {
-		return fmt.Errorf("failed to marshal error context: %w", err)
+	if len(ctx.BypassModule) > 0 {
+		errorStats.BypassModules[string(ctx.BypassModule)]++
 	}
 
-	e.cache.Set([]byte(fmt.Sprintf("%s:%d", errKey, stat.Count)), contextJSON)
+	// Store updated stats
+	if data, err := json.Marshal(errorStats); err == nil {
+		e.cache.Set([]byte(hostKey), data)
+	}
+
 	return err
 }
 
