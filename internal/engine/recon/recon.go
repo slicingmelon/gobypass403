@@ -351,17 +351,17 @@ func (s *ReconService) probeScheme(host, port string) string {
 	switch port {
 	case "443":
 		req.SetRequestURI(fmt.Sprintf("https://%s", addr))
-		if err := client.DoTimeout(req, resp, 5*time.Second); err != nil {
+		err := client.DoTimeout(req, resp, 5*time.Second)
+		if err != nil {
 			GB403Logger.Verbose().Msgf("HTTPS error on %s: %v", addr, err)
-			return ""
 		}
 		return "https"
 
 	case "80":
 		req.SetRequestURI(fmt.Sprintf("http://%s", addr))
-		if err := client.DoTimeout(req, resp, 5*time.Second); err != nil {
+		err := client.DoTimeout(req, resp, 5*time.Second)
+		if err != nil {
 			GB403Logger.Verbose().Msgf("HTTP error on %s: %v", addr, err)
-			return ""
 		}
 		return "http"
 	}
