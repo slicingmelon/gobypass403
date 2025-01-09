@@ -19,6 +19,6 @@
 !tests/
 !tests/*.go
 !tests/*.md
-#!tools/
+!tools/
 !tools/*.go
 !tools/*.md
