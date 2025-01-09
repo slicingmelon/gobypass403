@@ -1,16 +1,18 @@
-# Ignore everything
+# Ignore everything by default
 *
 
-# Except
-!*.go
+# Allow specific files and folders
+!.gitignore
+!README.md
 !go.mod
 !go.sum
 
-!payloads/
-!payloads/**
+# Allow specific folders and their contents
+!cmd/
+!cmd/**
+!docs/
+!docs/*.md
 !images/
 !images/**
-
-!.git/
-!.gitignore
-!README.md
+!internal/
+!internal/**
