@@ -6,6 +6,7 @@
 !README.md
 !go.mod
 !go.sum
+!.exe
 
 # Allow specific folders and their contents
 !cmd/
