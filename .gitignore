@@ -1,12 +1,11 @@
-# Ignore everything by default
+# Ignore everything
 *
 
-# Allow specific files and folders
+# Allow some root files
 !.gitignore
 !README.md
 !go.mod
 !go.sum
-!.exe
 
 # Allow specific folders and their contents
 !cmd/
@@ -17,9 +16,13 @@
 !images/**
 !internal/
 !internal/**
-#!tests/
-!tests/*.go
-!tests/*.md
-#!tools/
-!tools/*.go
-!tools/*.md
+
+!tests/
+!tests/**
+tests/*.exe
+tests/**/*.exe
+
+!tools/
+!tools/**
+tools/*.exe
+tools/**/*.exe
