@@ -41,34 +41,53 @@ So, be like me, use curl as a backend, it's gonna be just fine.
 ```bash
 git clone https://github.com/slicingmelon/go-bypass-403.git
 go get
-go build
+go build .\cmd\go-bypass-403\
 ```
 
 # Usage
 
 ```
-.\go-bypass-403.exe -h
-Go-Bypass-403:
+Go-Bypass-403
+
+Usage:
   -u, -url
         Target URL (example: https://cms.facebook.com/login)
   -l, -urls-file
         File containing list of target URLs (one per line)
   -shf, -substitute-hosts-file
         File containing a list of hosts to substitute target URL's hostname (mostly used in CDN bypasses by providing a list of CDNs)
-  -m, -mode
-        Bypass mode (all, http_methods, headers, paths, etc)
+  -m, -module
+        Bypass module (all, mid_paths, end_paths, case_substitution, char_encode, http_headers_scheme, http_headers_ip, http_headers_port, http_headers_url, http_host) (Default: all)
   -o, -outdir
         Output directory
   -t, -threads
-        Number of concurrent threads
+        Number of concurrent threads (Default: 15)
   -T, -timeout
-        Timeout in seconds
+        Timeout in seconds (Default: false)
+  -delay
+        Delay between requests in milliseconds (Default: 150)
   -v, -verbose
         Verbose output
-  -x, -proxy
-        Proxy URL (format: http://proxy:port)
+  -d, -debug
+        Debug mode with request canaries
+  -trace
+        Trace HTTP requests
   -mc, -match-status-code
-        Only save results matching these HTTP status codes (example: -mc 200,301,500). Default: 200
+        Only save results matching these HTTP status codes (example: -mc 200,301,500 or 'all' / '*', for any status code)
+  -http2
+        Enable HTTP2 client (Default: false)
+  -x, -proxy
+        Proxy URL (format: http://proxy:port) (Example: -x http://127.0.0.1:8080)
+  -spoof-header
+        Add more headers used to spoof IPs (example: X-SecretIP-Header,X-GO-IP)
+  -spoof-ip
+        Add more spoof IPs (example: 10.10.20.20,172.16.30.10)
+  -fr, -follow-redirects
+        Follow HTTP redirects
+  -rbps, -response-body-preview-size
+        Maximum number of bytes to retrieve from response body (Default: 512)
+  -update-payloads
+        Update payload files to latest version
 ```
 
 ## Standard WAF 403/401 Bypass
@@ -77,6 +96,7 @@ Standard command(s):
 ```bash
 go-bypass-403 -u "https://go-test-webapp.com/admin" -mc "200"
 go-bypass-403 -u "https://go-test-webapp.com/admin" -mc "200,500" -t 10 -v 
+go-bypass-403 -u "https://go-test-webapp.com/admin" -mc "all" -t 10 -v 
 ```
 
 Using a list of target URLs:
@@ -97,6 +117,10 @@ Example Results 1
 
 
 # Changelog
+
+## 09 January 2025
+
+- Refacted the entire codebase. Everything will be documented separately. 
 
 ## 05 November 2024
 

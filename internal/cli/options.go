@@ -200,6 +200,16 @@ func (o *Options) processStatusCodes() error {
 		return nil // Default was set in setDefaults
 	}
 
+	// Handle "all" or "*" cases
+	if o.MatchStatusCodesStr == "all" || o.MatchStatusCodesStr == "*" {
+		// Generate all valid HTTP status codes (100-599)
+		o.MatchStatusCodes = make([]int, 0, 500)
+		for i := 100; i < 600; i++ {
+			o.MatchStatusCodes = append(o.MatchStatusCodes, i)
+		}
+		return nil
+	}
+
 	var codes []int
 	parts := strings.Split(o.MatchStatusCodesStr, ",")
 	for _, p := range strings.Fields(strings.Join(parts, " ")) {

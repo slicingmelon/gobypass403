@@ -406,10 +406,8 @@ func (wp *requestWorkerPool) releaseWorker(w *requestWorker) {
 	defer wp.lock.Unlock()
 
 	if wp.strategy == LIFO {
-		// Add to end for LIFO (faster reuse)
 		wp.workers = append(wp.workers, w)
 	} else {
-		// Add to beginning for FIFO
 		wp.workers = append([]*requestWorker{w}, wp.workers...)
 	}
 }

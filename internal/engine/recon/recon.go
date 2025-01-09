@@ -3,6 +3,7 @@ package recon
 import (
 	"bufio"
 	"context"
+	"crypto/tls"
 	"fmt"
 	"net"
 	"os"
@@ -332,9 +333,15 @@ func (s *ReconService) probeScheme(host, port string) string {
 	addr := net.JoinHostPort(host, port)
 	GB403Logger.Verbose().Msgf("Probing %s", addr)
 
-	hClient := &fasthttp.HostClient{
-		Addr:                     addr,
-		NoDefaultUserAgentHeader: true,
+	client := &fasthttp.Client{
+		NoDefaultUserAgentHeader:      true,
+		ReadTimeout:                   5 * time.Second,
+		WriteTimeout:                  5 * time.Second,
+		DisableHeaderNamesNormalizing: true,
+		DisablePathNormalizing:        true,
+		TLSConfig: &tls.Config{
+			InsecureSkipVerify: true,
+		},
 	}
 
 	req := fasthttp.AcquireRequest()
@@ -345,7 +352,7 @@ func (s *ReconService) probeScheme(host, port string) string {
 	// Try HTTPS for port 443
 	if port == "443" {
 		req.SetRequestURI(fmt.Sprintf("https://%s/", host))
-		if err := hClient.DoTimeout(req, resp, 5*time.Second); err != nil {
+		if err := client.DoTimeout(req, resp, 5*time.Second); err != nil {
 			GB403Logger.Verbose().Msgf("HTTPS error on %s: %v", addr, err)
 		} else {
 			return "https"
@@ -355,7 +362,7 @@ func (s *ReconService) probeScheme(host, port string) string {
 	// Try HTTP for port 80 or if HTTPS failed on 443
 	if port == "80" || port == "443" {
 		req.SetRequestURI(fmt.Sprintf("http://%s/", host))
-		if err := hClient.DoTimeout(req, resp, 5*time.Second); err != nil {
+		if err := client.DoTimeout(req, resp, 5*time.Second); err != nil {
 			GB403Logger.Verbose().Msgf("HTTP error on %s: %v", addr, err)
 		} else {
 			return "http"

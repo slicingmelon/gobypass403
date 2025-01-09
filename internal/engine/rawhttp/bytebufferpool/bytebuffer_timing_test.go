@@ -53,7 +53,8 @@ func BenchmarkByteBufferConcurrentWrites2(b *testing.B) {
 	defer Put(bb)
 
 	data := []byte("test data for concurrent writes")
-	var mu sync.Mutex // Add mutex for synchronization
+	// Add mutex for synchronization
+	var mu sync.Mutex
 
 	b.ResetTimer()
 	b.RunParallel(func(pb *testing.PB) {

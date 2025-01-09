@@ -111,6 +111,9 @@ func (s *Scanner) scanURL(url string) error {
 		fmt.Println()
 		PrintTableHeader(url)
 		PrintTableRow(allFindings)
+
+		fmt.Println()
+		GB403Logger.Info().Msgf("Results saved to %s\n\n", outputFile)
 	}
 
 	return nil
