@@ -283,13 +283,13 @@ func (w *requestWorker) processRequestJob(job payload.PayloadJob) *RawHTTPRespon
 	req := fasthttp.AcquireRequest()
 	resp := fasthttp.AcquireResponse()
 	defer fasthttp.ReleaseRequest(req)
+	defer fasthttp.ReleaseResponse(resp)
 
 	w.builder.BuildRequest(req, job)
 
 	GB403Logger.Debug().DebugToken(job.PayloadToken).Msgf("[%s] Sending request %s\n", job.BypassModule, job.FullURL)
 
 	if err := w.client.DoRaw(req, resp); err != nil {
-		fasthttp.ReleaseResponse(resp) // Release on error
 		err = w.errorHandler.HandleError(err, GB403ErrorHandler.ErrorContext{
 			TargetURL:    []byte(job.FullURL),
 			ErrorSource:  []byte("Worker.processJob"),
@@ -302,15 +302,7 @@ func (w *requestWorker) processRequestJob(job payload.PayloadJob) *RawHTTPRespon
 		}
 	}
 
-	// Early status code check
-	if !matchStatusCodes(resp.StatusCode(), w.scanOpts.MatchStatusCodes) {
-		fasthttp.ReleaseResponse(resp)
-		return nil
-	}
-
-	result := w.processResponse(resp, job)
-	fasthttp.ReleaseResponse(resp) // release after we've done with it! bufix
-	return result
+	return w.processResponse(resp, job)
 }
 
 // processResponse handles response processing
