@@ -16,9 +16,13 @@
 !images/**
 !internal/
 !internal/**
+
 !tests/
-!tests/**/*.go
-!tests/**/*.md
+!tests/**
+tests/*.exe
+tests/**/*.exe
+
 !tools/
-!tools/**/*.go
-!tools/**/*.md
+!tools/**
+tools/*.exe
+tools/**/*.exe
