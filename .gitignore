@@ -17,8 +17,8 @@
 !internal/
 !internal/**
 !tests/
-!tests/*.go
-!tests/*.md
+!tests/**/*.go
+!tests/**/*.md
 !tools/
-!tools/*.go
-!tools/*.md
+!tools/**/*.go
+!tools/**/*.md
