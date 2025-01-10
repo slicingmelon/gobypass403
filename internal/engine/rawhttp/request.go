@@ -41,8 +41,8 @@ type requestWorkerPool struct {
 	lock          sync.Mutex
 	stopCh        chan struct{}
 	pool          sync.Pool
-	activeWorkers int32
-	queuedJobs    int32
+	activeWorkers atomic.Int32
+	queuedJobs    atomic.Int32
 
 	// news
 	maxIdleWorkerDuration time.Duration
@@ -156,8 +156,8 @@ func (p *requestWorkerPool) activeWorkerCount() int {
 }
 
 func (p *requestWorkerPool) getStats() (active int32, queued int32) {
-	return atomic.LoadInt32(&p.activeWorkers),
-		atomic.LoadInt32(&p.queuedJobs)
+	return p.activeWorkers.Load(),
+		p.queuedJobs.Load()
 }
 
 // RequestBuilder handles request construction
@@ -277,8 +277,8 @@ func (p *RequestPool) ProcessRequests(jobs []payload.PayloadJob) <-chan *RawHTTP
 // to broken server.
 
 func (w *requestWorker) processRequestJob(job payload.PayloadJob) *RawHTTPResponseDetails {
-	atomic.AddInt32(&w.pool.activeWorkers, 1)
-	defer atomic.AddInt32(&w.pool.activeWorkers, -1)
+	w.pool.activeWorkers.Add(1)
+	defer w.pool.activeWorkers.Add(-1)
 
 	req := fasthttp.AcquireRequest()
 	resp := fasthttp.AcquireResponse()
