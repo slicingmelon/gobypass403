@@ -2,108 +2,157 @@ package main
 
 import (
 	"fmt"
-	"net/http"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"runtime"
 	"runtime/pprof"
+	"time"
 
+	"github.com/goccy/go-graphviz"
+	"github.com/google/pprof/profile"
 	GB403Logger "github.com/slicingmelon/go-bypass-403/internal/utils/logger"
 )
 
-const (
-	_pProfDir = "_pprof"
-)
+type Profiler struct {
+	timestamp  string
+	profileDir string
+	cpuFile    *os.File
+}
 
-func WriteProfiles(timestamp string) error {
-	profileDir := filepath.Join(_pProfDir, fmt.Sprintf("profile_%s", timestamp))
+func NewProfiler() *Profiler {
+	timestamp := time.Now().Format("20060102-150405")
+	return &Profiler{
+		timestamp:  timestamp,
+		profileDir: filepath.Join("_pprof", fmt.Sprintf("profile_%s", timestamp)),
+	}
+}
 
-	// Write and generate visualizations for each profile type
-	profileTypes := []string{"heap", "allocs", "goroutine"}
-	for _, profType := range profileTypes {
-		// Write profile
-		if err := writeProfile(profileDir, profType, timestamp, func(f *os.File) error {
-			switch profType {
-			case "heap":
-				return pprof.WriteHeapProfile(f)
-			case "allocs":
-				return pprof.Lookup("allocs").WriteTo(f, 0)
-			case "goroutine":
-				return pprof.Lookup("goroutine").WriteTo(f, 0)
-			}
-			return nil
-		}); err != nil {
-			return fmt.Errorf("%s profile error: %v", profType, err)
-		}
-
-		// Generate visualizations
-		if err := GenerateVisualizations(profileDir, profType, timestamp); err != nil {
-			GB403Logger.Error().Msgf("Could not generate %s visualizations: %v", profType, err)
-		}
+func (p *Profiler) Start() error {
+	if err := os.MkdirAll(p.profileDir, 0755); err != nil {
+		return fmt.Errorf("create profile directory: %w", err)
 	}
 
-	GB403Logger.Info().Msgf("Profiles and visualizations written to: %s", profileDir)
+	// Start CPU profiling
+	cpuFile, err := os.Create(filepath.Join(p.profileDir, fmt.Sprintf("cpu-%s.prof", p.timestamp)))
+	if err != nil {
+		return fmt.Errorf("create CPU profile: %w", err)
+	}
+	p.cpuFile = cpuFile
+
+	if err := pprof.StartCPUProfile(cpuFile); err != nil {
+		cpuFile.Close()
+		return fmt.Errorf("start CPU profile: %w", err)
+	}
+
+	// Enable memory profiling
+	runtime.MemProfileRate = 1
 	return nil
 }
 
-func GenerateVisualizations(dir, profType, timestamp string) error {
-	profPath := filepath.Join(dir, fmt.Sprintf("%s-%s.prof", profType, timestamp))
+func (p *Profiler) Stop() {
+	pprof.StopCPUProfile()
+	if p.cpuFile != nil {
+		p.cpuFile.Close()
+	}
 
-	// Generate DOT file
-	dotPath := filepath.Join(dir, fmt.Sprintf("%s-%s.dot", profType, timestamp))
-	dotCmd := exec.Command("go", "tool", "pprof", "-dot", profPath)
-	dotFile, err := os.Create(dotPath)
-	if err != nil {
-		return fmt.Errorf("could not create %s DOT file: %v", profType, err)
+	// Write other profiles
+	for _, profType := range []string{"heap", "allocs", "goroutine"} {
+		if err := p.writeProfile(profType); err != nil {
+			GB403Logger.Error().Msgf("Failed to write %s profile: %v", profType, err)
+			continue
+		}
+		if err := p.generateSVG(profType); err != nil {
+			GB403Logger.Error().Msgf("Failed to generate %s visualization: %v", profType, err)
+		}
 	}
-	dotCmd.Stdout = dotFile
-	if err := dotCmd.Run(); err != nil {
-		dotFile.Close()
-		return fmt.Errorf("could not generate %s DOT file: %v", profType, err)
-	}
-	dotFile.Close()
-
-	// Generate SVG file
-	svgPath := filepath.Join(dir, fmt.Sprintf("%s-%s.svg", profType, timestamp))
-	svgCmd := exec.Command("go", "tool", "pprof", "-svg", profPath)
-	svgFile, err := os.Create(svgPath)
-	if err != nil {
-		return fmt.Errorf("could not create %s SVG file: %v", profType, err)
-	}
-	svgCmd.Stdout = svgFile
-	if err := svgCmd.Run(); err != nil {
-		svgFile.Close()
-		return fmt.Errorf("could not generate %s SVG file: %v", profType, err)
-	}
-	svgFile.Close()
-
-	return nil
 }
 
-func writeProfile(dir, name, timestamp string, writeFn func(*os.File) error) error {
-	filename := filepath.Join(dir, fmt.Sprintf("%s-%s.prof", name, timestamp))
+func (p *Profiler) writeProfile(profType string) error {
+	filename := filepath.Join(p.profileDir, fmt.Sprintf("%s-%s.prof", profType, p.timestamp))
 	f, err := os.Create(filename)
 	if err != nil {
-		return fmt.Errorf("could not create %s profile: %v", name, err)
+		return fmt.Errorf("create profile: %w", err)
 	}
 	defer f.Close()
 
-	if err := writeFn(f); err != nil {
-		return fmt.Errorf("could not write %s profile: %v", name, err)
+	switch profType {
+	case "heap":
+		return pprof.WriteHeapProfile(f)
+	case "allocs", "goroutine":
+		return pprof.Lookup(profType).WriteTo(f, 0)
 	}
-
 	return nil
 }
 
-func StartPProf(port string) {
-	runtime.SetMutexProfileFraction(1)
-	runtime.SetBlockProfileRate(1)
+func (p *Profiler) generateSVG(profType string) error {
+	profPath := filepath.Join(p.profileDir, fmt.Sprintf("%s-%s.prof", profType, p.timestamp))
 
-	go func() {
-		GB403Logger.Info().Msgf("Starting pprof server on localhost:%s", port)
-		if err := http.ListenAndServe("localhost:"+port, nil); err != nil {
-			GB403Logger.Error().Msgf("Failed to start pprof server: %v", err)
+	prof, err := p.parseProfile(profPath)
+	if err != nil {
+		return err
+	}
+
+	g, err := graphviz.New()
+	if err != nil {
+		return fmt.Errorf("create graphviz: %w", err)
+	}
+	defer g.Close()
+
+	graph, err := g.Graph()
+	if err != nil {
+		return fmt.Errorf("create graph: %w", err)
+	}
+	defer graph.Close()
+
+	if err := p.renderGraph(prof, graph); err != nil {
+		return err
+	}
+
+	svgPath := filepath.Join(p.profileDir, fmt.Sprintf("%s-%s.svg", profType, p.timestamp))
+	return g.RenderFilename(graph, graphviz.SVG, svgPath)
+}
+
+func (p *Profiler) parseProfile(path string) (*profile.Profile, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, fmt.Errorf("open profile: %w", err)
+	}
+	defer f.Close()
+	return profile.Parse(f)
+}
+
+func (p *Profiler) renderGraph(prof *profile.Profile, graph *graphviz.Graph) error {
+	nodes := make(map[uint64]*graphviz.Node)
+
+	for _, sample := range prof.Sample {
+		var prevNode *graphviz.Node
+		for i, loc := range sample.Location {
+			if len(loc.Line) == 0 {
+				continue
+			}
+
+			fn := loc.Line[0].Function
+			node, exists := nodes[fn.ID]
+			if !exists {
+				var err error
+				node, err = graph.CreateNode(fn.Name)
+				if err != nil {
+					return fmt.Errorf("create node: %w", err)
+				}
+				nodes[fn.ID] = node
+			}
+
+			if prevNode != nil {
+				if _, err := graph.CreateEdge("", prevNode, node); err != nil {
+					return fmt.Errorf("create edge: %w", err)
+				}
+			}
+
+			if i == 0 {
+				node.SetColor("red")
+			}
+			prevNode = node
 		}
-	}()
+	}
+	return nil
 }
