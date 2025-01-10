@@ -351,32 +351,24 @@ func (s *ReconService) probeScheme(host, port string) string {
 	switch port {
 	case "443":
 		req.SetRequestURI(fmt.Sprintf("https://%s", addr))
-		err := client.DoTimeout(req, resp, 5*time.Second)
+		err := client.Do(req, resp)
 		if err != nil {
 			GB403Logger.Verbose().Msgf("HTTPS error on %s: %v", addr, err)
+			return ""
 		}
 		return "https"
 
 	case "80":
 		req.SetRequestURI(fmt.Sprintf("http://%s", addr))
-		err := client.DoTimeout(req, resp, 5*time.Second)
+		err := client.Do(req, resp)
 		if err != nil {
 			GB403Logger.Verbose().Msgf("HTTP error on %s: %v", addr, err)
+			return ""
 		}
 		return "http"
 	}
 
 	return ""
-}
-
-// Helper function to check if a port exists in a slice
-func contains(slice []string, item string) bool {
-	for _, s := range slice {
-		if s == item {
-			return true
-		}
-	}
-	return false
 }
 
 func (s *ReconService) GetCache() *ReconCache {

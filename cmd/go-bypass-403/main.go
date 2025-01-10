@@ -15,7 +15,7 @@ import (
 )
 
 const (
-	enablePProf = true
+	enablePProf = false
 	pProfPort   = "6060"
 	pProfDir    = "_pprof"
 )
