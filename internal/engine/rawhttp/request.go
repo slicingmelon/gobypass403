@@ -291,10 +291,9 @@ func (w *requestWorker) processRequestJob(job payload.PayloadJob) *RawHTTPRespon
 
 	if err := w.client.DoRaw(req, resp); err != nil {
 		err = w.errorHandler.HandleError(err, GB403ErrorHandler.ErrorContext{
-			TargetURL:    []byte(job.FullURL),
+			Host:         []byte(job.Host),
 			ErrorSource:  []byte("Worker.processJob"),
 			BypassModule: []byte(job.BypassModule),
-			DebugToken:   []byte(job.PayloadToken),
 		})
 		if err != nil {
 			GB403Logger.Error().DebugToken(job.PayloadToken).Msgf("Request failed: %v", err)

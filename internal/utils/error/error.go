@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -22,8 +23,7 @@ const (
 var (
 	ErrBodyTooLarge          = fasthttp.ErrBodyTooLarge
 	ErrInvalidResponseHeader = errors.New("invalid header")
-	// ErrConnectionClosed = fasthttp.ErrConnectionClosed
-	// ErrNoFreeConns      = fasthttp.ErrNoFreeConns
+	errConnForciblyClosedWin = errors.New("wsarecv: An existing connection was forcibly closed by the remote host")
 )
 
 // ErrorContext holds metadata about where/when the error occurred
@@ -45,23 +45,29 @@ type ErrorStats struct {
 	Contexts     []ErrorContext   `json:"contexts,omitempty"`
 }
 
-// ErrorHandler manages error tracking and caching
 type ErrorHandler struct {
-	cache         *fastcache.Cache
-	statsLock     sync.RWMutex
-	stats         map[string]*ErrorStats
-	whitelistLock sync.RWMutex
-	whitelist     map[string]struct{}
+	cache             *fastcache.Cache
+	cacheLock         sync.RWMutex
+	whitelist         map[string]struct{}
+	whitelistLock     sync.RWMutex
+	stripErrorMsgLock sync.RWMutex
+}
+
+type ErrorCache struct {
+	Count         int64            `json:"count"`
+	FirstSeen     time.Time        `json:"first_seen"`
+	LastSeen      time.Time        `json:"last_seen"`
+	BypassModules map[string]int64 `json:"bypass_modules,omitempty"`
+	ErrorSources  map[string]int64 `json:"error_sources"`
 }
 
 func NewErrorHandler(cacheSizeMB int) *ErrorHandler {
 	handler := &ErrorHandler{
 		cache:     fastcache.New(cacheSizeMB * 1024 * 1024),
-		stats:     make(map[string]*ErrorStats),
 		whitelist: make(map[string]struct{}),
 	}
 
-	// Initialize default whitelisted errors with actual error messages
+	// Initialize default whitelisted errors
 	handler.AddWhitelistedErrors(
 		ErrBodyTooLarge.Error(),
 		ErrInvalidResponseHeader.Error(),
@@ -93,110 +99,159 @@ func (e *ErrorHandler) IsWhitelisted(err error) bool {
 	return false
 }
 
+func (e *ErrorHandler) StripErrorMessage(err error) string {
+	e.stripErrorMsgLock.Lock()
+	defer e.stripErrorMsgLock.Unlock()
+
+	// Check the error message itself
+	errMsg := err.Error()
+	if strings.Contains(errMsg, errConnForciblyClosedWin.Error()) {
+		return errConnForciblyClosedWin.Error()
+	}
+	return errMsg
+}
+
 func (e *ErrorHandler) HandleError(err error, ctx ErrorContext) error {
 	if err == nil || e.IsWhitelisted(err) {
 		return nil
 	}
 
-	// Get the root error
-	rootErr := errors.Unwrap(err)
-	if rootErr == nil {
-		rootErr = err
-	}
-	errKey := rootErr.Error()
+	host := string(ctx.Host)
+	errMsg := e.StripErrorMessage(err)
 
-	ctx.Timestamp = time.Now()
+	e.cacheLock.Lock()
+	defer e.cacheLock.Unlock()
 
-	// Update stats
-	e.statsLock.Lock()
-	if _, exists := e.stats[errKey]; !exists {
-		e.stats[errKey] = &ErrorStats{
-			FirstSeen:    ctx.Timestamp,
-			ErrorSources: make(map[string]int64),
+	// Add to index first
+	e.addToIndex(host, errMsg)
+
+	// Update error stats
+	key := []byte(fmt.Sprintf("h:%s:e:%s", host, errMsg))
+	var errorStats ErrorCache
+	if data := e.cache.Get(nil, key); data != nil {
+		json.Unmarshal(data, &errorStats)
+	} else {
+		errorStats = ErrorCache{
+			FirstSeen:     time.Now(),
+			BypassModules: make(map[string]int64),
+			ErrorSources:  make(map[string]int64),
 		}
 	}
 
-	stat := e.stats[errKey]
-	stat.Count++
-	stat.LastSeen = ctx.Timestamp
-	stat.ErrorSources[string(ctx.ErrorSource)]++
-	e.statsLock.Unlock()
+	// Update stats
+	errorStats.Count++
+	errorStats.LastSeen = time.Now()
+	errorStats.ErrorSources[string(ctx.ErrorSource)]++
 
-	// Cache error context
-	contextJSON, marshalErr := json.Marshal(ctx)
-	if marshalErr != nil {
-		return fmt.Errorf("failed to marshal error context: %w", err)
+	if len(ctx.BypassModule) > 0 {
+		errorStats.BypassModules[string(ctx.BypassModule)]++
 	}
 
-	e.cache.Set([]byte(fmt.Sprintf("%s:%d", errKey, stat.Count)), contextJSON)
+	// Store updated stats
+	if data, err := json.Marshal(errorStats); err == nil {
+		e.cache.Set(key, data)
+	}
+
 	return err
 }
 
 func (e *ErrorHandler) PrintErrorStats() {
-	e.statsLock.RLock()
-	defer e.statsLock.RUnlock()
+	e.cacheLock.RLock()
+	defer e.cacheLock.RUnlock()
 
 	var buf bytes.Buffer
 	var stats fastcache.Stats
-	var totalContextSize int64
-	var totalErrorKeys int
-	var totalErrorSources int
-
-	// Get cache stats
 	e.cache.UpdateStats(&stats)
 
-	for errKey, stat := range e.stats {
-		totalErrorKeys += len(errKey)
-		totalErrorSources += len(stat.ErrorSources)
-		if data := e.cache.Get(nil, []byte(fmt.Sprintf("%s:%d", errKey, stat.Count))); data != nil {
-			totalContextSize += int64(len(data))
-		}
-	}
-
-	// Build the complete output in memory first
+	// Print header stats
 	fmt.Fprintln(&buf, "=== Error Statistics ===")
 	fmt.Fprintln(&buf, "Memory Usage:")
 	fmt.Fprintf(&buf, "Cache Size: %d MB (allocated)\n", stats.BytesSize/(1024*1024))
 	fmt.Fprintf(&buf, "Max Cache Size: %d MB\n", stats.MaxBytesSize/(1024*1024))
-	fmt.Fprintf(&buf, "Active Cache Usage: %.2f MB\n", float64(totalContextSize)/(1024*1024))
-	fmt.Fprintf(&buf, "Unique Errors: %d\n", len(e.stats))
-	fmt.Fprintf(&buf, "Total Error Sources: %d\n", totalErrorSources)
 	fmt.Fprintf(&buf, "Cache Entries: %d\n", stats.EntriesCount)
 	fmt.Fprintf(&buf, "Cache Get Calls: %d\n", stats.GetCalls)
 	fmt.Fprintf(&buf, "Cache Set Calls: %d\n", stats.SetCalls)
 	fmt.Fprintf(&buf, "Cache Misses: %d\n", stats.Misses)
 
-	// Print error details
-	for errKey, stat := range e.stats {
-		fmt.Fprintln(&buf) // Single blank line between errors
-		fmt.Fprintf(&buf, "Error: %s\n", errKey)
-		fmt.Fprintf(&buf, "Count: %d occurrences\n", stat.Count)
-		fmt.Fprintf(&buf, "First Seen: %s\n", stat.FirstSeen.Format(time.RFC3339))
-		fmt.Fprintf(&buf, "Last Seen: %s\n", stat.LastSeen.Format(time.RFC3339))
+	// Get all keys with prefix "h:"
+	// Since fastcache doesn't provide iteration, we need to maintain a separate index
+	indexKey := []byte("index:hosts")
+	if hostsData := e.cache.Get(nil, indexKey); hostsData != nil {
+		var hosts []string
+		json.Unmarshal(hostsData, &hosts)
 
-		fmt.Fprintln(&buf, "Error Sources:")
-		for source, count := range stat.ErrorSources {
-			fmt.Fprintf(&buf, "  - %s: %d times\n", source, count)
-		}
+		for _, host := range hosts {
+			// For each host, get its errors
+			hostKey := []byte(fmt.Sprintf("h:%s:e:index", host))
+			if errorsData := e.cache.Get(nil, hostKey); errorsData != nil {
+				var errors []string
+				json.Unmarshal(errorsData, &errors)
 
-		fmt.Fprintln(&buf, "Affected URLs:")
-		for i := int64(1); i <= stat.Count; i++ {
-			if contextJSON := e.cache.Get(nil, []byte(fmt.Sprintf("%s:%d", errKey, i))); contextJSON != nil {
-				var ctx ErrorContext
-				if err := json.Unmarshal(contextJSON, &ctx); err == nil {
-					fmt.Fprintf(&buf, "  - %s\n", ctx.TargetURL)
+				for _, errMsg := range errors {
+					key := []byte(fmt.Sprintf("h:%s:e:%s", host, errMsg))
+					if data := e.cache.Get(nil, key); data != nil {
+						var errorStats ErrorCache
+						json.Unmarshal(data, &errorStats)
+
+						fmt.Fprintln(&buf)
+						fmt.Fprintf(&buf, "Error: %s\n", errMsg)
+						fmt.Fprintf(&buf, "Count: %d occurrences\n", errorStats.Count)
+						fmt.Fprintf(&buf, "First Seen: %s\n", errorStats.FirstSeen.Format(time.RFC3339))
+						fmt.Fprintf(&buf, "Last Seen: %s\n", errorStats.LastSeen.Format(time.RFC3339))
+
+						fmt.Fprintln(&buf, "Error Sources:")
+						for source, count := range errorStats.ErrorSources {
+							fmt.Fprintf(&buf, "  - %s: %d times\n", source, count)
+						}
+
+						if len(errorStats.BypassModules) > 0 {
+							fmt.Fprintf(&buf, "  Host: %s\n", host)
+							for module, count := range errorStats.BypassModules {
+								if module != "" {
+									fmt.Fprintf(&buf, "    - Module %s: %d times\n", module, count)
+								}
+							}
+						}
+					}
 				}
 			}
 		}
 	}
 
-	// Print everything at once
 	fmt.Println(buf.String())
 }
 
 func (e *ErrorHandler) Reset() {
-	e.statsLock.Lock()
-	e.stats = make(map[string]*ErrorStats)
-	e.statsLock.Unlock()
+	e.cacheLock.Lock()
+	defer e.cacheLock.Unlock()
 	e.cache.Reset()
+}
+
+// Helper method to maintain the host index
+func (e *ErrorHandler) addToIndex(host, errMsg string) {
+	// Update hosts index
+	indexKey := []byte("index:hosts")
+	var hosts []string
+	if hostsData := e.cache.Get(nil, indexKey); hostsData != nil {
+		json.Unmarshal(hostsData, &hosts)
+	}
+	if !slices.Contains(hosts, host) {
+		hosts = append(hosts, host)
+		if data, err := json.Marshal(hosts); err == nil {
+			e.cache.Set(indexKey, data)
+		}
+	}
+
+	// Update host's errors index
+	hostKey := []byte(fmt.Sprintf("h:%s:e:index", host))
+	var errors []string
+	if errorsData := e.cache.Get(nil, hostKey); errorsData != nil {
+		json.Unmarshal(errorsData, &errors)
+	}
+	if !slices.Contains(errors, errMsg) {
+		errors = append(errors, errMsg)
+		if data, err := json.Marshal(errors); err == nil {
+			e.cache.Set(hostKey, data)
+		}
+	}
 }
