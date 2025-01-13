@@ -489,14 +489,6 @@ func safeClose[T any](ch chan T) {
 	close(ch)
 }
 
-// Helper functions
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}
-
 // String2Byte converts string to a byte slice without memory allocation.
 // This conversion *does not* copy data. Note that casting via "([]byte)(string)" *does* copy data.
 // Also note that you *should not* change the byte slice after conversion, because Go strings

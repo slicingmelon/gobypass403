@@ -57,7 +57,15 @@ func (p *Profiler) Stop() {
 		p.cpuFile.Close()
 	}
 
-	for _, profType := range []string{"heap", "allocs", "goroutine", "cpu"} {
+	// Check CPU profile size
+	cpuPath := filepath.Join(p.profileDir, fmt.Sprintf("cpu-%s.prof", p.timestamp))
+	if fi, err := os.Stat(cpuPath); err == nil && fi.Size() == 0 {
+		GB403Logger.Error().Msg("CPU profile is empty - program may have run too quickly to capture meaningful data")
+		// Remove empty CPU profile
+		os.Remove(cpuPath)
+	}
+
+	for _, profType := range []string{"heap", "allocs", "goroutine"} {
 		if err := p.writeProfile(profType); err != nil {
 			GB403Logger.Error().Msgf("Failed to write %s profile: %v", profType, err)
 			continue
@@ -66,6 +74,13 @@ func (p *Profiler) Stop() {
 		if err := p.generateVisualization(profType); err != nil {
 			GB403Logger.Error().Msgf("Failed to generate %s visualization: %v", profType, err)
 			continue
+		}
+	}
+
+	// Handle CPU profile separately
+	if fi, err := os.Stat(cpuPath); err == nil && fi.Size() > 0 {
+		if err := p.generateVisualization("cpu"); err != nil {
+			GB403Logger.Error().Msgf("Failed to generate CPU visualization: %v", err)
 		}
 	}
 
