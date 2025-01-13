@@ -10,9 +10,7 @@ import (
 )
 
 const (
-	enablePProf = true
-	pProfPort   = "6060"
-	pProfDir    = "_pprof"
+	enablePProf = true // Set to false to disable profiling
 )
 
 func main() {
@@ -34,7 +32,6 @@ func main() {
 	}
 
 	runner := cli.NewRunner()
-
 	if err := runner.Initialize(); err != nil {
 		GB403Logger.Error().Msgf("Initialization failed: %v", err)
 		os.Exit(1)
