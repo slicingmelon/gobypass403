@@ -1,6 +1,7 @@
 package error
 
-// Custom Error Handler
+// Custom Error Handler implementing a cache for errors statistics.
+// It is used to track the number of errors for better debugging.
 
 import (
 	"bytes"

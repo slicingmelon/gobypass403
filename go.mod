@@ -7,7 +7,7 @@ require (
 	github.com/andybalholm/brotli v1.1.1
 	github.com/goccy/go-graphviz v0.2.9
 	github.com/golang/snappy v0.0.4
-	github.com/google/pprof v0.0.0-20211214055906-6f57359322fd
+	github.com/google/pprof v0.0.0-20241210010833-40e02aabc2ad
 	github.com/jedib0t/go-pretty/v6 v6.6.5
 	github.com/klauspost/compress v1.17.11
 	github.com/pierrec/lz4/v4 v4.1.22
