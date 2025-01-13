@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	enablePProf = false
+	enablePProf = true
 	pProfPort   = "6060"
 	pProfDir    = "_pprof"
 )

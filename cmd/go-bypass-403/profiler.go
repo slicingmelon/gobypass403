@@ -1,12 +1,14 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
 	"runtime/pprof"
+	"strings"
 	"time"
 
 	"github.com/goccy/go-graphviz"
@@ -49,11 +51,19 @@ func (p *Profiler) Start() error {
 		return fmt.Errorf("start CPU profile: %w", err)
 	}
 
+	// Set memory profile rate
 	runtime.MemProfileRate = 1
+
+	// Force garbage collection before profiling
+	runtime.GC()
+
 	return nil
 }
 
 func (p *Profiler) Stop() {
+	// Force garbage collection before stopping
+	runtime.GC()
+
 	// Stop CPU profiling
 	pprof.StopCPUProfile()
 	if p.cpuFile != nil {
@@ -71,11 +81,13 @@ func (p *Profiler) Stop() {
 		// Generate dot file
 		if err := p.generateDotFile(profType); err != nil {
 			GB403Logger.Error().Msgf("Failed to generate %s dot file: %v", profType, err)
+			continue
 		}
 
 		// Generate SVG
 		if err := p.generateSVG(profType); err != nil {
 			GB403Logger.Error().Msgf("Failed to generate %s SVG: %v", profType, err)
+			continue
 		}
 	}
 
@@ -103,22 +115,7 @@ func (p *Profiler) writeProfile(profType string) error {
 }
 
 func (p *Profiler) generateDotFile(profType string) error {
-	profPath := filepath.Join(p.profileDir, fmt.Sprintf("%s-%s.prof", profType, p.timestamp))
 	dotPath := filepath.Join(p.profileDir, fmt.Sprintf("%s-%s.dot", profType, p.timestamp))
-
-	// Open and parse the profile
-	f, err := os.Open(profPath)
-	if err != nil {
-		GB403Logger.Error().Msgf("Failed to open profile: %v", err)
-		return fmt.Errorf("open profile: %w", err)
-	}
-	defer f.Close()
-
-	prof, err := profile.Parse(f)
-	if err != nil {
-		GB403Logger.Error().Msgf("Failed to parse profile: %v", err)
-		return fmt.Errorf("parse profile: %w", err)
-	}
 
 	// Create dot file
 	dotFile, err := os.Create(dotPath)
@@ -128,9 +125,42 @@ func (p *Profiler) generateDotFile(profType string) error {
 	}
 	defer dotFile.Close()
 
-	// Write the profile in dot format
-	if err := prof.Write(dotFile); err != nil {
-		return fmt.Errorf("write dot file: %w", err)
+	switch profType {
+	case "heap", "allocs", "goroutine":
+		prof := pprof.Lookup(profType)
+		if prof == nil {
+			return fmt.Errorf("no %s profile found", profType)
+		}
+		// Write in debug=1 format for human-readable output
+		if err := prof.WriteTo(dotFile, 1); err != nil {
+			GB403Logger.Error().Msgf("Failed to write dot file: %v", err)
+			return fmt.Errorf("write dot file: %w", err)
+		}
+
+	case "cpu":
+		// For CPU profiles, we need to read from the file
+		profPath := filepath.Join(p.profileDir, fmt.Sprintf("cpu-%s.prof", p.timestamp))
+		f, err := os.Open(profPath)
+		if err != nil {
+			GB403Logger.Error().Msgf("Failed to open CPU profile: %v", err)
+			return fmt.Errorf("open CPU profile: %w", err)
+		}
+		defer f.Close()
+
+		prof, err := profile.Parse(f)
+		if err != nil {
+			GB403Logger.Error().Msgf("Failed to parse CPU profile: %v", err)
+			return fmt.Errorf("parse CPU profile: %w", err)
+		}
+
+		// For CPU profiles from profile.Parse, we use Write
+		if err := prof.Write(dotFile); err != nil {
+			GB403Logger.Error().Msgf("Failed to write CPU profile: %v", err)
+			return fmt.Errorf("write CPU profile: %w", err)
+		}
+
+	default:
+		return fmt.Errorf("unknown profile type: %s", profType)
 	}
 
 	return nil
@@ -138,63 +168,53 @@ func (p *Profiler) generateDotFile(profType string) error {
 
 func (p *Profiler) generateSVG(profType string) error {
 	profPath := filepath.Join(p.profileDir, fmt.Sprintf("%s-%s.prof", profType, p.timestamp))
+	dotPath := filepath.Join(p.profileDir, fmt.Sprintf("%s-%s.dot", profType, p.timestamp))
 	svgPath := filepath.Join(p.profileDir, fmt.Sprintf("%s-%s.svg", profType, p.timestamp))
 
-	// Open and parse the profile
-	f, err := os.Open(profPath)
-	if err != nil {
-		GB403Logger.Error().Msgf("Failed to open profile: %v", err)
-		return fmt.Errorf("open profile: %w", err)
-	}
-	defer f.Close()
-
-	prof, err := profile.Parse(f)
-	if err != nil {
-		GB403Logger.Error().Msgf("Failed to parse profile: %v", err)
-		return fmt.Errorf("parse profile: %w", err)
+	// Skip if profile file is empty
+	if fi, err := os.Stat(profPath); err != nil || fi.Size() == 0 {
+		return fmt.Errorf("empty or missing profile file: %s", profPath)
 	}
 
-	// Initialize graphviz with context
+	// Initialize graphviz
 	ctx := context.Background()
 	g, err := graphviz.New(ctx)
 	if err != nil {
-		GB403Logger.Error().Msgf("Failed to create graphviz: %v", err)
 		return fmt.Errorf("create graphviz: %w", err)
 	}
 	defer g.Close()
 
-	// Create graph
-	graph, err := g.Graph()
-	if err != nil {
-		return fmt.Errorf("create graph: %w", err)
-	}
-	defer graph.Close()
-
-	// Create temporary dot file
-	dotPath := filepath.Join(p.profileDir, fmt.Sprintf("%s-%s.dot", profType, p.timestamp))
-	dotFile, err := os.Create(dotPath)
-	if err != nil {
-		return fmt.Errorf("create dot file: %w", err)
-	}
-	defer dotFile.Close()
-
-	// Write profile data to dot format
-	if err := prof.Write(dotFile); err != nil {
-		return fmt.Errorf("write dot file: %w", err)
-	}
-
-	// Read the dot file back
+	// Read the dot file
 	dotContent, err := os.ReadFile(dotPath)
 	if err != nil {
 		return fmt.Errorf("read dot file: %w", err)
 	}
 
-	// Parse the dot content
-	graph, err = graphviz.ParseBytes(dotContent)
-	if err != nil {
-		return fmt.Errorf("parse dot content: %w", err)
+	// Clean and validate dot content
+	dotContent = bytes.TrimSpace(dotContent)
+	if len(dotContent) == 0 {
+		return fmt.Errorf("empty dot file")
 	}
 
-	// Render to SVG
-	return g.RenderFilename(ctx, graph, graphviz.SVG, svgPath)
+	// Parse the dot content with error handling
+	graph, err := graphviz.ParseBytes(dotContent)
+	if err != nil {
+		// Try to sanitize the content if parsing fails
+		sanitized := strings.ReplaceAll(string(dotContent), "\x00", "")
+		graph, err = graphviz.ParseBytes([]byte(sanitized))
+		if err != nil {
+			return fmt.Errorf("parse dot content: %w", err)
+		}
+	}
+	defer graph.Close()
+
+	// Render to SVG with context and timeout
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	if err := g.RenderFilename(ctx, graph, graphviz.SVG, svgPath); err != nil {
+		return fmt.Errorf("render SVG: %w", err)
+	}
+
+	return nil
 }
