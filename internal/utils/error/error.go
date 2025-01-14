@@ -22,7 +22,7 @@ const (
 )
 
 var (
-	ErrBodyTooLarge          = fasthttp.ErrBodyTooLarge
+	ErrBodyTooLarge          = fasthttp.ErrBodyTooLarge // "body size exceeds the given limit"
 	ErrInvalidResponseHeader = errors.New("invalid header")
 	errConnForciblyClosedWin = errors.New("wsarecv: An existing connection was forcibly closed by the remote host")
 )

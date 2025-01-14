@@ -106,6 +106,16 @@ func NewHTTPClient(opts *ClientOptions, errorHandler *GB403ErrorHandler.ErrorHan
 		}
 
 		// No proxy, use our TCPDialer with timeout
+		// DialTimeout dials the given TCP addr using tcp4 using the given timeout.
+		// This function has the following additional features comparing to net.Dial:
+		//	It reduces load on DNS resolver by caching resolved TCP addressed for DNSCacheDuration.
+		//	It dials all the resolved TCP addresses in round-robin manner until connection is established. This may be useful if certain addresses are temporarily unreachable.
+		// This dialer is intended for custom code wrapping before passing to Client.DialTimeout or HostClient.DialTimeout.
+		// For instance, per-host counters and/or limits may be implemented by such wrappers.
+		// The addr passed to the function must contain port. Example addr values:
+		// foobar.baz:443
+		// foo.bar:80
+		// aaa.com:8080
 		conn, err := dialer.DialTimeout(addr, 5*time.Second)
 		if err != nil {
 			if handleErr := errorHandler.HandleError(err, GB403ErrorHandler.ErrorContext{
