@@ -12,7 +12,7 @@ import (
 )
 
 var (
-	// concurrent-safe random source
+	// concurrent-safe random src
 	rnd = rand.New(rand.NewSource(time.Now().UnixNano()))
 	mu  sync.Mutex
 )
