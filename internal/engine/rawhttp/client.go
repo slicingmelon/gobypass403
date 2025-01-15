@@ -163,18 +163,6 @@ func (c *HttpClient) DoRaw(req *fasthttp.Request, resp *fasthttp.Response) error
 	return c.client.Do(req, resp)
 }
 
-// AcquireBuffer gets a buffer from the pool
-func (c *HttpClient) AcquireBuffer() []byte {
-	return c.bufPool.Get().([]byte)
-}
-
-// ReleaseBuffer returns a buffer to the pool
-func (c *HttpClient) ReleaseBuffer(buf []byte) {
-	// Reset the buffer before returning it to the pool
-	buf = buf[:0]
-	c.bufPool.Put(buf)
-}
-
 // Close releases all idle connections
 func (c *HttpClient) Close() {
 	c.client.CloseIdleConnections()
