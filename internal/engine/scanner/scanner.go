@@ -74,6 +74,7 @@ func (s *Scanner) Run() error {
 	}
 
 	// print error stats
+	fmt.Println()
 	s.errorHandler.PrintErrorStats()
 
 	return nil

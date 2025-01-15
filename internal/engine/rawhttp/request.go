@@ -231,6 +231,7 @@ func (rb *RequestBuilder) BuildRequest(req *fasthttp.Request, job payload.Payloa
 		req.SetConnectionClose()
 	} else {
 		req.Header.Set("Connection", "keep-alive")
+		//req.SetConnectionClose()
 	}
 }
 
@@ -291,10 +292,10 @@ func (w *requestWorker) ProcessRequestJob(job payload.PayloadJob) *RawHTTPRespon
 	w.pool.activeWorkers.Add(1)
 	defer w.pool.activeWorkers.Add(-1)
 
-	req := fasthttp.AcquireRequest()
-	resp := fasthttp.AcquireResponse()
-	defer fasthttp.ReleaseRequest(req)
-	defer fasthttp.ReleaseResponse(resp)
+	req := w.client.AcquireRequest()
+	resp := w.client.AcquireResponse()
+	defer w.client.ReleaseRequest(req)
+	defer w.client.ReleaseResponse(resp)
 
 	w.builder.BuildRequest(req, job)
 
@@ -307,7 +308,9 @@ func (w *requestWorker) ProcessRequestJob(job payload.PayloadJob) *RawHTTPRespon
 			BypassModule: []byte(job.BypassModule),
 		})
 		if err != nil {
-			GB403Logger.Error().DebugToken(job.PayloadToken).Msgf("Request failed: %v", err)
+			if GB403Logger.IsDebugEnabled() {
+				GB403Logger.Error().DebugToken(job.PayloadToken).Msgf("Request failed: %v", err)
+			}
 			return nil
 		}
 	}
