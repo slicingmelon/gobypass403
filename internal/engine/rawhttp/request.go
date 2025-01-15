@@ -16,6 +16,16 @@ import (
 	"github.com/valyala/fasthttp"
 )
 
+var curlCmd []byte
+
+func init() {
+	if runtime.GOOS == "windows" {
+		curlCmd = bytesutil.ToUnsafeBytes("curl.exe")
+	} else {
+		curlCmd = bytesutil.ToUnsafeBytes("curl")
+	}
+}
+
 // RequestPool manages a pool of FastHTTP requests
 type RequestPool struct {
 	client       *HttpClient
@@ -506,22 +516,14 @@ func Byte2String(b []byte) string {
 }
 
 // BuildCurlCommandPoc generates a curl poc command to reproduce the findings
-// Uses a local bytebufferpool implementation from this project
-// BuildCurlCommandPoc generates a curl poc command to reproduce the findings
-// Uses VictoriaMetrics ByteBuffer implementation
 func BuildCurlCommandPoc(job payload.PayloadJob) []byte {
-	// Create a new buffer directly - simple and clean
 	bb := &bytesutil.ByteBuffer{}
 
-	if runtime.GOOS == "windows" {
-		bb.Write(bytesutil.ToUnsafeBytes("curl.exe"))
-	} else {
-		bb.Write(bytesutil.ToUnsafeBytes("curl"))
-	}
-
+	// Use pre-computed curl command
+	bb.Write(curlCmd)
 	bb.Write(bytesutil.ToUnsafeBytes(" -skgi --path-as-is"))
 
-	// Add method only if not GET
+	// Rest of the function remains the same...
 	if job.Method != "GET" {
 		bb.Write(bytesutil.ToUnsafeBytes(" -X "))
 		bb.Write(bytesutil.ToUnsafeBytes(job.Method))
@@ -541,7 +543,6 @@ func BuildCurlCommandPoc(job payload.PayloadJob) []byte {
 	bb.Write(bytesutil.ToUnsafeBytes(job.FullURL))
 	bb.Write(bytesutil.ToUnsafeBytes("'"))
 
-	// Return a copy of the buffer
 	return append([]byte(nil), bb.B...)
 }
 
