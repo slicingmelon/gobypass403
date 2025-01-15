@@ -245,11 +245,11 @@ func (p *RequestPool) ProcessRequests(jobs []payload.PayloadJob) <-chan *RawHTTP
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			worker := p.workerPool.acquireWorker()
+			worker := p.workerPool.AcquireWorker()
 			if worker == nil {
 				return
 			}
-			defer p.workerPool.releaseWorker(worker)
+			defer p.workerPool.ReleaseWorker(worker)
 
 			for job := range jobsChan {
 				if result := worker.ProcessRequestJob(job); result != nil {
@@ -349,7 +349,7 @@ func (w *requestWorker) ProcessResponseJob(resp *fasthttp.Response, job payload.
 	// Use direct header access methods
 	result.ContentType = append([]byte(nil), resp.Header.ContentType()...)
 	result.ServerInfo = append([]byte(nil), resp.Header.Server()...)
-	if location := resp.Header.PeekBytes([]byte("Location")); len(location) > 0 {
+	if location := resp.Header.PeekBytes(bytes.ToLower([]byte("location"))); len(location) > 0 {
 		result.RedirectURL = append([]byte(nil), location...)
 	}
 
@@ -379,7 +379,7 @@ func (w *requestWorker) ProcessResponseJob(resp *fasthttp.Response, job payload.
 }
 
 // WorkerPool methods
-func (wp *requestWorkerPool) acquireWorker() *requestWorker {
+func (wp *requestWorkerPool) AcquireWorker() *requestWorker {
 	select {
 	case <-wp.stopCh:
 		return nil
@@ -400,7 +400,7 @@ func (wp *requestWorkerPool) acquireWorker() *requestWorker {
 	}
 }
 
-func (wp *requestWorkerPool) releaseWorker(w *requestWorker) {
+func (wp *requestWorkerPool) ReleaseWorker(w *requestWorker) {
 	w.lastUsed = time.Now()
 
 	wp.lock.Lock()
