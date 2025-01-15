@@ -9,11 +9,22 @@ import (
 	"unsafe"
 
 	"github.com/slicingmelon/go-bypass-403/internal/engine/payload"
-	"github.com/slicingmelon/go-bypass-403/internal/engine/rawhttp/bytebufferpool"
+
+	"github.com/VictoriaMetrics/VictoriaMetrics/lib/bytesutil"
 	GB403ErrorHandler "github.com/slicingmelon/go-bypass-403/internal/utils/error"
 	GB403Logger "github.com/slicingmelon/go-bypass-403/internal/utils/logger"
 	"github.com/valyala/fasthttp"
 )
+
+var curlCmd []byte
+
+func init() {
+	if runtime.GOOS == "windows" {
+		curlCmd = bytesutil.ToUnsafeBytes("curl.exe")
+	} else {
+		curlCmd = bytesutil.ToUnsafeBytes("curl")
+	}
+}
 
 // RequestPool manages a pool of FastHTTP requests
 type RequestPool struct {
@@ -234,14 +245,14 @@ func (p *RequestPool) ProcessRequests(jobs []payload.PayloadJob) <-chan *RawHTTP
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			worker := p.workerPool.acquireWorker()
+			worker := p.workerPool.AcquireWorker()
 			if worker == nil {
 				return
 			}
-			defer p.workerPool.releaseWorker(worker)
+			defer p.workerPool.ReleaseWorker(worker)
 
 			for job := range jobsChan {
-				if result := worker.processRequestJob(job); result != nil {
+				if result := worker.ProcessRequestJob(job); result != nil {
 					results <- result
 				}
 			}
@@ -276,7 +287,7 @@ func (p *RequestPool) ProcessRequests(jobs []payload.PayloadJob) <-chan *RawHTTP
 // or add 'Connection: close' request header before sending requests
 // to broken server.
 
-func (w *requestWorker) processRequestJob(job payload.PayloadJob) *RawHTTPResponseDetails {
+func (w *requestWorker) ProcessRequestJob(job payload.PayloadJob) *RawHTTPResponseDetails {
 	w.pool.activeWorkers.Add(1)
 	defer w.pool.activeWorkers.Add(-1)
 
@@ -301,37 +312,36 @@ func (w *requestWorker) processRequestJob(job payload.PayloadJob) *RawHTTPRespon
 		}
 	}
 
-	return w.processResponse(resp, job)
+	return w.ProcessResponseJob(resp, job)
 }
 
 // processResponse handles response processing
-func (w *requestWorker) processResponse(resp *fasthttp.Response, job payload.PayloadJob) *RawHTTPResponseDetails {
+func (w *requestWorker) ProcessResponseJob(resp *fasthttp.Response, job payload.PayloadJob) *RawHTTPResponseDetails {
 	result := &RawHTTPResponseDetails{
 		URL:          append([]byte(nil), job.FullURL...),
 		BypassModule: append([]byte(nil), job.BypassModule...),
 		StatusCode:   resp.StatusCode(),
 	}
 
-	// Get header buffer from pool
-	headerBuf := bytebufferpool.Get()
-	defer bytebufferpool.Put(headerBuf)
+	// Create a new buffer directly
+	headerBuf := &bytesutil.ByteBuffer{}
 
 	// Write status line
 	headerBuf.Write(resp.Header.Protocol())
-	headerBuf.WriteByte(' ')
+	headerBuf.Write(bytesutil.ToUnsafeBytes(" "))
 	headerBuf.B = fasthttp.AppendUint(headerBuf.B, resp.StatusCode())
-	headerBuf.WriteByte(' ')
+	headerBuf.Write(bytesutil.ToUnsafeBytes(" "))
 	headerBuf.Write(resp.Header.StatusMessage())
-	headerBuf.WriteString("\r\n")
+	headerBuf.Write(bytesutil.ToUnsafeBytes("\r\n"))
 
 	// Process headers once
 	resp.Header.VisitAll(func(key, value []byte) {
 		headerBuf.Write(key)
-		headerBuf.WriteString(": ")
+		headerBuf.Write(bytesutil.ToUnsafeBytes(": "))
 		headerBuf.Write(value)
-		headerBuf.WriteString("\r\n")
+		headerBuf.Write(bytesutil.ToUnsafeBytes("\r\n"))
 	})
-	headerBuf.WriteString("\r\n")
+	headerBuf.Write(bytesutil.ToUnsafeBytes("\r\n"))
 
 	// Store headers
 	result.ResponseHeaders = append([]byte(nil), headerBuf.B...)
@@ -339,7 +349,7 @@ func (w *requestWorker) processResponse(resp *fasthttp.Response, job payload.Pay
 	// Use direct header access methods
 	result.ContentType = append([]byte(nil), resp.Header.ContentType()...)
 	result.ServerInfo = append([]byte(nil), resp.Header.Server()...)
-	if location := resp.Header.PeekBytes([]byte("Location")); len(location) > 0 {
+	if location := resp.Header.PeekBytes(bytes.ToLower([]byte("location"))); len(location) > 0 {
 		result.RedirectURL = append([]byte(nil), location...)
 	}
 
@@ -369,7 +379,7 @@ func (w *requestWorker) processResponse(resp *fasthttp.Response, job payload.Pay
 }
 
 // WorkerPool methods
-func (wp *requestWorkerPool) acquireWorker() *requestWorker {
+func (wp *requestWorkerPool) AcquireWorker() *requestWorker {
 	select {
 	case <-wp.stopCh:
 		return nil
@@ -390,7 +400,7 @@ func (wp *requestWorkerPool) acquireWorker() *requestWorker {
 	}
 }
 
-func (wp *requestWorkerPool) releaseWorker(w *requestWorker) {
+func (wp *requestWorkerPool) ReleaseWorker(w *requestWorker) {
 	w.lastUsed = time.Now()
 
 	wp.lock.Lock()
@@ -489,14 +499,6 @@ func safeClose[T any](ch chan T) {
 	close(ch)
 }
 
-// Helper functions
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}
-
 // String2Byte converts string to a byte slice without memory allocation.
 // This conversion *does not* copy data. Note that casting via "([]byte)(string)" *does* copy data.
 // Also note that you *should not* change the byte slice after conversion, because Go strings
@@ -514,38 +516,32 @@ func Byte2String(b []byte) string {
 }
 
 // BuildCurlCommandPoc generates a curl poc command to reproduce the findings
-// Uses a local bytebufferpool implementation from this project
 func BuildCurlCommandPoc(job payload.PayloadJob) []byte {
-	bb := bytebufferpool.Get()
-	defer bytebufferpool.Put(bb)
+	bb := &bytesutil.ByteBuffer{}
 
-	if runtime.GOOS == "windows" {
-		bb.WriteString("curl.exe")
-	} else {
-		bb.WriteString("curl")
-	}
+	// Use pre-computed curl command
+	bb.Write(curlCmd)
+	bb.Write(bytesutil.ToUnsafeBytes(" -skgi --path-as-is"))
 
-	bb.WriteString(" -skgi --path-as-is")
-
-	// Add method only if not GET
+	// Rest of the function remains the same...
 	if job.Method != "GET" {
-		bb.WriteString(" -X ")
-		bb.WriteString(job.Method)
+		bb.Write(bytesutil.ToUnsafeBytes(" -X "))
+		bb.Write(bytesutil.ToUnsafeBytes(job.Method))
 	}
 
 	// Add headers before URL
 	for _, h := range job.Headers {
-		bb.WriteString(" -H '")
-		bb.WriteString(h.Header)
-		bb.WriteString(": ")
-		bb.WriteString(h.Value)
-		bb.WriteString("'")
+		bb.Write(bytesutil.ToUnsafeBytes(" -H '"))
+		bb.Write(bytesutil.ToUnsafeBytes(h.Header))
+		bb.Write(bytesutil.ToUnsafeBytes(": "))
+		bb.Write(bytesutil.ToUnsafeBytes(h.Value))
+		bb.Write(bytesutil.ToUnsafeBytes("'"))
 	}
 
 	// last is URL
-	bb.WriteString(" '")
-	bb.WriteString(job.FullURL)
-	bb.WriteString("'")
+	bb.Write(bytesutil.ToUnsafeBytes(" '"))
+	bb.Write(bytesutil.ToUnsafeBytes(job.FullURL))
+	bb.Write(bytesutil.ToUnsafeBytes("'"))
 
 	return append([]byte(nil), bb.B...)
 }

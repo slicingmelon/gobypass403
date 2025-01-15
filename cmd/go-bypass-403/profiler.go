@@ -2,108 +2,145 @@ package main
 
 import (
 	"fmt"
-	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
 	"runtime/pprof"
+	"time"
 
 	GB403Logger "github.com/slicingmelon/go-bypass-403/internal/utils/logger"
 )
 
-const (
-	_pProfDir = "_pprof"
-)
+type Profiler struct {
+	timestamp  string
+	profileDir string
+	cpuFile    *os.File
+}
 
-func WriteProfiles(timestamp string) error {
-	profileDir := filepath.Join(_pProfDir, fmt.Sprintf("profile_%s", timestamp))
+func NewProfiler() *Profiler {
+	timestamp := time.Now().Format("20060102-150405")
+	return &Profiler{
+		timestamp:  timestamp,
+		profileDir: filepath.Join("_pprof", fmt.Sprintf("profile_%s", timestamp)),
+	}
+}
 
-	// Write and generate visualizations for each profile type
-	profileTypes := []string{"heap", "allocs", "goroutine"}
-	for _, profType := range profileTypes {
-		// Write profile
-		if err := writeProfile(profileDir, profType, timestamp, func(f *os.File) error {
-			switch profType {
-			case "heap":
-				return pprof.WriteHeapProfile(f)
-			case "allocs":
-				return pprof.Lookup("allocs").WriteTo(f, 0)
-			case "goroutine":
-				return pprof.Lookup("goroutine").WriteTo(f, 0)
-			}
-			return nil
-		}); err != nil {
-			return fmt.Errorf("%s profile error: %v", profType, err)
-		}
-
-		// Generate visualizations
-		if err := GenerateVisualizations(profileDir, profType, timestamp); err != nil {
-			GB403Logger.Error().Msgf("Could not generate %s visualizations: %v", profType, err)
-		}
+func (p *Profiler) Start() error {
+	if err := os.MkdirAll(p.profileDir, 0755); err != nil {
+		GB403Logger.Error().Msgf("Failed to create profile directory: %v", err)
+		return fmt.Errorf("create profile directory: %w", err)
 	}
 
-	GB403Logger.Info().Msgf("Profiles and visualizations written to: %s", profileDir)
+	cpuFile, err := os.Create(filepath.Join(p.profileDir, fmt.Sprintf("cpu-%s.prof", p.timestamp)))
+	if err != nil {
+		GB403Logger.Error().Msgf("Failed to create CPU profile: %v", err)
+		return fmt.Errorf("create CPU profile: %w", err)
+	}
+	p.cpuFile = cpuFile
+
+	if err := pprof.StartCPUProfile(cpuFile); err != nil {
+		cpuFile.Close()
+		GB403Logger.Error().Msgf("Failed to start CPU profile: %v", err)
+		return fmt.Errorf("start CPU profile: %w", err)
+	}
+
+	runtime.MemProfileRate = 1
+	runtime.GC()
 	return nil
 }
 
-func GenerateVisualizations(dir, profType, timestamp string) error {
-	profPath := filepath.Join(dir, fmt.Sprintf("%s-%s.prof", profType, timestamp))
+func (p *Profiler) Stop() {
+	runtime.GC()
+	pprof.StopCPUProfile()
+	if p.cpuFile != nil {
+		p.cpuFile.Close()
+	}
 
-	// Generate DOT file
-	dotPath := filepath.Join(dir, fmt.Sprintf("%s-%s.dot", profType, timestamp))
-	dotCmd := exec.Command("go", "tool", "pprof", "-dot", profPath)
-	dotFile, err := os.Create(dotPath)
-	if err != nil {
-		return fmt.Errorf("could not create %s DOT file: %v", profType, err)
+	// Check CPU profile size
+	cpuPath := filepath.Join(p.profileDir, fmt.Sprintf("cpu-%s.prof", p.timestamp))
+	if fi, err := os.Stat(cpuPath); err == nil && fi.Size() == 0 {
+		GB403Logger.Error().Msg("CPU profile is empty - program may have run too quickly to capture meaningful data")
+		// Remove empty CPU profile
+		os.Remove(cpuPath)
 	}
-	dotCmd.Stdout = dotFile
-	if err := dotCmd.Run(); err != nil {
-		dotFile.Close()
-		return fmt.Errorf("could not generate %s DOT file: %v", profType, err)
-	}
-	dotFile.Close()
 
-	// Generate SVG file
-	svgPath := filepath.Join(dir, fmt.Sprintf("%s-%s.svg", profType, timestamp))
-	svgCmd := exec.Command("go", "tool", "pprof", "-svg", profPath)
-	svgFile, err := os.Create(svgPath)
-	if err != nil {
-		return fmt.Errorf("could not create %s SVG file: %v", profType, err)
-	}
-	svgCmd.Stdout = svgFile
-	if err := svgCmd.Run(); err != nil {
-		svgFile.Close()
-		return fmt.Errorf("could not generate %s SVG file: %v", profType, err)
-	}
-	svgFile.Close()
+	for _, profType := range []string{"heap", "allocs", "goroutine"} {
+		if err := p.writeProfile(profType); err != nil {
+			GB403Logger.Error().Msgf("Failed to write %s profile: %v", profType, err)
+			continue
+		}
 
-	return nil
+		if err := p.generateVisualization(profType); err != nil {
+			GB403Logger.Error().Msgf("Failed to generate %s visualization: %v", profType, err)
+			continue
+		}
+	}
+
+	// Handle CPU profile separately
+	if fi, err := os.Stat(cpuPath); err == nil && fi.Size() > 0 {
+		if err := p.generateVisualization("cpu"); err != nil {
+			GB403Logger.Error().Msgf("Failed to generate CPU visualization: %v", err)
+		}
+	}
+
+	GB403Logger.Info().Msgf("Profile data and visualizations written to: %s", p.profileDir)
 }
 
-func writeProfile(dir, name, timestamp string, writeFn func(*os.File) error) error {
-	filename := filepath.Join(dir, fmt.Sprintf("%s-%s.prof", name, timestamp))
+func (p *Profiler) writeProfile(profType string) error {
+	filename := filepath.Join(p.profileDir, fmt.Sprintf("%s-%s.prof", profType, p.timestamp))
 	f, err := os.Create(filename)
 	if err != nil {
-		return fmt.Errorf("could not create %s profile: %v", name, err)
+		return fmt.Errorf("create profile: %w", err)
 	}
 	defer f.Close()
 
-	if err := writeFn(f); err != nil {
-		return fmt.Errorf("could not write %s profile: %v", name, err)
+	switch profType {
+	case "heap":
+		return pprof.WriteHeapProfile(f)
+	case "allocs", "goroutine":
+		prof := pprof.Lookup(profType)
+		if prof == nil {
+			return fmt.Errorf("no %s profile found", profType)
+		}
+		return prof.WriteTo(f, 0)
+	case "cpu":
+		return nil // CPU profile is already written
 	}
-
 	return nil
 }
 
-func StartPProf(port string) {
-	runtime.SetMutexProfileFraction(1)
-	runtime.SetBlockProfileRate(1)
+func (p *Profiler) generateVisualization(profType string) error {
+	profPath := filepath.Join(p.profileDir, fmt.Sprintf("%s-%s.prof", profType, p.timestamp))
+	dotPath := filepath.Join(p.profileDir, fmt.Sprintf("%s-%s.dot", profType, p.timestamp))
+	svgPath := filepath.Join(p.profileDir, fmt.Sprintf("%s-%s.svg", profType, p.timestamp))
 
-	go func() {
-		GB403Logger.Info().Msgf("Starting pprof server on localhost:%s", port)
-		if err := http.ListenAndServe("localhost:"+port, nil); err != nil {
-			GB403Logger.Error().Msgf("Failed to start pprof server: %v", err)
-		}
-	}()
+	// Skip if profile file is empty
+	if fi, err := os.Stat(profPath); err != nil || fi.Size() == 0 {
+		return fmt.Errorf("empty or missing profile file: %s", profPath)
+	}
+
+	// Generate DOT file
+	dotCmd := exec.Command("go", "tool", "pprof", "-dot", profPath)
+	dotOutput, err := dotCmd.Output()
+	if err != nil {
+		return fmt.Errorf("generate dot: %w", err)
+	}
+
+	if err := os.WriteFile(dotPath, dotOutput, 0644); err != nil {
+		return fmt.Errorf("write dot file: %w", err)
+	}
+
+	// Generate SVG file
+	svgCmd := exec.Command("go", "tool", "pprof", "-svg", profPath)
+	svgOutput, err := svgCmd.Output()
+	if err != nil {
+		return fmt.Errorf("generate svg: %w", err)
+	}
+
+	if err := os.WriteFile(svgPath, svgOutput, 0644); err != nil {
+		return fmt.Errorf("write svg file: %w", err)
+	}
+
+	return nil
 }

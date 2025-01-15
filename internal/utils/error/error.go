@@ -1,6 +1,7 @@
 package error
 
-// Custom Error Handler
+// Custom Error Handler implementing a cache for errors statistics.
+// It is used to track the number of errors for better debugging.
 
 import (
 	"bytes"
@@ -21,7 +22,7 @@ const (
 )
 
 var (
-	ErrBodyTooLarge          = fasthttp.ErrBodyTooLarge
+	ErrBodyTooLarge          = fasthttp.ErrBodyTooLarge // "body size exceeds the given limit"
 	ErrInvalidResponseHeader = errors.New("invalid header")
 	errConnForciblyClosedWin = errors.New("wsarecv: An existing connection was forcibly closed by the remote host")
 )

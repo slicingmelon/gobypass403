@@ -1,6 +1,7 @@
 package rawhttp
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"net"
@@ -8,7 +9,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/VictoriaMetrics/VictoriaMetrics/lib/bytesutil"
 	"github.com/slicingmelon/go-bypass-403/internal/engine/payload"
+
 	GB403ErrorHandler "github.com/slicingmelon/go-bypass-403/internal/utils/error"
 	GB403Logger "github.com/slicingmelon/go-bypass-403/internal/utils/logger"
 	"github.com/valyala/fasthttp"
@@ -392,6 +395,131 @@ func TestRequestBuilderHostHeaders(t *testing.T) {
 			// Verify response
 			statusCode := resp.StatusCode()
 			GB403Logger.PrintGreen("Response Status Code: %d", statusCode)
+		})
+	}
+}
+
+func TestResponseProcessingWithSpacedHeaders(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping test in short mode")
+	}
+
+	// Create test server
+	handler := func(ctx *fasthttp.RequestCtx) {
+		testCase := string(ctx.Request.Header.Peek("X-Test-Case"))
+		switch testCase {
+		case "content-disposition":
+			ctx.Response.Header.Set("Content-Disposition", "attachment; filename=\"test file.pdf\"")
+			ctx.Response.Header.Set("Content-Type", "application/pdf")
+			ctx.SetStatusCode(200)
+			ctx.SetBody([]byte("PDF content with special chars: áéíóú"))
+		case "csp-header":
+			ctx.Response.Header.Set("Content-Security-Policy", "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://example.com")
+			ctx.Response.Header.Set("Content-Type", "text/html; charset=utf-8")
+			ctx.SetStatusCode(200)
+			ctx.SetBody([]byte("<html><head><title>Test Page</title></head><body>Test content with spaces and special chars: áéíóú</body></html>"))
+		}
+	}
+
+	ln := fasthttputil.NewInmemoryListener()
+	defer ln.Close()
+
+	s := &fasthttp.Server{
+		Handler:                       handler,
+		DisableHeaderNamesNormalizing: true,
+	}
+	go s.Serve(ln) //nolint:errcheck
+
+	client := &fasthttp.Client{
+		Dial: func(addr string) (net.Conn, error) {
+			return ln.Dial()
+		},
+	}
+
+	testCases := []struct {
+		name         string
+		testCaseID   string
+		expectedResp map[string]string
+		expectedBody string
+	}{
+		{
+			name:       "Content-Disposition with spaces",
+			testCaseID: "content-disposition",
+			expectedResp: map[string]string{
+				"Content-Disposition": "attachment; filename=\"test file.pdf\"",
+				"Content-Type":        "application/pdf",
+			},
+			expectedBody: "PDF content with special chars: áéíóú",
+		},
+		{
+			name:       "CSP Header with spaces",
+			testCaseID: "csp-header",
+			expectedResp: map[string]string{
+				"Content-Security-Policy": "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://example.com",
+				"Content-Type":            "text/html; charset=utf-8",
+			},
+			expectedBody: "<html><head><title>Test Page</title></head><body>Test content with spaces and special chars: áéíóú</body></html>",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			req := fasthttp.AcquireRequest()
+			resp := fasthttp.AcquireResponse()
+			defer fasthttp.ReleaseRequest(req)
+			defer fasthttp.ReleaseResponse(resp)
+
+			req.SetRequestURI("http://testserver/test")
+			req.Header.SetMethod("GET")
+			req.Header.Set("X-Test-Case", tc.testCaseID)
+
+			if err := client.Do(req, resp); err != nil {
+				t.Fatalf("Request failed: %v", err)
+			}
+
+			// Process response headers
+			headerBuf := &bytesutil.ByteBuffer{}
+
+			// Write status line
+			headerBuf.Write(resp.Header.Protocol())
+			headerBuf.B = append(headerBuf.B, ' ')
+			headerBuf.B = fasthttp.AppendUint(headerBuf.B, resp.StatusCode())
+			headerBuf.B = append(headerBuf.B, ' ')
+			headerBuf.Write(resp.Header.StatusMessage())
+			headerBuf.Write(bytesutil.ToUnsafeBytes("\r\n"))
+
+			// Process headers once
+			resp.Header.VisitAll(func(key, value []byte) {
+				headerBuf.Write(key)
+				headerBuf.Write(bytesutil.ToUnsafeBytes(": "))
+				headerBuf.Write(value)
+				headerBuf.Write(bytesutil.ToUnsafeBytes("\r\n"))
+			})
+			headerBuf.Write(bytesutil.ToUnsafeBytes("\r\n"))
+
+			// Log response details
+			GB403Logger.Info().Msgf("\n=== Response Details for %s ===\nHeaders:\n%s\nBody:\n%s\n================\n",
+				tc.name,
+				bytesutil.ToUnsafeString(headerBuf.B),
+				string(resp.Body()))
+
+			// Verify headers
+			for header, expectedValue := range tc.expectedResp {
+				if !bytes.Contains(headerBuf.B, []byte(header+": "+expectedValue)) {
+					t.Errorf("Header %s not found or incorrect\nExpected: %s\nGot: %s",
+						header, expectedValue, bytesutil.ToUnsafeString(headerBuf.B))
+				}
+			}
+
+			// Verify body
+			if !bytes.Equal(resp.Body(), []byte(tc.expectedBody)) {
+				t.Errorf("Body mismatch\nExpected: %s\nGot: %s",
+					tc.expectedBody, string(resp.Body()))
+			}
+
+			if resp.StatusCode() != 200 {
+				t.Errorf("Expected status code 200, got %d", resp.StatusCode())
+			}
 		})
 	}
 }

@@ -11,11 +11,11 @@ import (
 )
 
 type ModuleStats struct {
-	TotalJobs      int64
-	CompletedJobs  int64
-	SuccessfulJobs int64
-	FailedJobs     int64
-	ActiveWorkers  int64
+	TotalJobs      atomic.Int64
+	CompletedJobs  atomic.Int64
+	SuccessfulJobs atomic.Int64
+	FailedJobs     atomic.Int64
+	ActiveWorkers  atomic.Int64
 	StartTime      time.Time
 }
 
@@ -24,7 +24,7 @@ type ProgressCounter struct {
 	trackers      map[string]*progress.Tracker
 	moduleStats   map[string]*ModuleStats
 	mu            sync.RWMutex
-	activeModules int32
+	activeModules atomic.Int32
 	stopped       atomic.Bool
 }
 
@@ -82,11 +82,12 @@ func NewProgressCounter() *ProgressCounter {
 func (pc *ProgressCounter) StartModule(moduleName string, totalJobs int, targetURL string) {
 	pc.mu.Lock()
 	defer pc.mu.Unlock()
-	atomic.AddInt32(&pc.activeModules, 1)
+	pc.activeModules.Add(1)
 	pc.moduleStats[moduleName] = &ModuleStats{
-		TotalJobs: int64(totalJobs),
+		TotalJobs: atomic.Int64{},
 		StartTime: time.Now(),
 	}
+	pc.moduleStats[moduleName].TotalJobs.Store(int64(totalJobs))
 
 	tracker := &progress.Tracker{
 		Message: fmt.Sprintf("[%s] (0 workers)", moduleName),
@@ -124,7 +125,7 @@ func (pc *ProgressCounter) UpdateWorkerStats(moduleName string, totalWorkers int
 	pc.mu.RUnlock()
 
 	if exists {
-		atomic.StoreInt64(&stats.ActiveWorkers, totalWorkers)
+		stats.ActiveWorkers.Store(totalWorkers)
 
 		if tracker != nil {
 			newMessage := fmt.Sprintf("[%s] (%d workers)", moduleName, totalWorkers)
@@ -140,11 +141,11 @@ func (pc *ProgressCounter) IncrementProgress(moduleName string, success bool) {
 	pc.mu.RUnlock()
 
 	if exists && tracker != nil {
-		atomic.AddInt64(&stats.CompletedJobs, 1)
+		stats.CompletedJobs.Add(1)
 		if success {
-			atomic.AddInt64(&stats.SuccessfulJobs, 1)
+			stats.SuccessfulJobs.Add(1)
 		} else {
-			atomic.AddInt64(&stats.FailedJobs, 1)
+			stats.FailedJobs.Add(1)
 		}
 		tracker.Increment(1)
 	}
@@ -161,9 +162,9 @@ func (pc *ProgressCounter) MarkModuleAsDone(moduleName string) {
 		tracker.MarkAsDone()
 	}
 	if stats != nil {
-		completedJobs := atomic.LoadInt64(&stats.CompletedJobs)
-		successfulJobs := atomic.LoadInt64(&stats.SuccessfulJobs)
-		failedJobs := atomic.LoadInt64(&stats.FailedJobs)
+		completedJobs := stats.CompletedJobs.Load()
+		successfulJobs := stats.SuccessfulJobs.Load()
+		failedJobs := stats.FailedJobs.Load()
 		duration := time.Since(stats.StartTime).Round(time.Millisecond)
 		reqPerSec := float64(completedJobs) / duration.Seconds()
 
@@ -195,12 +196,12 @@ func (pc *ProgressCounter) MarkModuleAsDone(moduleName string) {
 		pc.pw.Log(message)
 		pc.pw.Log("----------------------------------------")
 	}
-	atomic.AddInt32(&pc.activeModules, -1)
+	pc.activeModules.Add(-1)
 }
 
 // Add a new method to check if all modules are done
 func (pc *ProgressCounter) AllModulesDone() bool {
-	return atomic.LoadInt32(&pc.activeModules) == 0
+	return pc.activeModules.Load() == 0
 }
 
 func (pc *ProgressCounter) Start() {

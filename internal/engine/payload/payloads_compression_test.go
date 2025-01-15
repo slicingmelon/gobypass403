@@ -9,11 +9,11 @@ import (
 	"testing"
 	"unsafe"
 
+	"github.com/VictoriaMetrics/VictoriaMetrics/lib/bytesutil"
 	"github.com/andybalholm/brotli"
 	"github.com/golang/snappy"
 	"github.com/klauspost/compress/zstd"
 	"github.com/pierrec/lz4/v4"
-	"github.com/slicingmelon/go-bypass-403/internal/engine/rawhttp/bytebufferpool"
 	"github.com/vmihailenco/msgpack/v5"
 )
 
@@ -26,48 +26,51 @@ func TestCompressionComparison(t *testing.T) {
 			Value:  "1",
 		}},
 	}
-	// Current implementation (Snappy)
-	bb := bytebufferpool.Get()
-	defer bytebufferpool.Put(bb)
+
+	// Current implementation
+	bb := &bytesutil.ByteBuffer{}
 
 	// Write same data format as GeneratePayloadSeed2
-	bb.WriteByte(1)           // version
-	bb.WriteByte(0xFF)        // nonce field
-	bb.WriteByte(8)           // nonce length
+	bb.B = append(bb.B, 1)    // version
+	bb.B = append(bb.B, 0xFF) // nonce field
+	bb.B = append(bb.B, 8)    // nonce length
 	bb.Write(make([]byte, 8)) // dummy nonce
 
 	if original.FullURL != "" {
-		bb.WriteByte(1)
-		bb.WriteByte(byte(len(original.FullURL)))
-		bb.WriteString(original.FullURL)
+		bb.B = append(bb.B, 1)
+		bb.B = append(bb.B, byte(len(original.FullURL)))
+		bb.Write(bytesutil.ToUnsafeBytes(original.FullURL))
 	}
 
 	if len(original.Headers) > 0 {
-		bb.WriteByte(2)
-		bb.WriteByte(byte(len(original.Headers)))
+		bb.B = append(bb.B, 2)
+		bb.B = append(bb.B, byte(len(original.Headers)))
 		for _, h := range original.Headers {
-			bb.WriteByte(byte(len(h.Header)))
-			bb.WriteString(h.Header)
-			bb.WriteByte(byte(len(h.Value)))
-			bb.WriteString(h.Value)
+			bb.B = append(bb.B, byte(len(h.Header)))
+			bb.Write(bytesutil.ToUnsafeBytes(h.Header))
+			bb.B = append(bb.B, byte(len(h.Value)))
+			bb.Write(bytesutil.ToUnsafeBytes(h.Value))
 		}
 	}
+
 	// Test Snappy (current)
-	snappyCompressed := snappy.Encode(nil, bb.Bytes())
+	snappyCompressed := snappy.Encode(nil, bb.B)
 	snappyResult := base64.RawURLEncoding.EncodeToString(snappyCompressed)
 
 	// Test Zlib
 	var zlibBuf bytes.Buffer
 	zw := zlib.NewWriter(&zlibBuf)
-	zw.Write(bb.Bytes())
+	zw.Write(bb.B)
 	zw.Close()
 	zlibResult := base64.RawURLEncoding.EncodeToString(zlibBuf.Bytes())
+
 	t.Logf("\nCompression comparison for same payload:")
-	t.Logf("Original data length: %d bytes", len(bb.Bytes()))
+	t.Logf("Original data length: %d bytes", len(bb.B))
 	t.Logf("Snappy compressed length: %d bytes, Base64 length: %d", len(snappyCompressed), len(snappyResult))
 	t.Logf("Zlib compressed length: %d bytes, Base64 length: %d", zlibBuf.Len(), len(zlibResult))
 	t.Logf("\nSnappy result: %s", snappyResult)
 	t.Logf("Zlib result: %s", zlibResult)
+
 	// Verify Zlib roundtrip
 	zlibDecoded, err := base64.RawURLEncoding.DecodeString(zlibResult)
 	if err != nil {
@@ -84,8 +87,9 @@ func TestCompressionComparison(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to decompress zlib: %v", err)
 	}
+
 	// Compare original and decompressed data
-	if !bytes.Equal(bb.Bytes(), decompressed) {
+	if !bytes.Equal(bb.B, decompressed) {
 		t.Error("Zlib roundtrip failed - data mismatch")
 	}
 }
@@ -102,42 +106,44 @@ func TestCompressionComparisonLargePayload(t *testing.T) {
 			{Header: "X-Custom-Header", Value: "some-long-value-that-needs-compression"},
 		},
 	}
-	bb := bytebufferpool.Get()
-	defer bytebufferpool.Put(bb)
+
+	bb := &bytesutil.ByteBuffer{}
 
 	// Write data
-	bb.WriteByte(1)
-	bb.WriteByte(0xFF)
-	bb.WriteByte(8)
+	bb.B = append(bb.B, 1)
+	bb.B = append(bb.B, 0xFF)
+	bb.B = append(bb.B, 8)
 	bb.Write(make([]byte, 8))
 
 	if original.FullURL != "" {
-		bb.WriteByte(1)
-		bb.WriteByte(byte(len(original.FullURL)))
-		bb.WriteString(original.FullURL)
+		bb.B = append(bb.B, 1)
+		bb.B = append(bb.B, byte(len(original.FullURL)))
+		bb.Write(bytesutil.ToUnsafeBytes(original.FullURL))
 	}
 
 	if len(original.Headers) > 0 {
-		bb.WriteByte(2)
-		bb.WriteByte(byte(len(original.Headers)))
+		bb.B = append(bb.B, 2)
+		bb.B = append(bb.B, byte(len(original.Headers)))
 		for _, h := range original.Headers {
-			bb.WriteByte(byte(len(h.Header)))
-			bb.WriteString(h.Header)
-			bb.WriteByte(byte(len(h.Value)))
-			bb.WriteString(h.Value)
+			bb.B = append(bb.B, byte(len(h.Header)))
+			bb.Write(bytesutil.ToUnsafeBytes(h.Header))
+			bb.B = append(bb.B, byte(len(h.Value)))
+			bb.Write(bytesutil.ToUnsafeBytes(h.Value))
 		}
 	}
+
 	// Test both compressions
-	snappyCompressed := snappy.Encode(nil, bb.Bytes())
+	snappyCompressed := snappy.Encode(nil, bb.B)
 	snappyResult := base64.RawURLEncoding.EncodeToString(snappyCompressed)
 
 	var zlibBuf bytes.Buffer
 	zw := zlib.NewWriter(&zlibBuf)
-	zw.Write(bb.Bytes())
+	zw.Write(bb.B)
 	zw.Close()
 	zlibResult := base64.RawURLEncoding.EncodeToString(zlibBuf.Bytes())
+
 	t.Logf("\nLarge payload compression comparison:")
-	t.Logf("Original data length: %d bytes", len(bb.Bytes()))
+	t.Logf("Original data length: %d bytes", len(bb.B))
 	t.Logf("Snappy compressed length: %d bytes, Base64 length: %d", len(snappyCompressed), len(snappyResult))
 	t.Logf("Zlib compressed length: %d bytes, Base64 length: %d", zlibBuf.Len(), len(zlibResult))
 	t.Logf("\nSnappy result: %s", snappyResult)
@@ -156,39 +162,43 @@ func TestAdvancedCompressionComparison(t *testing.T) {
 			{Header: "X-Custom-Header2", Value: "some-long-value-that-needs-compression-and-repeats-some-long-value"},
 		},
 	}
-	bb := bytebufferpool.Get()
-	defer bytebufferpool.Put(bb)
+
+	bb := &bytesutil.ByteBuffer{}
 
 	// Write data
-	bb.WriteByte(1)
-	bb.WriteByte(0xFF)
-	bb.WriteByte(4) // reduced nonce size
+	bb.B = append(bb.B, 1)
+	bb.B = append(bb.B, 0xFF)
+	bb.B = append(bb.B, 4) // reduced nonce size
 	bb.Write(make([]byte, 4))
 
 	if original.FullURL != "" {
-		bb.WriteByte(1)
-		bb.WriteByte(byte(len(original.FullURL)))
-		bb.WriteString(original.FullURL)
+		bb.B = append(bb.B, 1)
+		bb.B = append(bb.B, byte(len(original.FullURL)))
+		bb.Write(bytesutil.ToUnsafeBytes(original.FullURL))
 	}
 
 	if len(original.Headers) > 0 {
-		bb.WriteByte(2)
-		bb.WriteByte(byte(len(original.Headers)))
+		bb.B = append(bb.B, 2)
+		bb.B = append(bb.B, byte(len(original.Headers)))
 		for _, h := range original.Headers {
-			bb.WriteByte(byte(len(h.Header)))
-			bb.WriteString(h.Header)
-			bb.WriteByte(byte(len(h.Value)))
-			bb.WriteString(h.Value)
+			bb.B = append(bb.B, byte(len(h.Header)))
+			bb.Write(bytesutil.ToUnsafeBytes(h.Header))
+			bb.B = append(bb.B, byte(len(h.Value)))
+			bb.Write(bytesutil.ToUnsafeBytes(h.Value))
 		}
 	}
-	originalData := bb.Bytes()
+
+	originalData := bb.B
+
 	// Test all compression methods
 	results := make(map[string]string)
 	sizes := make(map[string]int)
+
 	// 1. Snappy (current)
 	snappyCompressed := snappy.Encode(nil, originalData)
 	results["Snappy"] = base64.RawURLEncoding.EncodeToString(snappyCompressed)
 	sizes["Snappy"] = len(snappyCompressed)
+
 	// 2. Zlib
 	var zlibBuf bytes.Buffer
 	zw := zlib.NewWriter(&zlibBuf)
@@ -196,11 +206,13 @@ func TestAdvancedCompressionComparison(t *testing.T) {
 	zw.Close()
 	results["Zlib"] = base64.RawURLEncoding.EncodeToString(zlibBuf.Bytes())
 	sizes["Zlib"] = zlibBuf.Len()
+
 	// 3. Zstd
 	enc, _ := zstd.NewWriter(nil, zstd.WithEncoderLevel(zstd.SpeedBestCompression))
 	zstdCompressed := enc.EncodeAll(originalData, nil)
 	results["Zstd"] = base64.RawURLEncoding.EncodeToString(zstdCompressed)
 	sizes["Zstd"] = len(zstdCompressed)
+
 	// 4. LZ4
 	var lz4Buf bytes.Buffer
 	lz4Writer := lz4.NewWriter(&lz4Buf)
@@ -208,6 +220,7 @@ func TestAdvancedCompressionComparison(t *testing.T) {
 	lz4Writer.Close()
 	results["LZ4"] = base64.RawURLEncoding.EncodeToString(lz4Buf.Bytes())
 	sizes["LZ4"] = lz4Buf.Len()
+
 	// 5. Brotli
 	var brotliBuf bytes.Buffer
 	brotliWriter := brotli.NewWriterLevel(&brotliBuf, brotli.BestCompression)
@@ -215,6 +228,7 @@ func TestAdvancedCompressionComparison(t *testing.T) {
 	brotliWriter.Close()
 	results["Brotli"] = base64.RawURLEncoding.EncodeToString(brotliBuf.Bytes())
 	sizes["Brotli"] = brotliBuf.Len()
+
 	// Print results
 	t.Logf("\nAdvanced compression comparison:")
 	t.Logf("Original data length: %d bytes", len(originalData))
@@ -238,6 +252,7 @@ func TestAdvancedCompressionComparison(t *testing.T) {
 	sort.Slice(sortedResults, func(i, j int) bool {
 		return sortedResults[i].size < sortedResults[j].size
 	})
+
 	for _, result := range sortedResults {
 		t.Logf("\n%s:", result.name)
 		t.Logf("  Compressed size: %d bytes", result.size)
@@ -256,41 +271,43 @@ func TestMessagePackComparison(t *testing.T) {
 			Value:  "1",
 		}},
 	}
-	// Current method (Snappy)
-	bb := bytebufferpool.Get()
-	defer bytebufferpool.Put(bb)
 
-	bb.WriteByte(1)
-	bb.WriteByte(0xFF)
-	bb.WriteByte(4)
+	bb := &bytesutil.ByteBuffer{}
+
+	bb.B = append(bb.B, 1)
+	bb.B = append(bb.B, 0xFF)
+	bb.B = append(bb.B, 4)
 	bb.Write(make([]byte, 4))
 
 	if original.FullURL != "" {
-		bb.WriteByte(1)
-		bb.WriteByte(byte(len(original.FullURL)))
-		bb.WriteString(original.FullURL)
+		bb.B = append(bb.B, 1)
+		bb.B = append(bb.B, byte(len(original.FullURL)))
+		bb.Write(bytesutil.ToUnsafeBytes(original.FullURL))
 	}
 
 	if len(original.Headers) > 0 {
-		bb.WriteByte(2)
-		bb.WriteByte(byte(len(original.Headers)))
+		bb.B = append(bb.B, 2)
+		bb.B = append(bb.B, byte(len(original.Headers)))
 		for _, h := range original.Headers {
-			bb.WriteByte(byte(len(h.Header)))
-			bb.WriteString(h.Header)
-			bb.WriteByte(byte(len(h.Value)))
-			bb.WriteString(h.Value)
+			bb.B = append(bb.B, byte(len(h.Header)))
+			bb.Write(bytesutil.ToUnsafeBytes(h.Header))
+			bb.B = append(bb.B, byte(len(h.Value)))
+			bb.Write(bytesutil.ToUnsafeBytes(h.Value))
 		}
 	}
-	snappyCompressed := snappy.Encode(nil, bb.Bytes())
+
+	snappyCompressed := snappy.Encode(nil, bb.B)
 	snappyResult := base64.RawURLEncoding.EncodeToString(snappyCompressed)
+
 	// MessagePack
 	msgpackData, err := msgpack.Marshal(original)
 	if err != nil {
 		t.Fatalf("MessagePack marshal failed: %v", err)
 	}
 	msgpackResult := base64.RawURLEncoding.EncodeToString(msgpackData)
+
 	t.Logf("\nCompression comparison:")
-	t.Logf("Original struct size: %d bytes", len(bb.Bytes()))
+	t.Logf("Original struct size: %d bytes", len(bb.B))
 	t.Logf("\nSnappy:")
 	t.Logf("  Compressed size: %d bytes", len(snappyCompressed))
 	t.Logf("  Base64 length: %d chars", len(snappyResult))
@@ -299,12 +316,14 @@ func TestMessagePackComparison(t *testing.T) {
 	t.Logf("  Size: %d bytes", len(msgpackData))
 	t.Logf("  Base64 length: %d chars", len(msgpackResult))
 	t.Logf("  Result: %s", msgpackResult)
+
 	// Verify MessagePack roundtrip
 	var recovered SeedData
 	err = msgpack.Unmarshal(msgpackData, &recovered)
 	if err != nil {
 		t.Fatalf("MessagePack unmarshal failed: %v", err)
 	}
+
 	if recovered.FullURL != original.FullURL {
 		t.Errorf("URLs don't match")
 	}
@@ -377,6 +396,7 @@ func TestStringVsBytes(t *testing.T) {
 			Value:  "1",
 		}},
 	}
+
 	// New byte-based structs
 	byteJob := PayloadJobBytes{
 		OriginalURL:  []byte("https://www.example.com/admin"),
@@ -390,44 +410,44 @@ func TestStringVsBytes(t *testing.T) {
 			Value:  []byte("1"),
 		}},
 	}
-	// Test string-based serialization
-	bb1 := bytebufferpool.Get()
-	defer bytebufferpool.Put(bb1)
 
-	bb1.WriteByte(1) // version
-	bb1.WriteByte(byte(len(stringJob.FullURL)))
-	bb1.WriteString(stringJob.FullURL)
-	bb1.WriteByte(byte(len(stringJob.Headers)))
+	// Test string-based serialization
+	bb1 := &bytesutil.ByteBuffer{}
+
+	bb1.B = append(bb1.B, 1) // version
+	bb1.B = append(bb1.B, byte(len(stringJob.FullURL)))
+	bb1.Write(bytesutil.ToUnsafeBytes(stringJob.FullURL))
+	bb1.B = append(bb1.B, byte(len(stringJob.Headers)))
 	for _, h := range stringJob.Headers {
-		bb1.WriteByte(byte(len(h.Header)))
-		bb1.WriteString(h.Header)
-		bb1.WriteByte(byte(len(h.Value)))
-		bb1.WriteString(h.Value)
+		bb1.B = append(bb1.B, byte(len(h.Header)))
+		bb1.Write(bytesutil.ToUnsafeBytes(h.Header))
+		bb1.B = append(bb1.B, byte(len(h.Value)))
+		bb1.Write(bytesutil.ToUnsafeBytes(h.Value))
 	}
 
 	// Test byte-based serialization
-	bb2 := bytebufferpool.Get()
-	defer bytebufferpool.Put(bb2)
+	bb2 := &bytesutil.ByteBuffer{}
 
-	bb2.WriteByte(1) // version
-	bb2.WriteByte(byte(len(byteJob.FullURL)))
+	bb2.B = append(bb2.B, 1) // version
+	bb2.B = append(bb2.B, byte(len(byteJob.FullURL)))
 	bb2.Write(byteJob.FullURL)
-	bb2.WriteByte(byte(len(byteJob.Headers)))
+	bb2.B = append(bb2.B, byte(len(byteJob.Headers)))
 	for _, h := range byteJob.Headers {
-		bb2.WriteByte(byte(len(h.Header)))
+		bb2.B = append(bb2.B, byte(len(h.Header)))
 		bb2.Write(h.Header)
-		bb2.WriteByte(byte(len(h.Value)))
+		bb2.B = append(bb2.B, byte(len(h.Value)))
 		bb2.Write(h.Value)
 	}
+
 	// Compare results
 	t.Logf("\nString vs Bytes Comparison:")
 	t.Logf("String-based struct:")
 	t.Logf("  Memory size: %d bytes", unsafe.Sizeof(stringJob))
-	t.Logf("  Serialized size: %d bytes", bb1.Len())
-	t.Logf("  Base64 length: %d", len(base64.RawURLEncoding.EncodeToString(bb1.Bytes())))
+	t.Logf("  Serialized size: %d bytes", len(bb1.B))
+	t.Logf("  Base64 length: %d", len(base64.RawURLEncoding.EncodeToString(bb1.B)))
 
 	t.Logf("\nByte-based struct:")
 	t.Logf("  Memory size: %d bytes", unsafe.Sizeof(byteJob))
-	t.Logf("  Serialized size: %d bytes", bb2.Len())
-	t.Logf("  Base64 length: %d", len(base64.RawURLEncoding.EncodeToString(bb2.Bytes())))
+	t.Logf("  Serialized size: %d bytes", len(bb2.B))
+	t.Logf("  Base64 length: %d", len(base64.RawURLEncoding.EncodeToString(bb2.B)))
 }

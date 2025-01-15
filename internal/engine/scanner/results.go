@@ -121,7 +121,6 @@ func analyzeResults(results []*Result) columnStats {
 }
 
 // PrintTableRow prints a single result row
-// PrintTableRow prints a single result row
 func PrintTableRow(results []*Result) {
 	stats := analyzeResults(results)
 

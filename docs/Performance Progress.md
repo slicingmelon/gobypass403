@@ -64,7 +64,7 @@ digraph G {
 Key Observations:
 
 - High Memory Usage in rawhttp Module:
-    - Significant memory allocation (~120MB) occurs in rawhttp.(*RequestPool).ProcessRequests.func1 and its worker functions (rawhttp.(*requestWorker).processRequestJob)​.
+    - Significant memory allocation (~120MB) occurs in rawhttp.(*RequestPool).ProcessRequests.func1 and its worker functions (rawhttp.(*requestWorker).ProcessRequestJob)​.
     - This suggests a potential inefficiency in the way payloads or requests are being managed.
 
 - JSON Handling (scanner.AppendResultsToJSON):
