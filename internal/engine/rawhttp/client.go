@@ -130,9 +130,11 @@ func NewHTTPClient(opts *ClientOptions, errorHandler *GB403ErrorHandler.ErrorHan
 	}
 
 	client := &fasthttp.Client{
-		MaxConnsPerHost:               opts.MaxConnsPerHost,
-		MaxIdleConnDuration:           opts.MaxIdleConnDuration,
-		MaxConnWaitTimeout:            opts.MaxConnWaitTimeout,
+		MaxConnsPerHost:     opts.MaxConnsPerHost,
+		MaxIdleConnDuration: opts.MaxIdleConnDuration,
+		MaxConnWaitTimeout:  opts.MaxConnWaitTimeout,
+		//ReadTimeout:                   5 * time.Second,
+		//WriteTimeout:                  5 * time.Second,
 		DisableHeaderNamesNormalizing: true,
 		DisablePathNormalizing:        true,
 		NoDefaultUserAgentHeader:      true,
