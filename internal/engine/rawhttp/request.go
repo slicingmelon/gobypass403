@@ -9,7 +9,8 @@ import (
 	"unsafe"
 
 	"github.com/slicingmelon/go-bypass-403/internal/engine/payload"
-	"github.com/slicingmelon/go-bypass-403/internal/engine/rawhttp/bytebufferpool"
+
+	"github.com/VictoriaMetrics/VictoriaMetrics/lib/bytesutil"
 	GB403ErrorHandler "github.com/slicingmelon/go-bypass-403/internal/utils/error"
 	GB403Logger "github.com/slicingmelon/go-bypass-403/internal/utils/logger"
 	"github.com/valyala/fasthttp"
@@ -312,26 +313,25 @@ func (w *requestWorker) processResponse(resp *fasthttp.Response, job payload.Pay
 		StatusCode:   resp.StatusCode(),
 	}
 
-	// Get header buffer from pool
-	headerBuf := bytebufferpool.Get()
-	defer bytebufferpool.Put(headerBuf)
+	// Create a new buffer directly
+	headerBuf := &bytesutil.ByteBuffer{}
 
 	// Write status line
 	headerBuf.Write(resp.Header.Protocol())
-	headerBuf.WriteByte(' ')
+	headerBuf.Write(bytesutil.ToUnsafeBytes(" "))
 	headerBuf.B = fasthttp.AppendUint(headerBuf.B, resp.StatusCode())
-	headerBuf.WriteByte(' ')
+	headerBuf.Write(bytesutil.ToUnsafeBytes(" "))
 	headerBuf.Write(resp.Header.StatusMessage())
-	headerBuf.WriteString("\r\n")
+	headerBuf.Write(bytesutil.ToUnsafeBytes("\r\n"))
 
 	// Process headers once
 	resp.Header.VisitAll(func(key, value []byte) {
 		headerBuf.Write(key)
-		headerBuf.WriteString(": ")
+		headerBuf.Write(bytesutil.ToUnsafeBytes(": "))
 		headerBuf.Write(value)
-		headerBuf.WriteString("\r\n")
+		headerBuf.Write(bytesutil.ToUnsafeBytes("\r\n"))
 	})
-	headerBuf.WriteString("\r\n")
+	headerBuf.Write(bytesutil.ToUnsafeBytes("\r\n"))
 
 	// Store headers
 	result.ResponseHeaders = append([]byte(nil), headerBuf.B...)
@@ -507,38 +507,41 @@ func Byte2String(b []byte) string {
 
 // BuildCurlCommandPoc generates a curl poc command to reproduce the findings
 // Uses a local bytebufferpool implementation from this project
+// BuildCurlCommandPoc generates a curl poc command to reproduce the findings
+// Uses VictoriaMetrics ByteBuffer implementation
 func BuildCurlCommandPoc(job payload.PayloadJob) []byte {
-	bb := bytebufferpool.Get()
-	defer bytebufferpool.Put(bb)
+	// Create a new buffer directly - simple and clean
+	bb := &bytesutil.ByteBuffer{}
 
 	if runtime.GOOS == "windows" {
-		bb.WriteString("curl.exe")
+		bb.Write(bytesutil.ToUnsafeBytes("curl.exe"))
 	} else {
-		bb.WriteString("curl")
+		bb.Write(bytesutil.ToUnsafeBytes("curl"))
 	}
 
-	bb.WriteString(" -skgi --path-as-is")
+	bb.Write(bytesutil.ToUnsafeBytes(" -skgi --path-as-is"))
 
 	// Add method only if not GET
 	if job.Method != "GET" {
-		bb.WriteString(" -X ")
-		bb.WriteString(job.Method)
+		bb.Write(bytesutil.ToUnsafeBytes(" -X "))
+		bb.Write(bytesutil.ToUnsafeBytes(job.Method))
 	}
 
 	// Add headers before URL
 	for _, h := range job.Headers {
-		bb.WriteString(" -H '")
-		bb.WriteString(h.Header)
-		bb.WriteString(": ")
-		bb.WriteString(h.Value)
-		bb.WriteString("'")
+		bb.Write(bytesutil.ToUnsafeBytes(" -H '"))
+		bb.Write(bytesutil.ToUnsafeBytes(h.Header))
+		bb.Write(bytesutil.ToUnsafeBytes(": "))
+		bb.Write(bytesutil.ToUnsafeBytes(h.Value))
+		bb.Write(bytesutil.ToUnsafeBytes("'"))
 	}
 
 	// last is URL
-	bb.WriteString(" '")
-	bb.WriteString(job.FullURL)
-	bb.WriteString("'")
+	bb.Write(bytesutil.ToUnsafeBytes(" '"))
+	bb.Write(bytesutil.ToUnsafeBytes(job.FullURL))
+	bb.Write(bytesutil.ToUnsafeBytes("'"))
 
+	// Return a copy of the buffer
 	return append([]byte(nil), bb.B...)
 }
 
