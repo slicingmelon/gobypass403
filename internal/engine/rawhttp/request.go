@@ -252,7 +252,7 @@ func (p *RequestPool) ProcessRequests(jobs []payload.PayloadJob) <-chan *RawHTTP
 			defer p.workerPool.releaseWorker(worker)
 
 			for job := range jobsChan {
-				if result := worker.processRequestJob(job); result != nil {
+				if result := worker.ProcessRequestJob(job); result != nil {
 					results <- result
 				}
 			}
@@ -287,7 +287,7 @@ func (p *RequestPool) ProcessRequests(jobs []payload.PayloadJob) <-chan *RawHTTP
 // or add 'Connection: close' request header before sending requests
 // to broken server.
 
-func (w *requestWorker) processRequestJob(job payload.PayloadJob) *RawHTTPResponseDetails {
+func (w *requestWorker) ProcessRequestJob(job payload.PayloadJob) *RawHTTPResponseDetails {
 	w.pool.activeWorkers.Add(1)
 	defer w.pool.activeWorkers.Add(-1)
 
@@ -312,11 +312,11 @@ func (w *requestWorker) processRequestJob(job payload.PayloadJob) *RawHTTPRespon
 		}
 	}
 
-	return w.processResponse(resp, job)
+	return w.ProcessResponseJob(resp, job)
 }
 
 // processResponse handles response processing
-func (w *requestWorker) processResponse(resp *fasthttp.Response, job payload.PayloadJob) *RawHTTPResponseDetails {
+func (w *requestWorker) ProcessResponseJob(resp *fasthttp.Response, job payload.PayloadJob) *RawHTTPResponseDetails {
 	result := &RawHTTPResponseDetails{
 		URL:          append([]byte(nil), job.FullURL...),
 		BypassModule: append([]byte(nil), job.BypassModule...),

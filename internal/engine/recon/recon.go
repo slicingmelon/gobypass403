@@ -332,15 +332,35 @@ func (s *ReconService) probeScheme(host, port string) string {
 	addr := net.JoinHostPort(host, port)
 	GB403Logger.Verbose().Msgf("Probing %s", addr)
 
+	// Check if the port is open using a TCP connection
+	conn, err := net.DialTimeout("tcp", addr, 5*time.Second)
+	if err != nil {
+		GB403Logger.Verbose().Msgf("Port %s is closed: %v", addr, err)
+		return ""
+	}
+	defer conn.Close()
+
+	// Attempt a TLS handshake to check for TLS support
+	tlsConfig := &tls.Config{
+		InsecureSkipVerify: true,
+		MinVersion:         tls.VersionTLS10,
+		MaxVersion:         tls.VersionTLS13,
+		Renegotiation:      tls.RenegotiateOnceAsClient,
+	}
+	tlsConn := tls.Client(conn, tlsConfig)
+	err = tlsConn.Handshake()
+	if err == nil {
+		// TLS handshake succeeded, indicating TLS support
+		GB403Logger.Verbose().Msgf("TLS supported on %s", addr)
+		return "https"
+	}
+	GB403Logger.Verbose().Msgf("TLS handshake failed on %s: %v", addr, err)
+
+	// If TLS fails, try a basic HTTP check (fasthttp client)
 	client := &fasthttp.Client{
 		NoDefaultUserAgentHeader:      true,
 		DisableHeaderNamesNormalizing: true,
 		DisablePathNormalizing:        true,
-		TLSConfig: &tls.Config{
-			InsecureSkipVerify: true,
-			MinVersion:         tls.VersionTLS10,
-			MaxVersion:         tls.VersionTLS13,
-		},
 	}
 
 	req := fasthttp.AcquireRequest()
@@ -348,26 +368,16 @@ func (s *ReconService) probeScheme(host, port string) string {
 	defer fasthttp.ReleaseRequest(req)
 	defer fasthttp.ReleaseResponse(resp)
 
-	switch port {
-	case "443":
-		req.SetRequestURI(fmt.Sprintf("https://%s", addr))
-		err := client.Do(req, resp)
-		if err != nil {
-			GB403Logger.Verbose().Msgf("HTTPS error on %s: %v", addr, err)
-			return ""
-		}
-		return "https"
-
-	case "80":
-		req.SetRequestURI(fmt.Sprintf("http://%s", addr))
-		err := client.Do(req, resp)
-		if err != nil {
-			GB403Logger.Verbose().Msgf("HTTP error on %s: %v", addr, err)
-			return ""
-		}
+	req.SetRequestURI(fmt.Sprintf("http://%s", addr))
+	err = client.Do(req, resp)
+	if err == nil {
+		// HTTP request succeeded, indicating HTTP support
+		GB403Logger.Verbose().Msgf("HTTP supported on %s", addr)
 		return "http"
 	}
+	GB403Logger.Verbose().Msgf("HTTP request failed on %s: %v", addr, err)
 
+	// If both checks fail, return an empty string
 	return ""
 }
 
