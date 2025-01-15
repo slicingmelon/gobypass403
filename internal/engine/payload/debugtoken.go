@@ -7,8 +7,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/VictoriaMetrics/VictoriaMetrics/lib/bytesutil"
 	"github.com/golang/snappy"
-	"github.com/slicingmelon/go-bypass-403/internal/engine/rawhttp/bytebufferpool"
 )
 
 var (
@@ -31,36 +31,39 @@ type SeedData struct {
 // Running in debug mode, a header will be added to each request to debug the requests better
 // At any time, a token can be decoded and retrieve back the payload info/URL that was sent
 func GenerateDebugToken(data SeedData) string {
-	bb := bytebufferpool.Get()
-	defer bytebufferpool.Put(bb)
+	bb := &bytesutil.ByteBuffer{}
+
 	// Write version byte
-	bb.WriteByte(1)
+	bb.B = append(bb.B, 1)
+
 	// Add random nonce
-	bb.WriteByte(0xFF) // special field type for nonce
+	bb.B = append(bb.B, 0xFF) // special field type for nonce
 	nonce := make([]byte, 8)
 	mu.Lock()
 	rnd.Read(nonce)
 	mu.Unlock()
-	bb.WriteByte(8) // nonce length
+	bb.B = append(bb.B, 8) // nonce length
 	bb.Write(nonce)
+
 	// Write FullURL if present
 	if data.FullURL != "" {
-		bb.WriteByte(1) // field type
+		bb.B = append(bb.B, 1) // field type
 		urlLen := len(data.FullURL)
 		if urlLen > 255 {
 			urlLen = 255 // truncate long URLs
 		}
-		bb.WriteByte(byte(urlLen))
-		bb.WriteString(data.FullURL[:urlLen])
+		bb.B = append(bb.B, byte(urlLen))
+		bb.Write(bytesutil.ToUnsafeBytes(data.FullURL[:urlLen]))
 	}
+
 	// Write Headers if present
 	if len(data.Headers) > 0 {
-		bb.WriteByte(2) // field type
+		bb.B = append(bb.B, 2) // field type
 		headerCount := len(data.Headers)
 		if headerCount > 255 {
 			headerCount = 255 // safety limit
 		}
-		bb.WriteByte(byte(headerCount))
+		bb.B = append(bb.B, byte(headerCount))
 		for i := 0; i < headerCount; i++ {
 			h := data.Headers[i]
 			// Write header name
@@ -68,19 +71,21 @@ func GenerateDebugToken(data SeedData) string {
 			if hLen > 255 {
 				hLen = 255
 			}
-			bb.WriteByte(byte(hLen))
-			bb.WriteString(h.Header[:hLen])
+			bb.B = append(bb.B, byte(hLen))
+			bb.Write(bytesutil.ToUnsafeBytes(h.Header[:hLen]))
+
 			// Write header value
 			vLen := len(h.Value)
 			if vLen > 255 {
 				vLen = 255
 			}
-			bb.WriteByte(byte(vLen))
-			bb.WriteString(h.Value[:vLen])
+			bb.B = append(bb.B, byte(vLen))
+			bb.Write(bytesutil.ToUnsafeBytes(h.Value[:vLen]))
 		}
 	}
+
 	// Compress and encode
-	compressed := snappy.Encode(nil, bb.Bytes())
+	compressed := snappy.Encode(nil, bb.B)
 	return base64.RawURLEncoding.EncodeToString(compressed)
 }
 

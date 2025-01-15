@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/VictoriaMetrics/VictoriaMetrics/lib/bytesutil"
 	"github.com/slicingmelon/go-bypass-403/internal/engine/payload"
-	"github.com/slicingmelon/go-bypass-403/internal/engine/rawhttp/bytebufferpool"
 
 	GB403ErrorHandler "github.com/slicingmelon/go-bypass-403/internal/utils/error"
 	GB403Logger "github.com/slicingmelon/go-bypass-403/internal/utils/logger"
@@ -478,37 +478,36 @@ func TestResponseProcessingWithSpacedHeaders(t *testing.T) {
 			}
 
 			// Process response headers
-			headerBuf := bytebufferpool.Get()
-			defer bytebufferpool.Put(headerBuf)
+			headerBuf := &bytesutil.ByteBuffer{}
 
 			// Write status line
 			headerBuf.Write(resp.Header.Protocol())
-			headerBuf.WriteByte(' ')
+			headerBuf.B = append(headerBuf.B, ' ')
 			headerBuf.B = fasthttp.AppendUint(headerBuf.B, resp.StatusCode())
-			headerBuf.WriteByte(' ')
+			headerBuf.B = append(headerBuf.B, ' ')
 			headerBuf.Write(resp.Header.StatusMessage())
-			headerBuf.WriteString("\r\n")
+			headerBuf.Write(bytesutil.ToUnsafeBytes("\r\n"))
 
 			// Process headers once
 			resp.Header.VisitAll(func(key, value []byte) {
 				headerBuf.Write(key)
-				headerBuf.WriteString(": ")
+				headerBuf.Write(bytesutil.ToUnsafeBytes(": "))
 				headerBuf.Write(value)
-				headerBuf.WriteString("\r\n")
+				headerBuf.Write(bytesutil.ToUnsafeBytes("\r\n"))
 			})
-			headerBuf.WriteString("\r\n")
+			headerBuf.Write(bytesutil.ToUnsafeBytes("\r\n"))
 
 			// Log response details
 			GB403Logger.Info().Msgf("\n=== Response Details for %s ===\nHeaders:\n%s\nBody:\n%s\n================\n",
 				tc.name,
-				headerBuf.String(),
+				bytesutil.ToUnsafeString(headerBuf.B),
 				string(resp.Body()))
 
 			// Verify headers
 			for header, expectedValue := range tc.expectedResp {
 				if !bytes.Contains(headerBuf.B, []byte(header+": "+expectedValue)) {
 					t.Errorf("Header %s not found or incorrect\nExpected: %s\nGot: %s",
-						header, expectedValue, headerBuf.String())
+						header, expectedValue, bytesutil.ToUnsafeString(headerBuf.B))
 				}
 			}
 
