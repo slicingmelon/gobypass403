@@ -37,11 +37,10 @@ type IPAddrs struct {
 
 func (s *ReconService) processHost(host string) error {
 	if net.ParseIP(host) != nil {
-		s.handleIP(host)
+		return s.handleIP(host)
 	} else {
-		s.handleDomain(host)
+		return s.handleDomain(host)
 	}
-	return nil
 }
 
 func NewReconService() *ReconService {
@@ -201,7 +200,7 @@ func (s *ReconService) Run(urls []string) error {
 	return nil
 }
 
-func (s *ReconService) handleIP(ip string) {
+func (s *ReconService) handleIP(ip string) error {
 	result := &ReconResult{
 		Hostname:     ip,
 		IPv4Services: make(map[string]map[string][]string),
@@ -218,9 +217,11 @@ func (s *ReconService) handleIP(ip string) {
 	}
 
 	// Check both ports and store all available schemes
+	foundService := false
 	for _, port := range []string{"80", "443"} {
 		GB403Logger.Verbose().Msgf("Probing %s:%s", ip, port)
 		if scheme := s.probeScheme(ip, port); scheme != "" {
+			foundService = true
 			GB403Logger.Verbose().Msgf("Found open port %s:%s -> %s", ip, port, scheme)
 			if services[scheme] == nil {
 				services[scheme] = make(map[string][]string)
@@ -229,16 +230,25 @@ func (s *ReconService) handleIP(ip string) {
 		}
 	}
 
+	if !foundService {
+		return fmt.Errorf("no services found for IP %s", ip)
+	}
+
 	GB403Logger.Verbose().Msgf("Caching result for %s: IPv4=%v, IPv6=%v",
 		ip, result.IPv4Services, result.IPv6Services)
-	s.cache.Set(ip, result)
+
+	if err := s.cache.Set(ip, result); err != nil {
+		return fmt.Errorf("failed to cache result for IP %s: %v", ip, err)
+	}
+
+	return nil
 }
 
-func (s *ReconService) handleDomain(host string) {
+func (s *ReconService) handleDomain(host string) error {
 	ips, err := s.resolveHost(host)
 	if err != nil {
 		GB403Logger.Error().Msgf("Failed to resolve host %s: %v", host, err)
-		return
+		return err
 	}
 
 	result := &ReconResult{
@@ -283,6 +293,8 @@ func (s *ReconService) handleDomain(host string) {
 	}
 
 	s.cache.Set(host, result)
+
+	return nil
 }
 
 func (s *ReconService) resolveHost(hostname string) (*IPAddrs, error) {

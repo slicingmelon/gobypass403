@@ -142,6 +142,7 @@ func (p *URLRecon) processWithSubstituteHosts(targetURL string) ([]string, error
 				validHosts = append(validHosts, cleanHost)
 			} else {
 				GB403Logger.Error().Msgf("Failed recon for host %s: %v - skipping", cleanHost, err)
+				continue // Skip this host entirely
 			}
 		}
 	}
@@ -150,7 +151,7 @@ func (p *URLRecon) processWithSubstituteHosts(targetURL string) ([]string, error
 		return nil, fmt.Errorf("no valid hosts found in substitute hosts file")
 	}
 
-	// Continue with URL generation only for valid hosts...
+	// Now we only process validated hosts
 	var urls []string
 	parsedURL, err := rawurlparser.RawURLParse(targetURL)
 	if err != nil {
@@ -162,8 +163,7 @@ func (p *URLRecon) processWithSubstituteHosts(targetURL string) ([]string, error
 		pathAndQuery += "?" + parsedURL.Query
 	}
 
-	// Use each VALID host to create new URLs
-	for _, host := range validHosts { // Changed from hosts to validHosts
+	for _, host := range validHosts { // Using validHosts ensures we only process valid ones
 		expandedURLs, err := p.expandURLSchemes(fmt.Sprintf("http://%s%s", host, pathAndQuery))
 		if err != nil {
 			GB403Logger.Error().Msgf("Failed to expand URL schemes for host %s: %v", host, err)
@@ -182,13 +182,6 @@ func (p *URLRecon) getPathAndQuery(parsedURL *url.URL) string {
 		path += "?" + parsedURL.RawQuery
 	}
 	return path
-}
-
-func (p *URLRecon) constructBaseURL(scheme, host, port string) string {
-	if (scheme == "http" && port == "80") || (scheme == "https" && port == "443") {
-		return fmt.Sprintf("%s://%s", scheme, host)
-	}
-	return fmt.Sprintf("%s://%s:%s", scheme, host, port)
 }
 
 // GetReconCache returns the recon cache for use by other components
@@ -243,7 +236,7 @@ func (p *URLRecon) expandURLSchemes(targetURL string) ([]string, error) {
 	result, err := p.reconService.GetCache().Get(host)
 	if err != nil || result == nil {
 		GB403Logger.Verbose().Msgf("No cache result for %s: %v", host, err)
-		return []string{targetURL}, nil
+		return nil, fmt.Errorf("host %s failed recon checks", host)
 	}
 
 	// Debug logging
