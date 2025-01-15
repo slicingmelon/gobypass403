@@ -119,16 +119,14 @@ func (p *URLRecon) readURLsFromFile() ([]string, error) {
 
 // processWithSubstituteHosts handles URL substitution with hosts from file
 func (p *URLRecon) processWithSubstituteHosts(targetURL string) ([]string, error) {
-	// Read and validate hosts
 	data, err := os.ReadFile(p.opts.SubstituteHostsFile)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read substitute hosts file: %v", err)
 	}
 
-	var hosts []string
+	var validHosts []string
 	for _, host := range strings.Split(string(data), "\n") {
 		if host = strings.TrimSpace(host); host != "" {
-			// Extract clean hostname without scheme
 			cleanHost := host
 			if strings.Contains(host, "://") {
 				parsed, err := rawurlparser.RawURLParse(host)
@@ -138,20 +136,21 @@ func (p *URLRecon) processWithSubstituteHosts(targetURL string) ([]string, error
 				}
 				cleanHost = parsed.Host
 			}
-			hosts = append(hosts, cleanHost)
-			// Run recon immediately for each host
-			if err := p.reconService.Run([]string{cleanHost}); err != nil {
-				GB403Logger.Error().Msgf("Failed recon for host %s: %v", cleanHost, err)
-				// Continue with next host instead of returning error
+
+			// Only add hosts that pass recon
+			if err := p.reconService.Run([]string{cleanHost}); err == nil {
+				validHosts = append(validHosts, cleanHost)
+			} else {
+				GB403Logger.Error().Msgf("Failed recon for host %s: %v - skipping", cleanHost, err)
 			}
 		}
 	}
 
-	if len(hosts) == 0 {
+	if len(validHosts) == 0 {
 		return nil, fmt.Errorf("no valid hosts found in substitute hosts file")
 	}
 
-	// Now generate URLs with the validated hosts
+	// Continue with URL generation only for valid hosts...
 	var urls []string
 	parsedURL, err := rawurlparser.RawURLParse(targetURL)
 	if err != nil {
@@ -163,8 +162,8 @@ func (p *URLRecon) processWithSubstituteHosts(targetURL string) ([]string, error
 		pathAndQuery += "?" + parsedURL.Query
 	}
 
-	// Use each host to create new URLs
-	for _, host := range hosts {
+	// Use each VALID host to create new URLs
+	for _, host := range validHosts { // Changed from hosts to validHosts
 		expandedURLs, err := p.expandURLSchemes(fmt.Sprintf("http://%s%s", host, pathAndQuery))
 		if err != nil {
 			GB403Logger.Error().Msgf("Failed to expand URL schemes for host %s: %v", host, err)
