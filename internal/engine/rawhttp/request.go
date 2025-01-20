@@ -168,18 +168,6 @@ func (p *RequestPool) ActiveWorkers() int {
 	return int(active)
 }
 
-func (p *requestWorkerPool) activeWorkerCount() int {
-	p.lock.Lock()
-	defer p.lock.Unlock()
-	count := 0
-	for _, w := range p.workers {
-		if time.Since(w.lastUsed) < 5*time.Second {
-			count++
-		}
-	}
-	return count
-}
-
 func (p *requestWorkerPool) getStats() (active int32, queued int32) {
 	return p.activeWorkers.Load(),
 		p.queuedJobs.Load()
@@ -470,60 +458,6 @@ func (wp *requestWorkerPool) cleanIdleWorkers(maxIdleTime time.Duration) {
 	}
 	wp.workers = activeWorkers
 }
-
-// func (p *RequestPool) Close() {
-// 	p.closeMu.Do(func() {
-// 		p.workerPool.lock.Lock()
-// 		for _, w := range p.workerPool.workers {
-// 			if w.rateLimiter != nil {
-// 				w.rateLimiter.Stop()
-// 			}
-// 			safeClose(w.jobs)
-// 			safeClose(w.results)
-// 		}
-
-// 		// 1. Signal stop
-// 		close(p.workerPool.stopCh)
-
-// 		// 2. Wait for workers to finish current jobs
-// 		var wg sync.WaitGroup
-// 		p.workerPool.lock.Lock()
-// 		for _, w := range p.workerPool.workers {
-// 			wg.Add(1)
-// 			go func(worker *requestWorker) {
-// 				defer wg.Done()
-// 				// Give workers time to finish current job
-// 				time.Sleep(100 * time.Millisecond)
-// 			}(w)
-// 		}
-// 		p.workerPool.lock.Unlock()
-
-// 		// 3. Wait with timeout
-// 		done := make(chan struct{})
-// 		go func() {
-// 			wg.Wait()
-// 			close(done)
-// 		}()
-
-// 		select {
-// 		case <-done:
-// 		case <-time.After(5 * time.Second):
-// 			// Timeout reached
-// 		}
-
-// 		// 4. Clean up channels
-// 		p.workerPool.lock.Lock()
-// 		for _, w := range p.workerPool.workers {
-// 			safeClose(w.jobs)
-// 			safeClose(w.results)
-// 		}
-// 		p.workerPool.workers = nil
-// 		p.workerPool.lock.Unlock()
-
-// 		safeClose(p.payloadQueue)
-// 		safeClose(p.results)
-// 	})
-// }
 
 func (p *RequestPool) Close() {
 	p.closeMu.Do(func() {
