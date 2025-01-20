@@ -306,10 +306,6 @@ func (w *requestWorker) ProcessRequestJob(job payload.PayloadJob) *RawHTTPRespon
 	w.pool.activeWorkers.Add(1)
 	defer w.pool.activeWorkers.Add(-1)
 
-	if w.client.options.RequestDelay > 0 {
-		time.Sleep(w.client.options.RequestDelay)
-	}
-
 	req := w.client.AcquireRequest()
 	resp := w.client.AcquireResponse()
 	defer w.client.ReleaseRequest(req)
