@@ -214,7 +214,7 @@ func TestRequestDelay(t *testing.T) {
 	pool := rawhttp.NewRequestPool(clientOpts, &rawhttp.ScannerCliOpts{
 		ResponseBodyPreviewSize: 100,
 		ModuleName:              "test-delay",
-		MaxWorkers:              2,
+		MaxWorkers:              1,
 	}, GB403ErrorHandler.NewErrorHandler(32))
 
 	// Create test payloads
@@ -272,6 +272,88 @@ func TestRequestDelay(t *testing.T) {
 		}
 	}
 	mu.Unlock()
+
+	// Cleanup
+	ln.Close()
+	<-serverCh
+}
+
+// go.exe test -timeout 30s -run ^TestRequestDelayWithMultipleWorkers$ github.com/slicingmelon/go-bypass-403/tests/integration -v
+// === RUN   TestRequestDelayWithMultipleWorkers
+// --- PASS: TestRequestDelayWithMultipleWorkers (6.00s)
+// PASS
+// ok  	github.com/slicingmelon/go-bypass-403/tests/integration	7.525s
+func TestRequestDelayWithMultipleWorkers(t *testing.T) {
+	// Create in-memory listener
+	ln := fasthttputil.NewInmemoryListener()
+	defer ln.Close()
+
+	// Just track request timestamps
+	var timestamps []time.Time
+	var mu sync.Mutex
+
+	// Simple handler that just records timestamps
+	handler := func(ctx *fasthttp.RequestCtx) {
+		mu.Lock()
+		timestamps = append(timestamps, time.Now())
+		mu.Unlock()
+		ctx.SetStatusCode(fasthttp.StatusOK)
+	}
+
+	// Start server
+	serverCh := make(chan struct{})
+	go func() {
+		if err := fasthttp.Serve(ln, handler); err != nil {
+			t.Errorf("server error: %v", err)
+		}
+		close(serverCh)
+	}()
+
+	// Create client with 3s delay
+	clientOpts := rawhttp.DefaultOptionsSameHost()
+	clientOpts.RequestDelay = 3 * time.Second
+	clientOpts.Dialer = func(addr string) (net.Conn, error) {
+		return ln.Dial()
+	}
+
+	// Create pool with 3 workers
+	pool := rawhttp.NewRequestPool(clientOpts, &rawhttp.ScannerCliOpts{
+		ResponseBodyPreviewSize: 100,
+		ModuleName:              "test-delay",
+		MaxWorkers:              3,
+	}, GB403ErrorHandler.NewErrorHandler(32))
+
+	// Create 6 test jobs
+	jobs := []payload.PayloadJob{
+		{FullURL: "http://example.com/test1", Method: "GET"},
+		{FullURL: "http://example.com/test2", Method: "GET"},
+		{FullURL: "http://example.com/test3", Method: "GET"},
+		{FullURL: "http://example.com/test4", Method: "GET"},
+		{FullURL: "http://example.com/test5", Method: "GET"},
+		{FullURL: "http://example.com/test6", Method: "GET"},
+	}
+
+	// Process requests and collect results
+	start := time.Now()
+	resultsChan := pool.ProcessRequests(jobs)
+	var results []*rawhttp.RawHTTPResponseDetails
+	for result := range resultsChan {
+		results = append(results, result)
+	}
+
+	// Total time should be ~6s (2 requests per worker with 3s delay)
+	totalTime := time.Since(start)
+	if totalTime > 7*time.Second {
+		t.Errorf("Requests took too long: %v", totalTime)
+	}
+	if totalTime < 5*time.Second {
+		t.Errorf("Requests too fast, delay not working: %v", totalTime)
+	}
+
+	// Verify we got all results
+	if len(results) != len(jobs) {
+		t.Errorf("expected %d results, got %d", len(jobs), len(results))
+	}
 
 	// Cleanup
 	ln.Close()
