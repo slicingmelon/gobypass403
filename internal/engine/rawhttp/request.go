@@ -39,6 +39,7 @@ type RequestPool struct {
 	scanOpts     *ScannerCliOpts
 	errorHandler *GB403ErrorHandler.ErrorHandler
 	closeMu      sync.Once
+	rateLimiter  *time.Ticker // Add this
 }
 
 // ConnPoolStrategyType define strategy of connection pool enqueue/dequeue.
@@ -116,6 +117,7 @@ func NewRequestPool(clientOpts *ClientOptions, scanOpts *ScannerCliOpts, errorHa
 	}
 
 	maxWorkers := scanOpts.MaxWorkers
+
 	pool := &RequestPool{
 		client:       NewHTTPClient(clientOpts, errorHandler),
 		maxWorkers:   maxWorkers,
@@ -127,6 +129,10 @@ func NewRequestPool(clientOpts *ClientOptions, scanOpts *ScannerCliOpts, errorHa
 			ready:  make(chan *requestWorker, maxWorkers),
 			stopCh: make(chan struct{}),
 		},
+	}
+
+	if clientOpts.RequestDelay > 0 {
+		pool.rateLimiter = time.NewTicker(clientOpts.RequestDelay)
 	}
 
 	// Initialize worker pool
@@ -257,6 +263,10 @@ func (p *RequestPool) ProcessRequests(jobs []payload.PayloadJob) <-chan *RawHTTP
 			defer p.workerPool.ReleaseWorker(worker)
 
 			for job := range jobsChan {
+				// Wait for rate limiter if it exists
+				if p.rateLimiter != nil {
+					<-p.rateLimiter.C
+				}
 				if result := worker.ProcessRequestJob(job); result != nil {
 					results <- result
 				}
@@ -464,6 +474,10 @@ func (wp *requestWorkerPool) cleanIdleWorkers(maxIdleTime time.Duration) {
 
 func (p *RequestPool) Close() {
 	p.closeMu.Do(func() {
+		if p.rateLimiter != nil {
+			p.rateLimiter.Stop()
+		}
+
 		// 1. Signal stop
 		close(p.workerPool.stopCh)
 
