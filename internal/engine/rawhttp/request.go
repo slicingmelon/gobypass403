@@ -16,13 +16,37 @@ import (
 	"github.com/valyala/fasthttp"
 )
 
-var curlCmd []byte
+const toLower = 'a' - 'A'
+
+var (
+	curlCmd      []byte
+	toLowerTable [256]byte
+	toUpperTable [256]byte
+)
 
 func init() {
+	// Initialize curl command
 	if runtime.GOOS == "windows" {
 		curlCmd = bytesutil.ToUnsafeBytes("curl.exe")
 	} else {
 		curlCmd = bytesutil.ToUnsafeBytes("curl")
+	}
+
+	// Initialize case conversion tables
+	for i := 0; i < 256; i++ {
+		c := byte(i)
+		toLowerTable[i] = c
+		toUpperTable[i] = c
+	}
+
+	// Set up lowercase conversions
+	for i := 'A'; i <= 'Z'; i++ {
+		toLowerTable[i] = byte(i + toLower)
+	}
+
+	// Set up uppercase conversions
+	for i := 'a'; i <= 'z'; i++ {
+		toUpperTable[i] = byte(i - toLower)
 	}
 }
 
@@ -336,7 +360,7 @@ func (w *requestWorker) ProcessResponseJob(resp *fasthttp.Response, job payload.
 
 	// Check for redirect early
 	if fasthttp.StatusCodeIsRedirect(statusCode) {
-		if location := resp.Header.Peek("Location"); len(location) > 0 {
+		if location := PeekHeaderKeyCaseInsensitive(&resp.Header, []byte("Location")); len(location) > 0 {
 			result.RedirectURL = append([]byte(nil), location...)
 		}
 	}
@@ -385,6 +409,38 @@ func (w *requestWorker) ProcessResponseJob(resp *fasthttp.Response, job payload.
 	result.CurlCommand = BuildCurlCommandPoc(job)
 
 	return result
+}
+
+func PeekHeaderKeyCaseInsensitive(h *fasthttp.ResponseHeader, key []byte) []byte {
+	// Try original
+	if v := h.PeekBytes(key); len(v) > 0 {
+		return v
+	}
+
+	// Create normalized version (Content-Type format)
+	n := len(key)
+	if n == 0 {
+		return nil
+	}
+
+	normalized := make([]byte, n)
+	copy(normalized, key)
+
+	// First char uppercase
+	normalized[0] = toUpperTable[normalized[0]]
+
+	// Rest: lowercase except after hyphens
+	for i := 1; i < n; i++ {
+		if normalized[i] == '-' && i+1 < n {
+			// Next char after hyphen should be uppercase
+			i++
+			normalized[i] = toUpperTable[normalized[i]]
+			continue
+		}
+		normalized[i] = toLowerTable[normalized[i]]
+	}
+
+	return h.PeekBytes(normalized)
 }
 
 // WorkerPool methods
