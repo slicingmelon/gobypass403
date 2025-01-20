@@ -31,6 +31,7 @@ type ClientOptions struct {
 	RetryDelay          time.Duration
 	DisableKeepAlive    bool
 	EnableHTTP2         bool
+	Dialer              fasthttp.DialFunc
 }
 
 // Client represents a reusable HTTP client optimized for performance
@@ -82,59 +83,59 @@ func NewHTTPClient(opts *ClientOptions, errorHandler *GB403ErrorHandler.ErrorHan
 		opts = DefaultOptionsSameHost()
 	}
 
-	// Create a custom TCPDialer with our settings
-	dialer := &fasthttp.TCPDialer{
-		Concurrency:      2048,
-		DNSCacheDuration: 15 * time.Minute,
-	}
+	dialFunc := opts.Dialer
+	if dialFunc == nil {
+		// Create a custom TCPDialer with our settings
+		dialer := &fasthttp.TCPDialer{
+			Concurrency:      2048,
+			DNSCacheDuration: 15 * time.Minute,
+		}
 
-	// Create the dial function that handles both proxy and direct connections
-	dialFunc := func(addr string) (net.Conn, error) {
-		if opts.ProxyURL != "" {
-			proxyDialer := fasthttpproxy.FasthttpHTTPDialerTimeout(opts.ProxyURL, 3*time.Second)
-			conn, err := proxyDialer(addr)
+		dialFunc = func(addr string) (net.Conn, error) {
+			if opts.ProxyURL != "" {
+				proxyDialer := fasthttpproxy.FasthttpHTTPDialerTimeout(opts.ProxyURL, 3*time.Second)
+				conn, err := proxyDialer(addr)
+				if err != nil {
+					if handleErr := errorHandler.HandleError(err, GB403ErrorHandler.ErrorContext{
+						ErrorSource: []byte("Client.proxyDial"),
+						Host:        []byte(addr),
+					}); handleErr != nil {
+						return nil, fmt.Errorf("proxy dial error handling failed: %v (original error: %v)", handleErr, err)
+					}
+					return nil, err
+				}
+				return conn, nil
+			}
+
+			// No proxy, use our TCPDialer with timeout
+			// DialTimeout dials the given TCP addr using tcp4 using the given timeout.
+			// This function has the following additional features comparing to net.Dial:
+			//	It reduces load on DNS resolver by caching resolved TCP addressed for DNSCacheDuration.
+			//	It dials all the resolved TCP addresses in round-robin manner until connection is established. This may be useful if certain addresses are temporarily unreachable.
+			// This dialer is intended for custom code wrapping before passing to Client.DialTimeout or HostClient.DialTimeout.
+			// For instance, per-host counters and/or limits may be implemented by such wrappers.
+			// The addr passed to the function must contain port. Example addr values:
+			// foobar.baz:443
+			// foo.bar:80
+			// aaa.com:8080
+			conn, err := dialer.DialTimeout(addr, 5*time.Second)
 			if err != nil {
 				if handleErr := errorHandler.HandleError(err, GB403ErrorHandler.ErrorContext{
-					ErrorSource: []byte("Client.proxyDial"),
+					ErrorSource: []byte("Client.directDial"),
 					Host:        []byte(addr),
 				}); handleErr != nil {
-					return nil, fmt.Errorf("proxy dial error handling failed: %v (original error: %v)", handleErr, err)
+					return nil, fmt.Errorf("direct dial error handling failed: %v (original error: %v)", handleErr, err)
 				}
 				return nil, err
 			}
 			return conn, nil
 		}
-
-		// No proxy, use our TCPDialer with timeout
-		// DialTimeout dials the given TCP addr using tcp4 using the given timeout.
-		// This function has the following additional features comparing to net.Dial:
-		//	It reduces load on DNS resolver by caching resolved TCP addressed for DNSCacheDuration.
-		//	It dials all the resolved TCP addresses in round-robin manner until connection is established. This may be useful if certain addresses are temporarily unreachable.
-		// This dialer is intended for custom code wrapping before passing to Client.DialTimeout or HostClient.DialTimeout.
-		// For instance, per-host counters and/or limits may be implemented by such wrappers.
-		// The addr passed to the function must contain port. Example addr values:
-		// foobar.baz:443
-		// foo.bar:80
-		// aaa.com:8080
-		conn, err := dialer.DialTimeout(addr, 5*time.Second)
-		if err != nil {
-			if handleErr := errorHandler.HandleError(err, GB403ErrorHandler.ErrorContext{
-				ErrorSource: []byte("Client.directDial"),
-				Host:        []byte(addr),
-			}); handleErr != nil {
-				return nil, fmt.Errorf("direct dial error handling failed: %v (original error: %v)", handleErr, err)
-			}
-			return nil, err
-		}
-		return conn, nil
 	}
 
 	client := &fasthttp.Client{
-		MaxConnsPerHost:     opts.MaxConnsPerHost,
-		MaxIdleConnDuration: opts.MaxIdleConnDuration,
-		MaxConnWaitTimeout:  opts.MaxConnWaitTimeout,
-		//ReadTimeout:                   5 * time.Second,
-		//WriteTimeout:                  5 * time.Second,
+		MaxConnsPerHost:               opts.MaxConnsPerHost,
+		MaxIdleConnDuration:           opts.MaxIdleConnDuration,
+		MaxConnWaitTimeout:            opts.MaxConnWaitTimeout,
 		DisableHeaderNamesNormalizing: true,
 		DisablePathNormalizing:        true,
 		NoDefaultUserAgentHeader:      true,
