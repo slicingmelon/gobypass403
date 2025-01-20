@@ -18,12 +18,12 @@
 !internal/
 !internal/**
 
-!tests/
-!tests/**
-tests/*.exe
-tests/**/*.exe
+# !tests/
+# !tests/**
+# tests/*.exe
+# tests/**/*.exe
 
-!tools/
-!tools/**
-tools/*.exe
-tools/**/*.exe
+# !tools/
+# !tools/**
+# tools/*.exe
+# tools/**/*.exe

@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	enablePProf = true // Set to true to enable profiling
+	enablePProf = false // Set to true to enable profiling
 )
 
 func main() {
