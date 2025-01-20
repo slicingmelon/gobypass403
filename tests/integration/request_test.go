@@ -2,6 +2,7 @@ package tests
 
 import (
 	"net"
+	"sync"
 	"testing"
 	"time"
 
@@ -108,12 +109,11 @@ func TestClient302RedirectCaseInsensitive(t *testing.T) {
 	ln := fasthttputil.NewInmemoryListener()
 	defer ln.Close()
 
-	// Setup server with custom config
 	server := &fasthttp.Server{
-		DisableHeaderNamesNormalizing: true, // Add this
+		DisableHeaderNamesNormalizing: true,
 		Handler: func(ctx *fasthttp.RequestCtx) {
 			// Use lowercase 'location' header
-			ctx.Response.Header.DisableNormalizing() // Add this
+			ctx.Response.Header.DisableNormalizing()
 			ctx.Response.Header.Set("location", "https://redirected.com/newpath")
 			ctx.SetStatusCode(fasthttp.StatusFound) // 302
 		},
@@ -175,4 +175,105 @@ func TestClient302RedirectCaseInsensitive(t *testing.T) {
 		t.Errorf("unexpected location: got %q, want %q",
 			string(result.RedirectURL), expectedLocation)
 	}
+}
+
+func TestRequestDelay(t *testing.T) {
+	// Create in-memory listener
+	ln := fasthttputil.NewInmemoryListener()
+	defer ln.Close()
+
+	// Track request timestamps
+	var requestTimes []time.Time
+	var mu sync.Mutex
+
+	// Setup handler that records request times
+	handler := func(ctx *fasthttp.RequestCtx) {
+		mu.Lock()
+		requestTimes = append(requestTimes, time.Now())
+		mu.Unlock()
+		ctx.SetStatusCode(fasthttp.StatusOK)
+	}
+
+	// Start server
+	serverCh := make(chan struct{})
+	go func() {
+		if err := fasthttp.Serve(ln, handler); err != nil {
+			t.Errorf("server error: %v", err)
+		}
+		close(serverCh)
+	}()
+
+	// Create client options with delay
+	clientOpts := rawhttp.DefaultOptionsSameHost()
+	clientOpts.RequestDelay = 3 * time.Second
+	clientOpts.Dialer = func(addr string) (net.Conn, error) {
+		return ln.Dial()
+	}
+
+	// Create request pool
+	pool := rawhttp.NewRequestPool(clientOpts, &rawhttp.ScannerCliOpts{
+		ResponseBodyPreviewSize: 100,
+		ModuleName:              "test-delay",
+		MaxWorkers:              2,
+	}, GB403ErrorHandler.NewErrorHandler(32))
+
+	// Create test payloads
+	jobs := []payload.PayloadJob{
+		{
+			FullURL:      "http://example.com/test1",
+			Method:       "GET",
+			BypassModule: "test-delay",
+			Headers:      []payload.Header{},
+			PayloadToken: "test-token-1",
+		},
+		{
+			FullURL:      "http://example.com/test2",
+			Method:       "GET",
+			BypassModule: "test-delay",
+			Headers:      []payload.Header{},
+			PayloadToken: "test-token-2",
+		},
+		{
+			FullURL:      "http://example.com/test3",
+			Method:       "GET",
+			BypassModule: "test-delay",
+			Headers:      []payload.Header{},
+			PayloadToken: "test-token-3",
+		},
+	}
+
+	// Process requests
+	resultsChan := pool.ProcessRequests(jobs)
+
+	// Collect results
+	var results []*rawhttp.RawHTTPResponseDetails
+	for result := range resultsChan {
+		results = append(results, result)
+	}
+
+	// Verify results count
+	if len(results) != len(jobs) {
+		t.Errorf("expected %d results, got %d", len(jobs), len(results))
+	}
+
+	// Verify delays between requests
+	mu.Lock()
+	if len(requestTimes) < 2 {
+		mu.Unlock()
+		t.Fatal("not enough requests recorded")
+	}
+
+	// Check intervals
+	for i := 1; i < len(requestTimes); i++ {
+		interval := requestTimes[i].Sub(requestTimes[i-1])
+		if interval < 2800*time.Millisecond || interval > 3200*time.Millisecond {
+			t.Errorf("unexpected interval between requests %d and %d: got %v, want ~3s",
+				i-1, i, interval)
+		}
+	}
+	mu.Unlock()
+
+	// Cleanup
+	ln.Close()
+	<-serverCh
 }

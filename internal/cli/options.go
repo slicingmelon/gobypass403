@@ -117,7 +117,7 @@ func (o *Options) setDefaults() {
 		o.Timeout = 20
 	}
 	if o.Delay <= 0 {
-		o.Delay = 150
+		o.Delay = 0
 	}
 
 	o.TraceRequests = false

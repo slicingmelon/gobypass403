@@ -16,12 +16,8 @@ import (
 	"github.com/valyala/fasthttp"
 )
 
-const toLower = 'a' - 'A'
-
 var (
-	curlCmd      []byte
-	toLowerTable [256]byte
-	toUpperTable [256]byte
+	curlCmd []byte
 )
 
 func init() {
@@ -30,23 +26,6 @@ func init() {
 		curlCmd = bytesutil.ToUnsafeBytes("curl.exe")
 	} else {
 		curlCmd = bytesutil.ToUnsafeBytes("curl")
-	}
-
-	// Initialize case conversion tables
-	for i := 0; i < 256; i++ {
-		c := byte(i)
-		toLowerTable[i] = c
-		toUpperTable[i] = c
-	}
-
-	// Set up lowercase conversions
-	for i := 'A'; i <= 'Z'; i++ {
-		toLowerTable[i] = byte(i + toLower)
-	}
-
-	// Set up uppercase conversions
-	for i := 'a'; i <= 'z'; i++ {
-		toUpperTable[i] = byte(i - toLower)
 	}
 }
 
@@ -255,8 +234,8 @@ func (rb *RequestBuilder) BuildRequest(req *fasthttp.Request, job payload.Payloa
 	if shouldCloseConn {
 		req.SetConnectionClose()
 	} else {
-		req.Header.Set("Connection", "keep-alive")
-		//req.SetConnectionClose()
+		//req.Header.Set("Connection", "keep-alive")
+		req.SetConnectionClose()
 	}
 }
 
@@ -316,6 +295,10 @@ func (p *RequestPool) ProcessRequests(jobs []payload.PayloadJob) <-chan *RawHTTP
 func (w *requestWorker) ProcessRequestJob(job payload.PayloadJob) *RawHTTPResponseDetails {
 	w.pool.activeWorkers.Add(1)
 	defer w.pool.activeWorkers.Add(-1)
+
+	if w.client.options.RequestDelay > 0 {
+		time.Sleep(w.client.options.RequestDelay)
+	}
 
 	req := w.client.AcquireRequest()
 	resp := w.client.AcquireResponse()
@@ -405,42 +388,10 @@ func (w *requestWorker) ProcessResponseJob(resp *fasthttp.Response, job payload.
 		result.Title = extractTitle(body)
 	}
 
-	// Generate curl command
+	// Generate curl command PoC
 	result.CurlCommand = BuildCurlCommandPoc(job)
 
 	return result
-}
-
-func PeekHeaderKeyCaseInsensitive(h *fasthttp.ResponseHeader, key []byte) []byte {
-	// Try original
-	if v := h.PeekBytes(key); len(v) > 0 {
-		return v
-	}
-
-	// Create normalized version (Content-Type format)
-	n := len(key)
-	if n == 0 {
-		return nil
-	}
-
-	normalized := make([]byte, n)
-	copy(normalized, key)
-
-	// First char uppercase
-	normalized[0] = toUpperTable[normalized[0]]
-
-	// Rest: lowercase except after hyphens
-	for i := 1; i < n; i++ {
-		if normalized[i] == '-' && i+1 < n {
-			// Next char after hyphen should be uppercase
-			i++
-			normalized[i] = toUpperTable[normalized[i]]
-			continue
-		}
-		normalized[i] = toLowerTable[normalized[i]]
-	}
-
-	return h.PeekBytes(normalized)
 }
 
 // WorkerPool methods
@@ -609,6 +560,18 @@ func BuildCurlCommandPoc(job payload.PayloadJob) []byte {
 	bb.Write(bytesutil.ToUnsafeBytes("'"))
 
 	return append([]byte(nil), bb.B...)
+}
+
+// Helper function to peek a header key case insensitive
+func PeekHeaderKeyCaseInsensitive(h *fasthttp.ResponseHeader, key []byte) []byte {
+	// Try original
+	if v := h.PeekBytes(key); len(v) > 0 {
+		return v
+	}
+
+	// Otherwise lowercase it
+	lowerKey := bytes.ToLower(key)
+	return h.PeekBytes(lowerKey)
 }
 
 // Helper function to extract title from HTML

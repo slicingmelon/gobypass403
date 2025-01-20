@@ -29,6 +29,7 @@ type ClientOptions struct {
 	DisableKeepAlive    bool
 	EnableHTTP2         bool
 	Dialer              fasthttp.DialFunc
+	RequestDelay        time.Duration
 }
 
 // Client represents a reusable HTTP client optimized for performance
@@ -53,6 +54,7 @@ func DefaultOptionsMultiHost() *ClientOptions {
 		WriteBufferSize:     4096,
 		MaxRetries:          3,
 		RetryDelay:          1 * time.Second,
+		RequestDelay:        0,
 		DisableKeepAlive:    true, // Set to true for multi-host scanning
 		Dialer:              nil,
 	}
@@ -71,6 +73,7 @@ func DefaultOptionsSameHost() *ClientOptions {
 		WriteBufferSize:     4096,
 		MaxRetries:          3,
 		RetryDelay:          1 * time.Second,
+		RequestDelay:        0,
 		DisableKeepAlive:    false, // Keep connections alive for single host
 		Dialer:              nil,
 	}

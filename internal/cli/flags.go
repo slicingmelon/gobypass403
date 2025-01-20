@@ -27,7 +27,7 @@ func parseFlags() (*Options, error) {
 		{name: "o,outdir", usage: "Output directory", value: &opts.OutDir},
 		{name: "t,threads", usage: "Number of concurrent threads", value: &opts.Threads, defVal: 15},
 		{name: "T,timeout", usage: "Timeout in seconds", value: &opts.Timeout, defVal: false},
-		{name: "delay", usage: "Delay between requests in milliseconds", value: &opts.Delay, defVal: 150},
+		{name: "delay", usage: "Delay between requests in milliseconds", value: &opts.Delay, defVal: 0},
 		{name: "v,verbose", usage: "Verbose output", value: &opts.Verbose},
 		{name: "d,debug", usage: "Debug mode with request canaries", value: &opts.Debug},
 		{name: "trace", usage: "Trace HTTP requests", value: &opts.TraceRequests},
