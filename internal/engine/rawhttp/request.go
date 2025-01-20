@@ -112,7 +112,7 @@ func NewRequestPool(clientOpts *ClientOptions, scanOpts *ScannerCliOpts, errorHa
 		clientOpts = DefaultOptionsSameHost()
 	}
 
-	maxWorkers := clientOpts.MaxConnsPerHost
+	maxWorkers := scanOpts.MaxWorkers
 	pool := &RequestPool{
 		client:       NewHTTPClient(clientOpts, errorHandler),
 		maxWorkers:   maxWorkers,
@@ -305,7 +305,7 @@ func (w *requestWorker) ProcessRequestJob(job payload.PayloadJob) *RawHTTPRespon
 	if err := w.client.DoRaw(req, resp); err != nil {
 		err = w.errorHandler.HandleError(err, GB403ErrorHandler.ErrorContext{
 			Host:         []byte(job.Host),
-			ErrorSource:  []byte("Worker.processJob"),
+			ErrorSource:  []byte("Worker.ProcessRequestJob"),
 			BypassModule: []byte(job.BypassModule),
 		})
 		if err != nil {
