@@ -87,6 +87,7 @@ type ScannerCliOpts struct {
 	MatchStatusCodes        []int
 	ResponseBodyPreviewSize int
 	ModuleName              string
+	MaxWorkers              int
 }
 
 // ResponseDetails contains processed response information

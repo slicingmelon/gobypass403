@@ -106,7 +106,7 @@ func NewWorkerContext(mode string, total int, targetURL string, opts *ScannerOpt
 
 	// Override specific settings from user options
 	clientOpts.Timeout = time.Duration(opts.Timeout) * time.Second
-	clientOpts.MaxConnsPerHost = opts.Threads
+	//clientOpts.MaxConnsPerHost = opts.Threads
 	clientOpts.ProxyURL = opts.Proxy
 
 	return &WorkerContext{
@@ -120,6 +120,7 @@ func NewWorkerContext(mode string, total int, targetURL string, opts *ScannerOpt
 			MatchStatusCodes:        opts.MatchStatusCodes,
 			ResponseBodyPreviewSize: opts.ResponseBodyPreviewSize,
 			ModuleName:              mode,
+			MaxWorkers:              opts.Threads,
 		}, errorHandler),
 	}
 }
