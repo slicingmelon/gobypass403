@@ -39,7 +39,7 @@ type RequestPool struct {
 	scanOpts     *ScannerCliOpts
 	errorHandler *GB403ErrorHandler.ErrorHandler
 	closeMu      sync.Once
-	rateLimiter  *time.Ticker // Add this
+	//rateLimiter  *time.Ticker // Per request rate limiter
 }
 
 // ConnPoolStrategyType define strategy of connection pool enqueue/dequeue.
@@ -75,6 +75,7 @@ type requestWorker struct {
 	scanOpts     *ScannerCliOpts
 	errorHandler *GB403ErrorHandler.ErrorHandler
 	pool         *requestWorkerPool
+	rateLimiter  *time.Ticker // per-worker rate limiter
 }
 
 type ProgressTracker interface {
@@ -131,13 +132,9 @@ func NewRequestPool(clientOpts *ClientOptions, scanOpts *ScannerCliOpts, errorHa
 		},
 	}
 
-	if clientOpts.RequestDelay > 0 {
-		pool.rateLimiter = time.NewTicker(clientOpts.RequestDelay)
-	}
-
 	// Initialize worker pool
 	pool.workerPool.pool.New = func() interface{} {
-		return &requestWorker{
+		worker := &requestWorker{
 			id:           len(pool.workerPool.workers),
 			client:       pool.client,
 			jobs:         make(chan payload.PayloadJob, 1),
@@ -147,6 +144,13 @@ func NewRequestPool(clientOpts *ClientOptions, scanOpts *ScannerCliOpts, errorHa
 			errorHandler: pool.errorHandler,
 			pool:         pool.workerPool,
 		}
+
+		// Create per-worker rate limiter
+		if clientOpts.RequestDelay > 0 {
+			worker.rateLimiter = time.NewTicker(clientOpts.RequestDelay)
+		}
+
+		return worker
 	}
 
 	// Pre-create workers
@@ -250,7 +254,6 @@ func (p *RequestPool) ProcessRequests(jobs []payload.PayloadJob) <-chan *RawHTTP
 	results := make(chan *RawHTTPResponseDetails, len(jobs))
 	jobsChan := make(chan payload.PayloadJob, p.maxWorkers)
 
-	// Start fixed number of workers
 	var wg sync.WaitGroup
 	for i := 0; i < p.maxWorkers; i++ {
 		wg.Add(1)
@@ -263,9 +266,9 @@ func (p *RequestPool) ProcessRequests(jobs []payload.PayloadJob) <-chan *RawHTTP
 			defer p.workerPool.ReleaseWorker(worker)
 
 			for job := range jobsChan {
-				// Wait for rate limiter if it exists
-				if p.rateLimiter != nil {
-					<-p.rateLimiter.C
+				// Use worker's rate limiter instead of pool's
+				if worker.rateLimiter != nil {
+					<-worker.rateLimiter.C
 				}
 				if result := worker.ProcessRequestJob(job); result != nil {
 					results <- result
@@ -468,50 +471,75 @@ func (wp *requestWorkerPool) cleanIdleWorkers(maxIdleTime time.Duration) {
 	wp.workers = activeWorkers
 }
 
+// func (p *RequestPool) Close() {
+// 	p.closeMu.Do(func() {
+// 		p.workerPool.lock.Lock()
+// 		for _, w := range p.workerPool.workers {
+// 			if w.rateLimiter != nil {
+// 				w.rateLimiter.Stop()
+// 			}
+// 			safeClose(w.jobs)
+// 			safeClose(w.results)
+// 		}
+
+// 		// 1. Signal stop
+// 		close(p.workerPool.stopCh)
+
+// 		// 2. Wait for workers to finish current jobs
+// 		var wg sync.WaitGroup
+// 		p.workerPool.lock.Lock()
+// 		for _, w := range p.workerPool.workers {
+// 			wg.Add(1)
+// 			go func(worker *requestWorker) {
+// 				defer wg.Done()
+// 				// Give workers time to finish current job
+// 				time.Sleep(100 * time.Millisecond)
+// 			}(w)
+// 		}
+// 		p.workerPool.lock.Unlock()
+
+// 		// 3. Wait with timeout
+// 		done := make(chan struct{})
+// 		go func() {
+// 			wg.Wait()
+// 			close(done)
+// 		}()
+
+// 		select {
+// 		case <-done:
+// 		case <-time.After(5 * time.Second):
+// 			// Timeout reached
+// 		}
+
+// 		// 4. Clean up channels
+// 		p.workerPool.lock.Lock()
+// 		for _, w := range p.workerPool.workers {
+// 			safeClose(w.jobs)
+// 			safeClose(w.results)
+// 		}
+// 		p.workerPool.workers = nil
+// 		p.workerPool.lock.Unlock()
+
+// 		safeClose(p.payloadQueue)
+// 		safeClose(p.results)
+// 	})
+// }
+
 func (p *RequestPool) Close() {
 	p.closeMu.Do(func() {
-		if p.rateLimiter != nil {
-			p.rateLimiter.Stop()
-		}
-
-		// 1. Signal stop
+		// First signal stop
 		close(p.workerPool.stopCh)
 
-		// 2. Wait for workers to finish current jobs
-		var wg sync.WaitGroup
+		// Clean up workers
 		p.workerPool.lock.Lock()
 		for _, w := range p.workerPool.workers {
-			wg.Add(1)
-			go func(worker *requestWorker) {
-				defer wg.Done()
-				// Give workers time to finish current job
-				time.Sleep(100 * time.Millisecond)
-			}(w)
+			if w.rateLimiter != nil {
+				w.rateLimiter.Stop()
+			}
 		}
 		p.workerPool.lock.Unlock()
 
-		// 3. Wait with timeout
-		done := make(chan struct{})
-		go func() {
-			wg.Wait()
-			close(done)
-		}()
-
-		select {
-		case <-done:
-		case <-time.After(5 * time.Second):
-			// Timeout reached
-		}
-
-		// 4. Clean up channels
-		p.workerPool.lock.Lock()
-		for _, w := range p.workerPool.workers {
-			safeClose(w.jobs)
-			safeClose(w.results)
-		}
-		p.workerPool.workers = nil
-		p.workerPool.lock.Unlock()
-
+		// Clean up channels last
 		safeClose(p.payloadQueue)
 		safeClose(p.results)
 	})

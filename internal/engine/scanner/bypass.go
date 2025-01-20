@@ -116,6 +116,7 @@ func NewWorkerContext(mode string, total int, targetURL string, opts *ScannerOpt
 	// and proxy ofc
 	clientOpts.ProxyURL = opts.Proxy
 
+	// Apply a delay between requests
 	if opts.Delay > 0 {
 		clientOpts.RequestDelay = time.Duration(opts.Delay) * time.Millisecond
 	}
