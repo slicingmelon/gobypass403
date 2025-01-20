@@ -106,7 +106,14 @@ func NewWorkerContext(mode string, total int, targetURL string, opts *ScannerOpt
 
 	// Override specific settings from user options
 	clientOpts.Timeout = time.Duration(opts.Timeout) * time.Second
-	//clientOpts.MaxConnsPerHost = opts.Threads
+
+	// Ensure MaxConnsPerHost is at least equal to number of workers plus buffer
+	if opts.Threads > clientOpts.MaxConnsPerHost {
+		// Add 50% more connections than workers for buffer
+		clientOpts.MaxConnsPerHost = opts.Threads + (opts.Threads / 2)
+	}
+
+	// and proxy ofc
 	clientOpts.ProxyURL = opts.Proxy
 
 	return &WorkerContext{
