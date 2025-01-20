@@ -320,24 +320,38 @@ func (w *requestWorker) ProcessRequestJob(job payload.PayloadJob) *RawHTTPRespon
 
 // processResponse handles response processing
 func (w *requestWorker) ProcessResponseJob(resp *fasthttp.Response, job payload.PayloadJob) *RawHTTPResponseDetails {
+	// Get values that are used multiple times
+	statusCode := resp.StatusCode()
+	body := resp.Body()
+	contentLength := resp.Header.ContentLength()
+
 	result := &RawHTTPResponseDetails{
-		URL:          append([]byte(nil), job.FullURL...),
-		BypassModule: append([]byte(nil), job.BypassModule...),
-		StatusCode:   resp.StatusCode(),
+		URL:           append([]byte(nil), job.FullURL...),
+		BypassModule:  append([]byte(nil), job.BypassModule...),
+		StatusCode:    statusCode,
+		ContentLength: int64(contentLength),
+		ResponseBytes: len(body),
 	}
 
-	// Create a new buffer directly
+	// Check for redirect early
+	if fasthttp.StatusCodeIsRedirect(statusCode) {
+		if location := resp.Header.Peek("Location"); len(location) > 0 {
+			result.RedirectURL = append([]byte(nil), location...)
+		}
+	}
+
+	// Create header buffer
 	headerBuf := &bytesutil.ByteBuffer{}
 
 	// Write status line
 	headerBuf.Write(resp.Header.Protocol())
 	headerBuf.Write(bytesutil.ToUnsafeBytes(" "))
-	headerBuf.B = fasthttp.AppendUint(headerBuf.B, resp.StatusCode())
+	headerBuf.B = fasthttp.AppendUint(headerBuf.B, statusCode)
 	headerBuf.Write(bytesutil.ToUnsafeBytes(" "))
 	headerBuf.Write(resp.Header.StatusMessage())
 	headerBuf.Write(bytesutil.ToUnsafeBytes("\r\n"))
 
-	// Process headers once
+	// Process headers
 	resp.Header.VisitAll(func(key, value []byte) {
 		headerBuf.Write(key)
 		headerBuf.Write(bytesutil.ToUnsafeBytes(": "))
@@ -346,31 +360,22 @@ func (w *requestWorker) ProcessResponseJob(resp *fasthttp.Response, job payload.
 	})
 	headerBuf.Write(bytesutil.ToUnsafeBytes("\r\n"))
 
-	// Store headers
+	// Store processed data
 	result.ResponseHeaders = append([]byte(nil), headerBuf.B...)
-
-	// Use direct header access methods
 	result.ContentType = append([]byte(nil), resp.Header.ContentType()...)
 	result.ServerInfo = append([]byte(nil), resp.Header.Server()...)
-	if location := resp.Header.PeekBytes(bytes.ToLower([]byte("location"))); len(location) > 0 {
-		result.RedirectURL = append([]byte(nil), location...)
-	}
 
-	// Process body - get it once
-	body := resp.Body()
-	result.ContentLength = int64(resp.Header.ContentLength())
-	result.ResponseBytes = len(body)
-
-	// Get preview if configured
+	// Handle body preview
 	if w.scanOpts.ResponseBodyPreviewSize > 0 && len(body) > 0 {
-		if len(body) > w.scanOpts.ResponseBodyPreviewSize {
-			result.ResponsePreview = append([]byte(nil), body[:w.scanOpts.ResponseBodyPreviewSize]...)
+		previewSize := w.scanOpts.ResponseBodyPreviewSize
+		if len(body) > previewSize {
+			result.ResponsePreview = append([]byte(nil), body[:previewSize]...)
 		} else {
 			result.ResponsePreview = append([]byte(nil), body...)
 		}
 	}
 
-	// Extract title if needed
+	// Extract title if HTML
 	if bytes.Contains(result.ContentType, []byte("html")) {
 		result.Title = extractTitle(body)
 	}

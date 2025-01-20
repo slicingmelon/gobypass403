@@ -5,6 +5,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/slicingmelon/go-bypass-403/internal/engine/payload"
+	"github.com/slicingmelon/go-bypass-403/internal/engine/rawhttp"
+	GB403ErrorHandler "github.com/slicingmelon/go-bypass-403/internal/utils/error"
 	GB403Logger "github.com/slicingmelon/go-bypass-403/internal/utils/logger"
 	"github.com/valyala/fasthttp"
 	"github.com/valyala/fasthttp/fasthttputil"
@@ -30,46 +33,63 @@ func TestClient301RedirectInmemory(t *testing.T) {
 		close(serverCh)
 	}()
 
-	// Setup client with in-memory dialer
-	client := &fasthttp.Client{
-		NoDefaultUserAgentHeader: true,
-		DisablePathNormalizing:   true,
-		Dial: func(addr string) (net.Conn, error) {
-			return ln.Dial()
+	// Create client options with custom dialer
+	clientOpts := rawhttp.DefaultOptionsSameHost()
+	clientOpts.Dialer = func(addr string) (net.Conn, error) {
+		return ln.Dial()
+	}
+
+	// Create request pool
+	pool := rawhttp.NewRequestPool(clientOpts, &rawhttp.ScannerCliOpts{
+		ResponseBodyPreviewSize: 100,
+		ModuleName:              "test-redirect",
+	}, GB403ErrorHandler.NewErrorHandler(32))
+
+	// Create test payload
+	jobs := []payload.PayloadJob{
+		{
+			FullURL:      "http://example.com/test",
+			Method:       "GET",
+			BypassModule: "test-redirect",
+			Headers:      []payload.Header{},
+			PayloadToken: "test-token",
 		},
 	}
 
-	// Prepare request
-	req := fasthttp.AcquireRequest()
-	defer fasthttp.ReleaseRequest(req)
+	// Process request and get results channel
+	resultsChan := pool.ProcessRequests(jobs)
 
-	req.SetRequestURI("http://example.com/test")
-	req.Header.SetMethod(fasthttp.MethodGet)
-
-	// Prepare response
-	resp := fasthttp.AcquireResponse()
-	defer fasthttp.ReleaseResponse(resp)
-
-	// Send request
-	err := client.Do(req, resp)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	// Read result
+	var result *rawhttp.RawHTTPResponseDetails
+	select {
+	case result = <-resultsChan:
+	case <-time.After(time.Second):
+		t.Fatal("timeout waiting for response")
 	}
 
-	// Verify status code
-	if resp.StatusCode() != fasthttp.StatusMovedPermanently {
+	// Verify results
+	if result == nil {
+		t.Fatal("no result received")
+	}
+
+	GB403Logger.PrintGreen("Result Status Code: %v\n", result.StatusCode)
+	GB403Logger.PrintGreen("Result Redirect URL: %s\n", string(result.RedirectURL))
+	GB403Logger.PrintGreen("Result Response Headers: %s\n", string(result.ResponseHeaders))
+
+	// Check status code
+	if result.StatusCode != fasthttp.StatusMovedPermanently {
 		t.Errorf("unexpected status code: got %d, want %d",
-			resp.StatusCode(), fasthttp.StatusMovedPermanently)
+			result.StatusCode, fasthttp.StatusMovedPermanently)
 	}
 
-	// Check Location header
-	location := resp.Header.Peek("Location")
+	// Check redirect URL
 	expectedLocation := "https://redirected.com/newpath"
-	if string(location) != expectedLocation {
+	if string(result.RedirectURL) != expectedLocation {
 		t.Errorf("unexpected location: got %q, want %q",
-			string(location), expectedLocation)
+			string(result.RedirectURL), expectedLocation)
 	}
-	GB403Logger.Info().Msgf("Location: %s\n", string(location))
+
+	GB403Logger.Info().Msgf("Location: %s\n", string(result.RedirectURL))
 
 	// Cleanup
 	ln.Close()
