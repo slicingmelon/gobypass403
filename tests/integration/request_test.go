@@ -35,7 +35,7 @@ func TestClient301RedirectInmemory(t *testing.T) {
 	}()
 
 	// Create client options with custom dialer
-	clientOpts := rawhttp.DefaultOptionsSameHost()
+	clientOpts := rawhttp.DefaultHTTPClientOptions()
 	clientOpts.Dialer = func(addr string) (net.Conn, error) {
 		return ln.Dial()
 	}
@@ -127,7 +127,7 @@ func TestClient302RedirectCaseInsensitive(t *testing.T) {
 	}()
 
 	// Create client options with custom dialer
-	clientOpts := rawhttp.DefaultOptionsSameHost()
+	clientOpts := rawhttp.DefaultHTTPClientOptions()
 	clientOpts.Dialer = func(addr string) (net.Conn, error) {
 		return ln.Dial()
 	}
@@ -204,7 +204,7 @@ func TestRequestDelay(t *testing.T) {
 	}()
 
 	// Create client options with delay
-	clientOpts := rawhttp.DefaultOptionsSameHost()
+	clientOpts := rawhttp.DefaultHTTPClientOptions()
 	clientOpts.RequestDelay = 3 * time.Second
 	clientOpts.Dialer = func(addr string) (net.Conn, error) {
 		return ln.Dial()
@@ -310,7 +310,7 @@ func TestRequestDelayWithMultipleWorkers(t *testing.T) {
 	}()
 
 	// Create client with 3s delay
-	clientOpts := rawhttp.DefaultOptionsSameHost()
+	clientOpts := rawhttp.DefaultHTTPClientOptions()
 	clientOpts.RequestDelay = 3 * time.Second
 	clientOpts.Dialer = func(addr string) (net.Conn, error) {
 		return ln.Dial()

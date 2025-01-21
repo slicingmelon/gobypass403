@@ -38,7 +38,7 @@ func TestDialerInMemory(t *testing.T) {
 	}()
 
 	// Create client options with custom dialer
-	clientOpts := rawhttp.DefaultOptionsSameHost()
+	clientOpts := rawhttp.DefaultHTTPClientOptions()
 	clientOpts.Dialer = func(addr string) (net.Conn, error) {
 		return ln.Dial()
 	}
@@ -107,7 +107,7 @@ func TestDialerWithProxy(t *testing.T) {
 	}()
 
 	// Create client options with proxy
-	clientOpts := rawhttp.DefaultOptionsSameHost()
+	clientOpts := rawhttp.DefaultHTTPClientOptions()
 
 	clientOpts.ProxyURL = "http://localhost:8089"
 	clientOpts.Dialer = func(addr string) (net.Conn, error) {
