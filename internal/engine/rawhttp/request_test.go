@@ -80,7 +80,7 @@ func TestRequestBuilderViaEchoServer(t *testing.T) {
 			ReadTimeout:         time.Second,
 			WriteTimeout:        time.Second,
 		},
-		options: DefaultOptionsSameHost(),
+		options: DefaultHTTPClientOptions(),
 	}
 
 	rb := NewRequestBuilder(client)
@@ -255,7 +255,7 @@ func TestRequestBuilderMidPathsPayloads(t *testing.T) {
 			ReadTimeout:         time.Second,
 			WriteTimeout:        time.Second,
 		},
-		options: DefaultOptionsSameHost(),
+		options: DefaultHTTPClientOptions(),
 	}
 
 	rb := NewRequestBuilder(client)
@@ -328,13 +328,7 @@ func TestRequestBuilderHostHeaders(t *testing.T) {
 		t.Skip("skipping test in short mode")
 	}
 
-	clientOpts := &ClientOptions{
-		MaxConnsPerHost:     100,
-		MaxIdleConnDuration: 10 * time.Second,
-		MaxConnWaitTimeout:  30 * time.Second,
-		MaxResponseBodySize: 1024 * 1024 * 10,
-		ProxyURL:            "http://127.0.0.1:8080",
-	}
+	clientOpts := DefaultHTTPClientOptions()
 
 	client := NewHTTPClient(clientOpts, GB403ErrorHandler.NewErrorHandler(15))
 	//rb := NewRequestBuilder(client, _logger)
