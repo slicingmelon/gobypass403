@@ -13,7 +13,7 @@ var (
 	CustomUserAgent = []byte("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36")
 )
 
-// ClientOptions contains configuration options for the Client
+// HttpClientOptions contains configuration options for the HttpClient
 type HttpClientOptions struct {
 	Timeout             time.Duration
 	DialTimeout         time.Duration
