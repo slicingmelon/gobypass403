@@ -7,6 +7,7 @@ import (
 	"github.com/slicingmelon/go-bypass-403/internal/engine/payload"
 	"github.com/slicingmelon/go-bypass-403/internal/engine/rawhttp"
 	GB403ErrorHandler "github.com/slicingmelon/go-bypass-403/internal/utils/error"
+	"github.com/valyala/fasthttp"
 )
 
 func BenchmarkRequestBuilder_BuildRequest(b *testing.B) {
@@ -58,37 +59,35 @@ func BenchmarkProcessRequests(b *testing.B) {
 }
 
 func BenchmarkProcessResponseJob(b *testing.B) {
-	// Setup client
-	client := rawhttp.NewHTTPClient(rawhttp.DefaultOptionsSameHost(), GB403ErrorHandler.NewErrorHandler(32))
+	// Create pool with all dependencies properly initialized
+	pool := rawhttp.NewRequestPool(
+		rawhttp.DefaultOptionsSameHost(),
+		&rawhttp.ScannerCliOpts{ResponseBodyPreviewSize: 100},
+		GB403ErrorHandler.NewErrorHandler(32),
+	)
 
-	// Create worker directly
-	worker := &rawhttp.RequestWorker{
-		client:       client,
-		scanOpts:     &rawhttp.ScannerCliOpts{ResponseBodyPreviewSize: 100},
-		errorHandler: GB403ErrorHandler.NewErrorHandler(32),
-		builder:      rawhttp.NewRequestBuilder(client),
+	// Get a worker from the pool
+	worker := pool.WorkerPool.AcquireWorker()
+	if worker == nil {
+		b.Fatal("Failed to acquire worker")
 	}
+	defer pool.WorkerPool.ReleaseWorker(worker)
 
-	// Create test response using client (not pool)
-	resp := client.AcquireResponse()
-	defer client.ReleaseResponse(resp)
+	// Create test response
+	resp := fasthttp.AcquireResponse()
+	defer fasthttp.ReleaseResponse(resp)
 
 	// Setup response data
 	resp.SetStatusCode(200)
 	resp.SetBody([]byte("<!DOCTYPE html><html><head><title>Test Page</title></head><body>test response body</body></html>"))
 	resp.Header.SetContentType("text/html")
 	resp.Header.Set("Server", "test-server")
-	resp.Header.Set("Content-Length", "100")
-	resp.Header.Set("X-Custom-Header", "test-value")
 
-	// Setup job
+	// Setup test job
 	job := payload.PayloadJob{
-		FullURL: "http://example.com/test",
-		Method:  "GET",
-		Headers: []payload.Header{
-			{Header: "Accept", Value: "*/*"},
-			{Header: "User-Agent", Value: "test-agent"},
-		},
+		FullURL:      "http://example.com/test",
+		Method:       "GET",
+		Headers:      []payload.Header{{Header: "Accept", Value: "*/*"}},
 		BypassModule: "test-mode",
 	}
 
