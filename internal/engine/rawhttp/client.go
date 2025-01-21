@@ -59,7 +59,7 @@ func DefaultHTTPClientOptions() *HttpClientOptions {
 		MaxRetries:          3,
 		RetryDelay:          1 * time.Second,
 		RequestDelay:        0,
-		DisableKeepAlive:    false, // Keep connections alive for single host
+		DisableKeepAlive:    false, // Keep connections alive
 		Dialer:              nil,
 	}
 }
