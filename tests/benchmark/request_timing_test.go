@@ -11,7 +11,7 @@ import (
 )
 
 func BenchmarkRequestBuilder_BuildRequest(b *testing.B) {
-	client := rawhttp.NewHTTPClient(rawhttp.DefaultOptionsSameHost(), GB403ErrorHandler.NewErrorHandler(32))
+	client := rawhttp.NewHTTPClient(rawhttp.DefaultHTTPClientOptions(), GB403ErrorHandler.NewErrorHandler(32))
 	builder := rawhttp.NewRequestBuilder(client)
 	job := payload.PayloadJob{
 		FullURL:      "http://example.com/test",
@@ -32,8 +32,8 @@ func BenchmarkRequestBuilder_BuildRequest(b *testing.B) {
 }
 
 func BenchmarkProcessRequests(b *testing.B) {
-	client := rawhttp.NewHTTPClient(rawhttp.DefaultOptionsSameHost(), GB403ErrorHandler.NewErrorHandler(32))
-	pool := rawhttp.NewRequestPool(rawhttp.DefaultOptionsSameHost(), &rawhttp.ScannerCliOpts{
+	client := rawhttp.NewHTTPClient(rawhttp.DefaultHTTPClientOptions(), GB403ErrorHandler.NewErrorHandler(32))
+	pool := rawhttp.NewRequestPool(rawhttp.DefaultHTTPClientOptions(), &rawhttp.ScannerCliOpts{
 		ResponseBodyPreviewSize: 100,
 	}, GB403ErrorHandler.NewErrorHandler(32))
 
@@ -61,7 +61,7 @@ func BenchmarkProcessRequests(b *testing.B) {
 func BenchmarkProcessResponseJob(b *testing.B) {
 	// Create pool with all dependencies properly initialized
 	pool := rawhttp.NewRequestPool(
-		rawhttp.DefaultOptionsSameHost(),
+		rawhttp.DefaultHTTPClientOptions(),
 		&rawhttp.ScannerCliOpts{ResponseBodyPreviewSize: 100},
 		GB403ErrorHandler.NewErrorHandler(32),
 	)
@@ -137,7 +137,7 @@ func BenchmarkBuildCurlCmd(b *testing.B) {
 
 // Worker pool specific benchmarks
 func BenchmarkRequestPool_ProcessRequests(b *testing.B) {
-	pool := rawhttp.NewRequestPool(rawhttp.DefaultOptionsSameHost(), &rawhttp.ScannerCliOpts{
+	pool := rawhttp.NewRequestPool(rawhttp.DefaultHTTPClientOptions(), &rawhttp.ScannerCliOpts{
 		ResponseBodyPreviewSize: 100,
 	}, GB403ErrorHandler.NewErrorHandler(32))
 

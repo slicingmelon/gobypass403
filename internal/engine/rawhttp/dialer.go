@@ -20,6 +20,9 @@ func DefaultDialer() *fasthttp.TCPDialer {
 
 // SetDialer sets a custom dialer for the client
 func (c *HttpClient) SetDialer(dialer fasthttp.DialFunc) *HttpClient {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
 	if c.client != nil {
 		c.client.Dial = dialer
 	}
@@ -27,7 +30,7 @@ func (c *HttpClient) SetDialer(dialer fasthttp.DialFunc) *HttpClient {
 }
 
 // CreateDialFunc creates a dial function with the given options and error handler
-func CreateDialFunc(opts *ClientOptions, errorHandler *GB403ErrorHandler.ErrorHandler) fasthttp.DialFunc {
+func CreateDialFunc(opts *HttpClientOptions, errorHandler *GB403ErrorHandler.ErrorHandler) fasthttp.DialFunc {
 	if opts.Dialer != nil {
 		return opts.Dialer
 	}
@@ -37,7 +40,7 @@ func CreateDialFunc(opts *ClientOptions, errorHandler *GB403ErrorHandler.ErrorHa
 
 	return func(addr string) (net.Conn, error) {
 		if opts.ProxyURL != "" {
-			proxyDialer := fasthttpproxy.FasthttpHTTPDialerTimeout(opts.ProxyURL, 3*time.Second)
+			proxyDialer := fasthttpproxy.FasthttpHTTPDialerTimeout(opts.ProxyURL, opts.DialTimeout)
 			conn, err := proxyDialer(addr)
 			if err != nil {
 				if handleErr := errorHandler.HandleError(err, GB403ErrorHandler.ErrorContext{
@@ -62,7 +65,7 @@ func CreateDialFunc(opts *ClientOptions, errorHandler *GB403ErrorHandler.ErrorHa
 		// foobar.baz:443
 		// foo.bar:80
 		// aaa.com:8080
-		conn, err := dialer.DialTimeout(addr, 5*time.Second)
+		conn, err := dialer.DialTimeout(addr, opts.DialTimeout)
 		if err != nil {
 			if handleErr := errorHandler.HandleError(err, GB403ErrorHandler.ErrorContext{
 				ErrorSource: []byte("Client.directDial"),

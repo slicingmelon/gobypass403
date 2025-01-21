@@ -16,6 +16,15 @@ import (
 	"github.com/valyala/fasthttp"
 )
 
+func init() {
+	// Initialize curl command
+	if runtime.GOOS == "windows" {
+		curlCmd = []byte("curl.exe")
+	} else {
+		curlCmd = []byte("curl")
+	}
+}
+
 var (
 	curlCmd []byte
 
@@ -34,16 +43,14 @@ var (
 	strHTML         = []byte("html")
 )
 
-func init() {
-	// Initialize curl command
-	if runtime.GOOS == "windows" {
-		curlCmd = []byte("curl.exe")
-	} else {
-		curlCmd = []byte("curl")
-	}
-}
-
-// RequestPool manages a pool of FastHTTP requests
+// RequestPool (Top-level manager)
+//
+//	│
+//	├── HttpClient (Handles HTTP connections)
+//	│
+//	└── RequestWorkerPool (Manages worker instances)
+//	       │
+//	       └── RequestWorker (Individual workers that process requests)
 type RequestPool struct {
 	Client       *HttpClient
 	WorkerPool   *RequestWorkerPool
@@ -78,6 +85,7 @@ type RequestWorkerPool struct {
 	Strategy              ConnPoolStrategyType // FIFO or LIFO
 }
 
+// Individual worker that processes requests
 type RequestWorker struct {
 	Id           int
 	Client       *HttpClient
@@ -124,10 +132,10 @@ type RawHTTPResponseDetails struct {
 	Title           []byte
 }
 
-func NewRequestPool(clientOpts *ClientOptions, scanOpts *ScannerCliOpts, errorHandler *GB403ErrorHandler.ErrorHandler) *RequestPool {
+func NewRequestPool(clientOpts *HttpClientOptions, scanOpts *ScannerCliOpts, errorHandler *GB403ErrorHandler.ErrorHandler) *RequestPool {
 	// Just use the options as provided, with a fallback to defaults
 	if clientOpts == nil {
-		clientOpts = DefaultOptionsSameHost()
+		clientOpts = DefaultHTTPClientOptions()
 	}
 
 	maxWorkers := scanOpts.MaxWorkers

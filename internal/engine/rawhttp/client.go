@@ -14,8 +14,9 @@ var (
 )
 
 // ClientOptions contains configuration options for the Client
-type ClientOptions struct {
+type HttpClientOptions struct {
 	Timeout             time.Duration
+	DialTimeout         time.Duration
 	MaxConnsPerHost     int
 	MaxIdleConnDuration time.Duration
 	MaxConnWaitTimeout  time.Duration
@@ -32,38 +33,20 @@ type ClientOptions struct {
 	RequestDelay        time.Duration
 }
 
-// Client represents a reusable HTTP client optimized for performance
+// HttpClient represents a reusable HTTP client
 type HttpClient struct {
 	client       *fasthttp.Client
+	options      *HttpClientOptions
 	bufPool      sync.Pool
-	maxRetries   int
-	retryDelay   time.Duration
-	options      *ClientOptions
 	errorHandler *GB403ErrorHandler.ErrorHandler
+	mu           sync.RWMutex
 }
 
-// DefaultOptionsMultiHost returns options optimized for scanning multiple hosts
-func DefaultOptionsMultiHost() *ClientOptions {
-	return &ClientOptions{
+// DefaultHTTPClientOptions returns the default HTTP client options
+func DefaultHTTPClientOptions() *HttpClientOptions {
+	return &HttpClientOptions{
 		Timeout:             30 * time.Second,
-		MaxConnsPerHost:     25,
-		MaxIdleConnDuration: 5 * time.Second,
-		NoDefaultUserAgent:  true,
-		MaxResponseBodySize: 4096, // Hardlimit at 4k
-		ReadBufferSize:      4096,
-		WriteBufferSize:     4096,
-		MaxRetries:          3,
-		RetryDelay:          1 * time.Second,
-		RequestDelay:        0,
-		DisableKeepAlive:    true, // Set to true for multi-host scanning
-		Dialer:              nil,
-	}
-}
-
-// DefaultOptionsSingleHost returns options optimized for scanning a single host
-func DefaultOptionsSameHost() *ClientOptions {
-	return &ClientOptions{
-		Timeout:             30 * time.Second,
+		DialTimeout:         5 * time.Second,
 		MaxConnsPerHost:     128,
 		MaxIdleConnDuration: 10 * time.Second,
 		MaxConnWaitTimeout:  2 * time.Second,
@@ -79,10 +62,10 @@ func DefaultOptionsSameHost() *ClientOptions {
 	}
 }
 
-// / NewHTTPClient creates a new optimized HTTP client
-func NewHTTPClient(opts *ClientOptions, errorHandler *GB403ErrorHandler.ErrorHandler) *HttpClient {
+// NewHTTPClient creates a new HTTP client instance
+func NewHTTPClient(opts *HttpClientOptions, errorHandler *GB403ErrorHandler.ErrorHandler) *HttpClient {
 	if opts == nil {
-		opts = DefaultOptionsSameHost()
+		opts = DefaultHTTPClientOptions()
 	}
 
 	client := &fasthttp.Client{
@@ -95,7 +78,6 @@ func NewHTTPClient(opts *ClientOptions, errorHandler *GB403ErrorHandler.ErrorHan
 		MaxResponseBodySize:           opts.MaxResponseBodySize,
 		ReadBufferSize:                opts.ReadBufferSize,
 		WriteBufferSize:               opts.WriteBufferSize,
-		MaxIdemponentCallAttempts:     opts.MaxRetries,
 		Dial:                          CreateDialFunc(opts, errorHandler),
 		TLSConfig: &tls.Config{
 			InsecureSkipVerify: true,
@@ -106,11 +88,9 @@ func NewHTTPClient(opts *ClientOptions, errorHandler *GB403ErrorHandler.ErrorHan
 
 	return &HttpClient{
 		client:       client,
-		errorHandler: errorHandler,
-		bufPool:      sync.Pool{New: func() interface{} { return make([]byte, 0, opts.ReadBufferSize) }},
-		maxRetries:   opts.MaxRetries,
-		retryDelay:   opts.RetryDelay,
 		options:      opts,
+		bufPool:      sync.Pool{New: func() interface{} { return make([]byte, 0, opts.ReadBufferSize) }},
+		errorHandler: errorHandler,
 	}
 }
 
