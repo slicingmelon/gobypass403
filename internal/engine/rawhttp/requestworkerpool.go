@@ -2,9 +2,11 @@ package rawhttp
 
 import (
 	"bytes"
+	"runtime"
 	"sync"
 	"sync/atomic"
 	"time"
+	"unsafe"
 
 	"github.com/slicingmelon/go-bypass-403/internal/engine/payload"
 	GB403ErrorHandler "github.com/slicingmelon/go-bypass-403/internal/utils/error"
@@ -18,62 +20,57 @@ type RequestPool2 struct {
 	client       *HttpClient
 	errorHandler *GB403ErrorHandler.ErrorHandler
 
-	// Worker management
-	workers     []*RequestWorker2
-	workerCache sync.Pool
-	maxWorkers  int32
-
-	// Stats tracking
+	// Atomic counters
+	workersCount  atomic.Int32
 	activeWorkers atomic.Int32
-	queuedTasks   atomic.Int32
+	stopped       atomic.Bool
 
-	// Configuration
-	idleTimeout time.Duration
-	scanOpts    *ScannerCliOpts
+	// Worker management
+	workerChanPool sync.Pool     // Pool of reusable worker channels
+	ready          []*workerChan // Slice of available workers
+	maxWorkers     int32
+
+	// Synchronization
+	mu sync.Mutex
 
 	// Channels
 	results chan *RawHTTPResponseDetails
 	stopCh  chan struct{}
-
-	// Synchronization
-	mu      sync.RWMutex
-	started bool
 }
 
-// RequestWorker2 represents a single RequestWorker2 instance
-type RequestWorker2 struct {
-	id       int32
-	pool     *RequestPool2
-	taskChan chan payload.PayloadJob
-	lastUsed time.Time
-	isIdle   bool
+// workerChan represents a worker's job channel and metadata
+type workerChan struct {
+	ch          chan payload.PayloadJob // Channel for receiving jobs
+	lastUseTime time.Time               // Last time this worker was used
 }
-
-// // RequestBuilder handles request construction
-// type RequestBuilder2 struct {
-// 	client *HttpClient
-// }
 
 func NewRequestPool2(opts *HttpClientOptions, scanOpts *ScannerCliOpts, errorHandler *GB403ErrorHandler.ErrorHandler) *RequestPool2 {
+	queueSize := scanOpts.MaxWorkers * 2
+
 	pool := &RequestPool2{
 		client:       NewHTTPClient(opts, errorHandler),
 		errorHandler: errorHandler,
-		maxWorkers:   int32(scanOpts.MaxWorkers),
-		idleTimeout:  30 * time.Second,
-		scanOpts:     scanOpts,
-		results:      make(chan *RawHTTPResponseDetails, scanOpts.QueueSize),
+		results:      make(chan *RawHTTPResponseDetails, queueSize),
 		stopCh:       make(chan struct{}),
-		workerCache: sync.Pool{
-			New: func() interface{} {
-				return &RequestWorker2{
-					taskChan: make(chan payload.PayloadJob, 1),
+
+		// Worker management
+		workerChanPool: sync.Pool{
+			New: func() any {
+				return &workerChan{
+					ch: make(chan payload.PayloadJob, 1),
 				}
 			},
 		},
+		ready: make([]*workerChan, 0, scanOpts.MaxWorkers),
 	}
 
+	// Initialize atomic counters
+	pool.workersCount.Store(0)
+	pool.activeWorkers.Store(0)
+	pool.stopped.Store(false)
+
 	// Start cleanup goroutine
-	go pool.cleanupIdleWorkers()
+	go pool.cleanupWorkers()
 
 	return pool
 }
@@ -95,38 +92,48 @@ func (p *RequestPool2) ProcessRequests(jobs []payload.PayloadJob) <-chan *RawHTT
 }
 
 // getWorker returns an available RequestWorker2 or creates a new one
+// getWorker returns an available worker or creates a new one
 func (p *RequestPool2) getWorker() *RequestWorker2 {
-	// Try to get an idle RequestWorker2 first
-	p.mu.RLock()
-	for _, w := range p.workers {
-		if w.isIdle {
-			w.isIdle = false
-			p.mu.RUnlock()
-			return w
-		}
+	// Try quick access workers first
+	if worker := p.idleWorker1; worker != nil &&
+		atomic.CompareAndSwapPointer((*unsafe.Pointer)(unsafe.Pointer(&p.idleWorker1)),
+			unsafe.Pointer(worker), nil) {
+		return worker
 	}
-	p.mu.RUnlock()
 
-	// Create new RequestWorker2 if under limit
+	if worker := p.idleWorker2; worker != nil &&
+		atomic.CompareAndSwapPointer((*unsafe.Pointer)(unsafe.Pointer(&p.idleWorker2)),
+			unsafe.Pointer(worker), nil) {
+		return worker
+	}
+
+	// Then check idle worker list
+	p.mu.Lock()
+	if len(p.idleWorkers) > 0 {
+		worker := p.idleWorkers[len(p.idleWorkers)-1]
+		p.idleWorkers = p.idleWorkers[:len(p.idleWorkers)-1]
+		p.mu.Unlock()
+		return worker
+	}
+	p.mu.Unlock()
+
+	// Create new if under limit
 	if p.activeWorkers.Load() < p.maxWorkers {
 		return p.createWorker()
 	}
 
-	// Wait for an idle RequestWorker2
-	p.mu.Lock()
-	defer p.mu.Unlock()
+	// Wait for available worker
+	return p.waitForWorker()
+}
 
-	for {
-		for _, w := range p.workers {
-			if w.isIdle {
-				w.isIdle = false
-				return w
-			}
+func (p *RequestPool2) waitForWorker() *RequestWorker2 {
+	for !p.stopped.Load() {
+		if worker := p.getWorker(); worker != nil {
+			return worker
 		}
-		p.mu.Unlock()
-		time.Sleep(10 * time.Millisecond)
-		p.mu.Lock()
+		runtime.Gosched() // Just yield CPU, no sleep
 	}
+	return nil
 }
 
 func (p *RequestPool2) createWorker() *RequestWorker2 {
@@ -190,7 +197,7 @@ func (rb *RequestBuilder) BuildRequest(req *fasthttp.Request, job payload.Payloa
 }
 
 // SendRequestJob handles the actual HTTP request
-func (w *RequestWorker2) SendRequestJob(req *fasthttp.Request, resp *fasthttp.Response) error {
+func (p *RequestPool2) ProcessRequests(jobs []payload.PayloadJob) <-chan *RawHTTPResponseDetails {
 	err := w.pool.client.DoRequest(req, resp)
 	if err != nil {
 		return w.pool.errorHandler.HandleError(err, GB403ErrorHandler.ErrorContext{
@@ -250,9 +257,9 @@ func (w *RequestWorker2) ProcessResponseJob(resp *fasthttp.Response, job payload
 	result.ContentType = append([]byte(nil), resp.Header.ContentType()...)
 	result.ServerInfo = append([]byte(nil), resp.Header.Server()...)
 
-	// Handle body preview
-	if w.ScanOpts.ResponseBodyPreviewSize > 0 && len(body) > 0 {
-		previewSize := w.ScanOpts.ResponseBodyPreviewSize
+	// Handle body preview using client options
+	previewSize := w.pool.client.options.ResponseBodyPreviewSize
+	if previewSize > 0 && len(body) > 0 {
 		if len(body) > previewSize {
 			result.ResponsePreview = append([]byte(nil), body[:previewSize]...)
 		} else {
@@ -273,7 +280,7 @@ func (w *RequestWorker2) ProcessResponseJob(resp *fasthttp.Response, job payload
 
 // Worker's main loop
 func (w *RequestWorker2) run() {
-	builder := &RequestBuilder{client: w.pool.client}
+	builder := &RequestBuilder{Client: w.pool.client}
 
 	for job := range w.taskChan {
 		resp := w.pool.client.AcquireResponse()
@@ -282,18 +289,19 @@ func (w *RequestWorker2) run() {
 		// Build request
 		if err := builder.BuildRequest(req, job); err != nil {
 			w.pool.errorHandler.HandleError(err, GB403ErrorHandler.ErrorContext{
-				ErrorSource: []byte("RequestWorker.BuildRequest"),
-				Host:        req.URI().Host(),
+				ErrorSource:  []byte("RequestWorker.BuildRequest"),
+				Host:         []byte(job.Host),
+				BypassModule: []byte(job.BypassModule),
 			})
 			continue
 		}
 
-		// Send request
-		if err := w.SendRequestJob(req, resp); err != nil {
+		// Send request with job context
+		if err := w.SendRequestJob(req, resp, job); err != nil {
 			continue
 		}
 
-		// Process response
+		// Process response with job context
 		result := w.ProcessResponseJob(resp, job)
 		w.pool.results <- result
 
@@ -341,4 +349,21 @@ func (p *RequestPool2) removeIdleWorkers() {
 	}
 
 	p.workers = active
+}
+
+func (p *RequestPool2) Close() {
+	if !p.stopped.CompareAndSwap(false, true) {
+		return
+	}
+
+	p.mu.Lock()
+	for _, worker := range p.workers {
+		close(worker.taskChan)
+	}
+	p.workers = nil
+	p.mu.Unlock()
+
+	if p.client != nil {
+		p.client.Close()
+	}
 }
