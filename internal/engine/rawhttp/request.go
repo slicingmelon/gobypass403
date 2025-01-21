@@ -449,39 +449,6 @@ func (wp *RequestWorkerPool) ReleaseWorker(w *RequestWorker) {
 	}
 }
 
-func (wp *RequestWorkerPool) startCleanupRoutine() {
-	go func() {
-		ticker := time.NewTicker(30 * time.Second)
-		defer ticker.Stop()
-
-		for {
-			select {
-			case <-wp.StopCh:
-				return
-			case <-ticker.C:
-				wp.cleanIdleWorkers(wp.MaxIdleWorkerDuration)
-			}
-		}
-	}()
-}
-
-func (wp *RequestWorkerPool) cleanIdleWorkers(maxIdleTime time.Duration) {
-	threshold := time.Now().Add(-maxIdleTime)
-	wp.Lock.Lock()
-	defer wp.Lock.Unlock()
-
-	activeWorkers := make([]*RequestWorker, 0, len(wp.Workers))
-	for _, w := range wp.Workers {
-		if w.LastUsed.After(threshold) {
-			activeWorkers = append(activeWorkers, w)
-		} else {
-			// Return to sync.Pool for potential reuse
-			wp.Pool.Put(w)
-		}
-	}
-	wp.Workers = activeWorkers
-}
-
 func (p *RequestPool) Close() {
 	p.CloseMu.Do(func() {
 		// First signal stop
