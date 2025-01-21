@@ -102,7 +102,7 @@ type WorkerContext struct {
 }
 
 func NewWorkerContext(mode string, total int, targetURL string, opts *ScannerOpts, errorHandler *GB403ErrorHandler.ErrorHandler, progress *ProgressCounter) *WorkerContext {
-	clientOpts := rawhttp.DefaultOptionsSameHost()
+	clientOpts := rawhttp.DefaultHTTPClientOptions()
 
 	// Override specific settings from user options
 	clientOpts.Timeout = time.Duration(opts.Timeout) * time.Second
