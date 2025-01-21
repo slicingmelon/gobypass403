@@ -18,28 +18,41 @@ import (
 
 var (
 	curlCmd []byte
+
+	// Pool for byte buffers
+	curlCmdPool   = &bytesutil.ByteBufferPool{}
+	headerBufPool = &bytesutil.ByteBufferPool{}
+
+	// Pre-computed byte slices for static strings
+	curlFlags       = []byte(" -skgi --path-as-is")
+	curlMethodX     = []byte(" -X ")
+	curlHeaderStart = []byte(" -H '")
+	strColonSpace   = []byte(": ")
+	strSingleQuote  = []byte("'")
+	strSpace        = []byte(" ")
+	strCRLF         = []byte("\r\n")
+	strHTML         = []byte("html")
 )
 
 func init() {
 	// Initialize curl command
 	if runtime.GOOS == "windows" {
-		curlCmd = bytesutil.ToUnsafeBytes("curl.exe")
+		curlCmd = []byte("curl.exe")
 	} else {
-		curlCmd = bytesutil.ToUnsafeBytes("curl")
+		curlCmd = []byte("curl")
 	}
 }
 
 // RequestPool manages a pool of FastHTTP requests
 type RequestPool struct {
 	client       *HttpClient
-	workerPool   *requestWorkerPool
+	workerPool   *RequestWorkerPool
 	maxWorkers   int
 	payloadQueue chan payload.PayloadJob
 	results      chan *RawHTTPResponseDetails
 	scanOpts     *ScannerCliOpts
 	errorHandler *GB403ErrorHandler.ErrorHandler
 	closeMu      sync.Once
-	//rateLimiter  *time.Ticker // Per request rate limiter
 }
 
 // ConnPoolStrategyType define strategy of connection pool enqueue/dequeue.
@@ -50,9 +63,9 @@ const (
 	LIFO
 )
 
-type requestWorkerPool struct {
-	workers       []*requestWorker
-	ready         chan *requestWorker
+type RequestWorkerPool struct {
+	workers       []*RequestWorker
+	ready         chan *RequestWorker
 	lock          sync.Mutex
 	stopCh        chan struct{}
 	pool          sync.Pool
@@ -65,7 +78,7 @@ type requestWorkerPool struct {
 	strategy              ConnPoolStrategyType // FIFO or LIFO
 }
 
-type requestWorker struct {
+type RequestWorker struct {
 	id           int
 	client       *HttpClient
 	jobs         chan payload.PayloadJob
@@ -74,7 +87,7 @@ type requestWorker struct {
 	builder      *RequestBuilder
 	scanOpts     *ScannerCliOpts
 	errorHandler *GB403ErrorHandler.ErrorHandler
-	pool         *requestWorkerPool
+	pool         *RequestWorkerPool
 	rateLimiter  *time.Ticker // per-worker rate limiter
 }
 
@@ -126,15 +139,15 @@ func NewRequestPool(clientOpts *ClientOptions, scanOpts *ScannerCliOpts, errorHa
 		results:      make(chan *RawHTTPResponseDetails, maxWorkers*2),
 		scanOpts:     scanOpts,
 		errorHandler: errorHandler,
-		workerPool: &requestWorkerPool{
-			ready:  make(chan *requestWorker, maxWorkers),
+		workerPool: &RequestWorkerPool{
+			ready:  make(chan *RequestWorker, maxWorkers),
 			stopCh: make(chan struct{}),
 		},
 	}
 
 	// Initialize worker pool
 	pool.workerPool.pool.New = func() interface{} {
-		worker := &requestWorker{
+		worker := &RequestWorker{
 			id:           len(pool.workerPool.workers),
 			client:       pool.client,
 			jobs:         make(chan payload.PayloadJob, 1),
@@ -155,7 +168,7 @@ func NewRequestPool(clientOpts *ClientOptions, scanOpts *ScannerCliOpts, errorHa
 
 	// Pre-create workers
 	for i := 0; i < maxWorkers; i++ {
-		worker := pool.workerPool.pool.Get().(*requestWorker)
+		worker := pool.workerPool.pool.Get().(*RequestWorker)
 		pool.workerPool.workers = append(pool.workerPool.workers, worker)
 		pool.workerPool.ready <- worker
 	}
@@ -168,7 +181,7 @@ func (p *RequestPool) ActiveWorkers() int {
 	return int(active)
 }
 
-func (p *requestWorkerPool) getStats() (active int32, queued int32) {
+func (p *RequestWorkerPool) getStats() (active int32, queued int32) {
 	return p.activeWorkers.Load(),
 		p.queuedJobs.Load()
 }
@@ -293,7 +306,7 @@ func (p *RequestPool) ProcessRequests(jobs []payload.PayloadJob) <-chan *RawHTTP
 // or add 'Connection: close' request header before sending requests
 // to broken server.
 
-func (w *requestWorker) ProcessRequestJob(job payload.PayloadJob) *RawHTTPResponseDetails {
+func (w *RequestWorker) ProcessRequestJob(job payload.PayloadJob) *RawHTTPResponseDetails {
 	w.pool.activeWorkers.Add(1)
 	defer w.pool.activeWorkers.Add(-1)
 
@@ -324,7 +337,7 @@ func (w *requestWorker) ProcessRequestJob(job payload.PayloadJob) *RawHTTPRespon
 }
 
 // processResponse handles response processing
-func (w *requestWorker) ProcessResponseJob(resp *fasthttp.Response, job payload.PayloadJob) *RawHTTPResponseDetails {
+func (w *RequestWorker) ProcessResponseJob(resp *fasthttp.Response, job payload.PayloadJob) *RawHTTPResponseDetails {
 	// Get values that are used multiple times
 	statusCode := resp.StatusCode()
 	body := resp.Body()
@@ -346,24 +359,26 @@ func (w *requestWorker) ProcessResponseJob(resp *fasthttp.Response, job payload.
 	}
 
 	// Create header buffer
-	headerBuf := &bytesutil.ByteBuffer{}
+	headerBuf := headerBufPool.Get()
+	defer headerBufPool.Put(headerBuf)
+	headerBuf.Reset()
 
 	// Write status line
 	headerBuf.Write(resp.Header.Protocol())
-	headerBuf.Write(bytesutil.ToUnsafeBytes(" "))
+	headerBuf.Write(strSpace)
 	headerBuf.B = fasthttp.AppendUint(headerBuf.B, statusCode)
-	headerBuf.Write(bytesutil.ToUnsafeBytes(" "))
+	headerBuf.Write(strSpace)
 	headerBuf.Write(resp.Header.StatusMessage())
-	headerBuf.Write(bytesutil.ToUnsafeBytes("\r\n"))
+	headerBuf.Write(strCRLF)
 
 	// Process headers
 	resp.Header.VisitAll(func(key, value []byte) {
 		headerBuf.Write(key)
-		headerBuf.Write(bytesutil.ToUnsafeBytes(": "))
+		headerBuf.Write(strColonSpace)
 		headerBuf.Write(value)
-		headerBuf.Write(bytesutil.ToUnsafeBytes("\r\n"))
+		headerBuf.Write(strCRLF)
 	})
-	headerBuf.Write(bytesutil.ToUnsafeBytes("\r\n"))
+	headerBuf.Write(strCRLF)
 
 	// Store processed data
 	result.ResponseHeaders = append([]byte(nil), headerBuf.B...)
@@ -381,7 +396,7 @@ func (w *requestWorker) ProcessResponseJob(resp *fasthttp.Response, job payload.
 	}
 
 	// Extract title if HTML
-	if bytes.Contains(result.ContentType, []byte("html")) {
+	if bytes.Contains(result.ContentType, strHTML) {
 		result.Title = extractTitle(body)
 	}
 
@@ -392,7 +407,7 @@ func (w *requestWorker) ProcessResponseJob(resp *fasthttp.Response, job payload.
 }
 
 // WorkerPool methods
-func (wp *requestWorkerPool) AcquireWorker() *requestWorker {
+func (wp *RequestWorkerPool) AcquireWorker() *RequestWorker {
 	select {
 	case <-wp.stopCh:
 		return nil
@@ -404,7 +419,7 @@ func (wp *requestWorkerPool) AcquireWorker() *requestWorker {
 		defer wp.lock.Unlock()
 
 		if len(wp.workers) < cap(wp.ready) {
-			worker := wp.pool.Get().(*requestWorker)
+			worker := wp.pool.Get().(*RequestWorker)
 			wp.workers = append(wp.workers, worker)
 			worker.lastUsed = time.Now()
 			return worker
@@ -413,7 +428,7 @@ func (wp *requestWorkerPool) AcquireWorker() *requestWorker {
 	}
 }
 
-func (wp *requestWorkerPool) ReleaseWorker(w *requestWorker) {
+func (wp *RequestWorkerPool) ReleaseWorker(w *RequestWorker) {
 	w.lastUsed = time.Now()
 
 	wp.lock.Lock()
@@ -422,11 +437,11 @@ func (wp *requestWorkerPool) ReleaseWorker(w *requestWorker) {
 	if wp.strategy == LIFO {
 		wp.workers = append(wp.workers, w)
 	} else {
-		wp.workers = append([]*requestWorker{w}, wp.workers...)
+		wp.workers = append([]*RequestWorker{w}, wp.workers...)
 	}
 }
 
-func (wp *requestWorkerPool) startCleanupRoutine() {
+func (wp *RequestWorkerPool) startCleanupRoutine() {
 	go func() {
 		ticker := time.NewTicker(30 * time.Second)
 		defer ticker.Stop()
@@ -442,12 +457,12 @@ func (wp *requestWorkerPool) startCleanupRoutine() {
 	}()
 }
 
-func (wp *requestWorkerPool) cleanIdleWorkers(maxIdleTime time.Duration) {
+func (wp *RequestWorkerPool) cleanIdleWorkers(maxIdleTime time.Duration) {
 	threshold := time.Now().Add(-maxIdleTime)
 	wp.lock.Lock()
 	defer wp.lock.Unlock()
 
-	activeWorkers := make([]*requestWorker, 0, len(wp.workers))
+	activeWorkers := make([]*RequestWorker, 0, len(wp.workers))
 	for _, w := range wp.workers {
 		if w.lastUsed.After(threshold) {
 			activeWorkers = append(activeWorkers, w)
@@ -505,32 +520,36 @@ func Byte2String(b []byte) string {
 
 // BuildCurlCommandPoc generates a curl poc command to reproduce the findings
 func BuildCurlCommandPoc(job payload.PayloadJob) []byte {
-	bb := &bytesutil.ByteBuffer{}
+	// Get buffer from pool
+	bb := curlCmdPool.Get()
+	defer curlCmdPool.Put(bb)
+	bb.Reset()
 
-	// Use pre-computed curl command
+	// Build command
 	bb.Write(curlCmd)
-	bb.Write(bytesutil.ToUnsafeBytes(" -skgi --path-as-is"))
+	bb.Write(curlFlags)
 
-	// Rest of the function remains the same...
 	if job.Method != "GET" {
-		bb.Write(bytesutil.ToUnsafeBytes(" -X "))
+		bb.Write(curlMethodX)
 		bb.Write(bytesutil.ToUnsafeBytes(job.Method))
 	}
 
-	// Add headers before URL
+	// Headers
 	for _, h := range job.Headers {
-		bb.Write(bytesutil.ToUnsafeBytes(" -H '"))
+		bb.Write(curlHeaderStart)
 		bb.Write(bytesutil.ToUnsafeBytes(h.Header))
-		bb.Write(bytesutil.ToUnsafeBytes(": "))
+		bb.Write(strColonSpace)
 		bb.Write(bytesutil.ToUnsafeBytes(h.Value))
-		bb.Write(bytesutil.ToUnsafeBytes("'"))
+		bb.Write(strSingleQuote)
 	}
 
-	// last is URL
-	bb.Write(bytesutil.ToUnsafeBytes(" '"))
+	// URL
+	bb.Write(strSpace)
+	bb.Write(strSingleQuote)
 	bb.Write(bytesutil.ToUnsafeBytes(job.FullURL))
-	bb.Write(bytesutil.ToUnsafeBytes("'"))
+	bb.Write(strSingleQuote)
 
+	// Return a copy of the buffer's contents
 	return append([]byte(nil), bb.B...)
 }
 
