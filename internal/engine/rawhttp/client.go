@@ -15,22 +15,24 @@ var (
 
 // HttpClientOptions contains configuration options for the HttpClient
 type HttpClientOptions struct {
-	Timeout             time.Duration
-	DialTimeout         time.Duration
-	MaxConnsPerHost     int
-	MaxIdleConnDuration time.Duration
-	MaxConnWaitTimeout  time.Duration
-	NoDefaultUserAgent  bool
-	ProxyURL            string
-	MaxResponseBodySize int
-	ReadBufferSize      int
-	WriteBufferSize     int
-	MaxRetries          int
-	RetryDelay          time.Duration
-	DisableKeepAlive    bool
-	EnableHTTP2         bool
-	Dialer              fasthttp.DialFunc
-	RequestDelay        time.Duration
+	Timeout                 time.Duration // ScannerCliOpts
+	DialTimeout             time.Duration // Custom Dial Timeout
+	MaxConnsPerHost         int           // fasthttp core
+	MaxIdleConnDuration     time.Duration // fasthttp core
+	MaxConnWaitTimeout      time.Duration // fasthttp core
+	NoDefaultUserAgent      bool          // fasthttp core
+	ProxyURL                string        // ScannerCliOpts
+	MaxResponseBodySize     int           // fasthttp core
+	ReadBufferSize          int           // fasthttp core
+	WriteBufferSize         int           // fasthttp core
+	MaxRetries              int           // ScannerCliOpts
+	ResponseBodyPreviewSize int           // ScannerCliOpts
+	MatchStatusCodes        []int         // ScannerCliOpts
+	RetryDelay              time.Duration // ScannerCliOpts
+	DisableKeepAlive        bool
+	EnableHTTP2             bool
+	Dialer                  fasthttp.DialFunc
+	RequestDelay            time.Duration // ScannerCliOpts
 }
 
 // HttpClient represents a reusable HTTP client
