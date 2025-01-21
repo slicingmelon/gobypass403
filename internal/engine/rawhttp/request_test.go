@@ -388,7 +388,7 @@ func TestRequestBuilderHostHeaders(t *testing.T) {
 			GB403Logger.PrintYellow("Request URI: %s", req.URI().FullURI())
 			GB403Logger.PrintYellow("===================\n")
 
-			if err := client.DoRaw(req, resp); err != nil {
+			if err := client.DoRequest(req, resp); err != nil {
 				t.Fatalf("Request failed: %v", err)
 			}
 

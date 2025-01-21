@@ -114,8 +114,8 @@ func NewHTTPClient(opts *ClientOptions, errorHandler *GB403ErrorHandler.ErrorHan
 	}
 }
 
-// DoRaw performs a raw HTTP request
-func (c *HttpClient) DoRaw(req *fasthttp.Request, resp *fasthttp.Response) error {
+// DoRequest performs a HTTP request (raw)
+func (c *HttpClient) DoRequest(req *fasthttp.Request, resp *fasthttp.Response) error {
 	return c.client.Do(req, resp)
 }
 

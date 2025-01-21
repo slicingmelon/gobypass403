@@ -319,7 +319,7 @@ func (w *RequestWorker) ProcessRequestJob(job payload.PayloadJob) *RawHTTPRespon
 
 	GB403Logger.Debug().DebugToken(job.PayloadToken).Msgf("[%s] Sending request %s\n", job.BypassModule, job.FullURL)
 
-	if err := w.Client.DoRaw(req, resp); err != nil {
+	if err := w.Client.DoRequest(req, resp); err != nil {
 		err = w.ErrorHandler.HandleError(err, GB403ErrorHandler.ErrorContext{
 			Host:         []byte(job.Host),
 			ErrorSource:  []byte("Worker.ProcessRequestJob"),
