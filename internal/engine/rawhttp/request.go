@@ -215,7 +215,7 @@ func NewRequestBuilder(client *HttpClient) *RequestBuilder {
 // ErrNoFreeConns is returned if all DefaultMaxConnsPerHost connections
 // to the requested host are busy.
 // BuildRequest creates and configures a HTTP request from a bypass job (payload job)
-func (rb *RequestBuilder) BuildRequest(req *fasthttp.Request, job payload.PayloadJob) {
+func (rb *RequestBuilder) BuildHTTPRequest(req *fasthttp.Request, job payload.PayloadJob) {
 	//req.Reset()
 	req.UseHostHeader = false
 	req.Header.SetMethod(job.Method)
@@ -323,7 +323,7 @@ func (w *RequestWorker) ProcessRequestJob(job payload.PayloadJob) *RawHTTPRespon
 	defer w.Client.ReleaseRequest(req)
 	defer w.Client.ReleaseResponse(resp)
 
-	w.Builder.BuildRequest(req, job)
+	w.Builder.BuildHTTPRequest(req, job)
 
 	GB403Logger.Debug().DebugToken(job.PayloadToken).Msgf("[%s] Sending request %s\n", job.BypassModule, job.FullURL)
 

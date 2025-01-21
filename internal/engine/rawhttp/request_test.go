@@ -148,7 +148,7 @@ func TestRequestBuilderViaEchoServer(t *testing.T) {
 				defer fasthttp.ReleaseRequest(req)
 				defer fasthttp.ReleaseResponse(resp)
 
-				rb.BuildRequest(req, job)
+				rb.BuildHTTPRequest(req, job)
 
 				// Build virtual request
 				GB403Logger.PrintYellow("[GB403Logger] Sending request :\n%s", req)
@@ -307,7 +307,7 @@ func TestRequestBuilderMidPathsPayloads(t *testing.T) {
 				defer fasthttp.ReleaseRequest(req)
 				defer fasthttp.ReleaseResponse(resp)
 
-				rb.BuildRequest(req, job)
+				rb.BuildHTTPRequest(req, job)
 
 				// Build virtual request
 				GB403Logger.PrintGreen("[GB403Logger][RequestBuilder] [X-GB403-Token: %s] Sending request: %s\n================>\n%s<================\n", job.PayloadToken, job.FullURL, req)
