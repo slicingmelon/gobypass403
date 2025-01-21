@@ -51,7 +51,7 @@ func DefaultHTTPClientOptions() *HttpClientOptions {
 		DialTimeout:         5 * time.Second,
 		MaxConnsPerHost:     128,
 		MaxIdleConnDuration: 10 * time.Second,
-		MaxConnWaitTimeout:  2 * time.Second,
+		MaxConnWaitTimeout:  1 * time.Second, // Maximum duration for waiting for a free connection.
 		NoDefaultUserAgent:  true,
 		MaxResponseBodySize: 4096, // Hardlimit at 4k
 		ReadBufferSize:      4096,
