@@ -26,7 +26,7 @@ func BenchmarkRequestBuilder_BuildRequest(b *testing.B) {
 	b.ResetTimer()
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
-			builder.BuildRequest(req, job)
+			builder.BuildHTTPRequest(req, job)
 		}
 	})
 }
