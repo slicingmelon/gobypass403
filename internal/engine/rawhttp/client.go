@@ -48,7 +48,7 @@ type HttpClient struct {
 // DefaultHTTPClientOptions returns the default HTTP client options
 func DefaultHTTPClientOptions() *HttpClientOptions {
 	return &HttpClientOptions{
-		Timeout:             30 * time.Second,
+		Timeout:             20 * time.Second,
 		DialTimeout:         5 * time.Second,
 		MaxConnsPerHost:     128,
 		MaxIdleConnDuration: 1 * time.Minute, // Idle keep-alive connections are closed after this duration.
@@ -83,6 +83,8 @@ func NewHTTPClient(opts *HttpClientOptions, errorHandler *GB403ErrorHandler.Erro
 		ReadBufferSize:                opts.ReadBufferSize,
 		WriteBufferSize:               opts.WriteBufferSize,
 		StreamResponseBody:            opts.StreamResponseBody,
+		ReadTimeout:                   opts.Timeout,
+		WriteTimeout:                  opts.Timeout,
 		Dial:                          CreateDialFunc(opts, errorHandler),
 		TLSConfig: &tls.Config{
 			InsecureSkipVerify: true,

@@ -2,6 +2,8 @@ package rawhttp
 
 import (
 	"bytes"
+	"fmt"
+	"io"
 	"runtime"
 	"unsafe"
 
@@ -62,7 +64,6 @@ func BuildHTTPRequest(httpclient *HttpClient, req *fasthttp.Request, job payload
 	req.UseHostHeader = false
 	req.Header.SetMethod(job.Method)
 
-	// Set the raw URI for the first line of the request
 	req.SetRequestURI(job.FullURL)
 
 	// Disable all normalizing for raw path testing
@@ -72,8 +73,8 @@ func BuildHTTPRequest(httpclient *HttpClient, req *fasthttp.Request, job payload
 
 	// !!Always close connection when custom headers are present
 	shouldCloseConn := len(job.Headers) > 0 ||
-		httpclient.options.DisableKeepAlive ||
-		httpclient.options.ProxyURL != ""
+		httpclient.GetHTTPClientOptions().DisableKeepAlive ||
+		httpclient.GetHTTPClientOptions().ProxyURL != ""
 
 	// Set headers directly
 	for _, h := range job.Headers {
@@ -84,7 +85,6 @@ func BuildHTTPRequest(httpclient *HttpClient, req *fasthttp.Request, job payload
 		req.Header.Set(h.Header, h.Value)
 	}
 
-	// Set standard headers
 	req.Header.SetUserAgentBytes(CustomUserAgent)
 
 	if GB403Logger.IsDebugEnabled() {
@@ -104,17 +104,15 @@ func BuildHTTPRequest(httpclient *HttpClient, req *fasthttp.Request, job payload
 
 // ProcessHTTPResponse handles response processing
 func ProcessHTTPResponse(httpclient *HttpClient, resp *fasthttp.Response, job payload.PayloadJob) *RawHTTPResponseDetails {
-	// Get values that are used multiple times
 	statusCode := resp.StatusCode()
-	body := resp.Body()
 	contentLength := resp.Header.ContentLength()
+	httpClientOpts := httpclient.GetHTTPClientOptions()
 
 	result := &RawHTTPResponseDetails{
 		URL:           append([]byte(nil), job.FullURL...),
 		BypassModule:  append([]byte(nil), job.BypassModule...),
 		StatusCode:    statusCode,
 		ContentLength: int64(contentLength),
-		ResponseBytes: len(body),
 	}
 
 	// Check for redirect early
@@ -152,18 +150,40 @@ func ProcessHTTPResponse(httpclient *HttpClient, resp *fasthttp.Response, job pa
 	result.ServerInfo = append([]byte(nil), resp.Header.Server()...)
 
 	// Handle body preview
-	if httpclient.options.ResponseBodyPreviewSize > 0 && len(body) > 0 {
-		previewSize := httpclient.options.ResponseBodyPreviewSize
-		if len(body) > previewSize {
-			result.ResponsePreview = append([]byte(nil), body[:previewSize]...)
+	if httpClientOpts.MaxResponseBodySize > 0 && httpClientOpts.ResponseBodyPreviewSize > 0 {
+		if httpClientOpts.StreamResponseBody {
+			// Streaming case -> resp.BodyStream and LimitReader
+			if stream := resp.BodyStream(); stream != nil {
+				previewBuf := make([]byte, httpClientOpts.ResponseBodyPreviewSize)
+				limitedReader := io.LimitReader(stream, int64(httpClientOpts.ResponseBodyPreviewSize))
+				n, err := limitedReader.Read(previewBuf)
+				if err != nil && err != io.EOF {
+					result.ResponsePreview = []byte(fmt.Sprintf("Error reading stream: %v", err))
+				} else if n > 0 {
+					result.ResponsePreview = append([]byte(nil), previewBuf[:n]...)
+				}
+				result.ResponseBytes = len(result.ResponsePreview)
+				resp.CloseBodyStream()
+			}
 		} else {
-			result.ResponsePreview = append([]byte(nil), body...)
+			// Non-streaming case, -> resp.Body()
+			if body := resp.Body(); len(body) > 0 {
+				previewSize := httpClientOpts.ResponseBodyPreviewSize
+				if len(body) > previewSize {
+					result.ResponsePreview = append([]byte(nil), body[:previewSize]...)
+				} else {
+					result.ResponsePreview = append([]byte(nil), body...)
+				}
+				result.ResponseBytes = len(result.ResponsePreview)
+			}
 		}
 	}
 
-	// Extract title if HTML
-	if bytes.Contains(result.ContentType, strHTML) {
-		result.Title = extractTitle(body)
+	// Extract title if HTML response
+	if len(result.ResponsePreview) > 0 && bytes.Contains(result.ContentType, strHTML) {
+		if title := ExtractTitle(result.ResponsePreview); title != nil {
+			result.Title = append([]byte(nil), title...)
+		}
 	}
 
 	// Generate curl command PoC
@@ -236,7 +256,7 @@ func PeekHeaderKeyCaseInsensitive(h *fasthttp.ResponseHeader, key []byte) []byte
 }
 
 // Helper function to extract title from HTML
-func extractTitle(body []byte) []byte {
+func ExtractTitle(body []byte) []byte {
 	lower := bytes.ToLower(body)
 	titleStart := bytes.Index(lower, []byte("<title>"))
 	if titleStart == -1 {

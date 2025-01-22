@@ -63,9 +63,9 @@ Usage:
   -t, -threads
         Number of concurrent threads (Default: 15)
   -T, -timeout
-        Timeout in seconds (Default: false)
+        Timeout in seconds (Default: 20)
   -delay
-        Delay between requests in milliseconds (Default: 150)
+        Delay between requests in milliseconds (Default: 0)
   -v, -verbose
         Verbose output
   -d, -debug
@@ -73,7 +73,7 @@ Usage:
   -trace
         Trace HTTP requests
   -mc, -match-status-code
-        Only save results matching these HTTP status codes (example: -mc 200,301,500 or 'all' / '*', for any status code)
+        Filter results by HTTP status codes (example: -mc 200, 301, 500, all). Default: All status codes
   -http2
         Enable HTTP2 client (Default: false)
   -x, -proxy

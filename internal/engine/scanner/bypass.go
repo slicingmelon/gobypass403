@@ -101,24 +101,25 @@ type WorkerContext struct {
 	workerCount int32
 }
 
-func NewWorkerContext(mode string, total int, targetURL string, opts *ScannerOpts, errorHandler *GB403ErrorHandler.ErrorHandler, progress *ProgressCounter) *WorkerContext {
-	clientOpts := rawhttp.DefaultHTTPClientOptions()
+func NewWorkerContext(mode string, total int, targetURL string, scannerOpts *ScannerOpts, errorHandler *GB403ErrorHandler.ErrorHandler, progress *ProgressCounter) *WorkerContext {
+	httpClientOpts := rawhttp.DefaultHTTPClientOptions()
 
 	// Override specific settings from user options
-	clientOpts.Timeout = time.Duration(opts.Timeout) * time.Second
+	httpClientOpts.Timeout = time.Duration(scannerOpts.Timeout) * time.Second
+	httpClientOpts.ResponseBodyPreviewSize = scannerOpts.ResponseBodyPreviewSize
 
 	// Ensure MaxConnsPerHost is at least equal to number of workers plus buffer
-	if opts.Threads > clientOpts.MaxConnsPerHost {
+	if scannerOpts.Threads > httpClientOpts.MaxConnsPerHost {
 		// Add 50% more connections than workers for buffer
-		clientOpts.MaxConnsPerHost = opts.Threads + (opts.Threads / 2)
+		httpClientOpts.MaxConnsPerHost = scannerOpts.Threads + (scannerOpts.Threads / 2)
 	}
 
 	// and proxy ofc
-	clientOpts.ProxyURL = opts.Proxy
+	httpClientOpts.ProxyURL = scannerOpts.Proxy
 
 	// Apply a delay between requests
-	if opts.Delay > 0 {
-		clientOpts.RequestDelay = time.Duration(opts.Delay) * time.Millisecond
+	if scannerOpts.Delay > 0 {
+		httpClientOpts.RequestDelay = time.Duration(scannerOpts.Delay) * time.Millisecond
 	}
 
 	return &WorkerContext{
@@ -127,8 +128,8 @@ func NewWorkerContext(mode string, total int, targetURL string, opts *ScannerOpt
 		cancel:      make(chan struct{}),
 		wg:          &sync.WaitGroup{},
 		once:        sync.Once{},
-		opts:        opts,
-		requestPool: rawhttp.NewRequestWorkerPool(clientOpts, opts.Threads, errorHandler),
+		opts:        scannerOpts,
+		requestPool: rawhttp.NewRequestWorkerPool(httpClientOpts, scannerOpts.Threads, errorHandler),
 	}
 }
 
