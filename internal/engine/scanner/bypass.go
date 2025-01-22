@@ -97,7 +97,7 @@ type WorkerContext struct {
 	wg          *sync.WaitGroup
 	once        sync.Once
 	opts        *ScannerOpts
-	requestPool *rawhttp.RequestPool
+	requestPool *rawhttp.RequestWorkerPool
 	workerCount int32
 }
 
@@ -122,18 +122,13 @@ func NewWorkerContext(mode string, total int, targetURL string, opts *ScannerOpt
 	}
 
 	return &WorkerContext{
-		mode:     mode,
-		progress: progress,
-		cancel:   make(chan struct{}),
-		wg:       &sync.WaitGroup{},
-		once:     sync.Once{},
-		opts:     opts,
-		requestPool: rawhttp.NewRequestPool(clientOpts, &rawhttp.ScannerCliOpts{
-			MatchStatusCodes:        opts.MatchStatusCodes,
-			ResponseBodyPreviewSize: opts.ResponseBodyPreviewSize,
-			ModuleName:              mode,
-			MaxWorkers:              opts.Threads,
-		}, errorHandler),
+		mode:        mode,
+		progress:    progress,
+		cancel:      make(chan struct{}),
+		wg:          &sync.WaitGroup{},
+		once:        sync.Once{},
+		opts:        opts,
+		requestPool: rawhttp.NewRequestWorkerPool(clientOpts, opts.Threads, errorHandler),
 	}
 }
 
@@ -218,11 +213,10 @@ func (s *Scanner) runBypassForMode(bypassModule string, targetURL string, result
 
 	ctx := NewWorkerContext(bypassModule, len(allJobs), targetURL, s.config, s.errorHandler, s.progress)
 	defer func() {
-		// Let the request pool finish and get final worker count
-		finalWorkerCount := ctx.requestPool.ActiveWorkers()
-		s.progress.UpdateWorkerStats(bypassModule, int64(finalWorkerCount))
+		// Get stats from pond pool
+		running, _ := ctx.requestPool.GetCurrentStats()
+		s.progress.UpdateWorkerStats(bypassModule, running)
 		ctx.Stop()
-		// Small delay to allow progress display to update
 		time.Sleep(100 * time.Millisecond)
 		s.progress.MarkModuleAsDone(bypassModule)
 	}()
@@ -236,7 +230,8 @@ func (s *Scanner) runBypassForMode(bypassModule string, targetURL string, result
 		s.progress.IncrementProgress(bypassModule, true)
 
 		if time.Since(lastStatsUpdate) > 500*time.Millisecond {
-			s.progress.UpdateWorkerStats(bypassModule, int64(ctx.requestPool.ActiveWorkers()))
+			running, _ := ctx.requestPool.GetCurrentStats()
+			s.progress.UpdateWorkerStats(bypassModule, running)
 			lastStatsUpdate = time.Now()
 		}
 

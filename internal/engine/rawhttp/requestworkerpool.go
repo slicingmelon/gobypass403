@@ -1,8 +1,6 @@
 package rawhttp
 
 import (
-	"fmt"
-
 	"github.com/alitto/pond/v2"
 	"github.com/slicingmelon/go-bypass-403/internal/engine/payload"
 	GB403ErrorHandler "github.com/slicingmelon/go-bypass-403/internal/utils/error"
@@ -87,7 +85,7 @@ func (wp *RequestWorkerPool) processJob(job payload.PayloadJob) *RawHTTPResponse
 	defer wp.httpClient.ReleaseRequest(req)
 	defer wp.httpClient.ReleaseResponse(resp)
 
-	fmt.Printf("Processing request for URL: %s\n", job.FullURL)
+	//fmt.Printf("Processing request for URL: %s\n", job.FullURL)
 
 	// Build request
 	if err := wp.BuildRequestTask(req, job); err != nil {
@@ -126,7 +124,7 @@ func (wp *RequestWorkerPool) SendRequestTask(req *fasthttp.Request, resp *fastht
 
 // processResponse processes the HTTP response and extracts details
 func (wp *RequestWorkerPool) ProcessResponseTask(resp *fasthttp.Response, job payload.PayloadJob) *RawHTTPResponseDetails {
-	return ProcessHTTPResponse(resp, job)
+	return ProcessHTTPResponse(wp.httpClient, resp, job)
 }
 
 // func main() {

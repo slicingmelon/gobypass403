@@ -3,14 +3,11 @@ package rawhttp
 import (
 	"bytes"
 	"runtime"
-	"sync"
-	"time"
 	"unsafe"
 
 	"github.com/slicingmelon/go-bypass-403/internal/engine/payload"
 
 	"github.com/VictoriaMetrics/VictoriaMetrics/lib/bytesutil"
-	GB403ErrorHandler "github.com/slicingmelon/go-bypass-403/internal/utils/error"
 	GB403Logger "github.com/slicingmelon/go-bypass-403/internal/utils/logger"
 	"github.com/valyala/fasthttp"
 )
@@ -50,24 +47,16 @@ var (
 //	└── RequestWorkerPool (Manages worker instances)
 //	       │
 //	       └── RequestWorker (Individual workers that process requests)
-type RequestPool struct {
-	Client       *HttpClient
-	WorkerPool   *RequestWorkerPool
-	MaxWorkers   int
-	PayloadQueue chan payload.PayloadJob
-	Results      chan *RawHTTPResponseDetails
-	ScanOpts     *ScannerCliOpts
-	ErrorHandler *GB403ErrorHandler.ErrorHandler
-	CloseMu      sync.Once
-}
-
-// ConnPoolStrategyType define strategy of connection pool enqueue/dequeue.
-type ConnPoolStrategyType int
-
-const (
-	FIFO ConnPoolStrategyType = iota
-	LIFO
-)
+// type RequestPool struct {
+// 	Client       *HttpClient
+// 	WorkerPool   *RequestWorkerPool
+// 	MaxWorkers   int
+// 	PayloadQueue chan payload.PayloadJob
+// 	Results      chan *RawHTTPResponseDetails
+// 	ScanOpts     *ScannerCliOpts
+// 	ErrorHandler *GB403ErrorHandler.ErrorHandler
+// 	CloseMu      sync.Once
+// }
 
 // type RequestWorkerPool struct {
 // 	Workers       []*RequestWorker
@@ -85,27 +74,27 @@ const (
 // }
 
 // Individual worker that processes requests
-type RequestWorker struct {
-	Id           int
-	Client       *HttpClient
-	Jobs         chan payload.PayloadJob
-	Results      chan *RawHTTPResponseDetails
-	LastUsed     time.Time
-	Builder      *RequestBuilder
-	ScanOpts     *ScannerCliOpts
-	ErrorHandler *GB403ErrorHandler.ErrorHandler
-	Pool         *RequestWorkerPool
-	RateLimiter  *time.Ticker // per-worker rate limiter
-}
+// type RequestWorker struct {
+// 	Id           int
+// 	Client       *HttpClient
+// 	Jobs         chan payload.PayloadJob
+// 	Results      chan *RawHTTPResponseDetails
+// 	LastUsed     time.Time
+// 	Builder      *RequestBuilder
+// 	ScanOpts     *ScannerCliOpts
+// 	ErrorHandler *GB403ErrorHandler.ErrorHandler
+// 	Pool         *RequestWorkerPool
+// 	RateLimiter  *time.Ticker // per-worker rate limiter
+// }
 
 type ProgressTracker interface {
 	UpdateWorkerStats(moduleName string, totalWorkers int64)
 }
 
-// RequestBuilder handles the lifecycle of fasthttp requests
-type RequestBuilder struct {
-	Client *HttpClient
-}
+// // RequestBuilder handles the lifecycle of fasthttp requests
+// type RequestBuilder struct {
+// 	Client *HttpClient
+// }
 
 // ScannerCliOpts reference the cli options
 type ScannerCliOpts struct {
@@ -131,74 +120,74 @@ type ScannerCliOpts struct {
 // 	Title           []byte
 // }
 
-func NewRequestPool2(clientOpts *HttpClientOptions, scanOpts *ScannerCliOpts, errorHandler *GB403ErrorHandler.ErrorHandler) *RequestPool {
-	// Just use the options as provided, with a fallback to defaults
-	if clientOpts == nil {
-		clientOpts = DefaultHTTPClientOptions()
-	}
+// func NewRequestPool2(clientOpts *HttpClientOptions, scanOpts *ScannerCliOpts, errorHandler *GB403ErrorHandler.ErrorHandler) *RequestPool {
+// 	// Just use the options as provided, with a fallback to defaults
+// 	if clientOpts == nil {
+// 		clientOpts = DefaultHTTPClientOptions()
+// 	}
 
-	maxWorkers := scanOpts.MaxWorkers
+// 	maxWorkers := scanOpts.MaxWorkers
 
-	pool := &RequestPool{
-		Client:       NewHTTPClient(clientOpts, errorHandler),
-		MaxWorkers:   maxWorkers,
-		PayloadQueue: make(chan payload.PayloadJob, maxWorkers*2),
-		Results:      make(chan *RawHTTPResponseDetails, maxWorkers*2),
-		ScanOpts:     scanOpts,
-		ErrorHandler: errorHandler,
-		WorkerPool: &RequestWorkerPool{
-			Ready:  make(chan *RequestWorker, maxWorkers),
-			StopCh: make(chan struct{}),
-		},
-	}
+// 	pool := &RequestPool{
+// 		Client:       NewHTTPClient(clientOpts, errorHandler),
+// 		MaxWorkers:   maxWorkers,
+// 		PayloadQueue: make(chan payload.PayloadJob, maxWorkers*2),
+// 		Results:      make(chan *RawHTTPResponseDetails, maxWorkers*2),
+// 		ScanOpts:     scanOpts,
+// 		ErrorHandler: errorHandler,
+// 		WorkerPool: &RequestWorkerPool{
+// 			Ready:  make(chan *RequestWorker, maxWorkers),
+// 			StopCh: make(chan struct{}),
+// 		},
+// 	}
 
-	// Initialize worker pool
-	pool.WorkerPool.Pool.New = func() interface{} {
-		worker := &RequestWorker{
-			Id:           len(pool.WorkerPool.Workers),
-			Client:       pool.Client,
-			Jobs:         make(chan payload.PayloadJob, 1),
-			Results:      make(chan *RawHTTPResponseDetails, 1),
-			Builder:      NewRequestBuilder(pool.Client),
-			ScanOpts:     scanOpts,
-			ErrorHandler: pool.ErrorHandler,
-			Pool:         pool.WorkerPool,
-		}
+// 	// Initialize worker pool
+// 	pool.WorkerPool.Pool.New = func() interface{} {
+// 		worker := &RequestWorker{
+// 			Id:           len(pool.WorkerPool.Workers),
+// 			Client:       pool.Client,
+// 			Jobs:         make(chan payload.PayloadJob, 1),
+// 			Results:      make(chan *RawHTTPResponseDetails, 1),
+// 			Builder:      NewRequestBuilder(pool.Client),
+// 			ScanOpts:     scanOpts,
+// 			ErrorHandler: pool.ErrorHandler,
+// 			Pool:         pool.WorkerPool,
+// 		}
 
-		// Create per-worker rate limiter
-		if clientOpts.RequestDelay > 0 {
-			worker.RateLimiter = time.NewTicker(clientOpts.RequestDelay)
-		}
+// 		// Create per-worker rate limiter
+// 		if clientOpts.RequestDelay > 0 {
+// 			worker.RateLimiter = time.NewTicker(clientOpts.RequestDelay)
+// 		}
 
-		return worker
-	}
+// 		return worker
+// 	}
 
-	// Pre-create workers
-	for i := 0; i < maxWorkers; i++ {
-		worker := pool.WorkerPool.Pool.Get().(*RequestWorker)
-		pool.WorkerPool.Workers = append(pool.WorkerPool.Workers, worker)
-		pool.WorkerPool.Ready <- worker
-	}
+// 	// Pre-create workers
+// 	for i := 0; i < maxWorkers; i++ {
+// 		worker := pool.WorkerPool.Pool.Get().(*RequestWorker)
+// 		pool.WorkerPool.Workers = append(pool.WorkerPool.Workers, worker)
+// 		pool.WorkerPool.Ready <- worker
+// 	}
 
-	return pool
-}
+// 	return pool
+// }
 
-func (p *RequestPool) ActiveWorkers() int {
-	active, _ := p.WorkerPool.getStats()
-	return int(active)
-}
+// func (p *RequestPool) ActiveWorkers() int {
+// 	active, _ := p.WorkerPool.getStats()
+// 	return int(active)
+// }
 
-func (p *RequestWorkerPool) getStats() (active int32, queued int32) {
-	return p.ActiveWorkers.Load(),
-		p.QueuedJobs.Load()
-}
+// func (p *RequestWorkerPool) getStats() (active int32, queued int32) {
+// 	return p.ActiveWorkers.Load(),
+// 		p.QueuedJobs.Load()
+// }
 
-// RequestBuilder handles request construction
-func NewRequestBuilder(client *HttpClient) *RequestBuilder {
-	return &RequestBuilder{
-		Client: client,
-	}
-}
+// // RequestBuilder handles request construction
+// func NewRequestBuilder(client *HttpClient) *RequestBuilder {
+// 	return &RequestBuilder{
+// 		Client: client,
+// 	}
+// }
 
 // Request must contain at least non-zero RequestURI with full url (including
 // scheme and host) or non-zero Host header + RequestURI.
@@ -260,45 +249,45 @@ func BuildHTTPRequest(httpclient *HttpClient, req *fasthttp.Request, job payload
 }
 
 // ProcessRequests handles multiple requests "efficiently"
-func (p *RequestPool) ProcessRequests(jobs []payload.PayloadJob) <-chan *RawHTTPResponseDetails {
-	results := make(chan *RawHTTPResponseDetails, len(jobs))
-	jobsChan := make(chan payload.PayloadJob, p.MaxWorkers)
+// func (p *RequestPool) ProcessRequests(jobs []payload.PayloadJob) <-chan *RawHTTPResponseDetails {
+// 	results := make(chan *RawHTTPResponseDetails, len(jobs))
+// 	jobsChan := make(chan payload.PayloadJob, p.MaxWorkers)
 
-	var wg sync.WaitGroup
-	for i := 0; i < p.MaxWorkers; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			worker := p.WorkerPool.AcquireWorker()
-			if worker == nil {
-				return
-			}
-			defer p.WorkerPool.ReleaseWorker(worker)
+// 	var wg sync.WaitGroup
+// 	for i := 0; i < p.MaxWorkers; i++ {
+// 		wg.Add(1)
+// 		go func() {
+// 			defer wg.Done()
+// 			worker := p.WorkerPool.AcquireWorker()
+// 			if worker == nil {
+// 				return
+// 			}
+// 			defer p.WorkerPool.ReleaseWorker(worker)
 
-			for job := range jobsChan {
-				// Use worker's rate limiter instead of pool's
-				if worker.RateLimiter != nil {
-					<-worker.RateLimiter.C
-				}
-				if result := worker.ProcessRequestJob(job); result != nil {
-					results <- result
-				}
-			}
-		}()
-	}
+// 			for job := range jobsChan {
+// 				// Use worker's rate limiter instead of pool's
+// 				if worker.RateLimiter != nil {
+// 					<-worker.RateLimiter.C
+// 				}
+// 				if result := worker.ProcessRequestJob(job); result != nil {
+// 					results <- result
+// 				}
+// 			}
+// 		}()
+// 	}
 
-	// Feed jobs
-	go func() {
-		for _, job := range jobs {
-			jobsChan <- job
-		}
-		close(jobsChan)
-		wg.Wait()
-		close(results)
-	}()
+// 	// Feed jobs
+// 	go func() {
+// 		for _, job := range jobs {
+// 			jobsChan <- job
+// 		}
+// 		close(jobsChan)
+// 		wg.Wait()
+// 		close(results)
+// 	}()
 
-	return results
-}
+// 	return results
+// }
 
 // To remember!
 // ErrNoFreeConns is returned when no free connections available
@@ -315,38 +304,38 @@ func (p *RequestPool) ProcessRequests(jobs []payload.PayloadJob) <-chan *RawHTTP
 // or add 'Connection: close' request header before sending requests
 // to broken server.
 
-func (w *RequestWorker) ProcessRequestJob(job payload.PayloadJob) *RawHTTPResponseDetails {
-	w.Pool.ActiveWorkers.Add(1)
-	defer w.Pool.ActiveWorkers.Add(-1)
+// func (w *RequestWorker) ProcessRequestJob(job payload.PayloadJob) *RawHTTPResponseDetails {
+// 	w.Pool.ActiveWorkers.Add(1)
+// 	defer w.Pool.ActiveWorkers.Add(-1)
 
-	req := w.Client.AcquireRequest()
-	resp := w.Client.AcquireResponse()
-	defer w.Client.ReleaseRequest(req)
-	defer w.Client.ReleaseResponse(resp)
+// 	req := w.Client.AcquireRequest()
+// 	resp := w.Client.AcquireResponse()
+// 	defer w.Client.ReleaseRequest(req)
+// 	defer w.Client.ReleaseResponse(resp)
 
-	w.Builder.BuildHTTPRequest(req, job)
+// 	w.Builder.BuildHTTPRequest(req, job)
 
-	GB403Logger.Debug().DebugToken(job.PayloadToken).Msgf("[%s] Sending request %s\n", job.BypassModule, job.FullURL)
+// 	GB403Logger.Debug().DebugToken(job.PayloadToken).Msgf("[%s] Sending request %s\n", job.BypassModule, job.FullURL)
 
-	if err := w.Client.DoRequest(req, resp); err != nil {
-		err = w.ErrorHandler.HandleError(err, GB403ErrorHandler.ErrorContext{
-			Host:         []byte(job.Host),
-			ErrorSource:  []byte("Worker.ProcessRequestJob"),
-			BypassModule: []byte(job.BypassModule),
-		})
-		if err != nil {
-			if GB403Logger.IsDebugEnabled() {
-				GB403Logger.Error().DebugToken(job.PayloadToken).Msgf("Request failed: %v", err)
-			}
-			return nil
-		}
-	}
+// 	if err := w.Client.DoRequest(req, resp); err != nil {
+// 		err = w.ErrorHandler.HandleError(err, GB403ErrorHandler.ErrorContext{
+// 			Host:         []byte(job.Host),
+// 			ErrorSource:  []byte("Worker.ProcessRequestJob"),
+// 			BypassModule: []byte(job.BypassModule),
+// 		})
+// 		if err != nil {
+// 			if GB403Logger.IsDebugEnabled() {
+// 				GB403Logger.Error().DebugToken(job.PayloadToken).Msgf("Request failed: %v", err)
+// 			}
+// 			return nil
+// 		}
+// 	}
 
-	return w.ProcessResponseJob(resp, job)
-}
+// 	return w.ProcessResponseJob(resp, job)
+// }
 
 // processResponse handles response processing
-func ProcessHTTPResponse(resp *fasthttp.Response, job payload.PayloadJob) *RawHTTPResponseDetails {
+func ProcessHTTPResponse(httpclient *HttpClient, resp *fasthttp.Response, job payload.PayloadJob) *RawHTTPResponseDetails {
 	// Get values that are used multiple times
 	statusCode := resp.StatusCode()
 	body := resp.Body()
@@ -395,8 +384,8 @@ func ProcessHTTPResponse(resp *fasthttp.Response, job payload.PayloadJob) *RawHT
 	result.ServerInfo = append([]byte(nil), resp.Header.Server()...)
 
 	// Handle body preview
-	if w.ScanOpts.ResponseBodyPreviewSize > 0 && len(body) > 0 {
-		previewSize := w.ScanOpts.ResponseBodyPreviewSize
+	if httpclient.options.ResponseBodyPreviewSize > 0 && len(body) > 0 {
+		previewSize := httpclient.options.ResponseBodyPreviewSize
 		if len(body) > previewSize {
 			result.ResponsePreview = append([]byte(nil), body[:previewSize]...)
 		} else {
