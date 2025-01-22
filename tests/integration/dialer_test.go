@@ -44,10 +44,7 @@ func TestDialerInMemory(t *testing.T) {
 	}
 
 	// Create request pool
-	pool := rawhttp.NewRequestPool(clientOpts, &rawhttp.ScannerCliOpts{
-		ResponseBodyPreviewSize: 100,
-		ModuleName:              "test-dialer",
-	}, GB403ErrorHandler.NewErrorHandler(32))
+	pool := rawhttp.NewRequestWorkerPool(clientOpts, 1, GB403ErrorHandler.NewErrorHandler(32))
 
 	// Create test payload
 	jobs := []payload.PayloadJob{
@@ -115,10 +112,7 @@ func TestDialerWithProxy(t *testing.T) {
 	}
 
 	// Create request pool
-	pool := rawhttp.NewRequestPool(clientOpts, &rawhttp.ScannerCliOpts{
-		ResponseBodyPreviewSize: 100,
-		ModuleName:              "test-proxy",
-	}, GB403ErrorHandler.NewErrorHandler(32))
+	pool := rawhttp.NewRequestWorkerPool(clientOpts, 1, GB403ErrorHandler.NewErrorHandler(32))
 
 	// Create test payload
 	jobs := []payload.PayloadJob{

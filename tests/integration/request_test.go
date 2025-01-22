@@ -41,11 +41,7 @@ func TestClient301RedirectInmemory(t *testing.T) {
 	}
 
 	// Create request pool
-	pool := rawhttp.NewRequestPool(clientOpts, &rawhttp.ScannerCliOpts{
-		ResponseBodyPreviewSize: 100,
-		ModuleName:              "test-redirect",
-		MaxWorkers:              10,
-	}, GB403ErrorHandler.NewErrorHandler(32))
+	pool := rawhttp.NewRequestWorkerPool(clientOpts, 10, GB403ErrorHandler.NewErrorHandler(32))
 
 	// Create test payload
 	jobs := []payload.PayloadJob{
@@ -133,11 +129,7 @@ func TestClient302RedirectCaseInsensitive(t *testing.T) {
 	}
 
 	// Create request pool
-	pool := rawhttp.NewRequestPool(clientOpts, &rawhttp.ScannerCliOpts{
-		ResponseBodyPreviewSize: 100,
-		ModuleName:              "test-redirect",
-		MaxWorkers:              10,
-	}, GB403ErrorHandler.NewErrorHandler(32))
+	pool := rawhttp.NewRequestWorkerPool(clientOpts, 10, GB403ErrorHandler.NewErrorHandler(32))
 
 	// Create test payload
 	jobs := []payload.PayloadJob{
@@ -211,11 +203,7 @@ func TestRequestDelay(t *testing.T) {
 	}
 
 	// Create request pool
-	pool := rawhttp.NewRequestPool(clientOpts, &rawhttp.ScannerCliOpts{
-		ResponseBodyPreviewSize: 100,
-		ModuleName:              "test-delay",
-		MaxWorkers:              1,
-	}, GB403ErrorHandler.NewErrorHandler(32))
+	pool := rawhttp.NewRequestWorkerPool(clientOpts, 1, GB403ErrorHandler.NewErrorHandler(32))
 
 	// Create test payloads
 	jobs := []payload.PayloadJob{
@@ -317,11 +305,7 @@ func TestRequestDelayWithMultipleWorkers(t *testing.T) {
 	}
 
 	// Create pool with 3 workers
-	pool := rawhttp.NewRequestPool(clientOpts, &rawhttp.ScannerCliOpts{
-		ResponseBodyPreviewSize: 100,
-		ModuleName:              "test-delay",
-		MaxWorkers:              3,
-	}, GB403ErrorHandler.NewErrorHandler(32))
+	pool := rawhttp.NewRequestWorkerPool(clientOpts, 3, GB403ErrorHandler.NewErrorHandler(32))
 
 	// Create 6 test jobs
 	jobs := []payload.PayloadJob{
