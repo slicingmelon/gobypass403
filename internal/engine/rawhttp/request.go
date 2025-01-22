@@ -105,6 +105,7 @@ func ProcessHTTPResponse(httpclient *HttpClient, resp *fasthttp.Response, job pa
 	statusCode := resp.StatusCode()
 	body := resp.Body()
 	contentLength := resp.Header.ContentLength()
+	httpClientOpts := httpclient.GetHTTPClientOptions()
 
 	result := &RawHTTPResponseDetails{
 		URL:           append([]byte(nil), job.FullURL...),
@@ -149,8 +150,8 @@ func ProcessHTTPResponse(httpclient *HttpClient, resp *fasthttp.Response, job pa
 	result.ServerInfo = append([]byte(nil), resp.Header.Server()...)
 
 	// Handle body preview
-	if httpclient.GetHTTPClientOptions().MaxResponseBodySize > 0 && len(body) > 0 {
-		previewSize := httpclient.GetHTTPClientOptions().MaxResponseBodySize
+	if httpClientOpts.MaxResponseBodySize > 0 && httpClientOpts.ResponseBodyPreviewSize > 0 && len(body) > 0 {
+		previewSize := httpClientOpts.ResponseBodyPreviewSize
 		if len(body) > previewSize {
 			result.ResponsePreview = append([]byte(nil), body[:previewSize]...)
 		} else {
