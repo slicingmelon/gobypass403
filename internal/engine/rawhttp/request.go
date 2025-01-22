@@ -105,7 +105,6 @@ func BuildHTTPRequest(httpclient *HttpClient, req *fasthttp.Request, job payload
 // ProcessHTTPResponse handles response processing
 func ProcessHTTPResponse(httpclient *HttpClient, resp *fasthttp.Response, job payload.PayloadJob) *RawHTTPResponseDetails {
 	statusCode := resp.StatusCode()
-	//body := resp.Body()
 	contentLength := resp.Header.ContentLength()
 	httpClientOpts := httpclient.GetHTTPClientOptions()
 
@@ -114,7 +113,6 @@ func ProcessHTTPResponse(httpclient *HttpClient, resp *fasthttp.Response, job pa
 		BypassModule:  append([]byte(nil), job.BypassModule...),
 		StatusCode:    statusCode,
 		ContentLength: int64(contentLength),
-		//ResponseBytes: len(body),
 	}
 
 	// Check for redirect early
@@ -164,18 +162,19 @@ func ProcessHTTPResponse(httpclient *HttpClient, resp *fasthttp.Response, job pa
 				} else if n > 0 {
 					result.ResponsePreview = append([]byte(nil), previewBuf[:n]...)
 				}
+				result.ResponseBytes = len(result.ResponsePreview)
 				resp.CloseBodyStream()
 			}
 		} else {
 			// Non-streaming case, -> resp.Body()
 			if body := resp.Body(); len(body) > 0 {
 				previewSize := httpClientOpts.ResponseBodyPreviewSize
-				result.ResponseBytes = len(body)
 				if len(body) > previewSize {
 					result.ResponsePreview = append([]byte(nil), body[:previewSize]...)
 				} else {
 					result.ResponsePreview = append([]byte(nil), body...)
 				}
+				result.ResponseBytes = len(result.ResponsePreview)
 			}
 		}
 	}
