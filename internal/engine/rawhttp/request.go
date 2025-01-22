@@ -152,15 +152,6 @@ func ProcessHTTPResponse(httpclient *HttpClient, resp *fasthttp.Response, job pa
 	result.ServerInfo = append([]byte(nil), resp.Header.Server()...)
 
 	// Handle body preview
-	// if httpClientOpts.MaxResponseBodySize > 0 && httpClientOpts.ResponseBodyPreviewSize > 0 && len(body) > 0 {
-	// 	previewSize := httpClientOpts.ResponseBodyPreviewSize
-	// 	if len(body) > previewSize {
-	// 		result.ResponsePreview = append([]byte(nil), body[:previewSize]...)
-	// 	} else {
-	// 		result.ResponsePreview = append([]byte(nil), body...)
-	// 	}
-	// }
-
 	if httpClientOpts.MaxResponseBodySize > 0 && httpClientOpts.ResponseBodyPreviewSize > 0 {
 		if httpClientOpts.StreamResponseBody {
 			// Streaming case: use BodyStream and LimitReader
@@ -176,7 +167,7 @@ func ProcessHTTPResponse(httpclient *HttpClient, resp *fasthttp.Response, job pa
 				resp.CloseBodyStream()
 			}
 		} else {
-			// Non-streaming case: use Body()
+			// Non-streaming case, just use resp.Body()
 			if body := resp.Body(); len(body) > 0 {
 				previewSize := httpClientOpts.ResponseBodyPreviewSize
 				result.ResponseBytes = len(body)
