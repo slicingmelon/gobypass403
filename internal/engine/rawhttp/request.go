@@ -62,7 +62,6 @@ func BuildHTTPRequest(httpclient *HttpClient, req *fasthttp.Request, job payload
 	req.UseHostHeader = false
 	req.Header.SetMethod(job.Method)
 
-	// Set the raw URI for the first line of the request
 	req.SetRequestURI(job.FullURL)
 
 	// Disable all normalizing for raw path testing
@@ -72,8 +71,8 @@ func BuildHTTPRequest(httpclient *HttpClient, req *fasthttp.Request, job payload
 
 	// !!Always close connection when custom headers are present
 	shouldCloseConn := len(job.Headers) > 0 ||
-		httpclient.options.DisableKeepAlive ||
-		httpclient.options.ProxyURL != ""
+		httpclient.GetHTTPClientOptions().DisableKeepAlive ||
+		httpclient.GetHTTPClientOptions().ProxyURL != ""
 
 	// Set headers directly
 	for _, h := range job.Headers {
@@ -84,7 +83,6 @@ func BuildHTTPRequest(httpclient *HttpClient, req *fasthttp.Request, job payload
 		req.Header.Set(h.Header, h.Value)
 	}
 
-	// Set standard headers
 	req.Header.SetUserAgentBytes(CustomUserAgent)
 
 	if GB403Logger.IsDebugEnabled() {
@@ -104,7 +102,6 @@ func BuildHTTPRequest(httpclient *HttpClient, req *fasthttp.Request, job payload
 
 // ProcessHTTPResponse handles response processing
 func ProcessHTTPResponse(httpclient *HttpClient, resp *fasthttp.Response, job payload.PayloadJob) *RawHTTPResponseDetails {
-	// Get values that are used multiple times
 	statusCode := resp.StatusCode()
 	body := resp.Body()
 	contentLength := resp.Header.ContentLength()
@@ -152,8 +149,8 @@ func ProcessHTTPResponse(httpclient *HttpClient, resp *fasthttp.Response, job pa
 	result.ServerInfo = append([]byte(nil), resp.Header.Server()...)
 
 	// Handle body preview
-	if httpclient.options.ResponseBodyPreviewSize > 0 && len(body) > 0 {
-		previewSize := httpclient.options.ResponseBodyPreviewSize
+	if httpclient.GetHTTPClientOptions().MaxResponseBodySize > 0 && len(body) > 0 {
+		previewSize := httpclient.GetHTTPClientOptions().MaxResponseBodySize
 		if len(body) > previewSize {
 			result.ResponsePreview = append([]byte(nil), body[:previewSize]...)
 		} else {
@@ -161,9 +158,11 @@ func ProcessHTTPResponse(httpclient *HttpClient, resp *fasthttp.Response, job pa
 		}
 	}
 
-	// Extract title if HTML
-	if bytes.Contains(result.ContentType, strHTML) {
-		result.Title = extractTitle(body)
+	// Extract title if HTML response
+	if len(body) > 0 && bytes.Contains(result.ContentType, strHTML) {
+		if title := ExtractTitle(body); title != nil {
+			result.Title = append([]byte(nil), title...)
+		}
 	}
 
 	// Generate curl command PoC
@@ -236,7 +235,7 @@ func PeekHeaderKeyCaseInsensitive(h *fasthttp.ResponseHeader, key []byte) []byte
 }
 
 // Helper function to extract title from HTML
-func extractTitle(body []byte) []byte {
+func ExtractTitle(body []byte) []byte {
 	lower := bytes.ToLower(body)
 	titleStart := bytes.Index(lower, []byte("<title>"))
 	if titleStart == -1 {

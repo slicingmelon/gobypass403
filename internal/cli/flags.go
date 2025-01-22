@@ -31,7 +31,7 @@ func parseFlags() (*Options, error) {
 		{name: "v,verbose", usage: "Verbose output", value: &opts.Verbose},
 		{name: "d,debug", usage: "Debug mode with request canaries", value: &opts.Debug},
 		{name: "trace", usage: "Trace HTTP requests", value: &opts.TraceRequests},
-		{name: "mc,match-status-code", usage: "Only save results matching these HTTP status codes (example: -mc 200,301,500 or 'all' / '*', for any status code)", value: &opts.MatchStatusCodesStr},
+		{name: "mc,match-status-code", usage: "Filter results by HTTP status codes (example: -mc 200, 301, 500, all). Default: All status codes", value: &opts.MatchStatusCodesStr},
 		{name: "http2", usage: "Enable HTTP2 client", value: &opts.EnableHTTP2, defVal: false},
 		{name: "x,proxy", usage: "Proxy URL (format: http://proxy:port) (Example: -x http://127.0.0.1:8080)", value: &opts.Proxy},
 		{name: "spoof-header", usage: "Add more headers used to spoof IPs (example: X-SecretIP-Header,X-GO-IP)", value: &opts.SpoofHeader},

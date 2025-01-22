@@ -124,7 +124,10 @@ func (o *Options) setDefaults() {
 
 	// Status codes default
 	if o.MatchStatusCodesStr == "" {
-		o.MatchStatusCodes = []int{200}
+		o.MatchStatusCodes = make([]int, 0, 500)
+		for i := 100; i < 600; i++ {
+			o.MatchStatusCodes = append(o.MatchStatusCodes, i)
+		}
 	}
 
 	// Output directory default
