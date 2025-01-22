@@ -63,7 +63,7 @@ Usage:
   -t, -threads
         Number of concurrent threads (Default: 15)
   -T, -timeout
-        Timeout in seconds (Default: false)
+        Timeout in seconds (Default: 20)
   -delay
         Delay between requests in milliseconds (Default: 0)
   -v, -verbose
