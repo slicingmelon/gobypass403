@@ -95,8 +95,8 @@ func BuildHTTPRequest(httpclient *HttpClient, req *fasthttp.Request, job payload
 	if shouldCloseConn {
 		req.SetConnectionClose()
 	} else {
-		//req.Header.Set("Connection", "keep-alive")
-		req.SetConnectionClose()
+		req.Header.Set("Connection", "keep-alive")
+		//req.SetConnectionClose()
 	}
 
 	return nil
