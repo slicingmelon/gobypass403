@@ -22,7 +22,7 @@ type RawHTTPResponseDetails struct {
 	Title           []byte
 }
 
-// RequestWorkerPool manages concurrent HTTP request processing using pond
+// RequestWorkerPool manages concurrent HTTP request/response processing
 type RequestWorkerPool struct {
 	httpClient   *HttpClient
 	errorHandler *GB403ErrorHandler.ErrorHandler
@@ -76,6 +76,7 @@ func (wp *RequestWorkerPool) ProcessRequests(jobs []payload.PayloadJob) <-chan *
 // Close gracefully shuts down the worker pool
 func (wp *RequestWorkerPool) Close() {
 	wp.pool.StopAndWait()
+	wp.httpClient.Close()
 }
 
 // processJob handles a single job: builds request, sends it, and processes response
