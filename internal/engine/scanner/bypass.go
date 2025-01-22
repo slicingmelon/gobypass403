@@ -106,6 +106,7 @@ func NewWorkerContext(mode string, total int, targetURL string, opts *ScannerOpt
 
 	// Override specific settings from user options
 	clientOpts.Timeout = time.Duration(opts.Timeout) * time.Second
+	clientOpts.ResponseBodyPreviewSize = opts.ResponseBodyPreviewSize
 
 	// Ensure MaxConnsPerHost is at least equal to number of workers plus buffer
 	if opts.Threads > clientOpts.MaxConnsPerHost {
