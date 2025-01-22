@@ -2,6 +2,8 @@ package rawhttp
 
 import (
 	"bytes"
+	"fmt"
+	"io"
 	"runtime"
 	"unsafe"
 
@@ -103,7 +105,7 @@ func BuildHTTPRequest(httpclient *HttpClient, req *fasthttp.Request, job payload
 // ProcessHTTPResponse handles response processing
 func ProcessHTTPResponse(httpclient *HttpClient, resp *fasthttp.Response, job payload.PayloadJob) *RawHTTPResponseDetails {
 	statusCode := resp.StatusCode()
-	body := resp.Body()
+	//body := resp.Body()
 	contentLength := resp.Header.ContentLength()
 	httpClientOpts := httpclient.GetHTTPClientOptions()
 
@@ -112,7 +114,7 @@ func ProcessHTTPResponse(httpclient *HttpClient, resp *fasthttp.Response, job pa
 		BypassModule:  append([]byte(nil), job.BypassModule...),
 		StatusCode:    statusCode,
 		ContentLength: int64(contentLength),
-		ResponseBytes: len(body),
+		//ResponseBytes: len(body),
 	}
 
 	// Check for redirect early
@@ -150,18 +152,46 @@ func ProcessHTTPResponse(httpclient *HttpClient, resp *fasthttp.Response, job pa
 	result.ServerInfo = append([]byte(nil), resp.Header.Server()...)
 
 	// Handle body preview
-	if httpClientOpts.MaxResponseBodySize > 0 && httpClientOpts.ResponseBodyPreviewSize > 0 && len(body) > 0 {
-		previewSize := httpClientOpts.ResponseBodyPreviewSize
-		if len(body) > previewSize {
-			result.ResponsePreview = append([]byte(nil), body[:previewSize]...)
+	// if httpClientOpts.MaxResponseBodySize > 0 && httpClientOpts.ResponseBodyPreviewSize > 0 && len(body) > 0 {
+	// 	previewSize := httpClientOpts.ResponseBodyPreviewSize
+	// 	if len(body) > previewSize {
+	// 		result.ResponsePreview = append([]byte(nil), body[:previewSize]...)
+	// 	} else {
+	// 		result.ResponsePreview = append([]byte(nil), body...)
+	// 	}
+	// }
+
+	if httpClientOpts.MaxResponseBodySize > 0 && httpClientOpts.ResponseBodyPreviewSize > 0 {
+		if httpClientOpts.StreamResponseBody {
+			// Streaming case: use BodyStream and LimitReader
+			if stream := resp.BodyStream(); stream != nil {
+				previewBuf := make([]byte, httpClientOpts.ResponseBodyPreviewSize)
+				limitedReader := io.LimitReader(stream, int64(httpClientOpts.ResponseBodyPreviewSize))
+				n, err := limitedReader.Read(previewBuf)
+				if err != nil && err != io.EOF {
+					result.ResponsePreview = []byte(fmt.Sprintf("Error reading stream: %v", err))
+				} else if n > 0 {
+					result.ResponsePreview = append([]byte(nil), previewBuf[:n]...)
+				}
+				resp.CloseBodyStream()
+			}
 		} else {
-			result.ResponsePreview = append([]byte(nil), body...)
+			// Non-streaming case: use Body()
+			if body := resp.Body(); len(body) > 0 {
+				previewSize := httpClientOpts.ResponseBodyPreviewSize
+				result.ResponseBytes = len(body)
+				if len(body) > previewSize {
+					result.ResponsePreview = append([]byte(nil), body[:previewSize]...)
+				} else {
+					result.ResponsePreview = append([]byte(nil), body...)
+				}
+			}
 		}
 	}
 
 	// Extract title if HTML response
-	if len(body) > 0 && bytes.Contains(result.ContentType, strHTML) {
-		if title := ExtractTitle(body); title != nil {
+	if len(result.ResponsePreview) > 0 && bytes.Contains(result.ContentType, strHTML) {
+		if title := ExtractTitle(result.ResponsePreview); title != nil {
 			result.Title = append([]byte(nil), title...)
 		}
 	}

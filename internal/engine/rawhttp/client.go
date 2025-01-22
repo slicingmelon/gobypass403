@@ -57,7 +57,7 @@ func DefaultHTTPClientOptions() *HttpClientOptions {
 		MaxResponseBodySize: 4096, // Hardlimit at 4KB
 		ReadBufferSize:      8092, // Hardlimit at 8KB
 		WriteBufferSize:     8092, // Hardlimit at 8KB
-		StreamResponseBody:  false,
+		StreamResponseBody:  true,
 		MaxRetries:          3,
 		RetryDelay:          1 * time.Second,
 		RequestDelay:        0,
@@ -83,9 +83,9 @@ func NewHTTPClient(opts *HttpClientOptions, errorHandler *GB403ErrorHandler.Erro
 		ReadBufferSize:                opts.ReadBufferSize,
 		WriteBufferSize:               opts.WriteBufferSize,
 		StreamResponseBody:            opts.StreamResponseBody,
-		//ReadTimeout:                   opts.Timeout,
-		//WriteTimeout:                  opts.Timeout,
-		Dial: CreateDialFunc(opts, errorHandler),
+		ReadTimeout:                   opts.Timeout,
+		WriteTimeout:                  opts.Timeout,
+		Dial:                          CreateDialFunc(opts, errorHandler),
 		TLSConfig: &tls.Config{
 			InsecureSkipVerify: true,
 			MinVersion:         tls.VersionTLS10,
