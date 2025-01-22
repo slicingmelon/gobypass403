@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"runtime"
 	"sync"
-	"sync/atomic"
 	"time"
 	"unsafe"
 
@@ -70,20 +69,20 @@ const (
 	LIFO
 )
 
-type RequestWorkerPool struct {
-	Workers       []*RequestWorker
-	Ready         chan *RequestWorker
-	Lock          sync.Mutex
-	StopCh        chan struct{}
-	Pool          sync.Pool
-	ActiveWorkers atomic.Int32
-	QueuedJobs    atomic.Int32
+// type RequestWorkerPool struct {
+// 	Workers       []*RequestWorker
+// 	Ready         chan *RequestWorker
+// 	Lock          sync.Mutex
+// 	StopCh        chan struct{}
+// 	Pool          sync.Pool
+// 	ActiveWorkers atomic.Int32
+// 	QueuedJobs    atomic.Int32
 
-	// news
-	MaxIdleWorkerDuration time.Duration
-	LastCleanup           time.Time
-	Strategy              ConnPoolStrategyType // FIFO or LIFO
-}
+// 	// news
+// 	MaxIdleWorkerDuration time.Duration
+// 	LastCleanup           time.Time
+// 	Strategy              ConnPoolStrategyType // FIFO or LIFO
+// }
 
 // Individual worker that processes requests
 type RequestWorker struct {
@@ -117,20 +116,20 @@ type ScannerCliOpts struct {
 }
 
 // ResponseDetails contains processed response information
-type RawHTTPResponseDetails struct {
-	URL             []byte
-	BypassModule    []byte
-	CurlCommand     []byte
-	StatusCode      int
-	ResponsePreview []byte
-	ResponseHeaders []byte
-	ContentType     []byte
-	ContentLength   int64
-	ServerInfo      []byte
-	RedirectURL     []byte
-	ResponseBytes   int
-	Title           []byte
-}
+// type RawHTTPResponseDetails struct {
+// 	URL             []byte
+// 	BypassModule    []byte
+// 	CurlCommand     []byte
+// 	StatusCode      int
+// 	ResponsePreview []byte
+// 	ResponseHeaders []byte
+// 	ContentType     []byte
+// 	ContentLength   int64
+// 	ServerInfo      []byte
+// 	RedirectURL     []byte
+// 	ResponseBytes   int
+// 	Title           []byte
+// }
 
 func NewRequestPool(clientOpts *HttpClientOptions, scanOpts *ScannerCliOpts, errorHandler *GB403ErrorHandler.ErrorHandler) *RequestPool {
 	// Just use the options as provided, with a fallback to defaults
@@ -215,7 +214,7 @@ func NewRequestBuilder(client *HttpClient) *RequestBuilder {
 // ErrNoFreeConns is returned if all DefaultMaxConnsPerHost connections
 // to the requested host are busy.
 // BuildRequest creates and configures a HTTP request from a bypass job (payload job)
-func (rb *RequestBuilder) BuildHTTPRequest(req *fasthttp.Request, job payload.PayloadJob) {
+func BuildHTTPRequest(httpclient *HttpClient, req *fasthttp.Request, job payload.PayloadJob) error {
 	//req.Reset()
 	req.UseHostHeader = false
 	req.Header.SetMethod(job.Method)
@@ -230,8 +229,8 @@ func (rb *RequestBuilder) BuildHTTPRequest(req *fasthttp.Request, job payload.Pa
 
 	// !!Always close connection when custom headers are present
 	shouldCloseConn := len(job.Headers) > 0 ||
-		rb.Client.options.DisableKeepAlive ||
-		rb.Client.options.ProxyURL != ""
+		httpclient.options.DisableKeepAlive ||
+		httpclient.options.ProxyURL != ""
 
 	// Set headers directly
 	for _, h := range job.Headers {
@@ -256,6 +255,8 @@ func (rb *RequestBuilder) BuildHTTPRequest(req *fasthttp.Request, job payload.Pa
 		//req.Header.Set("Connection", "keep-alive")
 		req.SetConnectionClose()
 	}
+
+	return nil
 }
 
 // ProcessRequests handles multiple requests "efficiently"

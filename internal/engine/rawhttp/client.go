@@ -27,6 +27,7 @@ type HttpClientOptions struct {
 	WriteBufferSize         int           // fasthttp core
 	MaxRetries              int           // ScannerCliOpts
 	ResponseBodyPreviewSize int           // ScannerCliOpts
+	StreamResponseBody      bool          // fasthttp core
 	MatchStatusCodes        []int         // ScannerCliOpts
 	RetryDelay              time.Duration // ScannerCliOpts
 	DisableKeepAlive        bool
@@ -53,9 +54,10 @@ func DefaultHTTPClientOptions() *HttpClientOptions {
 		MaxIdleConnDuration: 10 * time.Second, // Idle keep-alive connections are closed after this duration.
 		MaxConnWaitTimeout:  1 * time.Second,  // Maximum duration for waiting for a free connection.
 		NoDefaultUserAgent:  true,
-		MaxResponseBodySize: 4096, // Hardlimit at 4k
-		ReadBufferSize:      4096,
-		WriteBufferSize:     4096,
+		MaxResponseBodySize: 4096, // Hardlimit at 4KB
+		ReadBufferSize:      8092, // Hardlimit at 8KB
+		WriteBufferSize:     8092, // Hardlimit at 8KB
+		StreamResponseBody:  true,
 		MaxRetries:          3,
 		RetryDelay:          1 * time.Second,
 		RequestDelay:        0,
@@ -80,6 +82,7 @@ func NewHTTPClient(opts *HttpClientOptions, errorHandler *GB403ErrorHandler.Erro
 		MaxResponseBodySize:           opts.MaxResponseBodySize,
 		ReadBufferSize:                opts.ReadBufferSize,
 		WriteBufferSize:               opts.WriteBufferSize,
+		StreamResponseBody:            opts.StreamResponseBody,
 		Dial:                          CreateDialFunc(opts, errorHandler),
 		TLSConfig: &tls.Config{
 			InsecureSkipVerify: true,
@@ -94,6 +97,10 @@ func NewHTTPClient(opts *HttpClientOptions, errorHandler *GB403ErrorHandler.Erro
 		bufPool:      sync.Pool{New: func() interface{} { return make([]byte, 0, opts.ReadBufferSize) }},
 		errorHandler: errorHandler,
 	}
+}
+
+func (c *HttpClient) GetHTTPClientOptions() *HttpClientOptions {
+	return c.options
 }
 
 // DoRequest performs a HTTP request (raw)

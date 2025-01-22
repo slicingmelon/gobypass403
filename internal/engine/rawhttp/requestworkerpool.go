@@ -1,265 +1,142 @@
 package rawhttp
 
 import (
-	"bytes"
-	"runtime"
-	"sync"
-	"sync/atomic"
-	"time"
-	"unsafe"
+	"fmt"
 
+	"github.com/alitto/pond/v2"
 	"github.com/slicingmelon/go-bypass-403/internal/engine/payload"
 	GB403ErrorHandler "github.com/slicingmelon/go-bypass-403/internal/utils/error"
-	GB403Logger "github.com/slicingmelon/go-bypass-403/internal/utils/logger"
 	"github.com/valyala/fasthttp"
 )
 
-// RequestPool2 manages the entire request processing lifecycle
-type RequestPool2 struct {
-	// Core components
-	client       *HttpClient
+type RawHTTPResponseDetails struct {
+	URL             []byte
+	BypassModule    []byte
+	CurlCommand     []byte
+	StatusCode      int
+	ResponsePreview []byte
+	ResponseHeaders []byte
+	ContentType     []byte
+	ContentLength   int64
+	ServerInfo      []byte
+	RedirectURL     []byte
+	ResponseBytes   int
+	Title           []byte
+}
+
+// RequestWorkerPool manages concurrent HTTP request processing using pond
+type RequestWorkerPool struct {
+	httpClient   *HttpClient
 	errorHandler *GB403ErrorHandler.ErrorHandler
-
-	// Atomic counters
-	workersCount  atomic.Int32
-	activeWorkers atomic.Int32
-	stopped       atomic.Bool
-
-	// Worker management
-	workerChanPool sync.Pool     // Pool of reusable worker channels
-	ready          []*workerChan // Slice of available workers
-	maxWorkers     int32
-
-	// Synchronization
-	mu sync.Mutex
-
-	// Channels
-	results chan *RawHTTPResponseDetails
-	stopCh  chan struct{}
+	pool         pond.Pool
 }
 
-// workerChan represents a worker's job channel and metadata
-type workerChan struct {
-	ch          chan payload.PayloadJob // Channel for receiving jobs
-	lastUseTime time.Time               // Last time this worker was used
+// GetPoolStats returns current pool statistics
+func (wp *RequestWorkerPool) GetCurrentStats() (running int64, waiting uint64) {
+	return wp.pool.RunningWorkers(), wp.pool.WaitingTasks()
 }
 
-func NewRequestPool2(opts *HttpClientOptions, scanOpts *ScannerCliOpts, errorHandler *GB403ErrorHandler.ErrorHandler) *RequestPool2 {
-	queueSize := scanOpts.MaxWorkers * 2
-
-	pool := &RequestPool2{
-		client:       NewHTTPClient(opts, errorHandler),
+// NewWorkerPool initializes a new RequestWorkerPool instance
+func NewWorkerPool(opts *HttpClientOptions, maxWorkers int, errorHandler *GB403ErrorHandler.ErrorHandler) *RequestWorkerPool {
+	return &RequestWorkerPool{
+		httpClient:   NewHTTPClient(opts, errorHandler),
 		errorHandler: errorHandler,
-		results:      make(chan *RawHTTPResponseDetails, queueSize),
-		stopCh:       make(chan struct{}),
-
-		// Worker management
-		workerChanPool: sync.Pool{
-			New: func() any {
-				return &workerChan{
-					ch: make(chan payload.PayloadJob, 1),
-				}
-			},
-		},
-		ready: make([]*workerChan, 0, scanOpts.MaxWorkers),
+		pool:         pond.NewPool(maxWorkers),
 	}
-
-	// Initialize atomic counters
-	pool.workersCount.Store(0)
-	pool.activeWorkers.Store(0)
-	pool.stopped.Store(false)
-
-	// Start cleanup goroutine
-	go pool.cleanupWorkers()
-
-	return pool
 }
 
-// ProcessRequests handles a batch of jobs
-func (p *RequestPool2) ProcessRequests(jobs []payload.PayloadJob) <-chan *RawHTTPResponseDetails {
-	p.queuedTasks.Add(int32(len(jobs)))
+// ProcessRequests handles multiple payload jobs
+func (wp *RequestWorkerPool) ProcessRequests(jobs []payload.PayloadJob) <-chan *RawHTTPResponseDetails {
+	results := make(chan *RawHTTPResponseDetails)
+	group := wp.pool.NewGroup()
 
-	go func() {
-		defer close(p.results)
-
-		for _, job := range jobs {
-			RequestWorker2 := p.getWorker()
-			RequestWorker2.taskChan <- job
-		}
-	}()
-
-	return p.results
-}
-
-// getWorker returns an available RequestWorker2 or creates a new one
-// getWorker returns an available worker or creates a new one
-func (p *RequestPool2) getWorker() *RequestWorker2 {
-	// Try quick access workers first
-	if worker := p.idleWorker1; worker != nil &&
-		atomic.CompareAndSwapPointer((*unsafe.Pointer)(unsafe.Pointer(&p.idleWorker1)),
-			unsafe.Pointer(worker), nil) {
-		return worker
-	}
-
-	if worker := p.idleWorker2; worker != nil &&
-		atomic.CompareAndSwapPointer((*unsafe.Pointer)(unsafe.Pointer(&p.idleWorker2)),
-			unsafe.Pointer(worker), nil) {
-		return worker
-	}
-
-	// Then check idle worker list
-	p.mu.Lock()
-	if len(p.idleWorkers) > 0 {
-		worker := p.idleWorkers[len(p.idleWorkers)-1]
-		p.idleWorkers = p.idleWorkers[:len(p.idleWorkers)-1]
-		p.mu.Unlock()
-		return worker
-	}
-	p.mu.Unlock()
-
-	// Create new if under limit
-	if p.activeWorkers.Load() < p.maxWorkers {
-		return p.createWorker()
-	}
-
-	// Wait for available worker
-	return p.waitForWorker()
-}
-
-func (p *RequestPool2) waitForWorker() *RequestWorker2 {
-	for !p.stopped.Load() {
-		if worker := p.getWorker(); worker != nil {
-			return worker
-		}
-		runtime.Gosched() // Just yield CPU, no sleep
-	}
-	return nil
-}
-
-func (p *RequestPool2) createWorker() *RequestWorker2 {
-	w := p.workerCache.Get().(*RequestWorker2)
-	w.pool = p
-	w.id = p.activeWorkers.Add(1)
-
-	p.mu.Lock()
-	p.workers = append(p.workers, w)
-	p.mu.Unlock()
-
-	// Start RequestWorker2 goroutine
-	go w.run()
-
-	return w
-}
-
-// BuildRequest constructs the HTTP request
-func (rb *RequestBuilder) BuildRequest(req *fasthttp.Request, job payload.PayloadJob) error {
-	req.UseHostHeader = false
-	req.Header.SetMethod(job.Method)
-
-	// Set the raw URI for the first line of the request
-	req.SetRequestURI(job.FullURL)
-
-	// Disable all normalizing for raw path testing
-	req.URI().DisablePathNormalizing = true
-	req.Header.DisableNormalizing()
-	req.Header.SetNoDefaultContentType(true)
-
-	// !!Always close connection when custom headers are present
-	shouldCloseConn := len(job.Headers) > 0 ||
-		rb.Client.options.DisableKeepAlive ||
-		rb.Client.options.ProxyURL != ""
-
-	// Set headers directly
-	for _, h := range job.Headers {
-		if h.Header == "Host" {
-			req.UseHostHeader = true
-			shouldCloseConn = true
-		}
-		req.Header.Set(h.Header, h.Value)
-	}
-
-	// Set standard headers
-	req.Header.SetUserAgentBytes(CustomUserAgent)
-
-	if GB403Logger.IsDebugEnabled() {
-		req.Header.Set("X-GB403-Token", job.PayloadToken)
-	}
-
-	// Handle connection settings
-	if shouldCloseConn {
-		req.SetConnectionClose()
-	} else {
-		//req.Header.Set("Connection", "keep-alive")
-		req.SetConnectionClose()
-	}
-
-	return nil
-}
-
-// SendRequestJob handles the actual HTTP request
-func (p *RequestPool2) ProcessRequests(jobs []payload.PayloadJob) <-chan *RawHTTPResponseDetails {
-	err := w.pool.client.DoRequest(req, resp)
-	if err != nil {
-		return w.pool.errorHandler.HandleError(err, GB403ErrorHandler.ErrorContext{
-			Host:         []byte(job.Host),
-			ErrorSource:  []byte("RequestWorker.SendRequestJob"),
-			BypassModule: []byte(job.BypassModule),
+	for _, job := range jobs {
+		job := job // Capture for closure
+		group.Submit(func() {
+			if resp := wp.processJob(job); resp != nil {
+				results <- resp
+			}
 		})
 	}
-	return nil
+
+	// Close results channel when all tasks complete
+	go func() {
+		group.Wait()
+		close(results)
+	}()
+
+	return results
 }
 
-func (w *RequestWorker2) ProcessResponseJob(resp *fasthttp.Response, job payload.PayloadJob) *RawHTTPResponseDetails {
-	// Get values that are used multiple times
+// Close gracefully shuts down the worker pool
+func (wp *RequestWorkerPool) Close() {
+	wp.pool.StopAndWait()
+}
+
+// processJob handles a single job: builds request, sends it, and processes response
+func (wp *RequestWorkerPool) processJob(job payload.PayloadJob) *RawHTTPResponseDetails {
+	req := wp.httpClient.AcquireRequest()
+	resp := wp.httpClient.AcquireResponse()
+	defer wp.httpClient.ReleaseRequest(req)
+	defer wp.httpClient.ReleaseResponse(resp)
+
+	fmt.Printf("Processing request for URL: %s\n", job.FullURL)
+
+	// Build request
+	if err := wp.BuildRequestTask(req, job); err != nil {
+		if err := wp.errorHandler.HandleError(err, GB403ErrorHandler.ErrorContext{
+			ErrorSource:  []byte("RequestWorkerPool.BuildRequest"),
+			Host:         []byte(job.Host),
+			BypassModule: []byte(job.BypassModule),
+		}); err != nil {
+			return nil
+		}
+	}
+
+	// Send request
+	if err := wp.httpClient.DoRequest(req, resp); err != nil {
+		//fmt.Printf("Error sending request: %v\n", err)
+		if err := wp.errorHandler.HandleError(err, GB403ErrorHandler.ErrorContext{
+			ErrorSource:  []byte("RequestWorkerPool.SendRequest"),
+			Host:         []byte(job.Host),
+			BypassModule: []byte(job.BypassModule),
+		}); err != nil {
+			return nil
+		}
+	}
+
+	// Continue processing response even if we got a whitelisted error
+	return wp.ProcessResponseTask(resp, job)
+}
+
+// buildRequest constructs the HTTP request
+func (wp *RequestWorkerPool) BuildRequestTask(req *fasthttp.Request, job payload.PayloadJob) error {
+	return BuildHTTPRequest(wp.httpClient, req, job)
+}
+
+// SendRequest sends the HTTP request
+func (wp *RequestWorkerPool) SendRequestTask(req *fasthttp.Request, resp *fasthttp.Response) error {
+	return wp.httpClient.DoRequest(req, resp)
+}
+
+// processResponse processes the HTTP response and extracts details
+func (wp *RequestWorkerPool) ProcessResponseTask(resp *fasthttp.Response, job payload.PayloadJob) *RawHTTPResponseDetails {
 	statusCode := resp.StatusCode()
 	body := resp.Body()
-	contentLength := resp.Header.ContentLength()
+
+	if len(body) > wp.httpClient.GetHTTPClientOptions().MaxResponseBodySize {
+		body = body[:wp.httpClient.GetHTTPClientOptions().MaxResponseBodySize]
+	}
 
 	result := &RawHTTPResponseDetails{
-		URL:           append([]byte(nil), job.FullURL...),
-		BypassModule:  append([]byte(nil), job.BypassModule...),
+		URL:           []byte(job.FullURL),
 		StatusCode:    statusCode,
-		ContentLength: int64(contentLength),
+		ContentLength: int64(resp.Header.ContentLength()),
 		ResponseBytes: len(body),
 	}
 
-	// Check for redirect early
-	if fasthttp.StatusCodeIsRedirect(statusCode) {
-		if location := PeekHeaderKeyCaseInsensitive(&resp.Header, []byte("Location")); len(location) > 0 {
-			result.RedirectURL = append([]byte(nil), location...)
-		}
-	}
-
-	// Create header buffer
-	headerBuf := headerBufPool.Get()
-	defer headerBufPool.Put(headerBuf)
-	headerBuf.Reset()
-
-	// Write status line
-	headerBuf.Write(resp.Header.Protocol())
-	headerBuf.Write(strSpace)
-	headerBuf.B = fasthttp.AppendUint(headerBuf.B, statusCode)
-	headerBuf.Write(strSpace)
-	headerBuf.Write(resp.Header.StatusMessage())
-	headerBuf.Write(strCRLF)
-
-	// Process headers
-	resp.Header.VisitAll(func(key, value []byte) {
-		headerBuf.Write(key)
-		headerBuf.Write(strColonSpace)
-		headerBuf.Write(value)
-		headerBuf.Write(strCRLF)
-	})
-	headerBuf.Write(strCRLF)
-
-	// Store processed data
-	result.ResponseHeaders = append([]byte(nil), headerBuf.B...)
-	result.ContentType = append([]byte(nil), resp.Header.ContentType()...)
-	result.ServerInfo = append([]byte(nil), resp.Header.Server()...)
-
-	// Handle body preview using client options
-	previewSize := w.pool.client.options.ResponseBodyPreviewSize
-	if previewSize > 0 && len(body) > 0 {
+	if wp.httpClient.GetHTTPClientOptions().MaxResponseBodySize > 0 && len(body) > 0 {
+		previewSize := wp.httpClient.GetHTTPClientOptions().MaxResponseBodySize
 		if len(body) > previewSize {
 			result.ResponsePreview = append([]byte(nil), body[:previewSize]...)
 		} else {
@@ -267,103 +144,71 @@ func (w *RequestWorker2) ProcessResponseJob(resp *fasthttp.Response, job payload
 		}
 	}
 
-	// Extract title if HTML
-	if bytes.Contains(result.ContentType, strHTML) {
-		result.Title = extractTitle(body)
-	}
-
-	// Generate curl command PoC
-	result.CurlCommand = BuildCurlCommandPoc(job)
-
 	return result
 }
 
-// Worker's main loop
-func (w *RequestWorker2) run() {
-	builder := &RequestBuilder{Client: w.pool.client}
+// func main() {
+// 	// Initialize error handler
+// 	errorHandler := GB403ErrorHandler.NewErrorHandler(32)
+// 	httpclientopts := DefaultHTTPClientOptions()
+// 	httpclientopts.ReadBufferSize = 8092      // 8KB
+// 	httpclientopts.WriteBufferSize = 8092     // 8KB
+// 	httpclientopts.MaxResponseBodySize = 4096 // 8KB
+// 	httpclientopts.StreamResponseBody = true
 
-	for job := range w.taskChan {
-		resp := w.pool.client.AcquireResponse()
-		req := w.pool.client.AcquireRequest()
+// 	// Create worker pool
+// 	pool := NewWorkerPool(httpclientopts, 10, errorHandler)
+// 	defer pool.Close()
 
-		// Build request
-		if err := builder.BuildRequest(req, job); err != nil {
-			w.pool.errorHandler.HandleError(err, GB403ErrorHandler.ErrorContext{
-				ErrorSource:  []byte("RequestWorker.BuildRequest"),
-				Host:         []byte(job.Host),
-				BypassModule: []byte(job.BypassModule),
-			})
-			continue
-		}
+// 	// Generate test URLs
+// 	baseURL := "https://localhost/test/"
+// 	var jobs []payload.PayloadJob
+// 	for i := 1; i <= 200; i++ {
+// 		jobs = append(jobs, payload.PayloadJob{
+// 			Host:         "localhost",
+// 			Method:       "GET",
+// 			FullURL:      fmt.Sprintf("%s%d", baseURL, i),
+// 			PayloadToken: strconv.Itoa(i),
+// 			Headers: []payload.Header{
+// 				{Header: "User-Agent", Value: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"},
+// 			},
+// 		})
+// 	}
 
-		// Send request with job context
-		if err := w.SendRequestJob(req, resp, job); err != nil {
-			continue
-		}
+// 	// Start processing
+// 	fmt.Printf("Starting to process %d URLs with %d workers\n", len(jobs), 10)
+// 	startTime := time.Now()
 
-		// Process response with job context
-		result := w.ProcessResponseJob(resp, job)
-		w.pool.results <- result
+// 	results := pool.ProcessRequests(jobs)
 
-		// Cleanup
-		w.pool.client.ReleaseRequest(req)
-		w.pool.client.ReleaseResponse(resp)
+// 	// Process results as they come in
+// 	successCount := 0
+// 	for result := range results {
+// 		if result != nil {
+// 			successCount++
+// 			fmt.Printf("URL: %s - Status: %d - Content Length: %d bytes - Response Bytes: %d bytes\n",
+// 				string(result.URL),
+// 				result.StatusCode,
+// 				result.ContentLength,
+// 				result.ResponseBytes,
+// 			)
+// 			running, waiting := pool.GetCurrentStats()
+// 			fmt.Printf("\rActive Workers: %d | Queued: %d", running, waiting)
+// 		}
+// 	}
 
-		// Mark as idle
-		w.lastUsed = time.Now()
-		w.isIdle = true
-		w.pool.queuedTasks.Add(-1)
-	}
-}
+// 	// Print statistics
+// 	duration := time.Since(startTime)
+// 	// stats := pool.GetPoolStats()
 
-// Cleanup idle workers periodically
-func (p *RequestPool2) cleanupIdleWorkers() {
-	ticker := time.NewTicker(p.idleTimeout / 2)
-	defer ticker.Stop()
+// 	fmt.Printf("\nExecution Summary:\n")
+// 	fmt.Printf("Total time: %v\n", duration)
+// 	fmt.Printf("Successful requests: %d/%d\n", successCount, len(jobs))
+// 	//fmt.Printf("Running workers: %d\n", stats.RunningWorkers)
+// 	//fmt.Printf("Completed tasks: %d\n", stats.CompletedTasks)
+// 	//fmt.Printf("Failed tasks: %d\n", stats.FailedTasks)
+// 	fmt.Printf("Average time per request: %v\n", duration/time.Duration(len(jobs)))
 
-	for {
-		select {
-		case <-p.stopCh:
-			return
-		case <-ticker.C:
-			p.removeIdleWorkers()
-		}
-	}
-}
-
-func (p *RequestPool2) removeIdleWorkers() {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-
-	deadline := time.Now().Add(-p.idleTimeout)
-	active := make([]*RequestWorker2, 0, len(p.workers))
-
-	for _, w := range p.workers {
-		if w.isIdle && w.lastUsed.Before(deadline) {
-			close(w.taskChan)
-			p.workerCache.Put(w)
-			p.activeWorkers.Add(-1)
-		} else {
-			active = append(active, w)
-		}
-	}
-
-	p.workers = active
-}
-
-func (p *RequestPool2) Close() {
-	if !p.stopped.CompareAndSwap(false, true) {
-		return
-	}
-
-	p.mu.Lock()
-	for _, worker := range p.workers {
-		close(worker.taskChan)
-	}
-	p.workers = nil
-	p.mu.Unlock()
-
-	if p.client != nil {
-		p.client.Close()
-	}
-}
+// 	fmt.Println("")
+// 	errorHandler.PrintErrorStats()
+// }

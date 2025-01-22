@@ -7,6 +7,7 @@ toolchain go1.23.4
 require (
 	github.com/VictoriaMetrics/VictoriaMetrics v1.109.0
 	github.com/VictoriaMetrics/fastcache v1.12.2
+	github.com/alitto/pond/v2 v2.1.6
 	github.com/andybalholm/brotli v1.1.1
 	github.com/golang/snappy v0.0.4
 	github.com/jedib0t/go-pretty/v6 v6.6.5
