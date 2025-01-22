@@ -97,15 +97,14 @@ func (pc *ProgressCounter) StartModule(moduleName string, totalJobs int, targetU
 	pc.trackers[moduleName+"_progress"] = tracker
 	pc.pw.AppendTracker(tracker)
 
-	pc.pw.SetPinnedMessages(
-		text.FgCyan.Sprintf("Target URL: %s", targetURL),
-		text.FgYellow.Sprintf("Active Module: %s", moduleName),
-		text.FgGreen.Sprintf("Started: %s", time.Now().Format("15:04:05")),
-		text.FgHiBlack.Sprintf("Total Jobs: %d", totalJobs),
-	)
-	// Start rendering in the background
-	go pc.pw.Render()
+	pc.pw.Log("")
+	pc.pw.Log(text.FgCyan.Sprintf("Target URL: %s", targetURL))
+	pc.pw.Log(text.FgYellow.Sprintf("Active Module: %s", moduleName))
+	pc.pw.Log(text.FgGreen.Sprintf("Started: %s", time.Now().Format("15:04:05")))
+	pc.pw.Log(text.FgHiBlack.Sprintf("Total Jobs: %d", totalJobs))
+	pc.pw.Log("")
 
+	go pc.pw.Render()
 }
 
 func (pc *ProgressCounter) addTracker(id, message string, total int64) {
@@ -156,27 +155,18 @@ func (pc *ProgressCounter) MarkModuleAsDone(moduleName string) {
 	tracker := pc.trackers[moduleName+"_progress"]
 	stats := pc.moduleStats[moduleName]
 	pc.mu.RUnlock()
-	if tracker != nil {
-		// Update message to show completion instead of worker count
-		tracker.UpdateMessage(fmt.Sprintf("[%s] (completed)", moduleName))
-		tracker.MarkAsDone()
-	}
-	if stats != nil {
+
+	if tracker != nil && stats != nil {
 		completedJobs := stats.CompletedJobs.Load()
-		successfulJobs := stats.SuccessfulJobs.Load()
-		failedJobs := stats.FailedJobs.Load()
+		//successfulJobs := stats.SuccessfulJobs.Load()
+		//failedJobs := stats.FailedJobs.Load()
 		duration := time.Since(stats.StartTime).Round(time.Millisecond)
 		reqPerSec := float64(completedJobs) / duration.Seconds()
 
-		pc.pw.SetPinnedMessages(
-			text.FgCyan.Sprintf("Module: %s (Completed)", moduleName),
-			text.FgGreen.Sprintf("Success: %d/%d (%.1f%%)",
-				successfulJobs, completedJobs,
-				float64(successfulJobs)/float64(completedJobs)*100),
-			text.FgRed.Sprintf("Failed: %d requests", failedJobs),
-			text.FgMagenta.Sprintf("Speed: %.2f req/s", reqPerSec),
-			text.FgHiBlack.Sprintf("Duration: %s", duration),
-		)
+		// Update message to show completion
+		tracker.UpdateMessage(fmt.Sprintf("[%s] (completed)", moduleName))
+		tracker.MarkAsDone()
+
 		// Assign different colors to each bypass mode
 		colorMap := map[string]text.Color{
 			"dumb_check":        text.FgRed,
@@ -186,15 +176,15 @@ func (pc *ProgressCounter) MarkModuleAsDone(moduleName string) {
 			"http_headers_url":  text.FgYellow,
 			"mid_paths":         text.FgCyan,
 		}
-		moduleColor := colorMap[moduleName]
-		message := fmt.Sprintf("[%s] Completed %d requests in %s (avg: %s req/s)",
-			moduleColor.Sprintf("%-20s", moduleName),
+
+		// Log the completion message
+		pc.pw.Log("--------------------------------------------------------------")
+		pc.pw.Log(fmt.Sprintf("[%s] Completed %d requests in %s (avg: %s req/s)",
+			text.Colors{colorMap[moduleName]}.Sprintf("%-20s", moduleName),
 			completedJobs,
 			text.FgCyan.Sprintf("%-8s", duration),
-			text.FgMagenta.Sprintf("%-8s", fmt.Sprintf("%.2f", reqPerSec)))
-		pc.pw.Log("----------------------------------------")
-		pc.pw.Log(message)
-		pc.pw.Log("----------------------------------------")
+			text.FgMagenta.Sprintf("%-8s", fmt.Sprintf("%.2f", reqPerSec))))
+		pc.pw.Log("--------------------------------------------------------------")
 	}
 	pc.activeModules.Add(-1)
 }
