@@ -131,7 +131,7 @@ type ScannerCliOpts struct {
 // 	Title           []byte
 // }
 
-func NewRequestPool(clientOpts *HttpClientOptions, scanOpts *ScannerCliOpts, errorHandler *GB403ErrorHandler.ErrorHandler) *RequestPool {
+func NewRequestPool2(clientOpts *HttpClientOptions, scanOpts *ScannerCliOpts, errorHandler *GB403ErrorHandler.ErrorHandler) *RequestPool {
 	// Just use the options as provided, with a fallback to defaults
 	if clientOpts == nil {
 		clientOpts = DefaultHTTPClientOptions()
@@ -346,7 +346,7 @@ func (w *RequestWorker) ProcessRequestJob(job payload.PayloadJob) *RawHTTPRespon
 }
 
 // processResponse handles response processing
-func (w *RequestWorker) ProcessResponseJob(resp *fasthttp.Response, job payload.PayloadJob) *RawHTTPResponseDetails {
+func ProcessHTTPResponse(resp *fasthttp.Response, job payload.PayloadJob) *RawHTTPResponseDetails {
 	// Get values that are used multiple times
 	statusCode := resp.StatusCode()
 	body := resp.Body()
@@ -415,68 +415,68 @@ func (w *RequestWorker) ProcessResponseJob(resp *fasthttp.Response, job payload.
 	return result
 }
 
-// WorkerPool methods
-func (wp *RequestWorkerPool) AcquireWorker() *RequestWorker {
-	select {
-	case <-wp.StopCh:
-		return nil
-	case worker := <-wp.Ready:
-		worker.LastUsed = time.Now()
-		return worker
-	case <-time.After(100 * time.Millisecond):
-		wp.Lock.Lock()
-		defer wp.Lock.Unlock()
+// // WorkerPool methods
+// func (wp *RequestWorkerPool) AcquireWorker() *RequestWorker {
+// 	select {
+// 	case <-wp.StopCh:
+// 		return nil
+// 	case worker := <-wp.Ready:
+// 		worker.LastUsed = time.Now()
+// 		return worker
+// 	case <-time.After(100 * time.Millisecond):
+// 		wp.Lock.Lock()
+// 		defer wp.Lock.Unlock()
 
-		if len(wp.Workers) < cap(wp.Ready) {
-			worker := wp.Pool.Get().(*RequestWorker)
-			wp.Workers = append(wp.Workers, worker)
-			worker.LastUsed = time.Now()
-			return worker
-		}
-		return nil
-	}
-}
+// 		if len(wp.Workers) < cap(wp.Ready) {
+// 			worker := wp.Pool.Get().(*RequestWorker)
+// 			wp.Workers = append(wp.Workers, worker)
+// 			worker.LastUsed = time.Now()
+// 			return worker
+// 		}
+// 		return nil
+// 	}
+// }
 
-func (wp *RequestWorkerPool) ReleaseWorker(w *RequestWorker) {
-	w.LastUsed = time.Now()
+// func (wp *RequestWorkerPool) ReleaseWorker(w *RequestWorker) {
+// 	w.LastUsed = time.Now()
 
-	wp.Lock.Lock()
-	defer wp.Lock.Unlock()
+// 	wp.Lock.Lock()
+// 	defer wp.Lock.Unlock()
 
-	if wp.Strategy == LIFO {
-		wp.Workers = append(wp.Workers, w)
-	} else {
-		wp.Workers = append([]*RequestWorker{w}, wp.Workers...)
-	}
-}
+// 	if wp.Strategy == LIFO {
+// 		wp.Workers = append(wp.Workers, w)
+// 	} else {
+// 		wp.Workers = append([]*RequestWorker{w}, wp.Workers...)
+// 	}
+// }
 
-func (p *RequestPool) Close() {
-	p.CloseMu.Do(func() {
-		// First signal stop
-		close(p.WorkerPool.StopCh)
+// func (p *RequestPool) Close() {
+// 	p.CloseMu.Do(func() {
+// 		// First signal stop
+// 		close(p.WorkerPool.StopCh)
 
-		// Clean up workers
-		p.WorkerPool.Lock.Lock()
-		for _, w := range p.WorkerPool.Workers {
-			if w.RateLimiter != nil {
-				w.RateLimiter.Stop()
-			}
-		}
-		p.WorkerPool.Lock.Unlock()
+// 		// Clean up workers
+// 		p.WorkerPool.Lock.Lock()
+// 		for _, w := range p.WorkerPool.Workers {
+// 			if w.RateLimiter != nil {
+// 				w.RateLimiter.Stop()
+// 			}
+// 		}
+// 		p.WorkerPool.Lock.Unlock()
 
-		// Clean up channels last
-		safeClose(p.PayloadQueue)
-		safeClose(p.Results)
-	})
-}
+// 		// Clean up channels last
+// 		safeClose(p.PayloadQueue)
+// 		safeClose(p.Results)
+// 	})
+// }
 
-func safeClose[T any](ch chan T) {
-	defer func() {
-		// Recover from panic if channel is already closed
-		recover()
-	}()
-	close(ch)
-}
+// func safeClose[T any](ch chan T) {
+// 	defer func() {
+// 		// Recover from panic if channel is already closed
+// 		recover()
+// 	}()
+// 	close(ch)
+// }
 
 // String2Byte converts string to a byte slice without memory allocation.
 // This conversion *does not* copy data. Note that casting via "([]byte)(string)" *does* copy data.

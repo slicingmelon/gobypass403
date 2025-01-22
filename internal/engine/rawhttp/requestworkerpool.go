@@ -32,12 +32,19 @@ type RequestWorkerPool struct {
 }
 
 // GetPoolStats returns current pool statistics
+// Each worker pool instance exposes useful metrics that can be queried through the following methods:
+// pool.RunningWorkers() int64: Current number of running workers
+// pool.SubmittedTasks() uint64: Total number of tasks submitted since the pool was created
+// pool.WaitingTasks() uint64: Current number of tasks in the queue that are waiting to be executed
+// pool.SuccessfulTasks() uint64: Total number of tasks that have successfully completed their execution since the pool was created
+// pool.FailedTasks() uint64: Total number of tasks that completed with panic since the pool was created
+// pool.CompletedTasks() uint64: Total number of tasks that have completed their execution either successfully or with panic since the pool was created
 func (wp *RequestWorkerPool) GetCurrentStats() (running int64, waiting uint64) {
 	return wp.pool.RunningWorkers(), wp.pool.WaitingTasks()
 }
 
 // NewWorkerPool initializes a new RequestWorkerPool instance
-func NewWorkerPool(opts *HttpClientOptions, maxWorkers int, errorHandler *GB403ErrorHandler.ErrorHandler) *RequestWorkerPool {
+func NewRequestWorkerPool(opts *HttpClientOptions, maxWorkers int, errorHandler *GB403ErrorHandler.ErrorHandler) *RequestWorkerPool {
 	return &RequestWorkerPool{
 		httpClient:   NewHTTPClient(opts, errorHandler),
 		errorHandler: errorHandler,
@@ -93,9 +100,8 @@ func (wp *RequestWorkerPool) processJob(job payload.PayloadJob) *RawHTTPResponse
 		}
 	}
 
-	// Send request
-	if err := wp.httpClient.DoRequest(req, resp); err != nil {
-		//fmt.Printf("Error sending request: %v\n", err)
+	// Send request using SendRequestTask
+	if err := wp.SendRequestTask(req, resp); err != nil {
 		if err := wp.errorHandler.HandleError(err, GB403ErrorHandler.ErrorContext{
 			ErrorSource:  []byte("RequestWorkerPool.SendRequest"),
 			Host:         []byte(job.Host),
@@ -105,7 +111,6 @@ func (wp *RequestWorkerPool) processJob(job payload.PayloadJob) *RawHTTPResponse
 		}
 	}
 
-	// Continue processing response even if we got a whitelisted error
 	return wp.ProcessResponseTask(resp, job)
 }
 
@@ -121,30 +126,7 @@ func (wp *RequestWorkerPool) SendRequestTask(req *fasthttp.Request, resp *fastht
 
 // processResponse processes the HTTP response and extracts details
 func (wp *RequestWorkerPool) ProcessResponseTask(resp *fasthttp.Response, job payload.PayloadJob) *RawHTTPResponseDetails {
-	statusCode := resp.StatusCode()
-	body := resp.Body()
-
-	if len(body) > wp.httpClient.GetHTTPClientOptions().MaxResponseBodySize {
-		body = body[:wp.httpClient.GetHTTPClientOptions().MaxResponseBodySize]
-	}
-
-	result := &RawHTTPResponseDetails{
-		URL:           []byte(job.FullURL),
-		StatusCode:    statusCode,
-		ContentLength: int64(resp.Header.ContentLength()),
-		ResponseBytes: len(body),
-	}
-
-	if wp.httpClient.GetHTTPClientOptions().MaxResponseBodySize > 0 && len(body) > 0 {
-		previewSize := wp.httpClient.GetHTTPClientOptions().MaxResponseBodySize
-		if len(body) > previewSize {
-			result.ResponsePreview = append([]byte(nil), body[:previewSize]...)
-		} else {
-			result.ResponsePreview = append([]byte(nil), body...)
-		}
-	}
-
-	return result
+	return ProcessHTTPResponse(resp, job)
 }
 
 // func main() {
