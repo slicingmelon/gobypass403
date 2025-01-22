@@ -2,147 +2,88 @@ package rawhttp
 
 import (
 	"crypto/tls"
-	"fmt"
-	"net"
 	"sync"
 	"time"
 
 	GB403ErrorHandler "github.com/slicingmelon/go-bypass-403/internal/utils/error"
 	"github.com/valyala/fasthttp"
-	"github.com/valyala/fasthttp/fasthttpproxy"
 )
 
 var (
 	CustomUserAgent = []byte("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36")
 )
 
-// ClientOptions contains configuration options for the Client
-type ClientOptions struct {
-	Timeout             time.Duration
-	MaxConnsPerHost     int
-	MaxIdleConnDuration time.Duration
-	MaxConnWaitTimeout  time.Duration
-	NoDefaultUserAgent  bool
-	ProxyURL            string
-	MaxResponseBodySize int
-	ReadBufferSize      int
-	WriteBufferSize     int
-	MaxRetries          int
-	RetryDelay          time.Duration
-	DisableKeepAlive    bool
-	EnableHTTP2         bool
+// HttpClientOptions contains configuration options for the HttpClient
+type HttpClientOptions struct {
+	Timeout                 time.Duration // ScannerCliOpts
+	DialTimeout             time.Duration // Custom Dial Timeout
+	MaxConnsPerHost         int           // fasthttp core
+	MaxIdleConnDuration     time.Duration // fasthttp core
+	MaxConnWaitTimeout      time.Duration // fasthttp core
+	NoDefaultUserAgent      bool          // fasthttp core
+	ProxyURL                string        // ScannerCliOpts
+	MaxResponseBodySize     int           // fasthttp core
+	ReadBufferSize          int           // fasthttp core
+	WriteBufferSize         int           // fasthttp core
+	MaxRetries              int           // ScannerCliOpts
+	ResponseBodyPreviewSize int           // ScannerCliOpts
+	StreamResponseBody      bool          // fasthttp core
+	MatchStatusCodes        []int         // ScannerCliOpts
+	RetryDelay              time.Duration // ScannerCliOpts
+	DisableKeepAlive        bool
+	EnableHTTP2             bool
+	Dialer                  fasthttp.DialFunc
+	RequestDelay            time.Duration // ScannerCliOpts
 }
 
-// Client represents a reusable HTTP client optimized for performance
+// HttpClient represents a reusable HTTP client
 type HttpClient struct {
 	client       *fasthttp.Client
+	options      *HttpClientOptions
 	bufPool      sync.Pool
-	maxRetries   int
-	retryDelay   time.Duration
-	options      *ClientOptions
 	errorHandler *GB403ErrorHandler.ErrorHandler
+	mu           sync.RWMutex
 }
 
-// DefaultOptionsMultiHost returns options optimized for scanning multiple hosts
-func DefaultOptionsMultiHost() *ClientOptions {
-	return &ClientOptions{
+// DefaultHTTPClientOptions returns the default HTTP client options
+func DefaultHTTPClientOptions() *HttpClientOptions {
+	return &HttpClientOptions{
 		Timeout:             30 * time.Second,
-		MaxConnsPerHost:     25,
-		MaxIdleConnDuration: 5 * time.Second,
-		NoDefaultUserAgent:  true,
-		MaxResponseBodySize: 4096, // Hardlimit at 4k
-		ReadBufferSize:      4096,
-		WriteBufferSize:     4096,
-		MaxRetries:          3,
-		RetryDelay:          1 * time.Second,
-		DisableKeepAlive:    true, // Set to true for multi-host scanning
-	}
-}
-
-// DefaultOptionsSingleHost returns options optimized for scanning a single host
-func DefaultOptionsSameHost() *ClientOptions {
-	return &ClientOptions{
-		Timeout:             30 * time.Second,
+		DialTimeout:         5 * time.Second,
 		MaxConnsPerHost:     128,
-		MaxIdleConnDuration: 10 * time.Second,
-		MaxConnWaitTimeout:  2 * time.Second,
+		MaxIdleConnDuration: 1 * time.Minute, // Idle keep-alive connections are closed after this duration.
+		MaxConnWaitTimeout:  1 * time.Second, // Maximum duration for waiting for a free connection.
 		NoDefaultUserAgent:  true,
-		MaxResponseBodySize: 4096, // Hardlimit at 4k
-		ReadBufferSize:      4096,
-		WriteBufferSize:     4096,
+		MaxResponseBodySize: 4096, // Hardlimit at 4KB
+		ReadBufferSize:      8092, // Hardlimit at 8KB
+		WriteBufferSize:     8092, // Hardlimit at 8KB
+		StreamResponseBody:  true,
 		MaxRetries:          3,
 		RetryDelay:          1 * time.Second,
-		DisableKeepAlive:    false, // Keep connections alive for single host
+		RequestDelay:        0,
+		DisableKeepAlive:    false, // Keep connections alive
+		Dialer:              nil,
 	}
 }
 
-// / NewHTTPClient creates a new optimized HTTP client
-func NewHTTPClient(opts *ClientOptions, errorHandler *GB403ErrorHandler.ErrorHandler) *HttpClient {
+// NewHTTPClient creates a new HTTP client instance
+func NewHTTPClient(opts *HttpClientOptions, errorHandler *GB403ErrorHandler.ErrorHandler) *HttpClient {
 	if opts == nil {
-		opts = DefaultOptionsSameHost()
-	}
-
-	// Create a custom TCPDialer with our settings
-	dialer := &fasthttp.TCPDialer{
-		Concurrency:      2048,
-		DNSCacheDuration: 15 * time.Minute,
-	}
-
-	// Create the dial function that handles both proxy and direct connections
-	dialFunc := func(addr string) (net.Conn, error) {
-		if opts.ProxyURL != "" {
-			proxyDialer := fasthttpproxy.FasthttpHTTPDialerTimeout(opts.ProxyURL, 3*time.Second)
-			conn, err := proxyDialer(addr)
-			if err != nil {
-				if handleErr := errorHandler.HandleError(err, GB403ErrorHandler.ErrorContext{
-					ErrorSource: []byte("Client.proxyDial"),
-					Host:        []byte(addr),
-				}); handleErr != nil {
-					return nil, fmt.Errorf("proxy dial error handling failed: %v (original error: %v)", handleErr, err)
-				}
-				return nil, err
-			}
-			return conn, nil
-		}
-
-		// No proxy, use our TCPDialer with timeout
-		// DialTimeout dials the given TCP addr using tcp4 using the given timeout.
-		// This function has the following additional features comparing to net.Dial:
-		//	It reduces load on DNS resolver by caching resolved TCP addressed for DNSCacheDuration.
-		//	It dials all the resolved TCP addresses in round-robin manner until connection is established. This may be useful if certain addresses are temporarily unreachable.
-		// This dialer is intended for custom code wrapping before passing to Client.DialTimeout or HostClient.DialTimeout.
-		// For instance, per-host counters and/or limits may be implemented by such wrappers.
-		// The addr passed to the function must contain port. Example addr values:
-		// foobar.baz:443
-		// foo.bar:80
-		// aaa.com:8080
-		conn, err := dialer.DialTimeout(addr, 5*time.Second)
-		if err != nil {
-			if handleErr := errorHandler.HandleError(err, GB403ErrorHandler.ErrorContext{
-				ErrorSource: []byte("Client.directDial"),
-				Host:        []byte(addr),
-			}); handleErr != nil {
-				return nil, fmt.Errorf("direct dial error handling failed: %v (original error: %v)", handleErr, err)
-			}
-			return nil, err
-		}
-		return conn, nil
+		opts = DefaultHTTPClientOptions()
 	}
 
 	client := &fasthttp.Client{
-		MaxConnsPerHost:     opts.MaxConnsPerHost,
-		MaxIdleConnDuration: opts.MaxIdleConnDuration,
-		MaxConnWaitTimeout:  opts.MaxConnWaitTimeout,
-		//ReadTimeout:                   5 * time.Second,
-		//WriteTimeout:                  5 * time.Second,
+		MaxConnsPerHost:               opts.MaxConnsPerHost,
+		MaxIdleConnDuration:           opts.MaxIdleConnDuration,
+		MaxConnWaitTimeout:            opts.MaxConnWaitTimeout,
 		DisableHeaderNamesNormalizing: true,
 		DisablePathNormalizing:        true,
 		NoDefaultUserAgentHeader:      true,
 		MaxResponseBodySize:           opts.MaxResponseBodySize,
 		ReadBufferSize:                opts.ReadBufferSize,
 		WriteBufferSize:               opts.WriteBufferSize,
-		MaxIdemponentCallAttempts:     opts.MaxRetries,
-		Dial:                          dialFunc,
+		StreamResponseBody:            opts.StreamResponseBody,
+		Dial:                          CreateDialFunc(opts, errorHandler),
 		TLSConfig: &tls.Config{
 			InsecureSkipVerify: true,
 			MinVersion:         tls.VersionTLS10,
@@ -152,16 +93,18 @@ func NewHTTPClient(opts *ClientOptions, errorHandler *GB403ErrorHandler.ErrorHan
 
 	return &HttpClient{
 		client:       client,
-		errorHandler: errorHandler,
-		bufPool:      sync.Pool{New: func() interface{} { return make([]byte, 0, opts.ReadBufferSize) }},
-		maxRetries:   opts.MaxRetries,
-		retryDelay:   opts.RetryDelay,
 		options:      opts,
+		bufPool:      sync.Pool{New: func() interface{} { return make([]byte, 0, opts.ReadBufferSize) }},
+		errorHandler: errorHandler,
 	}
 }
 
-// DoRaw performs a raw HTTP request
-func (c *HttpClient) DoRaw(req *fasthttp.Request, resp *fasthttp.Response) error {
+func (c *HttpClient) GetHTTPClientOptions() *HttpClientOptions {
+	return c.options
+}
+
+// DoRequest performs a HTTP request (raw)
+func (c *HttpClient) DoRequest(req *fasthttp.Request, resp *fasthttp.Response) error {
 	return c.client.Do(req, resp)
 }
 

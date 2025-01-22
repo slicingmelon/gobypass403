@@ -97,32 +97,38 @@ type WorkerContext struct {
 	wg          *sync.WaitGroup
 	once        sync.Once
 	opts        *ScannerOpts
-	requestPool *rawhttp.RequestPool
+	requestPool *rawhttp.RequestWorkerPool
 	workerCount int32
 }
 
 func NewWorkerContext(mode string, total int, targetURL string, opts *ScannerOpts, errorHandler *GB403ErrorHandler.ErrorHandler, progress *ProgressCounter) *WorkerContext {
-	clientOpts := rawhttp.DefaultOptionsSameHost()
+	clientOpts := rawhttp.DefaultHTTPClientOptions()
 
 	// Override specific settings from user options
 	clientOpts.Timeout = time.Duration(opts.Timeout) * time.Second
-	clientOpts.MaxConnsPerHost = opts.Threads
+
+	// Ensure MaxConnsPerHost is at least equal to number of workers plus buffer
+	if opts.Threads > clientOpts.MaxConnsPerHost {
+		// Add 50% more connections than workers for buffer
+		clientOpts.MaxConnsPerHost = opts.Threads + (opts.Threads / 2)
+	}
+
+	// and proxy ofc
 	clientOpts.ProxyURL = opts.Proxy
-	// clientOpts.ReadBufferSize = 4096
-	// clientOpts.MaxResponseBodySize = 4096
+
+	// Apply a delay between requests
+	if opts.Delay > 0 {
+		clientOpts.RequestDelay = time.Duration(opts.Delay) * time.Millisecond
+	}
 
 	return &WorkerContext{
-		mode:     mode,
-		progress: progress,
-		cancel:   make(chan struct{}),
-		wg:       &sync.WaitGroup{},
-		once:     sync.Once{},
-		opts:     opts,
-		requestPool: rawhttp.NewRequestPool(clientOpts, &rawhttp.ScannerCliOpts{
-			MatchStatusCodes:        opts.MatchStatusCodes,
-			ResponseBodyPreviewSize: opts.ResponseBodyPreviewSize,
-			ModuleName:              mode,
-		}, errorHandler),
+		mode:        mode,
+		progress:    progress,
+		cancel:      make(chan struct{}),
+		wg:          &sync.WaitGroup{},
+		once:        sync.Once{},
+		opts:        opts,
+		requestPool: rawhttp.NewRequestWorkerPool(clientOpts, opts.Threads, errorHandler),
 	}
 }
 
@@ -207,11 +213,10 @@ func (s *Scanner) runBypassForMode(bypassModule string, targetURL string, result
 
 	ctx := NewWorkerContext(bypassModule, len(allJobs), targetURL, s.config, s.errorHandler, s.progress)
 	defer func() {
-		// Let the request pool finish and get final worker count
-		finalWorkerCount := ctx.requestPool.ActiveWorkers()
-		s.progress.UpdateWorkerStats(bypassModule, int64(finalWorkerCount))
+		// Get stats from pond pool
+		running, _ := ctx.requestPool.GetCurrentStats()
+		s.progress.UpdateWorkerStats(bypassModule, running)
 		ctx.Stop()
-		// Small delay to allow progress display to update
 		time.Sleep(100 * time.Millisecond)
 		s.progress.MarkModuleAsDone(bypassModule)
 	}()
@@ -225,7 +230,8 @@ func (s *Scanner) runBypassForMode(bypassModule string, targetURL string, result
 		s.progress.IncrementProgress(bypassModule, true)
 
 		if time.Since(lastStatsUpdate) > 500*time.Millisecond {
-			s.progress.UpdateWorkerStats(bypassModule, int64(ctx.requestPool.ActiveWorkers()))
+			running, _ := ctx.requestPool.GetCurrentStats()
+			s.progress.UpdateWorkerStats(bypassModule, running)
 			lastStatsUpdate = time.Now()
 		}
 

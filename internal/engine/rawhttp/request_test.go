@@ -71,19 +71,11 @@ func TestRequestBuilderViaEchoServer(t *testing.T) {
 	<-serverReady // Wait for server to start
 
 	// Create test client with custom dialer
-	client := &HttpClient{
-		client: &fasthttp.Client{
-			Dial: func(addr string) (net.Conn, error) {
-				return ln.Dial()
-			},
-			MaxIdleConnDuration: time.Second,
-			ReadTimeout:         time.Second,
-			WriteTimeout:        time.Second,
-		},
-		options: DefaultOptionsSameHost(),
+	clientoptions := DefaultHTTPClientOptions()
+	clientoptions.Dialer = func(addr string) (net.Conn, error) {
+		return ln.Dial()
 	}
-
-	rb := NewRequestBuilder(client)
+	client := NewHTTPClient(clientoptions, GB403ErrorHandler.NewErrorHandler(15))
 
 	// Test cases using real payload generators
 	testCases := []struct {
@@ -148,7 +140,7 @@ func TestRequestBuilderViaEchoServer(t *testing.T) {
 				defer fasthttp.ReleaseRequest(req)
 				defer fasthttp.ReleaseResponse(resp)
 
-				rb.BuildRequest(req, job)
+				BuildHTTPRequest(client, req, job)
 
 				// Build virtual request
 				GB403Logger.PrintYellow("[GB403Logger] Sending request :\n%s", req)
@@ -246,19 +238,11 @@ func TestRequestBuilderMidPathsPayloads(t *testing.T) {
 	<-serverReady
 
 	// Create test client with custom dialer
-	client := &HttpClient{
-		client: &fasthttp.Client{
-			Dial: func(addr string) (net.Conn, error) {
-				return ln.Dial()
-			},
-			MaxIdleConnDuration: time.Second,
-			ReadTimeout:         time.Second,
-			WriteTimeout:        time.Second,
-		},
-		options: DefaultOptionsSameHost(),
+	clientoptions := DefaultHTTPClientOptions()
+	clientoptions.Dialer = func(addr string) (net.Conn, error) {
+		return ln.Dial()
 	}
-
-	rb := NewRequestBuilder(client)
+	client := NewHTTPClient(clientoptions, GB403ErrorHandler.NewErrorHandler(15))
 
 	// Test cases using real payload generators
 	testCases := []struct {
@@ -307,7 +291,7 @@ func TestRequestBuilderMidPathsPayloads(t *testing.T) {
 				defer fasthttp.ReleaseRequest(req)
 				defer fasthttp.ReleaseResponse(resp)
 
-				rb.BuildRequest(req, job)
+				BuildHTTPRequest(client, req, job)
 
 				// Build virtual request
 				GB403Logger.PrintGreen("[GB403Logger][RequestBuilder] [X-GB403-Token: %s] Sending request: %s\n================>\n%s<================\n", job.PayloadToken, job.FullURL, req)
@@ -328,13 +312,7 @@ func TestRequestBuilderHostHeaders(t *testing.T) {
 		t.Skip("skipping test in short mode")
 	}
 
-	clientOpts := &ClientOptions{
-		MaxConnsPerHost:     100,
-		MaxIdleConnDuration: 10 * time.Second,
-		MaxConnWaitTimeout:  30 * time.Second,
-		MaxResponseBodySize: 1024 * 1024 * 10,
-		ProxyURL:            "http://127.0.0.1:8080",
-	}
+	clientOpts := DefaultHTTPClientOptions()
 
 	client := NewHTTPClient(clientOpts, GB403ErrorHandler.NewErrorHandler(15))
 	//rb := NewRequestBuilder(client, _logger)
@@ -348,8 +326,8 @@ func TestRequestBuilderHostHeaders(t *testing.T) {
 		// 	url:  "http://httpbin.org/get",
 		// },
 		{
-			name: "HTTPS GET Request PH",
-			url:  "https://cms.example.com",
+			name: "HTTPS GET Request",
+			url:  "https://example.com",
 		},
 	}
 
@@ -388,7 +366,7 @@ func TestRequestBuilderHostHeaders(t *testing.T) {
 			GB403Logger.PrintYellow("Request URI: %s", req.URI().FullURI())
 			GB403Logger.PrintYellow("===================\n")
 
-			if err := client.DoRaw(req, resp); err != nil {
+			if err := client.DoRequest(req, resp); err != nil {
 				t.Fatalf("Request failed: %v", err)
 			}
 
@@ -430,11 +408,11 @@ func TestResponseProcessingWithSpacedHeaders(t *testing.T) {
 	}
 	go s.Serve(ln) //nolint:errcheck
 
-	client := &fasthttp.Client{
-		Dial: func(addr string) (net.Conn, error) {
-			return ln.Dial()
-		},
+	clientoptions := DefaultHTTPClientOptions()
+	clientoptions.Dialer = func(addr string) (net.Conn, error) {
+		return ln.Dial()
 	}
+	client := NewHTTPClient(clientoptions, GB403ErrorHandler.NewErrorHandler(15))
 
 	testCases := []struct {
 		name         string
@@ -473,7 +451,7 @@ func TestResponseProcessingWithSpacedHeaders(t *testing.T) {
 			req.Header.SetMethod("GET")
 			req.Header.Set("X-Test-Case", tc.testCaseID)
 
-			if err := client.Do(req, resp); err != nil {
+			if err := client.DoRequest(req, resp); err != nil {
 				t.Fatalf("Request failed: %v", err)
 			}
 

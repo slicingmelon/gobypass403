@@ -144,11 +144,11 @@ func PrintTableRow(results []*Result) {
 	}
 
 	// Calculate column widths
-	moduleWidth := min(stats.maxModuleWidth+2, 15) // +2 for padding
-	statusWidth := 3                               // Always 3 digits
-	lengthWidth := 8                               // Enough for formatted sizes
-	typeWidth := min(stats.maxContentType+2, 12)
-	titleWidth := min(stats.maxTitleLen+2, 15)
+	moduleWidth := min(stats.maxModuleWidth, 15) // +2 for padding
+	statusWidth := 3                             // Always 3 digits
+	lengthWidth := 8                             // Enough for formatted sizes
+	typeWidth := min(stats.maxContentType, 12)
+	titleWidth := min(stats.maxTitleLen, 15)
 	serverWidth := 12
 
 	// Calculate remaining width for CURL POC

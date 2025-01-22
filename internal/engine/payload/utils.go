@@ -1,5 +1,7 @@
 package payload
 
+// This file contains various payload related utilities.
+
 import (
 	"embed"
 	"fmt"

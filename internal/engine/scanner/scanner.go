@@ -94,12 +94,12 @@ func (s *Scanner) scanURL(url string) error {
 
 	// If we have any findings, sort and save them
 	if len(allFindings) > 0 {
-		// Sort findings by module and status code
+		// Sort findings by status code and then by module
 		sort.Slice(allFindings, func(i, j int) bool {
-			if allFindings[i].BypassModule != allFindings[j].BypassModule {
-				return allFindings[i].BypassModule < allFindings[j].BypassModule
+			if allFindings[i].StatusCode != allFindings[j].StatusCode {
+				return allFindings[i].StatusCode < allFindings[j].StatusCode
 			}
-			return allFindings[i].StatusCode < allFindings[j].StatusCode
+			return allFindings[i].BypassModule < allFindings[j].BypassModule
 		})
 
 		// Save findings first
