@@ -50,6 +50,8 @@ func NewReconService() *ReconService {
 		Resolver: &net.Resolver{
 			PreferGo: true,
 			Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
+				GB403Logger.Verbose().Msgf("Resolver Dial called with network: %s, address: %s", network, address)
+
 				d := net.Dialer{
 					Timeout: 5 * time.Second,
 					// Add connection pooling
@@ -83,12 +85,21 @@ func NewReconService() *ReconService {
 						"[2620:0:ccc::2]:53",        // OpenDNS IPv6
 					}
 					// Try each resolver until one works
+					GB403Logger.Verbose().Msgf("Trying external resolvers for %s", host)
+
 					for _, resolver := range resolvers {
+						GB403Logger.Verbose().Msgf("Attempting resolver %s", resolver)
 						if conn, err := d.DialContext(ctx, "udp", resolver); err == nil {
+							GB403Logger.Verbose().Msgf("Successfully connected to resolver %s", resolver)
 							return conn, nil
+						} else {
+							GB403Logger.Verbose().Msgf("Failed to connect to resolver %s: %v", resolver, err)
 						}
 					}
+					GB403Logger.Verbose().Msgf("All resolvers failed for %s", host)
 				}
+
+				GB403Logger.Verbose().Msgf("Falling back to system resolver for %s", host)
 				return d.DialContext(ctx, network, address)
 			},
 		},
