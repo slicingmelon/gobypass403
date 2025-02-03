@@ -60,7 +60,7 @@ func NewReconService() *ReconService {
 				host := strings.Split(address, ":")[0]
 
 				// Try local resolution first
-				if ip := resolveFromHostsFile(host); ip != "" {
+				if ip := ResolveThroughSystemHostsFile(host); ip != "" {
 					GB403Logger.Verbose().
 						Metadata("resolveFromHosts()", "success").
 						Msgf("Resolved %s to %s from hosts file", host, ip)
@@ -101,7 +101,7 @@ func NewReconService() *ReconService {
 }
 
 // Simple hosts file parser
-func resolveFromHostsFile(host string) string {
+func ResolveThroughSystemHostsFile(host string) string {
 	// Handle localhost explicitly
 	if host == "localhost" {
 		return "127.0.0.1"
@@ -141,7 +141,7 @@ func resolveFromHostsFile(host string) string {
 
 	if err := scanner.Err(); err != nil {
 		GB403Logger.Error().
-			Metadata("resolveFromHostsFile()", "failed").
+			Metadata("ResolveThroughSystemHostsFile()", "failed").
 			Msgf("Error reading hosts file: %v", err)
 		return ""
 	}
@@ -245,7 +245,7 @@ func (s *ReconService) handleIP(ip string) error {
 }
 
 func (s *ReconService) handleDomain(host string) error {
-	ips, err := s.resolveHost(host)
+	ips, err := s.ResolveHost(host)
 	if err != nil {
 		GB403Logger.Error().Msgf("Failed to resolve host %s: %v", host, err)
 		return err
@@ -297,11 +297,11 @@ func (s *ReconService) handleDomain(host string) error {
 	return nil
 }
 
-func (s *ReconService) resolveHost(hostname string) (*IPAddrs, error) {
+func (s *ReconService) ResolveHost(hostname string) (*IPAddrs, error) {
 	result := &IPAddrs{}
 
 	// Special handling for localhost and hosts file entries
-	if ip := resolveFromHostsFile(hostname); ip != "" {
+	if ip := ResolveThroughSystemHostsFile(hostname); ip != "" {
 		GB403Logger.Verbose().
 			Msgf("Resolved %s locally to %s", hostname, ip)
 
