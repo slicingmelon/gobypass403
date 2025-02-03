@@ -189,43 +189,6 @@ func (p *URLRecon) GetReconCache() *recon.ReconCache {
 	return p.reconService.GetCache()
 }
 
-func (p *URLRecon) readAndReconHosts() error {
-	content, err := os.ReadFile(p.opts.SubstituteHostsFile)
-	if err != nil {
-		return fmt.Errorf("failed to read hosts file: %v", err)
-	}
-
-	var hosts []string
-	for _, host := range strings.Split(strings.TrimSpace(string(content)), "\n") {
-		if host = strings.TrimSpace(host); host != "" {
-			// Extract clean hostname without scheme
-			cleanHost := host
-			if strings.Contains(host, "://") {
-				parsed, err := rawurlparser.RawURLParse(host)
-				if err != nil {
-					GB403Logger.Verbose().Msgf("Skipping invalid host URL: %s - %v", host, err)
-					continue
-				}
-				cleanHost = parsed.Host
-			}
-			hosts = append(hosts, cleanHost)
-		}
-	}
-
-	if len(hosts) == 0 {
-		return fmt.Errorf("no valid hosts found in substitute hosts file")
-	}
-
-	// Run recon on clean hostnames
-	for _, host := range hosts {
-		if err := p.reconService.Run([]string{host}); err != nil {
-			GB403Logger.Error().Msgf("Failed recon for host %s: %v", host, err)
-		}
-	}
-
-	return nil
-}
-
 func (p *URLRecon) expandURLSchemes(targetURL string) ([]string, error) {
 	parsedURL, err := rawurlparser.RawURLParse(targetURL)
 	if err != nil {

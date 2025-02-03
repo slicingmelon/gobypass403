@@ -35,7 +35,7 @@ type IPAddrs struct {
 	CNAMEs []string
 }
 
-func (s *ReconService) processHost(host string) error {
+func (s *ReconService) ProcessHost(host string) error {
 	if net.ParseIP(host) != nil {
 		return s.handleIP(host)
 	} else {
@@ -169,7 +169,7 @@ func (s *ReconService) Run(urls []string) error {
 		go func() {
 			defer wg.Done()
 			for host := range jobs {
-				if err := s.processHost(host); err != nil {
+				if err := s.ProcessHost(host); err != nil {
 					select {
 					case results <- fmt.Errorf("host %s: %v", host, err):
 					default:
@@ -220,7 +220,7 @@ func (s *ReconService) handleIP(ip string) error {
 	foundService := false
 	for _, port := range []string{"80", "443"} {
 		GB403Logger.Verbose().Msgf("Probing %s:%s", ip, port)
-		if scheme := s.probeScheme(ip, port); scheme != "" {
+		if scheme := s.ProbeScheme(ip, port); scheme != "" {
 			foundService = true
 			GB403Logger.Verbose().Msgf("Found open port %s:%s -> %s", ip, port, scheme)
 			if services[scheme] == nil {
@@ -260,7 +260,7 @@ func (s *ReconService) handleDomain(host string) error {
 
 	// Store IPs for later use but probe the domain
 	// Try both HTTP and HTTPS regardless of original scheme
-	if scheme := s.probeScheme(host, "443"); scheme != "" {
+	if scheme := s.ProbeScheme(host, "443"); scheme != "" {
 		// Store all resolved IPs under this scheme
 		for _, ip := range ips.IPv4 {
 			if result.IPv4Services[scheme] == nil {
@@ -276,7 +276,7 @@ func (s *ReconService) handleDomain(host string) error {
 		}
 	}
 
-	if scheme := s.probeScheme(host, "80"); scheme != "" {
+	if scheme := s.ProbeScheme(host, "80"); scheme != "" {
 		// Store all resolved IPs under this scheme
 		for _, ip := range ips.IPv4 {
 			if result.IPv4Services[scheme] == nil {
@@ -340,7 +340,7 @@ func (s *ReconService) ResolveHost(hostname string) (*IPAddrs, error) {
 	return result, nil
 }
 
-func (s *ReconService) probeScheme(host, port string) string {
+func (s *ReconService) ProbeScheme(host, port string) string {
 	addr := net.JoinHostPort(host, port)
 	GB403Logger.Verbose().Msgf("Probing %s", addr)
 
