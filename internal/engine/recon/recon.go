@@ -53,7 +53,7 @@ func NewReconService() *ReconService {
 				d := net.Dialer{
 					Timeout: 5 * time.Second,
 					// Add connection pooling
-					KeepAlive: 30 * time.Second,
+					//KeepAlive: 30 * time.Second,
 				}
 
 				// Extract host from address (removes port)
