@@ -24,7 +24,7 @@ const (
 var (
 	ErrBodyTooLarge          = fasthttp.ErrBodyTooLarge // "body size exceeds the given limit"
 	ErrInvalidResponseHeader = errors.New("invalid header")
-	errConnForciblyClosedWin = errors.New("wsarecv: An existing connection was forcibly closed by the remote host")
+	ErrConnForciblyClosedWin = errors.New("wsarecv: An existing connection was forcibly closed by the remote host")
 )
 
 // ErrorContext holds metadata about where/when the error occurred
@@ -106,8 +106,8 @@ func (e *ErrorHandler) StripErrorMessage(err error) string {
 
 	// Check the error message itself
 	errMsg := err.Error()
-	if strings.Contains(errMsg, errConnForciblyClosedWin.Error()) {
-		return errConnForciblyClosedWin.Error()
+	if strings.Contains(errMsg, ErrConnForciblyClosedWin.Error()) {
+		return ErrConnForciblyClosedWin.Error()
 	}
 	return errMsg
 }
