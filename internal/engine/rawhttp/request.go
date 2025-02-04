@@ -258,7 +258,7 @@ func BuildCurlCommandPoc(job payload.PayloadJob) []byte {
 	return append([]byte(nil), bb.B...)
 }
 
-// GetResponseHeaders gets all HTTP headers from the response
+// GetResponseHeaders gets all HTTP headers including values from the response
 func GetResponseHeaders(h *fasthttp.ResponseHeader, statusCode int) []byte {
 	headerBuf := headerBufPool.Get()
 	defer headerBufPool.Put(headerBuf)
