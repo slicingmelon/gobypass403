@@ -29,6 +29,7 @@ var (
 	// Pool for byte buffers
 	curlCmdPool   = &bytesutil.ByteBufferPool{}
 	headerBufPool = &bytesutil.ByteBufferPool{}
+	titleBufPool  = &bytesutil.ByteBufferPool{}
 
 	// Pre-computed byte slices for static strings
 	curlFlags         = []byte("-skgi --path-as-is")
@@ -38,9 +39,11 @@ var (
 	strColon          = []byte(":")
 	strSingleQuote    = []byte("'")
 	strSpace          = []byte(" ")
+	strLowerThan      = []byte("<")
+	strGreaterThan    = []byte(">")
 	strCRLF           = []byte("\r\n")
 	strHTML           = []byte("html")
-	strTitle          = []byte("title")
+	strTitle          = []byte("<title>")
 	strCloseTitle     = []byte("</title>")
 	strLocationHeader = []byte("Location")
 )
@@ -267,20 +270,36 @@ func PeekHeaderKeyCaseInsensitive(h *fasthttp.ResponseHeader, key []byte) []byte
 
 // Helper function to extract title from HTML
 func ExtractTitle(body []byte) []byte {
-	lower := bytes.ToLower(body)
-	titleStart := bytes.Index(lower, strTitle)
-	if titleStart == -1 {
+	if len(body) == 0 {
 		return nil
 	}
 
-	titleStart += 7 // len("<title>")
+	// Get buffer from pool
+	bb := titleBufPool.Get()
+	defer titleBufPool.Put(bb)
+	bb.Reset()
 
-	titleEnd := bytes.Index(lower[titleStart:], strCloseTitle)
+	// Find start of title tag
+	titleStart := bytes.Index(body, strTitle)
+	if titleStart == -1 {
+		return nil
+	}
+	titleStart += len(strTitle) // Move past "<title>"
+
+	// Find closing tag
+	titleEnd := bytes.Index(body[titleStart:], strCloseTitle)
 	if titleEnd == -1 {
 		return nil
 	}
 
-	return append([]byte(nil), body[titleStart:titleStart+titleEnd]...)
+	// Extract title content
+	title := bytes.TrimSpace(body[titleStart : titleStart+titleEnd])
+	if len(title) == 0 {
+		return nil
+	}
+
+	// Return copy of title
+	return append([]byte(nil), title...)
 }
 
 func matchStatusCodes(code int, codes []int) bool {

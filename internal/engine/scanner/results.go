@@ -7,7 +7,6 @@ import (
 	"html"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"sync"
 
@@ -80,40 +79,41 @@ func formatValue(val string) string {
 type columnStats struct {
 	maxModuleWidth int
 	maxCurlWidth   int
+	maxStatusWidth int
+	maxLengthWidth int
 	maxContentType int
-	maxTitleLen    int
+	maxTitleWidth  int
+	maxServerWidth int
 	hasServer      bool
 }
 
 func analyzeResults(results []*Result) columnStats {
 	stats := columnStats{}
 
-	// Analyze all results for maximum widths
 	for _, result := range results {
-		// Module width
-		if len(result.BypassModule) > stats.maxModuleWidth {
-			stats.maxModuleWidth = len(result.BypassModule)
-		}
+		// Module width - exact width of the bypass module name
+		stats.maxModuleWidth = max(stats.maxModuleWidth, len(result.BypassModule))
 
-		// Curl command width
-		if len(result.CurlPocCommand) > stats.maxCurlWidth {
-			stats.maxCurlWidth = len(result.CurlPocCommand)
-		}
+		// Curl command width - exact width of the curl command
+		stats.maxCurlWidth = max(stats.maxCurlWidth, len(result.CurlPocCommand))
 
-		// Content Type width (up to semicolon)
+		// Status width - width of the status code as string
+		stats.maxStatusWidth = max(stats.maxStatusWidth, len(fmt.Sprintf("%d", result.StatusCode)))
+
+		// Length width - width of the formatted content length
+		stats.maxLengthWidth = max(stats.maxLengthWidth, len(FormatBytesH(result.ContentLength)))
+
+		// Content Type width
 		contentType := formatContentType(result.ContentType)
-		if len(contentType) > stats.maxContentType {
-			stats.maxContentType = len(contentType)
-		}
+		stats.maxContentType = max(stats.maxContentType, len(contentType))
 
-		// Title length (up to 15 chars)
-		if len(result.Title) > stats.maxTitleLen {
-			stats.maxTitleLen = min(len(result.Title), 15)
-		}
+		// Title width
+		stats.maxTitleWidth = max(stats.maxTitleWidth, len(result.Title))
 
-		// Check if any result has server info
+		// Server width
 		if result.ServerInfo != "" {
 			stats.hasServer = true
+			stats.maxServerWidth = max(stats.maxServerWidth, len(result.ServerInfo))
 		}
 	}
 
@@ -128,13 +128,13 @@ func PrintTableRow(results []*Result) {
 	t.SetOutputMirror(os.Stdout)
 
 	// Get terminal width
-	width := 80
-	if w, _, err := term.GetSize(int(os.Stdout.Fd())); err == nil {
-		width = w
+	width, _, err := term.GetSize(int(os.Stdout.Fd()))
+	if err != nil {
+		width = 80
 	}
 
 	// Base headers
-	headers := []interface{}{
+	tableHeaders := []interface{}{
 		"Module",
 		"Curl PoC",
 		"Status",
@@ -143,38 +143,44 @@ func PrintTableRow(results []*Result) {
 		"Title",
 	}
 
-	// Calculate column widths
-	moduleWidth := min(stats.maxModuleWidth, 15) // +2 for padding
-	statusWidth := 3                             // Always 3 digits
-	lengthWidth := 8                             // Enough for formatted sizes
-	typeWidth := min(stats.maxContentType, 12)
-	titleWidth := min(stats.maxTitleLen, 15)
-	serverWidth := 12
-
-	// Calculate remaining width for CURL POC
-	reservedWidth := moduleWidth + statusWidth + lengthWidth + typeWidth + titleWidth
+	// Add server header if needed
 	if stats.hasServer {
-		reservedWidth += serverWidth
-		headers = append(headers, "Server")
+		tableHeaders = append(tableHeaders, "Server")
 	}
 
-	curlWidth := min(stats.maxCurlWidth, width-reservedWidth-5) // -5 for padding and borders
+	// Calculate available width for curl command
+	fixedWidth := stats.maxModuleWidth + // Module
+		stats.maxStatusWidth + // Status
+		stats.maxLengthWidth + // Length
+		stats.maxContentType + // Type
+		stats.maxTitleWidth + // Title
+		(6 * 3) // Padding and borders between columns
 
-	// Configure columns
+	if stats.hasServer {
+		fixedWidth += stats.maxServerWidth + 3 // Add server width and its padding
+	}
+
+	// Adjust curl width to fit terminal
+	curlWidth := stats.maxCurlWidth
+	if fixedWidth+curlWidth > width {
+		curlWidth = width - fixedWidth - 5 // -5 for safety margin
+	}
+
+	// Configure columns with exact widths
 	columns := []table.ColumnConfig{
-		{Name: "MODULE", WidthMax: moduleWidth, WidthMin: moduleWidth},
-		{Name: "CURL POC", WidthMax: curlWidth, WidthMin: curlWidth / 2},
-		{Name: "STATUS", WidthMax: statusWidth, WidthMin: statusWidth},
-		{Name: "LENGTH", WidthMax: lengthWidth, WidthMin: lengthWidth},
-		{Name: "TYPE", WidthMax: typeWidth, WidthMin: typeWidth},
-		{Name: "TITLE", WidthMax: titleWidth, WidthMin: titleWidth},
+		{Name: "MODULE", WidthMax: stats.maxModuleWidth, WidthMin: stats.maxModuleWidth},
+		{Name: "CURL POC", WidthMax: curlWidth, WidthMin: curlWidth},
+		{Name: "STATUS", WidthMax: stats.maxStatusWidth, WidthMin: stats.maxStatusWidth},
+		{Name: "LENGTH", WidthMax: stats.maxLengthWidth, WidthMin: stats.maxLengthWidth},
+		{Name: "TYPE", WidthMax: stats.maxContentType, WidthMin: stats.maxContentType},
+		{Name: "TITLE", WidthMax: stats.maxTitleWidth, WidthMin: stats.maxTitleWidth},
 	}
 
 	if stats.hasServer {
 		columns = append(columns, table.ColumnConfig{
 			Name:     "SERVER",
-			WidthMax: serverWidth,
-			WidthMin: serverWidth,
+			WidthMax: stats.maxServerWidth,
+			WidthMin: stats.maxServerWidth,
 		})
 	}
 
@@ -183,11 +189,11 @@ func PrintTableRow(results []*Result) {
 	t.Style().Color.Header = text.Colors{text.FgHiCyan, text.Bold}
 	t.Style().Options.SeparateRows = true
 	t.Style().Options.DrawBorder = true
-	t.Style().Box.PaddingLeft = " "
-	t.Style().Box.PaddingRight = " "
+	t.Style().Box.PaddingLeft = ""
+	t.Style().Box.PaddingRight = ""
 
 	t.SetColumnConfigs(columns)
-	t.AppendHeader(headers)
+	t.AppendHeader(tableHeaders)
 
 	// Add rows
 	for _, result := range results {
@@ -285,7 +291,7 @@ func formatContentType(contentType string) string {
 
 // Helper function to format bytes
 func formatBytes(bytes int64) string {
-	if bytes == 0 {
+	if bytes <= 0 {
 		return "[-]"
 	}
 	return fmt.Sprintf("%d", bytes)
@@ -293,11 +299,8 @@ func formatBytes(bytes int64) string {
 
 // Helper function to format bytes (so you can see human readable size)
 func FormatBytesH(bytes int64) string {
-	if bytes == 0 {
+	if bytes <= 0 {
 		return "[-]"
-	}
-	if bytes < 0 {
-		return "unknown"
 	}
 
 	const unit = 1024
@@ -311,31 +314,4 @@ func FormatBytesH(bytes int64) string {
 		exp++
 	}
 	return fmt.Sprintf("%.1f%cB", float64(bytes)/float64(div), "KMGTPE"[exp])
-}
-
-// BuildCurlCmd generates a curl command string for the given request parameters
-// deprecated
-func buildCurlCmd(method, url string, headers map[string]string) string {
-	// Determine curl command based on OS
-	curlCmd := "curl"
-	if runtime.GOOS == "windows" {
-		curlCmd = "curl.exe"
-	}
-
-	parts := []string{curlCmd, "-skgi", "--path-as-is"}
-
-	// Add method if not GET
-	if method != "GET" {
-		parts = append(parts, "-X", method)
-	}
-
-	// Add headers
-	for k, v := range headers {
-		parts = append(parts, fmt.Sprintf("-H '%s: %s'", k, v))
-	}
-
-	// Add URL
-	parts = append(parts, fmt.Sprintf("'%s'", url))
-
-	return strings.Join(parts, " ")
 }
