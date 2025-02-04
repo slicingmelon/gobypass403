@@ -90,7 +90,7 @@ func InitializeBypassModules() {
 	}
 }
 
-type WorkerContext struct {
+type BypassWorker struct {
 	bypassmodule string
 	progress     *ProgressCounter
 	cancel       chan struct{}
@@ -101,7 +101,7 @@ type WorkerContext struct {
 	workerCount  int32
 }
 
-func NewWorkerContext(bypassmodule string, total int, targetURL string, scannerOpts *ScannerOpts, errorHandler *GB403ErrorHandler.ErrorHandler, progress *ProgressCounter) *WorkerContext {
+func NewBypassWorker(bypassmodule string, total int, targetURL string, scannerOpts *ScannerOpts, errorHandler *GB403ErrorHandler.ErrorHandler, progress *ProgressCounter) *BypassWorker {
 	httpClientOpts := rawhttp.DefaultHTTPClientOptions()
 
 	// Override specific settings from user options
@@ -122,7 +122,7 @@ func NewWorkerContext(bypassmodule string, total int, targetURL string, scannerO
 		httpClientOpts.RequestDelay = time.Duration(scannerOpts.Delay) * time.Millisecond
 	}
 
-	return &WorkerContext{
+	return &BypassWorker{
 		bypassmodule: bypassmodule,
 		progress:     progress,
 		cancel:       make(chan struct{}),
@@ -134,7 +134,9 @@ func NewWorkerContext(bypassmodule string, total int, targetURL string, scannerO
 	}
 }
 
-func (w *WorkerContext) Stop() {
+// Stop the BypassWorkerContext
+// Also close the requestworkerpool
+func (w *BypassWorker) Stop() {
 	w.once.Do(func() {
 		select {
 		case <-w.cancel:
@@ -199,7 +201,7 @@ func (s *Scanner) RunAllBypasses(targetURL string) chan *Result {
 	return results
 }
 
-// Generic runner that replaces all individual run*Bypass functions
+// Run a specific bypass module
 func (s *Scanner) RunBypassModule(bypassModule string, targetURL string, results chan<- *Result) {
 	moduleInstance, exists := bypassModules[bypassModule]
 	if !exists {
@@ -215,7 +217,7 @@ func (s *Scanner) RunBypassModule(bypassModule string, targetURL string, results
 	s.progress.StartModule(bypassModule, len(allJobs), targetURL)
 	lastStatsUpdate := time.Now()
 
-	ctx := NewWorkerContext(bypassModule, len(allJobs), targetURL, s.config, s.errorHandler, s.progress)
+	ctx := NewBypassWorker(bypassModule, len(allJobs), targetURL, s.config, s.errorHandler, s.progress)
 	defer func() {
 		// Get stats from pond pool
 		running, _ := ctx.requestPool.GetCurrentStats()
