@@ -16,8 +16,8 @@ type multiFlag struct {
 
 var flags []multiFlag
 
-func parseFlags() (*Options, error) {
-	opts := &Options{}
+func parseFlags() (*CliOptions, error) {
+	opts := &CliOptions{}
 
 	flags := []multiFlag{
 		{name: "u,url", usage: "Target URL (example: https://cms.facebook.com/login)", value: &opts.URL},
@@ -30,7 +30,6 @@ func parseFlags() (*Options, error) {
 		{name: "delay", usage: "Delay between requests in milliseconds", value: &opts.Delay, defVal: 0},
 		{name: "v,verbose", usage: "Verbose output", value: &opts.Verbose, defVal: false},
 		{name: "d,debug", usage: "Debug mode with request canaries", value: &opts.Debug, defVal: false},
-		{name: "trace", usage: "Trace HTTP requests", value: &opts.TraceRequests},
 		{name: "mc,match-status-code", usage: "Filter results by HTTP status codes (example: -mc 200, 301, 500, all). Default: All status codes", value: &opts.MatchStatusCodesStr},
 		{name: "http2", usage: "Enable HTTP2 client", value: &opts.EnableHTTP2, defVal: false},
 		{name: "x,proxy", usage: "Proxy URL (format: http://proxy:port) (Example: -x http://127.0.0.1:8080)", value: &opts.Proxy},

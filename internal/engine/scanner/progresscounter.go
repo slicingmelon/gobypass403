@@ -189,17 +189,19 @@ func (pc *ProgressCounter) MarkModuleAsDone(moduleName string) {
 	pc.activeModules.Add(-1)
 }
 
-// Add a new method to check if all modules are done
+// Method to check if all modules are done
 func (pc *ProgressCounter) AllModulesDone() bool {
 	return pc.activeModules.Load() == 0
 }
 
+// Start the progress bar
 func (pc *ProgressCounter) Start() {
 	if !pc.stopped.Swap(false) {
 		go pc.pw.Render()
 	}
 }
 
+// Stop the progress bar
 func (pc *ProgressCounter) Stop() {
 	if !pc.stopped.Swap(true) {
 		pc.pw.Stop()

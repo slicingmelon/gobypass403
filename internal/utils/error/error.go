@@ -62,6 +62,8 @@ type ErrorCache struct {
 	ErrorSources  map[string]int64 `json:"error_sources"`
 }
 
+// NewErrorHandler creates a new ErrorHandler instance
+// cacheSizeMB is the size of the cache in MB
 func NewErrorHandler(cacheSizeMB int) *ErrorHandler {
 	handler := &ErrorHandler{
 		cache:     fastcache.New(cacheSizeMB * 1024 * 1024),
@@ -77,6 +79,8 @@ func NewErrorHandler(cacheSizeMB int) *ErrorHandler {
 	return handler
 }
 
+// AddWhitelistedErrors adds errors to the whitelist
+// This is needed as fasthttp returns some errors that are not actual errors..
 func (e *ErrorHandler) AddWhitelistedErrors(errors ...string) {
 	e.whitelistLock.Lock()
 	defer e.whitelistLock.Unlock()
@@ -86,6 +90,7 @@ func (e *ErrorHandler) AddWhitelistedErrors(errors ...string) {
 	}
 }
 
+// Quick check to see if the error is whitelisted
 func (e *ErrorHandler) IsWhitelisted(err error) bool {
 	e.whitelistLock.RLock()
 	defer e.whitelistLock.RUnlock()
@@ -100,6 +105,8 @@ func (e *ErrorHandler) IsWhitelisted(err error) bool {
 	return false
 }
 
+// StripErrorMessage strips the error message to a more readable format
+// This is needed as some connection errors include a different port number messing up the cache stats
 func (e *ErrorHandler) StripErrorMessage(err error) string {
 	e.stripErrorMsgLock.Lock()
 	defer e.stripErrorMsgLock.Unlock()
@@ -112,6 +119,7 @@ func (e *ErrorHandler) StripErrorMessage(err error) string {
 	return errMsg
 }
 
+// Core function, HandleError handles an error and adds it to the cache
 func (e *ErrorHandler) HandleError(err error, ctx ErrorContext) error {
 	if err == nil || e.IsWhitelisted(err) {
 		return nil
@@ -156,6 +164,7 @@ func (e *ErrorHandler) HandleError(err error, ctx ErrorContext) error {
 	return err
 }
 
+// PrintErrorStats prints the error stats, used for debugging, called at the end of the scan
 func (e *ErrorHandler) PrintErrorStats() {
 	e.cacheLock.RLock()
 	defer e.cacheLock.RUnlock()
@@ -222,6 +231,7 @@ func (e *ErrorHandler) PrintErrorStats() {
 	fmt.Println(buf.String())
 }
 
+// Reset the error cache
 func (e *ErrorHandler) Reset() {
 	e.cacheLock.Lock()
 	defer e.cacheLock.Unlock()

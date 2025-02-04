@@ -91,17 +91,17 @@ func InitializeBypassModules() {
 }
 
 type WorkerContext struct {
-	mode        string
-	progress    *ProgressCounter
-	cancel      chan struct{}
-	wg          *sync.WaitGroup
-	once        sync.Once
-	opts        *ScannerOpts
-	requestPool *rawhttp.RequestWorkerPool
-	workerCount int32
+	bypassmodule string
+	progress     *ProgressCounter
+	cancel       chan struct{}
+	wg           *sync.WaitGroup
+	once         sync.Once
+	opts         *ScannerOpts
+	requestPool  *rawhttp.RequestWorkerPool
+	workerCount  int32
 }
 
-func NewWorkerContext(mode string, total int, targetURL string, scannerOpts *ScannerOpts, errorHandler *GB403ErrorHandler.ErrorHandler, progress *ProgressCounter) *WorkerContext {
+func NewWorkerContext(bypassmodule string, total int, targetURL string, scannerOpts *ScannerOpts, errorHandler *GB403ErrorHandler.ErrorHandler, progress *ProgressCounter) *WorkerContext {
 	httpClientOpts := rawhttp.DefaultHTTPClientOptions()
 
 	// Override specific settings from user options
@@ -123,12 +123,13 @@ func NewWorkerContext(mode string, total int, targetURL string, scannerOpts *Sca
 	}
 
 	return &WorkerContext{
-		mode:        mode,
-		progress:    progress,
-		cancel:      make(chan struct{}),
-		wg:          &sync.WaitGroup{},
-		once:        sync.Once{},
-		opts:        scannerOpts,
+		bypassmodule: bypassmodule,
+		progress:     progress,
+		cancel:       make(chan struct{}),
+		wg:           &sync.WaitGroup{},
+		once:         sync.Once{},
+		opts:         scannerOpts,
+
 		requestPool: rawhttp.NewRequestWorkerPool(httpClientOpts, scannerOpts.Threads, errorHandler),
 	}
 }
@@ -168,7 +169,7 @@ func (s *Scanner) RunAllBypasses(targetURL string) chan *Result {
 		defer close(results)
 
 		// Run dumb check once at the start
-		s.runBypassForMode("dumb_check", targetURL, results)
+		s.RunBypassModule("dumb_check", targetURL, results)
 
 		modes := strings.Split(s.config.BypassModule, ",")
 		for _, mode := range modes {
@@ -178,18 +179,20 @@ func (s *Scanner) RunAllBypasses(targetURL string) chan *Result {
 				// Run all registered modules except dumb_check
 				for modeName := range bypassModules {
 					if modeName != "dumb_check" {
-						s.runBypassForMode(modeName, targetURL, results)
+						s.RunBypassModule(modeName, targetURL, results)
 					}
 				}
+
 				continue
 			}
 
 			// Check if module exists in registry
 			if _, exists := bypassModules[mode]; exists && mode != "dumb_check" {
-				s.runBypassForMode(mode, targetURL, results)
+				s.RunBypassModule(mode, targetURL, results)
 			} else {
 				GB403Logger.Error().Msgf("Unknown bypass mode: %s", mode)
 			}
+
 		}
 	}()
 
@@ -197,7 +200,7 @@ func (s *Scanner) RunAllBypasses(targetURL string) chan *Result {
 }
 
 // Generic runner that replaces all individual run*Bypass functions
-func (s *Scanner) runBypassForMode(bypassModule string, targetURL string, results chan<- *Result) {
+func (s *Scanner) RunBypassModule(bypassModule string, targetURL string, results chan<- *Result) {
 	moduleInstance, exists := bypassModules[bypassModule]
 	if !exists {
 		return
@@ -259,7 +262,14 @@ func (s *Scanner) runBypassForMode(bypassModule string, targetURL string, result
 }
 
 // match HTTP status code in list
+// if codes is nil, match all status codes
 func matchStatusCodes(code int, codes []int) bool {
+	// If codes is nil, match all status codes
+	if codes == nil {
+		return true
+	}
+
+	// Otherwise match specific codes
 	for _, c := range codes {
 		if c == code {
 			return true
