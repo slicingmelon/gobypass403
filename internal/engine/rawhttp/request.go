@@ -48,6 +48,21 @@ var (
 	strLocationHeader = []byte("Location")
 )
 
+type RawHTTPResponseDetails struct {
+	URL             []byte
+	BypassModule    []byte
+	CurlCommand     []byte
+	StatusCode      int
+	ResponsePreview []byte
+	ResponseHeaders []byte
+	ContentType     []byte
+	ContentLength   int64
+	ServerInfo      []byte
+	RedirectURL     []byte
+	ResponseBytes   int
+	Title           []byte
+}
+
 type ProgressTracker interface {
 	UpdateWorkerStats(moduleName string, totalWorkers int64)
 }
@@ -72,6 +87,7 @@ func BuildHTTPRequest(httpclient *HttpClient, req *fasthttp.Request, job payload
 	req.Header.SetMethod(job.Method)
 
 	req.SetRequestURI(job.FullURL)
+	GB403Logger.PrintGreen("Full URL: %s", job.FullURL)
 
 	// Disable all normalizing for raw path testing
 	req.URI().DisablePathNormalizing = true
@@ -169,11 +185,13 @@ func ProcessHTTPResponse(httpclient *HttpClient, resp *fasthttp.Response, job pa
 				} else if n > 0 {
 					result.ResponsePreview = append([]byte(nil), previewBuf[:n]...)
 				}
-				result.ResponseBytes = len(result.ResponsePreview)
 				resp.CloseBodyStream()
+
+				// For streaming, always use content length from header
+				result.ResponseBytes = int(contentLength)
 			}
 		} else {
-			// Non-streaming case, -> resp.Body()
+			// Non-streaming case -> resp.Body()
 			if body := resp.Body(); len(body) > 0 {
 				previewSize := httpClientOpts.ResponseBodyPreviewSize
 				if len(body) > previewSize {
@@ -181,7 +199,13 @@ func ProcessHTTPResponse(httpclient *HttpClient, resp *fasthttp.Response, job pa
 				} else {
 					result.ResponsePreview = append([]byte(nil), body...)
 				}
-				result.ResponseBytes = len(result.ResponsePreview)
+
+				// For non-streaming, use content length if available, otherwise use body length
+				if contentLength > 0 {
+					result.ResponseBytes = int(contentLength)
+				} else {
+					result.ResponseBytes = len(body)
+				}
 			}
 		}
 	}
@@ -274,7 +298,6 @@ func ExtractTitle(body []byte) []byte {
 		return nil
 	}
 
-	// Get buffer from pool
 	bb := titleBufPool.Get()
 	defer titleBufPool.Put(bb)
 	bb.Reset()
@@ -284,7 +307,7 @@ func ExtractTitle(body []byte) []byte {
 	if titleStart == -1 {
 		return nil
 	}
-	titleStart += len(strTitle) // Move past "<title>"
+	titleStart += 7 // len("<title>")
 
 	// Find closing tag
 	titleEnd := bytes.Index(body[titleStart:], strCloseTitle)
@@ -298,7 +321,6 @@ func ExtractTitle(body []byte) []byte {
 		return nil
 	}
 
-	// Return copy of title
 	return append([]byte(nil), title...)
 }
 

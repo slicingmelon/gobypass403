@@ -7,21 +7,6 @@ import (
 	"github.com/valyala/fasthttp"
 )
 
-type RawHTTPResponseDetails struct {
-	URL             []byte
-	BypassModule    []byte
-	CurlCommand     []byte
-	StatusCode      int
-	ResponsePreview []byte
-	ResponseHeaders []byte
-	ContentType     []byte
-	ContentLength   int64
-	ServerInfo      []byte
-	RedirectURL     []byte
-	ResponseBytes   int
-	Title           []byte
-}
-
 // RequestWorkerPool manages concurrent HTTP request/response processing
 type RequestWorkerPool struct {
 	httpClient   *HttpClient
