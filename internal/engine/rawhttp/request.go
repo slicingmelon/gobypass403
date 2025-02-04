@@ -29,7 +29,6 @@ var (
 	// Pool for byte buffers
 	curlCmdPool   = &bytesutil.ByteBufferPool{}
 	headerBufPool = &bytesutil.ByteBufferPool{}
-	titleBufPool  = &bytesutil.ByteBufferPool{}
 
 	// Pre-computed byte slices for static strings
 	curlFlags         = []byte("-skgi --path-as-is")
@@ -296,10 +295,6 @@ func ExtractTitle(body []byte) []byte {
 	if len(body) == 0 {
 		return nil
 	}
-
-	bb := titleBufPool.Get()
-	defer titleBufPool.Put(bb)
-	bb.Reset()
 
 	// Find start of title tag
 	titleStart := bytes.Index(body, strTitle)
