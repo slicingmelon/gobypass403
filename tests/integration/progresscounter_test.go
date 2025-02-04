@@ -1,4 +1,4 @@
-package scanner
+package tests
 
 import (
 	"fmt"
@@ -6,10 +6,11 @@ import (
 	"time"
 
 	"github.com/jedib0t/go-pretty/v6/progress"
+	"github.com/slicingmelon/go-bypass-403/internal/engine/scanner"
 )
 
 func TestProgressCounterStyles(t *testing.T) {
-	styles := map[string]*ProgressCounter{
+	styles := map[string]*scanner.ProgressCounter{
 		"Default": NewProgressCounterDefault(),
 		"Blocks":  NewProgressCounterBlocks(),
 		"Circle":  NewProgressCounterCircle(),
@@ -42,12 +43,13 @@ func TestProgressCounterStyles(t *testing.T) {
 }
 
 func TestProgressCounterBasic(t *testing.T) {
-	pc := NewProgressCounter()
+	pc := scanner.NewProgressCounter()
 	pc.Start()
 	defer pc.Stop()
 	moduleName := "test_module"
 	pc.StartModule(moduleName, 10, "http://example.com")
 	for i := 0; i < 10; i++ {
+
 		pc.UpdateWorkerStats(moduleName, 2)
 		pc.IncrementProgress(moduleName, true)
 		time.Sleep(100 * time.Millisecond)
@@ -58,7 +60,7 @@ func TestProgressCounterBasic(t *testing.T) {
 	}
 }
 func TestProgressCounterConcurrent(t *testing.T) {
-	pc := NewProgressCounter()
+	pc := scanner.NewProgressCounter()
 	pc.Start()
 	defer pc.Stop()
 	modules := []string{"module1", "module2", "module3"}
@@ -85,7 +87,7 @@ func TestProgressCounterConcurrent(t *testing.T) {
 }
 
 func TestProgressCounterStressTest(t *testing.T) {
-	pc := NewProgressCounter()
+	pc := scanner.NewProgressCounter()
 	pc.Start()
 	defer pc.Stop()
 	t.Log("Starting stress test")
@@ -96,20 +98,21 @@ func TestProgressCounterStressTest(t *testing.T) {
 }
 
 func TestProgressCounterEdgeCases(t *testing.T) {
-	pc := NewProgressCounter()
+	pc := scanner.NewProgressCounter()
 	pc.Start()
 	defer pc.Stop()
 	testCases := []struct {
 		name      string
 		jobs      int
 		workers   int64
-		operation func(pc *ProgressCounter, name string)
+		operation func(pc *scanner.ProgressCounter, name string)
 	}{
 		{
 			name:    "zero_jobs",
 			jobs:    0,
 			workers: 1,
-			operation: func(pc *ProgressCounter, name string) {
+			operation: func(pc *scanner.ProgressCounter, name string) {
+
 				pc.StartModule(name, 0, "http://example.com")
 				pc.MarkModuleAsDone(name)
 			},
@@ -118,7 +121,7 @@ func TestProgressCounterEdgeCases(t *testing.T) {
 			name:    "many_workers",
 			jobs:    5,
 			workers: 100,
-			operation: func(pc *ProgressCounter, name string) {
+			operation: func(pc *scanner.ProgressCounter, name string) {
 				pc.StartModule(name, 5, "http://example.com")
 				pc.UpdateWorkerStats(name, 100)
 				for i := 0; i < 5; i++ {
@@ -131,7 +134,7 @@ func TestProgressCounterEdgeCases(t *testing.T) {
 			name:    "rapid_updates",
 			jobs:    100,
 			workers: 1,
-			operation: func(pc *ProgressCounter, name string) {
+			operation: func(pc *scanner.ProgressCounter, name string) {
 				pc.StartModule(name, 100, "http://example.com")
 				for i := 0; i < 100; i++ {
 					pc.IncrementProgress(name, true)
@@ -151,7 +154,7 @@ func TestProgressCounterStress(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping stress test in short mode")
 	}
-	pc := NewProgressCounter()
+	pc := scanner.NewProgressCounter()
 	pc.Start()
 	defer pc.Stop()
 	const (
@@ -179,21 +182,22 @@ func TestProgressCounterStress(t *testing.T) {
 }
 
 // Helper functions for creating different progress counter styles
-func NewProgressCounterDefault() *ProgressCounter {
+func NewProgressCounterDefault() *scanner.ProgressCounter {
 	pw := progress.NewWriter()
 	pw.SetUpdateFrequency(100 * time.Millisecond)
 	pw.SetTrackerLength(45)
 	pw.SetMessageLength(45)
 	pw.SetStyle(progress.StyleDefault)
 	pw.SetTrackerPosition(progress.PositionRight)
-	return &ProgressCounter{
-		pw:          pw,
-		trackers:    make(map[string]*progress.Tracker),
-		moduleStats: make(map[string]*ModuleStats),
+	return &scanner.ProgressCounter{
+		ProgressWriter: pw,
+		Trackers:       make(map[string]*progress.Tracker),
+		ModuleStats:    make(map[string]*scanner.ModuleStats),
 	}
+
 }
 
-func NewProgressCounterBlocks() *ProgressCounter {
+func NewProgressCounterBlocks() *scanner.ProgressCounter {
 	pw := progress.NewWriter()
 	pw.SetUpdateFrequency(100 * time.Millisecond)
 	pw.SetTrackerLength(45)
@@ -206,14 +210,15 @@ func NewProgressCounterBlocks() *ProgressCounter {
 
 	pw.SetStyle(style)
 	pw.SetTrackerPosition(progress.PositionRight)
-	return &ProgressCounter{
-		pw:          pw,
-		trackers:    make(map[string]*progress.Tracker),
-		moduleStats: make(map[string]*ModuleStats),
+	return &scanner.ProgressCounter{
+		ProgressWriter: pw,
+		Trackers:       make(map[string]*progress.Tracker),
+		ModuleStats:    make(map[string]*scanner.ModuleStats),
 	}
+
 }
 
-func NewProgressCounterCircle() *ProgressCounter {
+func NewProgressCounterCircle() *scanner.ProgressCounter {
 	pw := progress.NewWriter()
 	pw.SetUpdateFrequency(100 * time.Millisecond)
 	pw.SetTrackerLength(45)
@@ -226,14 +231,15 @@ func NewProgressCounterCircle() *ProgressCounter {
 
 	pw.SetStyle(style)
 	pw.SetTrackerPosition(progress.PositionRight)
-	return &ProgressCounter{
-		pw:          pw,
-		trackers:    make(map[string]*progress.Tracker),
-		moduleStats: make(map[string]*ModuleStats),
+	return &scanner.ProgressCounter{
+		ProgressWriter: pw,
+		Trackers:       make(map[string]*progress.Tracker),
+		ModuleStats:    make(map[string]*scanner.ModuleStats),
 	}
+
 }
 
-func NewProgressCounterRhombus() *ProgressCounter {
+func NewProgressCounterRhombus() *scanner.ProgressCounter {
 	pw := progress.NewWriter()
 	pw.SetUpdateFrequency(100 * time.Millisecond)
 	pw.SetTrackerLength(45)
@@ -246,15 +252,15 @@ func NewProgressCounterRhombus() *ProgressCounter {
 
 	pw.SetStyle(style)
 	pw.SetTrackerPosition(progress.PositionRight)
-	return &ProgressCounter{
-		pw:          pw,
-		trackers:    make(map[string]*progress.Tracker),
-		moduleStats: make(map[string]*ModuleStats),
+	return &scanner.ProgressCounter{
+		ProgressWriter: pw,
+		Trackers:       make(map[string]*progress.Tracker),
+		ModuleStats:    make(map[string]*scanner.ModuleStats),
 	}
 }
 
 // Helper function to simulate module progress
-func simulateModuleProgress(pc *ProgressCounter, moduleName string, totalJobs int, workers int64, successRate float64) {
+func simulateModuleProgress(pc *scanner.ProgressCounter, moduleName string, totalJobs int, workers int64, successRate float64) {
 	pc.StartModule(moduleName, totalJobs, "https://test.example.com/path")
 
 	go func() {

@@ -19,7 +19,6 @@ type ScannerOpts struct {
 	BypassModule            string
 	OutDir                  string
 	Delay                   int
-	TraceRequests           bool
 	Proxy                   string
 	EnableHTTP2             bool
 	SpoofHeader             string
@@ -50,6 +49,7 @@ func NewScanner(opts *ScannerOpts, urls []string) *Scanner {
 	}
 }
 
+// Run runs the scanner..
 func (s *Scanner) Run() error {
 	defer s.Close()
 
@@ -120,6 +120,7 @@ func (s *Scanner) scanURL(url string) error {
 	return nil
 }
 
+// Close the scanner instance
 func (s *Scanner) Close() {
 	// Close error handler
 	if s.errorHandler != nil {

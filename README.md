@@ -70,8 +70,6 @@ Usage:
         Verbose output
   -d, -debug
         Debug mode with request canaries
-  -trace
-        Trace HTTP requests
   -mc, -match-status-code
         Filter results by HTTP status codes (example: -mc 200, 301, 500, all). Default: All status codes
   -http2

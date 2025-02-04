@@ -31,14 +31,17 @@ var (
 	headerBufPool = &bytesutil.ByteBufferPool{}
 
 	// Pre-computed byte slices for static strings
-	curlFlags       = []byte(" -skgi --path-as-is")
-	curlMethodX     = []byte(" -X ")
-	curlHeaderStart = []byte(" -H '")
-	strColonSpace   = []byte(": ")
-	strSingleQuote  = []byte("'")
-	strSpace        = []byte(" ")
-	strCRLF         = []byte("\r\n")
-	strHTML         = []byte("html")
+	curlFlags      = []byte("-skgi --path-as-is")
+	curlMethodX    = []byte("-X")
+	curlHeaderH    = []byte("-H")
+	strColonSpace  = []byte(": ")
+	strColon       = []byte(":")
+	strSingleQuote = []byte("'")
+	strSpace       = []byte(" ")
+	strCRLF        = []byte("\r\n")
+	strHTML        = []byte("html")
+	strTitle       = []byte("title")
+	strCloseTitle  = []byte("</title>")
 )
 
 type ProgressTracker interface {
@@ -217,16 +220,22 @@ func BuildCurlCommandPoc(job payload.PayloadJob) []byte {
 
 	// Build command
 	bb.Write(curlCmd)
+	bb.Write(strSpace)
 	bb.Write(curlFlags)
 
 	if job.Method != "GET" {
+		bb.Write(strSpace)
 		bb.Write(curlMethodX)
+		bb.Write(strSpace)
 		bb.Write(bytesutil.ToUnsafeBytes(job.Method))
 	}
 
 	// Headers
 	for _, h := range job.Headers {
-		bb.Write(curlHeaderStart)
+		bb.Write(strSpace)
+		bb.Write(curlHeaderH)
+		bb.Write(strSpace)
+		bb.Write(strSingleQuote)
 		bb.Write(bytesutil.ToUnsafeBytes(h.Header))
 		bb.Write(strColonSpace)
 		bb.Write(bytesutil.ToUnsafeBytes(h.Value))
@@ -258,13 +267,14 @@ func PeekHeaderKeyCaseInsensitive(h *fasthttp.ResponseHeader, key []byte) []byte
 // Helper function to extract title from HTML
 func ExtractTitle(body []byte) []byte {
 	lower := bytes.ToLower(body)
-	titleStart := bytes.Index(lower, []byte("<title>"))
+	titleStart := bytes.Index(lower, strTitle)
 	if titleStart == -1 {
 		return nil
 	}
+
 	titleStart += 7 // len("<title>")
 
-	titleEnd := bytes.Index(lower[titleStart:], []byte("</title>"))
+	titleEnd := bytes.Index(lower[titleStart:], strCloseTitle)
 	if titleEnd == -1 {
 		return nil
 	}
@@ -272,8 +282,13 @@ func ExtractTitle(body []byte) []byte {
 	return append([]byte(nil), body[titleStart:titleStart+titleEnd]...)
 }
 
-// match HTTP status code in list
 func matchStatusCodes(code int, codes []int) bool {
+	// If codes is nil, match all status codes
+	if codes == nil {
+		return true
+	}
+
+	// Otherwise match specific codes
 	for _, c := range codes {
 		if c == code {
 			return true

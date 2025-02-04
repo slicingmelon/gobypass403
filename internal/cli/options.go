@@ -15,7 +15,7 @@ import (
 )
 
 // Options represents command-line options
-type Options struct {
+type CliOptions struct {
 	// Input options
 	URL                 string
 	URLsFile            string
@@ -31,16 +31,15 @@ type Options struct {
 	ResponseBodyPreviewSize int // in bytes, we don't need too much, Response Headers and a small body preview is enough
 
 	// Output options
-	OutDir        string
-	Verbose       bool
-	Debug         bool
-	TraceRequests bool
+	OutDir  string
+	Verbose bool
+	Debug   bool
 
 	// Network options
 	Proxy           string
 	ParsedProxy     *url.URL
-	EnableHTTP2     bool
-	FollowRedirects bool
+	EnableHTTP2     bool // not implemented yet
+	FollowRedirects bool // not implemented yet
 
 	// Spoofing options
 	SpoofIP     string
@@ -71,7 +70,7 @@ var AvailableModules = map[string]bool{
 	"http_host":           true,
 }
 
-func (o *Options) printUsage(flagName ...string) {
+func (o *CliOptions) printUsage(flagName ...string) {
 	if len(flagName) == 0 {
 		flag.Usage()
 		return
@@ -103,7 +102,7 @@ func (o *Options) printUsage(flagName ...string) {
 }
 
 // setDefaults sets default values for options
-func (o *Options) setDefaults() {
+func (o *CliOptions) setDefaults() {
 	// Core defaults
 	o.UpdatePayloads = false
 
@@ -120,14 +119,9 @@ func (o *Options) setDefaults() {
 		o.Delay = 0
 	}
 
-	o.TraceRequests = false
-
-	// Status codes default
+	// Status codes default - accept all codes
 	if o.MatchStatusCodesStr == "" {
-		o.MatchStatusCodes = make([]int, 0, 500)
-		for i := 100; i < 600; i++ {
-			o.MatchStatusCodes = append(o.MatchStatusCodes, i)
-		}
+		o.MatchStatusCodes = nil // nil means match all status codes
 	}
 
 	// Output directory default
@@ -142,7 +136,7 @@ func (o *Options) setDefaults() {
 }
 
 // validate performs all validation checks
-func (o *Options) validate() error {
+func (o *CliOptions) validate() error {
 	if o.UpdatePayloads {
 		return payload.UpdatePayloads()
 	}
@@ -176,7 +170,7 @@ func (o *Options) validate() error {
 }
 
 // validateInputs checks URL and file inputs
-func (o *Options) validateInputURLs() error {
+func (o *CliOptions) validateInputURLs() error {
 	if o.URL == "" && o.URLsFile == "" {
 		return fmt.Errorf("either URL (-u) or URLs file (-l) is required")
 	}
@@ -198,18 +192,14 @@ func (o *Options) validateInputURLs() error {
 }
 
 // processStatusCodes processes the status codes string
-func (o *Options) processStatusCodes() error {
+func (o *CliOptions) processStatusCodes() error {
 	if o.MatchStatusCodesStr == "" {
-		return nil // Default was set in setDefaults
+		return nil // Default was set in setDefaults (nil = match all)
 	}
 
 	// Handle "all" or "*" cases
 	if o.MatchStatusCodesStr == "all" || o.MatchStatusCodesStr == "*" {
-		// Generate all valid HTTP status codes (100-599)
-		o.MatchStatusCodes = make([]int, 0, 500)
-		for i := 100; i < 600; i++ {
-			o.MatchStatusCodes = append(o.MatchStatusCodes, i)
-		}
+		o.MatchStatusCodes = nil // nil means match all status codes
 		return nil
 	}
 
@@ -220,7 +210,8 @@ func (o *Options) processStatusCodes() error {
 		if err != nil {
 			continue
 		}
-		if code >= 100 && code < 600 {
+		// Accept any positive integer as a status code
+		if code > 0 {
 			codes = append(codes, code)
 		}
 	}
@@ -232,7 +223,7 @@ func (o *Options) processStatusCodes() error {
 }
 
 // validateModule checks if the specified module is valid
-func (o *Options) validateModule() error {
+func (o *CliOptions) validateModule() error {
 	if o.Module == "" {
 		return fmt.Errorf("bypass module cannot be empty")
 	}
@@ -253,7 +244,7 @@ func (o *Options) validateModule() error {
 }
 
 // setupOutputDir creates the output directory and initializes findings.json
-func (o *Options) setupOutputDir() error {
+func (o *CliOptions) setupOutputDir() error {
 	if err := os.MkdirAll(o.OutDir, 0755); err != nil {
 		return fmt.Errorf("failed to create output directory: %v", err)
 	}
@@ -278,7 +269,7 @@ func (o *Options) setupOutputDir() error {
 	return nil
 }
 
-func (o *Options) processProxy() error {
+func (o *CliOptions) processProxy() error {
 	if o.Proxy == "" {
 		return nil
 	}

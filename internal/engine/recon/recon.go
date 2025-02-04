@@ -35,7 +35,24 @@ type IPAddrs struct {
 	CNAMEs []string
 }
 
-func (s *ReconService) processHost(host string) error {
+var (
+	DNS4Resolvers = []string{
+		"8.8.8.8:53",        // Google
+		"1.1.1.1:53",        // Cloudflare
+		"9.9.9.9:53",        // Quad9
+		"208.67.222.222:53", // OpenDNS
+		"8.8.4.4:53",        // Google Secondary
+		"1.0.0.1:53",        // Cloudflare Secondary
+	}
+	DNS6Resolvers = []string{
+		"[2001:4860:4860::8888]:53", // Google IPv6
+		"[2606:4700:4700::1111]:53", // Cloudflare IPv6
+		"[2620:fe::fe]:53",          // Quad9 IPv6
+		"[2620:0:ccc::2]:53",        // OpenDNS IPv6
+	}
+)
+
+func (s *ReconService) ProcessHost(host string) error {
 	if net.ParseIP(host) != nil {
 		return s.handleIP(host)
 	} else {
@@ -50,45 +67,48 @@ func NewReconService() *ReconService {
 		Resolver: &net.Resolver{
 			PreferGo: true,
 			Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
+				GB403Logger.Verbose().Msgf("Resolver Dial called with network: %s, address: %s", network, address)
+
 				d := net.Dialer{
 					Timeout: 5 * time.Second,
-					// Add connection pooling
-					KeepAlive: 30 * time.Second,
 				}
 
 				// Extract host from address (removes port)
-				host := strings.Split(address, ":")[0]
+				host, _, err := net.SplitHostPort(address)
+				if err != nil {
+					GB403Logger.Error().Msgf("failed to split host and port from %s: %v", address, err)
+					return nil, err
+				}
 
 				// Try local resolution first
-				if ip := resolveFromHostsFile(host); ip != "" {
+				if ip := ResolveThroughSystemHostsFile(host); ip != "" {
 					GB403Logger.Verbose().
 						Metadata("resolveFromHosts()", "success").
 						Msgf("Resolved %s to %s from hosts file", host, ip)
 					return d.DialContext(ctx, network, ip+":53")
 				}
 
-				switch network {
-				case "udp", "udp4", "udp6":
-					// Round-robin between multiple resolvers for redundancy
-					resolvers := []string{
-						"8.8.8.8:53",                // Google
-						"1.1.1.1:53",                // Cloudflare
-						"9.9.9.9:53",                // Quad9
-						"208.67.222.222:53",         // OpenDNS
-						"8.8.4.4:53",                // Google Secondary
-						"1.0.0.1:53",                // Cloudflare Secondary
-						"[2001:4860:4860::8888]:53", // Google IPv6
-						"[2606:4700:4700::1111]:53", // Cloudflare IPv6
-						"[2620:fe::fe]:53",          // Quad9 IPv6
-						"[2620:0:ccc::2]:53",        // OpenDNS IPv6
-					}
-					// Try each resolver until one works
-					for _, resolver := range resolvers {
-						if conn, err := d.DialContext(ctx, "udp", resolver); err == nil {
-							return conn, nil
-						}
-					}
+				// List of DNS resolvers to try
+				resolvers := []string{
+					"8.8.8.8:53",        // Google
+					"1.1.1.1:53",        // Cloudflare
+					"9.9.9.9:53",        // Quad9
+					"208.67.222.222:53", // OpenDNS
 				}
+
+				GB403Logger.Verbose().Msgf("Trying external resolvers for %s", host)
+
+				// Try each resolver until one works
+				for _, resolver := range resolvers {
+					GB403Logger.Verbose().Msgf("Attempting resolver %s", resolver)
+					if conn, err := d.DialContext(ctx, network, resolver); err == nil {
+						GB403Logger.Verbose().Msgf("Successfully connected to resolver %s", resolver)
+						return conn, nil
+					}
+					GB403Logger.Verbose().Msgf("Failed to connect to resolver %s: %v", resolver, err)
+				}
+
+				GB403Logger.Verbose().Msgf("All resolvers failed, falling back to system resolver for %s", host)
 				return d.DialContext(ctx, network, address)
 			},
 		},
@@ -101,7 +121,7 @@ func NewReconService() *ReconService {
 }
 
 // Simple hosts file parser
-func resolveFromHostsFile(host string) string {
+func ResolveThroughSystemHostsFile(host string) string {
 	// Handle localhost explicitly
 	if host == "localhost" {
 		return "127.0.0.1"
@@ -141,7 +161,7 @@ func resolveFromHostsFile(host string) string {
 
 	if err := scanner.Err(); err != nil {
 		GB403Logger.Error().
-			Metadata("resolveFromHostsFile()", "failed").
+			Metadata("ResolveThroughSystemHostsFile()", "failed").
 			Msgf("Error reading hosts file: %v", err)
 		return ""
 	}
@@ -169,7 +189,7 @@ func (s *ReconService) Run(urls []string) error {
 		go func() {
 			defer wg.Done()
 			for host := range jobs {
-				if err := s.processHost(host); err != nil {
+				if err := s.ProcessHost(host); err != nil {
 					select {
 					case results <- fmt.Errorf("host %s: %v", host, err):
 					default:
@@ -220,7 +240,7 @@ func (s *ReconService) handleIP(ip string) error {
 	foundService := false
 	for _, port := range []string{"80", "443"} {
 		GB403Logger.Verbose().Msgf("Probing %s:%s", ip, port)
-		if scheme := s.probeScheme(ip, port); scheme != "" {
+		if scheme := s.ProbeScheme(ip, port); scheme != "" {
 			foundService = true
 			GB403Logger.Verbose().Msgf("Found open port %s:%s -> %s", ip, port, scheme)
 			if services[scheme] == nil {
@@ -245,7 +265,7 @@ func (s *ReconService) handleIP(ip string) error {
 }
 
 func (s *ReconService) handleDomain(host string) error {
-	ips, err := s.resolveHost(host)
+	ips, err := s.ResolveHost(host)
 	if err != nil {
 		GB403Logger.Error().Msgf("Failed to resolve host %s: %v", host, err)
 		return err
@@ -260,7 +280,7 @@ func (s *ReconService) handleDomain(host string) error {
 
 	// Store IPs for later use but probe the domain
 	// Try both HTTP and HTTPS regardless of original scheme
-	if scheme := s.probeScheme(host, "443"); scheme != "" {
+	if scheme := s.ProbeScheme(host, "443"); scheme != "" {
 		// Store all resolved IPs under this scheme
 		for _, ip := range ips.IPv4 {
 			if result.IPv4Services[scheme] == nil {
@@ -276,7 +296,7 @@ func (s *ReconService) handleDomain(host string) error {
 		}
 	}
 
-	if scheme := s.probeScheme(host, "80"); scheme != "" {
+	if scheme := s.ProbeScheme(host, "80"); scheme != "" {
 		// Store all resolved IPs under this scheme
 		for _, ip := range ips.IPv4 {
 			if result.IPv4Services[scheme] == nil {
@@ -297,15 +317,12 @@ func (s *ReconService) handleDomain(host string) error {
 	return nil
 }
 
-func (s *ReconService) resolveHost(hostname string) (*IPAddrs, error) {
+func (s *ReconService) ResolveHost(hostname string) (*IPAddrs, error) {
 	result := &IPAddrs{}
 
-	// Special handling for localhost and hosts file entries
-	if ip := resolveFromHostsFile(hostname); ip != "" {
-		GB403Logger.Verbose().
-			Msgf("Resolved %s locally to %s", hostname, ip)
-
-		// Determine if IPv4 or IPv6
+	// Check hosts file first
+	if ip := ResolveThroughSystemHostsFile(hostname); ip != "" {
+		GB403Logger.Verbose().Msgf("Resolved %s locally to %s", hostname, ip)
 		if strings.Contains(ip, ":") {
 			result.IPv6 = append(result.IPv6, ip)
 		} else {
@@ -314,17 +331,34 @@ func (s *ReconService) resolveHost(hostname string) (*IPAddrs, error) {
 		return result, nil
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	// Try system resolver first
+	GB403Logger.Verbose().Msgf("Trying system resolver for %s", hostname)
+	ips, err := net.LookupHost(hostname)
+	if err == nil {
+		GB403Logger.Verbose().Msgf("System resolver succeeded for %s: %v", hostname, ips)
+		for _, ip := range ips {
+			if ip4 := net.ParseIP(ip).To4(); ip4 != nil {
+				result.IPv4 = append(result.IPv4, ip4.String())
+			} else {
+				result.IPv6 = append(result.IPv6, ip)
+			}
+		}
+		return result, nil
+	}
+	GB403Logger.Verbose().Msgf("System resolver failed for %s: %v", hostname, err)
+
+	// Fall back to custom resolver
+	GB403Logger.Verbose().Msgf("Trying custom resolvers for %s", hostname)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	// Use LookupIPAddr to get both IPv4 and IPv6
-	ips, err := s.dialer.Resolver.LookupIPAddr(ctx, hostname)
+	customIPs, err := s.dialer.Resolver.LookupIPAddr(ctx, hostname)
 	if err != nil {
+		GB403Logger.Error().Msgf("All resolvers failed for %s: %v", hostname, err)
 		return nil, err
 	}
 
-	// Separate IPv4 and IPv6 addresses
-	for _, ip := range ips {
+	for _, ip := range customIPs {
 		if ip4 := ip.IP.To4(); ip4 != nil {
 			result.IPv4 = append(result.IPv4, ip4.String())
 		} else {
@@ -340,7 +374,7 @@ func (s *ReconService) resolveHost(hostname string) (*IPAddrs, error) {
 	return result, nil
 }
 
-func (s *ReconService) probeScheme(host, port string) string {
+func (s *ReconService) ProbeScheme(host, port string) string {
 	addr := net.JoinHostPort(host, port)
 	GB403Logger.Verbose().Msgf("Probing %s", addr)
 
@@ -391,8 +425,4 @@ func (s *ReconService) probeScheme(host, port string) string {
 
 	// If both checks fail, return an empty string
 	return ""
-}
-
-func (s *ReconService) GetCache() *ReconCache {
-	return s.cache
 }

@@ -3,7 +3,6 @@ package cli
 import (
 	"bufio"
 	"fmt"
-	"net/url"
 	"os"
 	"strings"
 
@@ -14,11 +13,11 @@ import (
 
 // URLProcessor handles URL processing and validation
 type URLRecon struct {
-	opts         *Options
+	opts         *CliOptions
 	reconService *recon.ReconService
 }
 
-func NewURLRecon(opts *Options) *URLRecon {
+func NewURLRecon(opts *CliOptions) *URLRecon {
 	reconService := recon.NewReconService()
 	return &URLRecon{
 		opts:         opts,
@@ -163,7 +162,8 @@ func (p *URLRecon) processWithSubstituteHosts(targetURL string) ([]string, error
 		pathAndQuery += "?" + parsedURL.Query
 	}
 
-	for _, host := range validHosts { // Using validHosts ensures we only process valid ones
+	// Using validHosts to ensure we only process valid ones
+	for _, host := range validHosts {
 		expandedURLs, err := p.expandURLSchemes(fmt.Sprintf("http://%s%s", host, pathAndQuery))
 		if err != nil {
 			GB403Logger.Error().Msgf("Failed to expand URL schemes for host %s: %v", host, err)
@@ -175,57 +175,6 @@ func (p *URLRecon) processWithSubstituteHosts(targetURL string) ([]string, error
 	return urls, nil
 }
 
-// Helper methods for URL processing and validation
-func (p *URLRecon) getPathAndQuery(parsedURL *url.URL) string {
-	path := parsedURL.Path
-	if parsedURL.RawQuery != "" {
-		path += "?" + parsedURL.RawQuery
-	}
-	return path
-}
-
-// GetReconCache returns the recon cache for use by other components
-func (p *URLRecon) GetReconCache() *recon.ReconCache {
-	return p.reconService.GetCache()
-}
-
-func (p *URLRecon) readAndReconHosts() error {
-	content, err := os.ReadFile(p.opts.SubstituteHostsFile)
-	if err != nil {
-		return fmt.Errorf("failed to read hosts file: %v", err)
-	}
-
-	var hosts []string
-	for _, host := range strings.Split(strings.TrimSpace(string(content)), "\n") {
-		if host = strings.TrimSpace(host); host != "" {
-			// Extract clean hostname without scheme
-			cleanHost := host
-			if strings.Contains(host, "://") {
-				parsed, err := rawurlparser.RawURLParse(host)
-				if err != nil {
-					GB403Logger.Verbose().Msgf("Skipping invalid host URL: %s - %v", host, err)
-					continue
-				}
-				cleanHost = parsed.Host
-			}
-			hosts = append(hosts, cleanHost)
-		}
-	}
-
-	if len(hosts) == 0 {
-		return fmt.Errorf("no valid hosts found in substitute hosts file")
-	}
-
-	// Run recon on clean hostnames
-	for _, host := range hosts {
-		if err := p.reconService.Run([]string{host}); err != nil {
-			GB403Logger.Error().Msgf("Failed recon for host %s: %v", host, err)
-		}
-	}
-
-	return nil
-}
-
 func (p *URLRecon) expandURLSchemes(targetURL string) ([]string, error) {
 	parsedURL, err := rawurlparser.RawURLParse(targetURL)
 	if err != nil {
@@ -233,7 +182,7 @@ func (p *URLRecon) expandURLSchemes(targetURL string) ([]string, error) {
 	}
 
 	host := parsedURL.Host
-	result, err := p.reconService.GetCache().Get(host)
+	result, err := p.reconService.GetReconCache().Get(host)
 	if err != nil || result == nil {
 		GB403Logger.Verbose().Msgf("No cache result for %s: %v", host, err)
 		return nil, fmt.Errorf("host %s failed recon checks", host)

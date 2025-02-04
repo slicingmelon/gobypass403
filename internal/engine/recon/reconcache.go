@@ -18,6 +18,11 @@ func NewReconCache() *ReconCache {
 	}
 }
 
+// returns the ReconCache instance
+func (s *ReconService) GetReconCache() *ReconCache {
+	return s.cache
+}
+
 func (c *ReconCache) Set(hostname string, result *ReconResult) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()

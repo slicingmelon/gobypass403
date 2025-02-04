@@ -1,4 +1,4 @@
-package scanner
+package tests
 
 import (
 	"fmt"
@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/jedib0t/go-pretty/v6/progress"
+	"github.com/slicingmelon/go-bypass-403/internal/engine/scanner"
 )
 
 // Helper function to simulate a module's progress with a given style
@@ -31,10 +32,10 @@ func simulateProgressWithStyle(t *testing.T, style progress.Style) {
 
 	style.Options.PercentFormat = "%4.1f%%"
 
-	pc := &ProgressCounter{
-		pw:          pw,
-		trackers:    make(map[string]*progress.Tracker),
-		moduleStats: make(map[string]*ModuleStats),
+	pc := &scanner.ProgressCounter{
+		ProgressWriter: pw,
+		Trackers:       make(map[string]*progress.Tracker),
+		ModuleStats:    make(map[string]*scanner.ModuleStats),
 	}
 
 	pc.Start()

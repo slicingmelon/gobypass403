@@ -20,12 +20,12 @@ type ModuleStats struct {
 }
 
 type ProgressCounter struct {
-	pw            progress.Writer
-	trackers      map[string]*progress.Tracker
-	moduleStats   map[string]*ModuleStats
-	mu            sync.RWMutex
-	activeModules atomic.Int32
-	stopped       atomic.Bool
+	ProgressWriter progress.Writer
+	Trackers       map[string]*progress.Tracker
+	ModuleStats    map[string]*ModuleStats
+	mu             sync.RWMutex
+	ActiveModules  atomic.Int32
+	Stopped        atomic.Bool
 }
 
 func NewProgressCounter() *ProgressCounter {
@@ -73,54 +73,59 @@ func NewProgressCounter() *ProgressCounter {
 	pw.SetStyle(style)
 	pw.SetTrackerPosition(progress.PositionRight)
 	return &ProgressCounter{
-		pw:          pw,
-		trackers:    make(map[string]*progress.Tracker),
-		moduleStats: make(map[string]*ModuleStats),
+		ProgressWriter: pw,
+		Trackers:       make(map[string]*progress.Tracker),
+		ModuleStats:    make(map[string]*ModuleStats),
 	}
+
 }
 
 func (pc *ProgressCounter) StartModule(moduleName string, totalJobs int, targetURL string) {
 	pc.mu.Lock()
 	defer pc.mu.Unlock()
-	pc.activeModules.Add(1)
-	pc.moduleStats[moduleName] = &ModuleStats{
+	pc.ActiveModules.Add(1)
+	pc.ModuleStats[moduleName] = &ModuleStats{
 		TotalJobs: atomic.Int64{},
 		StartTime: time.Now(),
 	}
-	pc.moduleStats[moduleName].TotalJobs.Store(int64(totalJobs))
+
+	pc.ModuleStats[moduleName].TotalJobs.Store(int64(totalJobs))
 
 	tracker := &progress.Tracker{
 		Message: fmt.Sprintf("[%s] (0 workers)", moduleName),
 		Total:   int64(totalJobs),
 		Units:   progress.UnitsDefault,
 	}
-	pc.trackers[moduleName+"_progress"] = tracker
-	pc.pw.AppendTracker(tracker)
+	pc.Trackers[moduleName+"_progress"] = tracker
+	pc.ProgressWriter.AppendTracker(tracker)
 
-	pc.pw.Log("")
-	pc.pw.Log(text.FgCyan.Sprintf("Target URL: %s", targetURL))
-	pc.pw.Log(text.FgYellow.Sprintf("Active Module: %s", moduleName))
-	pc.pw.Log(text.FgGreen.Sprintf("Started: %s", time.Now().Format("15:04:05")))
-	pc.pw.Log(text.FgHiBlack.Sprintf("Total Jobs: %d", totalJobs))
-	pc.pw.Log("")
+	pc.ProgressWriter.Log("")
+	pc.ProgressWriter.Log(text.FgCyan.Sprintf("Target URL: %s", targetURL))
+	pc.ProgressWriter.Log(text.FgYellow.Sprintf("Active Module: %s", moduleName))
+	pc.ProgressWriter.Log(text.FgGreen.Sprintf("Started: %s", time.Now().Format("15:04:05")))
 
-	go pc.pw.Render()
+	pc.ProgressWriter.Log(text.FgHiBlack.Sprintf("Total Jobs: %d", totalJobs))
+	pc.ProgressWriter.Log("")
+
+	go pc.ProgressWriter.Render()
 }
 
 func (pc *ProgressCounter) addTracker(id, message string, total int64) {
+
 	tracker := &progress.Tracker{
 		Message: message,
 		Total:   total,
 		Units:   progress.UnitsDefault,
 	}
-	pc.trackers[id] = tracker
-	pc.pw.AppendTracker(tracker)
+	pc.Trackers[id] = tracker
+	pc.ProgressWriter.AppendTracker(tracker)
 }
 
 func (pc *ProgressCounter) UpdateWorkerStats(moduleName string, totalWorkers int64) {
 	pc.mu.RLock()
-	stats, exists := pc.moduleStats[moduleName]
-	tracker := pc.trackers[moduleName+"_progress"]
+	stats, exists := pc.ModuleStats[moduleName]
+
+	tracker := pc.Trackers[moduleName+"_progress"]
 	pc.mu.RUnlock()
 
 	if exists {
@@ -135,8 +140,8 @@ func (pc *ProgressCounter) UpdateWorkerStats(moduleName string, totalWorkers int
 
 func (pc *ProgressCounter) IncrementProgress(moduleName string, success bool) {
 	pc.mu.RLock()
-	stats, exists := pc.moduleStats[moduleName]
-	tracker := pc.trackers[moduleName+"_progress"]
+	stats, exists := pc.ModuleStats[moduleName]
+	tracker := pc.Trackers[moduleName+"_progress"]
 	pc.mu.RUnlock()
 
 	if exists && tracker != nil {
@@ -152,8 +157,8 @@ func (pc *ProgressCounter) IncrementProgress(moduleName string, success bool) {
 
 func (pc *ProgressCounter) MarkModuleAsDone(moduleName string) {
 	pc.mu.RLock()
-	tracker := pc.trackers[moduleName+"_progress"]
-	stats := pc.moduleStats[moduleName]
+	tracker := pc.Trackers[moduleName+"_progress"]
+	stats := pc.ModuleStats[moduleName]
 	pc.mu.RUnlock()
 
 	if tracker != nil && stats != nil {
@@ -178,30 +183,34 @@ func (pc *ProgressCounter) MarkModuleAsDone(moduleName string) {
 		}
 
 		// Log the completion message
-		pc.pw.Log("--------------------------------------------------------------")
-		pc.pw.Log(fmt.Sprintf("[%s] Completed %d requests in %s (avg: %s req/s)",
+		pc.ProgressWriter.Log("--------------------------------------------------------------")
+		pc.ProgressWriter.Log(fmt.Sprintf("[%s] Completed %d requests in %s (avg: %s req/s)",
 			text.Colors{colorMap[moduleName]}.Sprintf("%-20s", moduleName),
 			completedJobs,
+
 			text.FgCyan.Sprintf("%-8s", duration),
 			text.FgMagenta.Sprintf("%-8s", fmt.Sprintf("%.2f", reqPerSec))))
-		pc.pw.Log("--------------------------------------------------------------")
+		pc.ProgressWriter.Log("--------------------------------------------------------------")
+
 	}
-	pc.activeModules.Add(-1)
+	pc.ActiveModules.Add(-1)
 }
 
-// Add a new method to check if all modules are done
+// Method to check if all modules are done
 func (pc *ProgressCounter) AllModulesDone() bool {
-	return pc.activeModules.Load() == 0
+	return pc.ActiveModules.Load() == 0
 }
 
+// Start the progress bar
 func (pc *ProgressCounter) Start() {
-	if !pc.stopped.Swap(false) {
-		go pc.pw.Render()
+	if !pc.Stopped.Swap(false) {
+		go pc.ProgressWriter.Render()
 	}
 }
 
+// Stop the progress bar
 func (pc *ProgressCounter) Stop() {
-	if !pc.stopped.Swap(true) {
-		pc.pw.Stop()
+	if !pc.Stopped.Swap(true) {
+		pc.ProgressWriter.Stop()
 	}
 }

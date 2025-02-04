@@ -8,7 +8,7 @@ import (
 )
 
 type Runner struct {
-	options  *Options
+	options  *CliOptions
 	urls     []string
 	scanner  *scanner.Scanner
 	urlRecon *URLRecon
@@ -49,7 +49,6 @@ func (r *Runner) Initialize() error {
 		Timeout:                 r.options.Timeout,
 		Threads:                 r.options.Threads,
 		Delay:                   r.options.Delay,
-		TraceRequests:           r.options.TraceRequests,
 		Proxy:                   "",
 		EnableHTTP2:             r.options.EnableHTTP2,
 		SpoofHeader:             r.options.SpoofHeader,
@@ -59,7 +58,7 @@ func (r *Runner) Initialize() error {
 		Debug:                   r.options.Debug,
 		Verbose:                 r.options.Verbose,
 		ResponseBodyPreviewSize: r.options.ResponseBodyPreviewSize,
-		ReconCache:              r.urlRecon.reconService.GetCache(),
+		ReconCache:              r.urlRecon.reconService.GetReconCache(),
 	}
 
 	// Only set proxy if ParsedProxy exists
