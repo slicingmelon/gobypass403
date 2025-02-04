@@ -38,8 +38,8 @@ type CliOptions struct {
 	// Network options
 	Proxy           string
 	ParsedProxy     *url.URL
-	EnableHTTP2     bool
-	FollowRedirects bool
+	EnableHTTP2     bool // not implemented yet
+	FollowRedirects bool // not implemented yet
 
 	// Spoofing options
 	SpoofIP     string
