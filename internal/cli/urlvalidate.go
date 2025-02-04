@@ -70,7 +70,7 @@ func (p *URLRecon) collectURLs() ([]string, error) {
 
 	// Process URLs from file (if provided)
 	if p.opts.URLsFile != "" {
-		fileURLs, err := p.readURLsFromFile()
+		fileURLs, err := p.readURLsFromFile(p.opts.URLsFile)
 		if err != nil {
 			return nil, err
 		}
@@ -93,10 +93,11 @@ func (p *URLRecon) collectURLs() ([]string, error) {
 }
 
 // readURLsFromFile reads URLs from the specified file
-func (p *URLRecon) readURLsFromFile() ([]string, error) {
-	file, err := os.Open(p.opts.URLsFile)
+func (p *URLRecon) readURLsFromFile(urlsFile string) ([]string, error) {
+	file, err := os.Open(urlsFile)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open URLs file: %v", err)
+
 	}
 	defer file.Close()
 

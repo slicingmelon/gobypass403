@@ -58,7 +58,7 @@ func (wp *RequestWorkerPool) ProcessRequests(jobs []payload.PayloadJob) <-chan *
 	for _, job := range jobs {
 		job := job // Capture for closure
 		group.Submit(func() {
-			if resp := wp.processJob(job); resp != nil {
+			if resp := wp.ProcessRequestResponseJob(job); resp != nil {
 				results <- resp
 			}
 		})
@@ -80,7 +80,7 @@ func (wp *RequestWorkerPool) Close() {
 }
 
 // processJob handles a single job: builds request, sends it, and processes response
-func (wp *RequestWorkerPool) processJob(job payload.PayloadJob) *RawHTTPResponseDetails {
+func (wp *RequestWorkerPool) ProcessRequestResponseJob(job payload.PayloadJob) *RawHTTPResponseDetails {
 	req := wp.httpClient.AcquireRequest()
 	resp := wp.httpClient.AcquireResponse()
 	defer wp.httpClient.ReleaseRequest(req)

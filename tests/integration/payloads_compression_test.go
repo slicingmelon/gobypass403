@@ -1,4 +1,4 @@
-package payload
+package tests
 
 import (
 	"bytes"
@@ -14,14 +14,15 @@ import (
 	"github.com/golang/snappy"
 	"github.com/klauspost/compress/zstd"
 	"github.com/pierrec/lz4/v4"
+	"github.com/slicingmelon/go-bypass-403/internal/engine/payload"
 	"github.com/vmihailenco/msgpack/v5"
 )
 
 func TestCompressionComparison(t *testing.T) {
 	// Test case with realistic data
-	original := SeedData{
+	original := payload.SeedData{
 		FullURL: "https://www.example.com/admin",
-		Headers: []Header{{
+		Headers: []payload.Header{{
 			Header: "X-AppEngine-Trusted-IP-Request",
 			Value:  "1",
 		}},
@@ -96,10 +97,11 @@ func TestCompressionComparison(t *testing.T) {
 
 func TestCompressionComparisonLargePayload(t *testing.T) {
 	// Create a larger test case
-	original := SeedData{
+	original := payload.SeedData{
 		FullURL: "https://www.example.com/admin/dashboard/users/settings?param1=value1&param2=value2",
-		Headers: []Header{
+		Headers: []payload.Header{
 			{Header: "X-AppEngine-Trusted-IP-Request", Value: "1"},
+
 			{Header: "X-Forwarded-For", Value: "127.0.0.1"},
 			{Header: "X-Original-URL", Value: "/admin/dashboard"},
 			{Header: "X-Rewrite-URL", Value: "/admin/dashboard"},
@@ -151,10 +153,11 @@ func TestCompressionComparisonLargePayload(t *testing.T) {
 }
 
 func TestAdvancedCompressionComparison(t *testing.T) {
-	original := SeedData{
+	original := payload.SeedData{
 		FullURL: "https://www.example.com/admin/dashboard/users/settings?param1=value1&param2=value2&param3=value3",
-		Headers: []Header{
+		Headers: []payload.Header{
 			{Header: "X-AppEngine-Trusted-IP-Request", Value: "1"},
+
 			{Header: "X-Forwarded-For", Value: "127.0.0.1, 10.0.0.1, 192.168.1.1"},
 			{Header: "X-Original-URL", Value: "/admin/dashboard/users/settings"},
 			{Header: "X-Rewrite-URL", Value: "/admin/dashboard/users/settings"},
@@ -264,9 +267,9 @@ func TestAdvancedCompressionComparison(t *testing.T) {
 
 func TestMessagePackComparison(t *testing.T) {
 	// Test case
-	original := SeedData{
+	original := payload.SeedData{
 		FullURL: "https://www.example.com/admin",
-		Headers: []Header{{
+		Headers: []payload.Header{{
 			Header: "X-AppEngine-Trusted-IP-Request",
 			Value:  "1",
 		}},
@@ -318,7 +321,7 @@ func TestMessagePackComparison(t *testing.T) {
 	t.Logf("  Result: %s", msgpackResult)
 
 	// Verify MessagePack roundtrip
-	var recovered SeedData
+	var recovered payload.SeedData
 	err = msgpack.Unmarshal(msgpackData, &recovered)
 	if err != nil {
 		t.Fatalf("MessagePack unmarshal failed: %v", err)
@@ -338,28 +341,31 @@ func TestMessagePackComparison(t *testing.T) {
 }
 
 func TestPayloadSeedSimple(t *testing.T) {
-	urlOnly := SeedData{
+	urlOnly := payload.SeedData{
 		FullURL: "https://example.com",
 	}
-	seed1 := GenerateDebugToken(urlOnly)
-	recovered1, err := DecodeDebugToken(seed1)
+	seed1 := payload.GenerateDebugToken(urlOnly)
+	recovered1, err := payload.DecodeDebugToken(seed1)
 	if err != nil {
+
 		t.Fatalf("Failed to recover URL-only seed: %v", err)
 	}
 	if recovered1.FullURL != urlOnly.FullURL {
 		t.Errorf("URL mismatch: got %s, want %s", recovered1.FullURL, urlOnly.FullURL)
 	}
-	headerOnly := SeedData{
-		Headers: []Header{{
+	headerOnly := payload.SeedData{
+		Headers: []payload.Header{{
 			Header: "X-Test",
 			Value:  "test",
 		}},
 	}
-	seed2 := GenerateDebugToken(headerOnly)
-	recovered2, err := DecodeDebugToken(seed2)
+
+	seed2 := payload.GenerateDebugToken(headerOnly)
+	recovered2, err := payload.DecodeDebugToken(seed2)
 	if err != nil {
 		t.Fatalf("Failed to recover header-only seed: %v", err)
 	}
+
 	if len(recovered2.Headers) != 1 ||
 		recovered2.Headers[0].Header != headerOnly.Headers[0].Header ||
 		recovered2.Headers[0].Value != headerOnly.Headers[0].Value {
@@ -384,14 +390,15 @@ type HeaderBytes struct {
 
 func TestStringVsBytes(t *testing.T) {
 	// Original string-based structs
-	stringJob := PayloadJob{
+	stringJob := payload.PayloadJob{
 		OriginalURL:  "https://www.example.com/admin",
 		Method:       "GET",
 		Host:         "www.example.com",
 		RawURI:       "/admin",
 		BypassModule: "header_ip",
-		FullURL:      "https://www.example.com/admin",
-		Headers: []Header{{
+
+		FullURL: "https://www.example.com/admin",
+		Headers: []payload.Header{{
 			Header: "X-AppEngine-Trusted-IP-Request",
 			Value:  "1",
 		}},
