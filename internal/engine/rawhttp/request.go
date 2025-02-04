@@ -87,7 +87,6 @@ func BuildHTTPRequest(httpclient *HttpClient, req *fasthttp.Request, job payload
 	req.Header.SetMethod(job.Method)
 
 	req.SetRequestURI(job.FullURL)
-	GB403Logger.PrintGreen("Full URL: %s", job.FullURL)
 
 	// Disable all normalizing for raw path testing
 	req.URI().DisablePathNormalizing = true
