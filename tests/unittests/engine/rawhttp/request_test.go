@@ -1,4 +1,4 @@
-package rawhttp
+package tests
 
 import (
 	"bytes"
@@ -11,6 +11,7 @@ import (
 
 	"github.com/VictoriaMetrics/VictoriaMetrics/lib/bytesutil"
 	"github.com/slicingmelon/go-bypass-403/internal/engine/payload"
+	"github.com/slicingmelon/go-bypass-403/internal/engine/rawhttp"
 
 	GB403ErrorHandler "github.com/slicingmelon/go-bypass-403/internal/utils/error"
 	GB403Logger "github.com/slicingmelon/go-bypass-403/internal/utils/logger"
@@ -71,11 +72,11 @@ func TestRequestBuilderViaEchoServer(t *testing.T) {
 	<-serverReady // Wait for server to start
 
 	// Create test client with custom dialer
-	clientoptions := DefaultHTTPClientOptions()
+	clientoptions := rawhttp.DefaultHTTPClientOptions()
 	clientoptions.Dialer = func(addr string) (net.Conn, error) {
 		return ln.Dial()
 	}
-	client := NewHTTPClient(clientoptions, GB403ErrorHandler.NewErrorHandler(15))
+	client := rawhttp.NewHTTPClient(clientoptions, GB403ErrorHandler.NewErrorHandler(15))
 
 	// Test cases using real payload generators
 	testCases := []struct {
@@ -140,13 +141,13 @@ func TestRequestBuilderViaEchoServer(t *testing.T) {
 				defer fasthttp.ReleaseRequest(req)
 				defer fasthttp.ReleaseResponse(resp)
 
-				BuildHTTPRequest(client, req, job)
+				rawhttp.BuildHTTPRequest(client, req, job)
 
 				// Build virtual request
 				GB403Logger.PrintYellow("[GB403Logger] Sending request :\n%s", req)
 
 				// Send request and let server handle the comparison printing
-				if err := client.client.Do(req, resp); err != nil {
+				if err := client.DoRequest(req, resp); err != nil {
 					t.Fatalf("Job %d failed: %v", i, err)
 				}
 
@@ -238,11 +239,11 @@ func TestRequestBuilderMidPathsPayloads(t *testing.T) {
 	<-serverReady
 
 	// Create test client with custom dialer
-	clientoptions := DefaultHTTPClientOptions()
+	clientoptions := rawhttp.DefaultHTTPClientOptions()
 	clientoptions.Dialer = func(addr string) (net.Conn, error) {
 		return ln.Dial()
 	}
-	client := NewHTTPClient(clientoptions, GB403ErrorHandler.NewErrorHandler(15))
+	client := rawhttp.NewHTTPClient(clientoptions, GB403ErrorHandler.NewErrorHandler(15))
 
 	// Test cases using real payload generators
 	testCases := []struct {
@@ -291,13 +292,13 @@ func TestRequestBuilderMidPathsPayloads(t *testing.T) {
 				defer fasthttp.ReleaseRequest(req)
 				defer fasthttp.ReleaseResponse(resp)
 
-				BuildHTTPRequest(client, req, job)
+				rawhttp.BuildHTTPRequest(client, req, job)
 
 				// Build virtual request
 				GB403Logger.PrintGreen("[GB403Logger][RequestBuilder] [X-GB403-Token: %s] Sending request: %s\n================>\n%s<================\n", job.PayloadToken, job.FullURL, req)
 
 				// Send request and let server handle the comparison printing
-				if err := client.client.Do(req, resp); err != nil {
+				if err := client.DoRequest(req, resp); err != nil {
 					t.Fatalf("Job %d failed: %v", i, err)
 				}
 
@@ -312,9 +313,9 @@ func TestRequestBuilderHostHeaders(t *testing.T) {
 		t.Skip("skipping test in short mode")
 	}
 
-	clientOpts := DefaultHTTPClientOptions()
+	clientOpts := rawhttp.DefaultHTTPClientOptions()
 
-	client := NewHTTPClient(clientOpts, GB403ErrorHandler.NewErrorHandler(15))
+	client := rawhttp.NewHTTPClient(clientOpts, GB403ErrorHandler.NewErrorHandler(15))
 	//rb := NewRequestBuilder(client, _logger)
 
 	testCases := []struct {
@@ -408,11 +409,11 @@ func TestResponseProcessingWithSpacedHeaders(t *testing.T) {
 	}
 	go s.Serve(ln) //nolint:errcheck
 
-	clientoptions := DefaultHTTPClientOptions()
+	clientoptions := rawhttp.DefaultHTTPClientOptions()
 	clientoptions.Dialer = func(addr string) (net.Conn, error) {
 		return ln.Dial()
 	}
-	client := NewHTTPClient(clientoptions, GB403ErrorHandler.NewErrorHandler(15))
+	client := rawhttp.NewHTTPClient(clientoptions, GB403ErrorHandler.NewErrorHandler(15))
 
 	testCases := []struct {
 		name         string

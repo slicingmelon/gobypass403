@@ -31,17 +31,18 @@ var (
 	headerBufPool = &bytesutil.ByteBufferPool{}
 
 	// Pre-computed byte slices for static strings
-	curlFlags      = []byte("-skgi --path-as-is")
-	curlMethodX    = []byte("-X")
-	curlHeaderH    = []byte("-H")
-	strColonSpace  = []byte(": ")
-	strColon       = []byte(":")
-	strSingleQuote = []byte("'")
-	strSpace       = []byte(" ")
-	strCRLF        = []byte("\r\n")
-	strHTML        = []byte("html")
-	strTitle       = []byte("title")
-	strCloseTitle  = []byte("</title>")
+	curlFlags         = []byte("-skgi --path-as-is")
+	curlMethodX       = []byte("-X")
+	curlHeaderH       = []byte("-H")
+	strColonSpace     = []byte(": ")
+	strColon          = []byte(":")
+	strSingleQuote    = []byte("'")
+	strSpace          = []byte(" ")
+	strCRLF           = []byte("\r\n")
+	strHTML           = []byte("html")
+	strTitle          = []byte("title")
+	strCloseTitle     = []byte("</title>")
+	strLocationHeader = []byte("Location")
 )
 
 type ProgressTracker interface {
@@ -120,7 +121,7 @@ func ProcessHTTPResponse(httpclient *HttpClient, resp *fasthttp.Response, job pa
 
 	// Check for redirect early
 	if fasthttp.StatusCodeIsRedirect(statusCode) {
-		if location := PeekHeaderKeyCaseInsensitive(&resp.Header, []byte("Location")); len(location) > 0 {
+		if location := PeekHeaderKeyCaseInsensitive(&resp.Header, strLocationHeader); len(location) > 0 {
 			result.RedirectURL = append([]byte(nil), location...)
 		}
 	}
