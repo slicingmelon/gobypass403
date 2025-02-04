@@ -91,16 +91,16 @@ func analyzeResults(results []*Result) columnStats {
 	stats := columnStats{}
 
 	for _, result := range results {
-		// Module width - exact width of the bypass module name
+		// Bypass Module width
 		stats.maxModuleWidth = max(stats.maxModuleWidth, len(result.BypassModule))
 
-		// Curl command width - exact width of the curl command
+		// Curl command width
 		stats.maxCurlWidth = max(stats.maxCurlWidth, len(result.CurlPocCommand))
 
-		// Status width - width of the status code as string
+		// Status code width
 		stats.maxStatusWidth = max(stats.maxStatusWidth, len(fmt.Sprintf("%d", result.StatusCode)))
 
-		// Length width - width of the formatted content length
+		// Content Length width
 		stats.maxLengthWidth = max(stats.maxLengthWidth, len(FormatBytesH(result.ContentLength)))
 
 		// Content Type width
