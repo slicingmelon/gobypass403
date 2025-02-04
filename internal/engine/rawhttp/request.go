@@ -143,30 +143,10 @@ func ProcessHTTPResponse(httpclient *HttpClient, resp *fasthttp.Response, job pa
 		}
 	}
 
-	// Create header buffer
-	headerBuf := headerBufPool.Get()
-	defer headerBufPool.Put(headerBuf)
-	headerBuf.Reset()
+	// Get all HTTP response headers
+	result.ResponseHeaders = GetResponseHeaders(&resp.Header, statusCode)
 
-	// Write status line
-	headerBuf.Write(resp.Header.Protocol())
-	headerBuf.Write(strSpace)
-	headerBuf.B = fasthttp.AppendUint(headerBuf.B, statusCode)
-	headerBuf.Write(strSpace)
-	headerBuf.Write(resp.Header.StatusMessage())
-	headerBuf.Write(strCRLF)
-
-	// Process headers
-	resp.Header.VisitAll(func(key, value []byte) {
-		headerBuf.Write(key)
-		headerBuf.Write(strColonSpace)
-		headerBuf.Write(value)
-		headerBuf.Write(strCRLF)
-	})
-	headerBuf.Write(strCRLF)
-
-	// Store processed data
-	result.ResponseHeaders = append([]byte(nil), headerBuf.B...)
+	// Store the rest of the processed data
 	result.ContentType = append([]byte(nil), resp.Header.ContentType()...)
 	result.ServerInfo = append([]byte(nil), resp.Header.Server()...)
 
@@ -276,6 +256,33 @@ func BuildCurlCommandPoc(job payload.PayloadJob) []byte {
 
 	// Return a copy of the buffer's contents
 	return append([]byte(nil), bb.B...)
+}
+
+// GetResponseHeaders gets all HTTP headers from the response
+func GetResponseHeaders(h *fasthttp.ResponseHeader, statusCode int) []byte {
+	headerBuf := headerBufPool.Get()
+	defer headerBufPool.Put(headerBuf)
+	headerBuf.Reset()
+
+	// Write status line
+	headerBuf.Write(h.Protocol())
+	headerBuf.Write(strSpace)
+	headerBuf.B = fasthttp.AppendUint(headerBuf.B, statusCode)
+	headerBuf.Write(strSpace)
+	headerBuf.Write(h.StatusMessage())
+	headerBuf.Write(strCRLF)
+
+	// Process headers
+	h.VisitAll(func(key, value []byte) {
+		headerBuf.Write(key)
+		headerBuf.Write(strColonSpace)
+		headerBuf.Write(value)
+		headerBuf.Write(strCRLF)
+	})
+	headerBuf.Write(strCRLF)
+
+	// Return copy of buffer contents
+	return append([]byte(nil), headerBuf.B...)
 }
 
 // Helper function to peek a header key case insensitive
