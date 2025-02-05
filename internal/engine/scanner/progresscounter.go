@@ -2,6 +2,7 @@ package scanner
 
 import (
 	"fmt"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -92,7 +93,7 @@ func (pc *ProgressCounter) StartModule(moduleName string, totalJobs int, targetU
 	pc.ModuleStats[moduleName].TotalJobs.Store(int64(totalJobs))
 
 	tracker := &progress.Tracker{
-		Message: fmt.Sprintf("[%s] (0 workers)", moduleName),
+		Message: fmt.Sprintf("[%s] (0 active workers)", moduleName),
 		Total:   int64(totalJobs),
 		Units:   progress.UnitsDefault,
 	}
@@ -132,7 +133,7 @@ func (pc *ProgressCounter) UpdateWorkerStats(moduleName string, totalWorkers int
 		stats.ActiveWorkers.Store(totalWorkers)
 
 		if tracker != nil {
-			newMessage := fmt.Sprintf("[%s] (%d workers)", moduleName, totalWorkers)
+			newMessage := fmt.Sprintf("[%s] (%d active workers)", moduleName, totalWorkers)
 			tracker.UpdateMessage(newMessage)
 		}
 	}
@@ -183,14 +184,14 @@ func (pc *ProgressCounter) MarkModuleAsDone(moduleName string) {
 		}
 
 		// Log the completion message
-		pc.ProgressWriter.Log("--------------------------------------------------------------")
+		pc.ProgressWriter.Log(strings.Repeat("-", 100))
 		pc.ProgressWriter.Log(fmt.Sprintf("[%s] Completed %d requests in %s (avg: %s req/s)",
 			text.Colors{colorMap[moduleName]}.Sprintf("%-20s", moduleName),
 			completedJobs,
 
 			text.FgCyan.Sprintf("%-8s", duration),
 			text.FgMagenta.Sprintf("%-8s", fmt.Sprintf("%.2f", reqPerSec))))
-		pc.ProgressWriter.Log("--------------------------------------------------------------")
+		pc.ProgressWriter.Log(strings.Repeat("-", 100))
 
 	}
 	pc.ActiveModules.Add(-1)

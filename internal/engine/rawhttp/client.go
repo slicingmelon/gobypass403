@@ -54,9 +54,9 @@ func DefaultHTTPClientOptions() *HttpClientOptions {
 		MaxIdleConnDuration: 1 * time.Minute, // Idle keep-alive connections are closed after this duration.
 		MaxConnWaitTimeout:  1 * time.Second, // Maximum duration for waiting for a free connection.
 		NoDefaultUserAgent:  true,
-		MaxResponseBodySize: 8092, // Hardlimit at 8KB
-		ReadBufferSize:      8092, // Hardlimit at 8KB
-		WriteBufferSize:     8092, // Hardlimit at 8KB
+		MaxResponseBodySize: 8192,  // Hardlimit at 8KB
+		ReadBufferSize:      12288, // Hardlimit at 12KB
+		WriteBufferSize:     12288, // Hardlimit at 12KB
 		StreamResponseBody:  true,
 		MaxRetries:          3,
 		RetryDelay:          1 * time.Second,
