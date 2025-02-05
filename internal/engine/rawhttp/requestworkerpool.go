@@ -64,7 +64,7 @@ func (wp *RequestWorkerPool) Close() {
 	wp.httpClient.Close()
 }
 
-// processJob handles a single job: builds request, sends it, and processes response
+// ProcessRequestResponseJob handles a single job: builds request, sends it, and processes response
 func (wp *RequestWorkerPool) ProcessRequestResponseJob(job payload.PayloadJob) *RawHTTPResponseDetails {
 	req := wp.httpClient.AcquireRequest()
 	resp := wp.httpClient.AcquireResponse()
@@ -74,7 +74,7 @@ func (wp *RequestWorkerPool) ProcessRequestResponseJob(job payload.PayloadJob) *
 	// Build HTTP Request
 	if err := wp.BuildRequestTask(req, job); err != nil {
 		if err := wp.errorHandler.HandleError(err, GB403ErrorHandler.ErrorContext{
-			ErrorSource:  []byte("RequestWorkerPool.BuildRequest"),
+			ErrorSource:  []byte("RequestWorkerPool.BuildRequestTask"),
 			Host:         []byte(job.Host),
 			BypassModule: []byte(job.BypassModule),
 		}); err != nil {
@@ -85,7 +85,7 @@ func (wp *RequestWorkerPool) ProcessRequestResponseJob(job payload.PayloadJob) *
 	// Send request using SendRequestTask
 	if err := wp.SendRequestTask(req, resp); err != nil {
 		if err := wp.errorHandler.HandleError(err, GB403ErrorHandler.ErrorContext{
-			ErrorSource:  []byte("RequestWorkerPool.SendRequest"),
+			ErrorSource:  []byte("RequestWorkerPool.SendRequestTask"),
 			Host:         []byte(job.Host),
 			BypassModule: []byte(job.BypassModule),
 		}); err != nil {
