@@ -13,8 +13,8 @@ var (
 	CustomUserAgent = []byte("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36")
 )
 
-// HttpClientOptions contains configuration options for the HttpClient
-type HttpClientOptions struct {
+// HTTPClientOptions contains configuration options for the HTTPClient
+type HTTPClientOptions struct {
 	Timeout                 time.Duration // ScannerCliOpts
 	DialTimeout             time.Duration // Custom Dial Timeout
 	MaxConnsPerHost         int           // fasthttp core
@@ -36,18 +36,18 @@ type HttpClientOptions struct {
 	RequestDelay            time.Duration // ScannerCliOpts
 }
 
-// HttpClient represents a reusable HTTP client
-type HttpClient struct {
+// HTTPClient represents a reusable HTTP client
+type HTTPClient struct {
 	client       *fasthttp.Client
-	options      *HttpClientOptions
-	bufPool      sync.Pool
+	options      *HTTPClientOptions
 	errorHandler *GB403ErrorHandler.ErrorHandler
+	retryConfig  *RetryConfig
 	mu           sync.RWMutex
 }
 
 // DefaultHTTPClientOptions returns the default HTTP client options
-func DefaultHTTPClientOptions() *HttpClientOptions {
-	return &HttpClientOptions{
+func DefaultHTTPClientOptions() *HTTPClientOptions {
+	return &HTTPClientOptions{
 		Timeout:             20 * time.Second,
 		DialTimeout:         5 * time.Second,
 		MaxConnsPerHost:     128,
@@ -67,7 +67,7 @@ func DefaultHTTPClientOptions() *HttpClientOptions {
 }
 
 // NewHTTPClient creates a new HTTP client instance
-func NewHTTPClient(opts *HttpClientOptions, errorHandler *GB403ErrorHandler.ErrorHandler) *HttpClient {
+func NewHTTPClient(opts *HTTPClientOptions, errorHandler *GB403ErrorHandler.ErrorHandler) *HTTPClient {
 	if opts == nil {
 		opts = DefaultHTTPClientOptions()
 	}
@@ -93,44 +93,55 @@ func NewHTTPClient(opts *HttpClientOptions, errorHandler *GB403ErrorHandler.Erro
 		},
 	}
 
-	return &HttpClient{
+	return &HTTPClient{
 		client:       client,
 		options:      opts,
-		bufPool:      sync.Pool{New: func() interface{} { return make([]byte, 0, opts.ReadBufferSize) }},
 		errorHandler: errorHandler,
+		retryConfig:  DefaultRetryConfig(), // Use default retry config
+		mu:           sync.RWMutex{},       // Initialize mutex properly
 	}
 }
 
-func (c *HttpClient) GetHTTPClientOptions() *HttpClientOptions {
+// GetHTTPClientOptions returns the HTTP client options
+func (c *HTTPClient) GetHTTPClientOptions() *HTTPClientOptions {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
 	return c.options
 }
 
+// SetOptions updates the client options
+func (c *HTTPClient) SetHTTPClientOptions(opts *HTTPClientOptions) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.options = opts
+}
+
 // DoRequest performs a HTTP request (raw)
-func (c *HttpClient) DoRequest(req *fasthttp.Request, resp *fasthttp.Response) error {
+func (c *HTTPClient) DoRequest(req *fasthttp.Request, resp *fasthttp.Response) error {
 	return c.client.Do(req, resp)
 }
 
 // Close releases all idle connections
-func (c *HttpClient) Close() {
+func (c *HTTPClient) Close() {
 	c.client.CloseIdleConnections()
 }
 
 // AcquireRequest returns a new Request instance from pool
-func (c *HttpClient) AcquireRequest() *fasthttp.Request {
+func (c *HTTPClient) AcquireRequest() *fasthttp.Request {
 	return fasthttp.AcquireRequest()
 }
 
 // ReleaseRequest returns request to pool
-func (c *HttpClient) ReleaseRequest(req *fasthttp.Request) {
+func (c *HTTPClient) ReleaseRequest(req *fasthttp.Request) {
 	fasthttp.ReleaseRequest(req)
 }
 
 // AcquireResponse returns a new Response instance from pool
-func (c *HttpClient) AcquireResponse() *fasthttp.Response {
+func (c *HTTPClient) AcquireResponse() *fasthttp.Response {
 	return fasthttp.AcquireResponse()
 }
 
 // ReleaseResponse returns response to pool
-func (c *HttpClient) ReleaseResponse(resp *fasthttp.Response) {
+func (c *HTTPClient) ReleaseResponse(resp *fasthttp.Response) {
 	fasthttp.ReleaseResponse(resp)
 }

@@ -19,7 +19,7 @@ func DefaultDialer() *fasthttp.TCPDialer {
 }
 
 // SetDialer sets a custom dialer for the client
-func (c *HttpClient) SetDialer(dialer fasthttp.DialFunc) *HttpClient {
+func (c *HTTPClient) SetDialer(dialer fasthttp.DialFunc) *HTTPClient {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -30,7 +30,7 @@ func (c *HttpClient) SetDialer(dialer fasthttp.DialFunc) *HttpClient {
 }
 
 // CreateDialFunc creates a dial function with the given options and error handler
-func CreateDialFunc(opts *HttpClientOptions, errorHandler *GB403ErrorHandler.ErrorHandler) fasthttp.DialFunc {
+func CreateDialFunc(opts *HTTPClientOptions, errorHandler *GB403ErrorHandler.ErrorHandler) fasthttp.DialFunc {
 	if opts.Dialer != nil {
 		return opts.Dialer
 	}

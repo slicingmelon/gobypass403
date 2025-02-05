@@ -80,7 +80,7 @@ type ProgressTracker interface {
 // ErrNoFreeConns is returned if all DefaultMaxConnsPerHost connections
 // to the requested host are busy.
 // BuildRequest creates and configures a HTTP request from a bypass job (payload job)
-func BuildHTTPRequest(httpclient *HttpClient, req *fasthttp.Request, job payload.PayloadJob) error {
+func BuildHTTPRequest(httpclient *HTTPClient, req *fasthttp.Request, job payload.PayloadJob) error {
 	//req.Reset()
 	req.UseHostHeader = false
 	req.Header.SetMethod(job.Method)
@@ -124,9 +124,10 @@ func BuildHTTPRequest(httpclient *HttpClient, req *fasthttp.Request, job payload
 }
 
 // ProcessHTTPResponse handles response processing
-func ProcessHTTPResponse(httpclient *HttpClient, resp *fasthttp.Response, job payload.PayloadJob) *RawHTTPResponseDetails {
+func ProcessHTTPResponse(httpclient *HTTPClient, resp *fasthttp.Response, job payload.PayloadJob) *RawHTTPResponseDetails {
 	statusCode := resp.StatusCode()
 	contentLength := resp.Header.ContentLength()
+
 	httpClientOpts := httpclient.GetHTTPClientOptions()
 
 	result := &RawHTTPResponseDetails{

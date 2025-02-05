@@ -9,7 +9,7 @@ import (
 
 // RequestWorkerPool manages concurrent HTTP request/response processing
 type RequestWorkerPool struct {
-	httpClient   *HttpClient
+	httpClient   *HTTPClient
 	errorHandler *GB403ErrorHandler.ErrorHandler
 	pool         pond.Pool
 }
@@ -27,7 +27,7 @@ func (wp *RequestWorkerPool) GetCurrentStats() (running int64, waiting uint64) {
 }
 
 // NewWorkerPool initializes a new RequestWorkerPool instance
-func NewRequestWorkerPool(opts *HttpClientOptions, maxWorkers int, errorHandler *GB403ErrorHandler.ErrorHandler) *RequestWorkerPool {
+func NewRequestWorkerPool(opts *HTTPClientOptions, maxWorkers int, errorHandler *GB403ErrorHandler.ErrorHandler) *RequestWorkerPool {
 	return &RequestWorkerPool{
 		httpClient:   NewHTTPClient(opts, errorHandler),
 		errorHandler: errorHandler,

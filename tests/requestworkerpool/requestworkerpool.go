@@ -30,7 +30,7 @@ type RawHTTPResponseDetails struct {
 
 // RequestWorkerPool manages concurrent HTTP request processing using pond
 type RequestWorkerPool struct {
-	httpClient   *rawhttp.HttpClient
+	httpClient   *rawhttp.HTTPClient
 	errorHandler *GB403ErrorHandler.ErrorHandler
 	pool         pond.Pool
 }
@@ -41,7 +41,7 @@ func (wp *RequestWorkerPool) GetCurrentStats() (running int64, waiting uint64) {
 }
 
 // NewWorkerPool initializes a new RequestWorkerPool instance
-func NewWorkerPool(opts *rawhttp.HttpClientOptions, maxWorkers int, errorHandler *GB403ErrorHandler.ErrorHandler) *RequestWorkerPool {
+func NewWorkerPool(opts *rawhttp.HTTPClientOptions, maxWorkers int, errorHandler *GB403ErrorHandler.ErrorHandler) *RequestWorkerPool {
 	return &RequestWorkerPool{
 		httpClient:   rawhttp.NewHTTPClient(opts, errorHandler),
 		errorHandler: errorHandler,
