@@ -18,13 +18,14 @@ type RequestWorkerPool struct {
 	httpClient   *HTTPClient
 	errorHandler *GB403ErrorHandler.ErrorHandler
 	pool         pond.Pool
+	throttler    *Throttler
 }
 
 type ThrottleConfig struct {
 	WorkerCount             int32
 	BaseRequestDelay        time.Duration
 	MaxRequestDelay         time.Duration
-	ExponentialRequestDelay float64      // Exponential delay
+	ExponentialRequestDelay float64      // Exponential request delay
 	RequestDelayJitter      int          // For random delay, percentage of variation (0-100)
 	StatusCodes             map[int]bool // Status codes that trigger throttling
 }
@@ -32,8 +33,8 @@ type ThrottleConfig struct {
 // Throttler handles request rate limiting
 type Throttler struct {
 	config    atomic.Pointer[ThrottleConfig]
-	attempts  atomic.Int32
-	lastDelay atomic.Int64 // stores nanoseconds
+	attempts  atomic.Int32 // Counts consecutive throttled responses
+	lastDelay atomic.Int64 // Last calculated delay in nanoseconds
 }
 
 // DefaultThrottleConfig returns sensible defaults
@@ -42,8 +43,8 @@ func DefaultThrottleConfig() *ThrottleConfig {
 		WorkerCount:             10,
 		BaseRequestDelay:        100 * time.Millisecond,
 		MaxRequestDelay:         3000 * time.Millisecond,
-		RequestDelayJitter:      20, // 20% of the base request delay
-		ExponentialRequestDelay: 2.0,
+		RequestDelayJitter:      20,  // 20% of the base request delay
+		ExponentialRequestDelay: 2.0, // Each throttle doubles the delay
 		StatusCodes: map[int]bool{
 			429: true, // Too Many Requests
 			503: true, // Service Unavailable
@@ -62,10 +63,44 @@ func NewThrottler(config *ThrottleConfig) *Throttler {
 	return t
 }
 
-// ShouldThrottle checks if request should be throttled based on status code
+// ShouldThrottle checks if we should throttle based on status code
+// If yes, increments the attempts counter
 func (t *Throttler) ShouldThrottle(statusCode int) bool {
 	config := t.config.Load()
-	return config.StatusCodes[statusCode]
+	if config.StatusCodes[statusCode] {
+		t.attempts.Add(1) // Increment attempts only when we actually throttle
+		return true
+	}
+	return false
+}
+
+// GetDelay calculates the next delay based on config and attempts
+func (t *Throttler) GetDelay() time.Duration {
+	config := t.config.Load()
+	delay := config.BaseRequestDelay
+
+	// Apply exponential delay if configured
+	if config.ExponentialRequestDelay > 0 {
+		attempts := t.attempts.Load()
+		multiplier := math.Pow(config.ExponentialRequestDelay, float64(attempts))
+		delay = time.Duration(float64(config.BaseRequestDelay) * multiplier)
+	}
+
+	// Apply jitter if configured
+	if config.RequestDelayJitter > 0 {
+		jitterRange := int64(float64(delay.Nanoseconds()) * float64(config.RequestDelayJitter) / 100.0)
+		if jitter, err := rand.Int(rand.Reader, big.NewInt(jitterRange)); err == nil {
+			delay += time.Duration(jitter.Int64())
+		}
+	}
+
+	// Ensure we don't exceed max delay
+	if delay > config.MaxRequestDelay {
+		delay = config.MaxRequestDelay
+	}
+
+	t.lastDelay.Store(int64(delay))
+	return delay
 }
 
 // calculateRandomDelay adds jitter to base delay
@@ -93,13 +128,13 @@ func (t *Throttler) calculateExponentialDelay(config *ThrottleConfig, attempts i
 	return delay
 }
 
-// UpdateConfig safely updates throttle configuration
-func (t *Throttler) UpdateConfig(config *ThrottleConfig) {
+// UpdateThrottleConfig safely updates throttle configuration
+func (t *Throttler) UpdateThrottleConfig(config *ThrottleConfig) {
 	t.config.Store(config)
 	t.attempts.Store(0) // Reset attempts counter
 }
 
-// Reset resets the throttler state
+// Reset resets the throttler state when throttling is no longer needed
 func (t *Throttler) Reset() {
 	t.attempts.Store(0)
 	t.lastDelay.Store(0)
