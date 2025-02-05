@@ -105,7 +105,7 @@ func NewBypassWorker(bypassmodule string, total int, targetURL string, scannerOp
 	httpClientOpts := rawhttp.DefaultHTTPClientOptions()
 
 	// Override specific settings from user options
-	httpClientOpts.Timeout = time.Duration(scannerOpts.Timeout) * time.Millisecond
+	httpClientOpts.Timeout = time.Duration(scannerOpts.Timeout) * time.Second
 	httpClientOpts.ResponseBodyPreviewSize = scannerOpts.ResponseBodyPreviewSize
 
 	// Ensure MaxConnsPerHost is at least equal to number of workers plus buffer
@@ -208,45 +208,45 @@ func (s *Scanner) RunBypassModule(bypassModule string, targetURL string, results
 		return
 	}
 
+	// Generate jobs
 	allJobs := moduleInstance.GenerateJobs(targetURL, bypassModule, s.config)
 	if len(allJobs) == 0 {
 		GB403Logger.Verbose().Msgf("No jobs generated for module: %s", bypassModule)
 		return
 	}
 
+	// Initialize progress tracking
 	s.progress.StartModule(bypassModule, len(allJobs), targetURL)
-	lastStatsUpdate := time.Now()
 
+	// Create bypass worker
 	ctx := NewBypassWorker(bypassModule, len(allJobs), targetURL, s.config, s.errorHandler, s.progress)
 	defer func() {
-		// Get stats from pond pool
-		// running, submitted, waiting, completed
+		// Final worker stats update before completion
 		running := ctx.requestPool.GetReqWPActiveWorkers()
 		s.progress.UpdateWorkerStats(bypassModule, running)
 		ctx.Stop()
-		time.Sleep(100 * time.Millisecond)
-		s.progress.MarkModuleAsDone(bypassModule)
 
+		// Mark module as complete
+		s.progress.MarkModuleAsDone(bypassModule)
 	}()
 
+	// Process requests and update progress
 	responses := ctx.requestPool.ProcessRequests(allJobs)
-	for response := range responses {
-		if response == nil {
-			s.progress.IncrementProgress(bypassModule, false)
-			continue
-		}
-		s.progress.IncrementProgress(bypassModule, true)
+	lastStatsUpdate := time.Now()
 
+	for response := range responses {
+		// Update progress
+		s.progress.IncrementProgress(bypassModule)
+
+		// Update worker stats periodically (every 500ms)
 		if time.Since(lastStatsUpdate) > 500*time.Millisecond {
-			// Get stats from pond pool
-			// running, submitted, waiting, completed
 			running := ctx.requestPool.GetReqWPActiveWorkers()
 			s.progress.UpdateWorkerStats(bypassModule, running)
 			lastStatsUpdate = time.Now()
-
 		}
 
-		if matchStatusCodes(response.StatusCode, s.config.MatchStatusCodes) {
+		// Process matching responses
+		if response != nil && matchStatusCodes(response.StatusCode, s.config.MatchStatusCodes) {
 			results <- &Result{
 				TargetURL:       string(response.URL),
 				BypassModule:    bypassModule,
@@ -262,9 +262,6 @@ func (s *Scanner) RunBypassModule(bypassModule string, targetURL string, results
 				RedirectURL:     string(response.RedirectURL),
 			}
 		}
-	}
-	if ctx.requestPool != nil {
-		ctx.requestPool.Close()
 	}
 }
 

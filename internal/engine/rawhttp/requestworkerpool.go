@@ -32,9 +32,10 @@ type ThrottleConfig struct {
 
 // Throttler handles request rate limiting
 type Throttler struct {
-	config    atomic.Pointer[ThrottleConfig]
-	attempts  atomic.Int32 // Counts consecutive throttled responses
-	lastDelay atomic.Int64 // Last calculated delay in nanoseconds
+	config       atomic.Pointer[ThrottleConfig]
+	attempts     atomic.Int32 // Counts consecutive throttled responses
+	lastDelay    atomic.Int64 // Last calculated delay in nanoseconds
+	isThrottling atomic.Bool  // Indicates if auto throttling is currently active
 }
 
 // DefaultThrottleConfig returns sensible defaults
@@ -59,15 +60,17 @@ func NewThrottler(config *ThrottleConfig) *Throttler {
 }
 
 // ShouldThrottle checks if we should throttle based on status code
-// If yes, increments the attempts counter
 func (t *Throttler) ShouldThrottle(statusCode int) bool {
 	config := t.config.Load()
 	if matchStatusCodes(statusCode, config.ThrottleStatusCodes) {
+		wasThrottling := t.isThrottling.Swap(true)
 		t.attempts.Add(1)
+		if !wasThrottling {
+			GB403Logger.Warning().Msgf("Auto throttling enabled due to status code: %d", statusCode)
+		}
 		return true
 	}
 	return false
-
 }
 
 // GetDelay calculates the next delay based on config and attempts
@@ -105,10 +108,15 @@ func (t *Throttler) UpdateThrottleConfig(config *ThrottleConfig) {
 	t.attempts.Store(0) // Reset attempts counter
 }
 
-// Reset resets the throttler state when throttling is no longer needed
+// Reset resets the throttler state
 func (t *Throttler) Reset() {
+	wasThrottling := t.isThrottling.Swap(false)
 	t.attempts.Store(0)
 	t.lastDelay.Store(0)
+	if wasThrottling {
+		GB403Logger.Info().Msgf("Auto throttling disabled - returning to normal request rate")
+	}
+
 }
 
 // RequestWorkerPoolStats utilities -> get current pool statistics
@@ -229,10 +237,7 @@ func (wp *RequestWorkerPool) ProcessRequestResponseJob(job payload.PayloadJob) *
 	if wp.throttler != nil {
 		if wp.throttler.ShouldThrottle(result.StatusCode) {
 			wp.throttler.GetDelay() // This will update the delay based on attempts
-			GB403Logger.Warning().Msgf("Throttling request due to status code: %d", result.StatusCode)
-		} else {
-			wp.throttler.Reset()
-			GB403Logger.Warning().Msgf("Resetting throttler due to status code: %d", result.StatusCode)
+			//GB403Logger.Warning().Msgf("Throttling request due to status code: %d", result.StatusCode)
 		}
 	}
 

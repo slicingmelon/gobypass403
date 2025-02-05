@@ -56,8 +56,8 @@ func (s *Scanner) Run() error {
 	GB403Logger.Info().Msgf("Initializing scanner with %d URLs", len(s.urls))
 
 	// Start progress counter here instead
-	s.progress.Start()
-	defer s.progress.Stop() // Move Stop here to ensure it runs after all URLs are processed
+	//s.progress.Start()
+	//defer s.progress.Stop() // Move Stop here to ensure it runs after all URLs are processed
 
 	for _, url := range s.urls {
 		if err := s.scanURL(url); err != nil {
@@ -92,6 +92,8 @@ func (s *Scanner) scanURL(url string) error {
 		}
 	}
 
+	s.progress.Stop()
+
 	// If we have any findings, sort and save them
 	if len(allFindings) > 0 {
 		// Sort findings by status code and then by module
@@ -110,8 +112,8 @@ func (s *Scanner) scanURL(url string) error {
 
 		// Print results only once
 		fmt.Println()
-		PrintTableHeader(url)
-		PrintTableRow(allFindings)
+		//PrintTableHeader(url)
+		//PrintTableRow(allFindings)
 
 		fmt.Println()
 		GB403Logger.Info().Msgf("Results saved to %s\n\n", outputFile)
