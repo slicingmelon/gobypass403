@@ -227,8 +227,10 @@ func (wp *RequestWorkerPool) ProcessRequestResponseJob(job payload.PayloadJob) *
 	defer wp.httpClient.ReleaseResponse(resp)
 
 	// Apply current delay if throttling is active
-	if delay := wp.throttler.GetDelay(); delay > 0 {
-		time.Sleep(delay)
+	if wp.throttler != nil {
+		if delay := wp.throttler.GetDelay(); delay > 0 {
+			time.Sleep(delay)
+		}
 	}
 
 	// Build HTTP Request
@@ -253,16 +255,24 @@ func (wp *RequestWorkerPool) ProcessRequestResponseJob(job payload.PayloadJob) *
 		}
 	}
 
+	// Process response
+	result := wp.ProcessResponseTask(resp, job)
+
 	// Check if we need to throttle based on response
-	if wp.throttler.ShouldThrottle(resp.StatusCode()) {
-		// Optionally adjust worker count when throttling
-		newPool := pond.NewPool(int(wp.throttler.config.Load().WorkerCount))
-		oldPool := wp.pool
-		wp.pool = newPool
-		oldPool.StopAndWait()
+	if wp.throttler != nil && result != nil {
+		if wp.throttler.ShouldThrottle(result.StatusCode) {
+			// Optionally adjust worker count when throttling
+			newPool := pond.NewPool(int(wp.throttler.config.Load().WorkerCount))
+			oldPool := wp.pool
+			wp.pool = newPool
+			oldPool.StopAndWait()
+		} else if !matchStatusCodes(result.StatusCode, wp.throttler.config.Load().StatusCodes) {
+			// Reset throttling on successful responses
+			wp.throttler.Reset()
+		}
 	}
 
-	return wp.ProcessResponseTask(resp, job)
+	return result
 }
 
 // buildRequest constructs the HTTP request
