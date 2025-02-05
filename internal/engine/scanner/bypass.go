@@ -220,11 +220,13 @@ func (s *Scanner) RunBypassModule(bypassModule string, targetURL string, results
 	ctx := NewBypassWorker(bypassModule, len(allJobs), targetURL, s.config, s.errorHandler, s.progress)
 	defer func() {
 		// Get stats from pond pool
-		running, _ := ctx.requestPool.GetCurrentStats()
+		// running, submitted, waiting, completed
+		running := ctx.requestPool.GetReqWPActiveWorkers()
 		s.progress.UpdateWorkerStats(bypassModule, running)
 		ctx.Stop()
 		time.Sleep(100 * time.Millisecond)
 		s.progress.MarkModuleAsDone(bypassModule)
+
 	}()
 
 	responses := ctx.requestPool.ProcessRequests(allJobs)
@@ -236,9 +238,12 @@ func (s *Scanner) RunBypassModule(bypassModule string, targetURL string, results
 		s.progress.IncrementProgress(bypassModule, true)
 
 		if time.Since(lastStatsUpdate) > 500*time.Millisecond {
-			running, _ := ctx.requestPool.GetCurrentStats()
+			// Get stats from pond pool
+			// running, submitted, waiting, completed
+			running := ctx.requestPool.GetReqWPActiveWorkers()
 			s.progress.UpdateWorkerStats(bypassModule, running)
 			lastStatsUpdate = time.Now()
+
 		}
 
 		if matchStatusCodes(response.StatusCode, s.config.MatchStatusCodes) {

@@ -1,6 +1,12 @@
 package rawhttp
 
 import (
+	"crypto/rand"
+	"math"
+	"math/big"
+	"sync/atomic"
+	"time"
+
 	"github.com/alitto/pond/v2"
 	"github.com/slicingmelon/go-bypass-403/internal/engine/payload"
 	GB403ErrorHandler "github.com/slicingmelon/go-bypass-403/internal/utils/error"
@@ -14,16 +20,114 @@ type RequestWorkerPool struct {
 	pool         pond.Pool
 }
 
-// GetPoolStats returns current pool statistics
+type ThrottleConfig struct {
+	WorkerCount             int32
+	BaseRequestDelay        time.Duration
+	MaxRequestDelay         time.Duration
+	ExponentialRequestDelay float64      // Exponential delay
+	RequestDelayJitter      int          // For random delay, percentage of variation (0-100)
+	StatusCodes             map[int]bool // Status codes that trigger throttling
+}
+
+// Throttler handles request rate limiting
+type Throttler struct {
+	config    atomic.Pointer[ThrottleConfig]
+	attempts  atomic.Int32
+	lastDelay atomic.Int64 // stores nanoseconds
+}
+
+// DefaultThrottleConfig returns sensible defaults
+func DefaultThrottleConfig() *ThrottleConfig {
+	return &ThrottleConfig{
+		WorkerCount:             10,
+		BaseRequestDelay:        100 * time.Millisecond,
+		MaxRequestDelay:         3000 * time.Millisecond,
+		RequestDelayJitter:      20, // 20% of the base request delay
+		ExponentialRequestDelay: 2.0,
+		StatusCodes: map[int]bool{
+			429: true, // Too Many Requests
+			503: true, // Service Unavailable
+			507: true, // Insufficient Storage
+		},
+	}
+}
+
+// NewThrottler creates a new throttler instance
+func NewThrottler(config *ThrottleConfig) *Throttler {
+	t := &Throttler{}
+	if config == nil {
+		config = DefaultThrottleConfig()
+	}
+	t.config.Store(config)
+	return t
+}
+
+// ShouldThrottle checks if request should be throttled based on status code
+func (t *Throttler) ShouldThrottle(statusCode int) bool {
+	config := t.config.Load()
+	return config.StatusCodes[statusCode]
+}
+
+// calculateRandomDelay adds jitter to base delay
+func (t *Throttler) calculateRandomDelay(config *ThrottleConfig) time.Duration {
+	if config.RequestDelayJitter <= 0 {
+		return config.BaseRequestDelay
+	}
+
+	// Calculate jitter range
+	jitterRange := int64(float64(config.BaseRequestDelay.Nanoseconds()) * float64(config.RequestDelayJitter) / 100.0)
+
+	// Generate random jitter
+	jitter, err := rand.Int(rand.Reader, big.NewInt(jitterRange))
+	if err != nil {
+		return config.BaseRequestDelay // Fallback to base delay on error
+	}
+
+	return config.BaseRequestDelay + time.Duration(jitter.Int64())
+}
+
+// calculateExponentialDelay implements exponential backoff
+func (t *Throttler) calculateExponentialDelay(config *ThrottleConfig, attempts int32) time.Duration {
+	multiplier := math.Pow(config.ExponentialRequestDelay, float64(attempts-1))
+	delay := time.Duration(float64(config.BaseRequestDelay) * multiplier)
+	return delay
+}
+
+// UpdateConfig safely updates throttle configuration
+func (t *Throttler) UpdateConfig(config *ThrottleConfig) {
+	t.config.Store(config)
+	t.attempts.Store(0) // Reset attempts counter
+}
+
+// Reset resets the throttler state
+func (t *Throttler) Reset() {
+	t.attempts.Store(0)
+	t.lastDelay.Store(0)
+}
+
+// RequestWorkerPoolStats utilities -> get current pool statistics
 // Each worker pool instance exposes useful metrics that can be queried through the following methods:
 // pool.RunningWorkers() int64: Current number of running workers
+
 // pool.SubmittedTasks() uint64: Total number of tasks submitted since the pool was created
 // pool.WaitingTasks() uint64: Current number of tasks in the queue that are waiting to be executed
 // pool.SuccessfulTasks() uint64: Total number of tasks that have successfully completed their execution since the pool was created
 // pool.FailedTasks() uint64: Total number of tasks that completed with panic since the pool was created
 // pool.CompletedTasks() uint64: Total number of tasks that have completed their execution either successfully or with panic since the pool was created
-func (wp *RequestWorkerPool) GetCurrentStats() (running int64, waiting uint64) {
-	return wp.pool.RunningWorkers(), wp.pool.WaitingTasks()
+func (wp *RequestWorkerPool) GetReqWPActiveWorkers() (running int64) {
+	return wp.pool.RunningWorkers()
+}
+
+func (wp *RequestWorkerPool) GetReqWPSubmittedTasks() (submitted uint64) {
+	return wp.pool.SubmittedTasks()
+}
+
+func (wp *RequestWorkerPool) GetReqWPWaitingTasks() (waiting uint64) {
+	return wp.pool.WaitingTasks()
+}
+
+func (wp *RequestWorkerPool) GetReqWPCompletedTasks() (completed uint64) {
+	return wp.pool.CompletedTasks()
 }
 
 // NewWorkerPool initializes a new RequestWorkerPool instance
