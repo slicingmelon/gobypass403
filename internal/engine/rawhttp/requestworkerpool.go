@@ -10,6 +10,7 @@ import (
 	"github.com/alitto/pond/v2"
 	"github.com/slicingmelon/go-bypass-403/internal/engine/payload"
 	GB403ErrorHandler "github.com/slicingmelon/go-bypass-403/internal/utils/error"
+	GB403Logger "github.com/slicingmelon/go-bypass-403/internal/utils/logger"
 	"github.com/valyala/fasthttp"
 )
 
@@ -63,9 +64,11 @@ func (t *Throttler) ShouldThrottle(statusCode int) bool {
 	config := t.config.Load()
 	if matchStatusCodes(statusCode, config.ThrottleStatusCodes) {
 		t.attempts.Add(1)
+
 		return true
 	}
 	return false
+
 }
 
 // GetDelay calculates the next delay based on config and attempts
@@ -241,8 +244,10 @@ func (wp *RequestWorkerPool) ProcessRequestResponseJob(job payload.PayloadJob) *
 	if wp.throttler != nil {
 		if wp.throttler.ShouldThrottle(result.StatusCode) {
 			wp.throttler.GetDelay() // This will update the delay based on attempts
-		} else if result.StatusCode < 400 {
+			GB403Logger.Warning().Msgf("Throttling request due to status code: %d", result.StatusCode)
+		} else {
 			wp.throttler.Reset()
+			GB403Logger.Warning().Msgf("Resetting throttler due to status code: %d", result.StatusCode)
 		}
 	}
 
