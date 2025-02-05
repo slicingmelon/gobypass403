@@ -67,7 +67,7 @@ func NewReconService() *ReconService {
 		Resolver: &net.Resolver{
 			PreferGo: true,
 			Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
-				GB403Logger.Verbose().Msgf("Resolver Dial called with network: %s, address: %s", network, address)
+				GB403Logger.Debug().Msgf("Resolver Dial called with network: %s, address: %s", network, address)
 
 				d := net.Dialer{
 					Timeout: 5 * time.Second,
@@ -82,7 +82,7 @@ func NewReconService() *ReconService {
 
 				// Try local resolution first
 				if ip := ResolveThroughSystemHostsFile(host); ip != "" {
-					GB403Logger.Verbose().
+					GB403Logger.Debug().
 						Metadata("resolveFromHosts()", "success").
 						Msgf("Resolved %s to %s from hosts file", host, ip)
 					return d.DialContext(ctx, network, ip+":53")
@@ -322,7 +322,7 @@ func (s *ReconService) ResolveHost(hostname string) (*IPAddrs, error) {
 
 	// Check hosts file first
 	if ip := ResolveThroughSystemHostsFile(hostname); ip != "" {
-		GB403Logger.Verbose().Msgf("Resolved %s locally to %s", hostname, ip)
+		GB403Logger.Debug().Msgf("Resolved %s locally to %s", hostname, ip)
 		if strings.Contains(ip, ":") {
 			result.IPv6 = append(result.IPv6, ip)
 		} else {
@@ -345,10 +345,10 @@ func (s *ReconService) ResolveHost(hostname string) (*IPAddrs, error) {
 		}
 		return result, nil
 	}
-	GB403Logger.Verbose().Msgf("System resolver failed for %s: %v", hostname, err)
+	GB403Logger.Debug().Msgf("System resolver failed for %s: %v", hostname, err)
 
 	// Fall back to custom resolver
-	GB403Logger.Verbose().Msgf("Trying custom resolvers for %s", hostname)
+	GB403Logger.Debug().Msgf("Trying custom resolvers for %s", hostname)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
@@ -376,14 +376,15 @@ func (s *ReconService) ResolveHost(hostname string) (*IPAddrs, error) {
 
 func (s *ReconService) ProbeScheme(host, port string) string {
 	addr := net.JoinHostPort(host, port)
-	GB403Logger.Verbose().Msgf("Probing %s", addr)
+	GB403Logger.Debug().Msgf("Probing %s", addr)
 
 	// Check if the port is open using a TCP connection
 	conn, err := net.DialTimeout("tcp", addr, 5*time.Second)
 	if err != nil {
-		GB403Logger.Verbose().Msgf("Port %s is closed: %v", addr, err)
+		GB403Logger.Debug().Msgf("Port %s is closed: %v", addr, err)
 		return ""
 	}
+
 	defer conn.Close()
 
 	// Attempt a TLS handshake to check for TLS support
