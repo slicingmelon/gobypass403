@@ -64,7 +64,6 @@ func (t *Throttler) ShouldThrottle(statusCode int) bool {
 	config := t.config.Load()
 	if matchStatusCodes(statusCode, config.ThrottleStatusCodes) {
 		t.attempts.Add(1)
-
 		return true
 	}
 	return false
@@ -97,31 +96,6 @@ func (t *Throttler) GetDelay() time.Duration {
 	}
 
 	t.lastDelay.Store(int64(delay))
-	return delay
-}
-
-// calculateRandomDelay adds jitter to base delay
-func (t *Throttler) calculateRandomDelay(config *ThrottleConfig) time.Duration {
-	if config.RequestDelayJitter <= 0 {
-		return config.BaseRequestDelay
-	}
-
-	// Calculate jitter range
-	jitterRange := int64(float64(config.BaseRequestDelay.Nanoseconds()) * float64(config.RequestDelayJitter) / 100.0)
-
-	// Generate random jitter
-	jitter, err := rand.Int(rand.Reader, big.NewInt(jitterRange))
-	if err != nil {
-		return config.BaseRequestDelay // Fallback to base delay on error
-	}
-
-	return config.BaseRequestDelay + time.Duration(jitter.Int64())
-}
-
-// calculateExponentialDelay implements exponential backoff
-func (t *Throttler) calculateExponentialDelay(config *ThrottleConfig, attempts int32) time.Duration {
-	multiplier := math.Pow(config.ExponentialRequestDelay, float64(attempts-1))
-	delay := time.Duration(float64(config.BaseRequestDelay) * multiplier)
 	return delay
 }
 
@@ -164,11 +138,22 @@ func (wp *RequestWorkerPool) GetReqWPCompletedTasks() (completed uint64) {
 
 // NewWorkerPool initializes a new RequestWorkerPool instance
 func NewRequestWorkerPool(opts *HTTPClientOptions, maxWorkers int, errorHandler *GB403ErrorHandler.ErrorHandler) *RequestWorkerPool {
+	// Create throttler with default config
+	throttler := NewThrottler(nil)
+
+	// If client has RequestDelay set, update the base delay
+	if opts.RequestDelay > 0 {
+		config := throttler.config.Load()
+		config.BaseRequestDelay = opts.RequestDelay
+		config.MaxRequestDelay = opts.Timeout // Use client timeout as max delay
+		throttler.UpdateThrottleConfig(config)
+	}
+
 	return &RequestWorkerPool{
 		httpClient:   NewHTTPClient(opts, errorHandler),
 		errorHandler: errorHandler,
 		pool:         pond.NewPool(maxWorkers),
-		throttler:    NewThrottler(nil),
+		throttler:    throttler,
 	}
 }
 

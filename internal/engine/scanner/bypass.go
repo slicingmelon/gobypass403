@@ -105,7 +105,7 @@ func NewBypassWorker(bypassmodule string, total int, targetURL string, scannerOp
 	httpClientOpts := rawhttp.DefaultHTTPClientOptions()
 
 	// Override specific settings from user options
-	httpClientOpts.Timeout = time.Duration(scannerOpts.Timeout) * time.Second
+	httpClientOpts.Timeout = time.Duration(scannerOpts.Timeout) * time.Millisecond
 	httpClientOpts.ResponseBodyPreviewSize = scannerOpts.ResponseBodyPreviewSize
 
 	// Ensure MaxConnsPerHost is at least equal to number of workers plus buffer
