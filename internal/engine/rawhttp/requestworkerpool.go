@@ -22,12 +22,11 @@ type RequestWorkerPool struct {
 }
 
 type ThrottleConfig struct {
-	WorkerCount             int32
 	BaseRequestDelay        time.Duration
 	MaxRequestDelay         time.Duration
 	ExponentialRequestDelay float64 // Exponential request delay
 	RequestDelayJitter      int     // For random delay, percentage of variation (0-100)
-	StatusCodes             []int   // Status codes that trigger throttling
+	ThrottleStatusCodes     []int   // Status codes that trigger throttling
 }
 
 // Throttler handles request rate limiting
@@ -40,12 +39,11 @@ type Throttler struct {
 // DefaultThrottleConfig returns sensible defaults
 func DefaultThrottleConfig() *ThrottleConfig {
 	return &ThrottleConfig{
-		WorkerCount:             5,
 		BaseRequestDelay:        100 * time.Millisecond,
 		MaxRequestDelay:         3000 * time.Millisecond,
 		RequestDelayJitter:      20,  // 20% of the base request delay
 		ExponentialRequestDelay: 2.0, // Each throttle doubles the delay
-		StatusCodes:             []int{429, 503, 507},
+		ThrottleStatusCodes:     []int{429, 503, 507},
 	}
 }
 
@@ -63,29 +61,11 @@ func NewThrottler(config *ThrottleConfig) *Throttler {
 // If yes, increments the attempts counter
 func (t *Throttler) ShouldThrottle(statusCode int) bool {
 	config := t.config.Load()
-	for _, code := range config.StatusCodes { // Changed variable name from statusCode to code
-		if code == statusCode {
-			t.attempts.Add(1)
-			return true
-		}
+	if matchStatusCodes(statusCode, config.ThrottleStatusCodes) {
+		t.attempts.Add(1)
+		return true
 	}
 	return false
-}
-
-// UpdateThrottling updates throttling configuration and worker count
-func (wp *RequestWorkerPool) UpdateThrottling(workerCount int32, delay time.Duration) {
-	// Update throttle config
-	wp.throttler.UpdateThrottleConfig(&ThrottleConfig{
-		WorkerCount:      workerCount,
-		BaseRequestDelay: delay,
-		MaxRequestDelay:  delay * 3, // Cap at 3x the base delay
-	})
-
-	// Create new pool with updated worker count
-	newPool := pond.NewPool(int(workerCount))
-	oldPool := wp.pool
-	wp.pool = newPool
-	oldPool.StopAndWait()
 }
 
 // GetDelay calculates the next delay based on config and attempts
@@ -260,7 +240,6 @@ func (wp *RequestWorkerPool) ProcessRequestResponseJob(job payload.PayloadJob) *
 	// Handle throttling based on response
 	if wp.throttler != nil {
 		if wp.throttler.ShouldThrottle(result.StatusCode) {
-			// No need to create a new pool here, just apply the delay on next request
 			wp.throttler.GetDelay() // This will update the delay based on attempts
 		} else if result.StatusCode < 400 {
 			wp.throttler.Reset()
