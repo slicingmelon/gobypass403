@@ -40,7 +40,7 @@ type Throttler struct {
 // DefaultThrottleConfig returns sensible defaults
 func DefaultThrottleConfig() *ThrottleConfig {
 	return &ThrottleConfig{
-		WorkerCount:             10,
+		WorkerCount:             5,
 		BaseRequestDelay:        100 * time.Millisecond,
 		MaxRequestDelay:         3000 * time.Millisecond,
 		RequestDelayJitter:      20,  // 20% of the base request delay
@@ -63,13 +63,12 @@ func NewThrottler(config *ThrottleConfig) *Throttler {
 // If yes, increments the attempts counter
 func (t *Throttler) ShouldThrottle(statusCode int) bool {
 	config := t.config.Load()
-	for _, statusCode := range config.StatusCodes {
-		if statusCode == statusCode {
-			t.attempts.Add(1) // Increment attempts only when we actually throttle
+	for _, code := range config.StatusCodes { // Changed variable name from statusCode to code
+		if code == statusCode {
+			t.attempts.Add(1)
 			return true
 		}
 	}
-
 	return false
 }
 
@@ -258,16 +257,12 @@ func (wp *RequestWorkerPool) ProcessRequestResponseJob(job payload.PayloadJob) *
 	// Process response
 	result := wp.ProcessResponseTask(resp, job)
 
-	// Check if we need to throttle based on response
-	if wp.throttler != nil && result != nil {
+	// Handle throttling based on response
+	if wp.throttler != nil {
 		if wp.throttler.ShouldThrottle(result.StatusCode) {
-			// Optionally adjust worker count when throttling
-			newPool := pond.NewPool(int(wp.throttler.config.Load().WorkerCount))
-			oldPool := wp.pool
-			wp.pool = newPool
-			oldPool.StopAndWait()
-		} else if !matchStatusCodes(result.StatusCode, wp.throttler.config.Load().StatusCodes) {
-			// Reset throttling on successful responses
+			// No need to create a new pool here, just apply the delay on next request
+			wp.throttler.GetDelay() // This will update the delay based on attempts
+		} else if result.StatusCode < 400 {
 			wp.throttler.Reset()
 		}
 	}
