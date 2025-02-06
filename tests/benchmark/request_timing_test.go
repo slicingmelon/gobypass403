@@ -10,7 +10,7 @@ import (
 	"github.com/valyala/fasthttp"
 )
 
-func BenchmarkRequestBuilder_BuildRequest(b *testing.B) {
+func BenchmarkBuildHTTPRequest(b *testing.B) {
 	client := rawhttp.NewHTTPClient(rawhttp.DefaultHTTPClientOptions(), GB403ErrorHandler.NewErrorHandler(32))
 	job := payload.PayloadJob{
 		FullURL:      "http://example.com/test",
@@ -31,31 +31,6 @@ func BenchmarkRequestBuilder_BuildRequest(b *testing.B) {
 }
 
 func BenchmarkProcessRequests(b *testing.B) {
-	//client := rawhttp.NewHTTPClient(rawhttp.DefaultHTTPClientOptions(), GB403ErrorHandler.NewErrorHandler(32))
-	pool := rawhttp.NewRequestWorkerPool(rawhttp.DefaultHTTPClientOptions(), 10, GB403ErrorHandler.NewErrorHandler(32))
-
-	// resp := client.AcquireResponse()
-	// defer client.ReleaseResponse(resp)
-
-	// resp.SetStatusCode(200)
-	// resp.SetBody([]byte("test response body"))
-	// resp.Header.SetContentType("text/plain")
-	// resp.Header.Set("Server", "test-server")
-
-	job := payload.PayloadJob{
-		FullURL:      "https://github.com/test",
-		BypassModule: "test-mode",
-	}
-
-	b.ResetTimer()
-	b.RunParallel(func(pb *testing.PB) {
-		for pb.Next() {
-			pool.ProcessRequests([]payload.PayloadJob{job})
-		}
-	})
-}
-
-func BenchmarkProcessResponseJob(b *testing.B) {
 	// Create pool with all dependencies properly initialized
 	pool := rawhttp.NewRequestWorkerPool(rawhttp.DefaultHTTPClientOptions(), 10, GB403ErrorHandler.NewErrorHandler(32))
 

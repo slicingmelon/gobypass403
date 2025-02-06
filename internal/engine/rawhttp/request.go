@@ -31,21 +31,35 @@ var (
 	headerBufPool = &bytesutil.ByteBufferPool{}
 
 	// Pre-computed byte slices for static strings
-	curlFlags      = []byte("-skgi --path-as-is")
-	curlMethodX    = []byte("-X")
-	curlHeaderH    = []byte("-H")
-	strColonSpace  = []byte(": ")
-	strColon       = []byte(":")
-	strSingleQuote = []byte("'")
-	strSpace       = []byte(" ")
-	strCRLF        = []byte("\r\n")
-	strHTML        = []byte("html")
-	strTitle       = []byte("title")
-	strCloseTitle  = []byte("</title>")
+	curlFlags         = []byte("-skgi --path-as-is")
+	curlMethodX       = []byte("-X")
+	curlHeaderH       = []byte("-H")
+	strColonSpace     = []byte(": ")
+	strColon          = []byte(":")
+	strSingleQuote    = []byte("'")
+	strSpace          = []byte(" ")
+	strLowerThan      = []byte("<")
+	strGreaterThan    = []byte(">")
+	strCRLF           = []byte("\r\n")
+	strHTML           = []byte("html")
+	strTitle          = []byte("<title>")
+	strCloseTitle     = []byte("</title>")
+	strLocationHeader = []byte("Location")
 )
 
-type ProgressTracker interface {
-	UpdateWorkerStats(moduleName string, totalWorkers int64)
+type RawHTTPResponseDetails struct {
+	URL             []byte
+	BypassModule    []byte
+	CurlCommand     []byte
+	StatusCode      int
+	ResponsePreview []byte
+	ResponseHeaders []byte
+	ContentType     []byte
+	ContentLength   int64
+	ServerInfo      []byte
+	RedirectURL     []byte
+	ResponseBytes   int
+	Title           []byte
 }
 
 // Request must contain at least non-zero RequestURI with full url (including
@@ -62,7 +76,7 @@ type ProgressTracker interface {
 // ErrNoFreeConns is returned if all DefaultMaxConnsPerHost connections
 // to the requested host are busy.
 // BuildRequest creates and configures a HTTP request from a bypass job (payload job)
-func BuildHTTPRequest(httpclient *HttpClient, req *fasthttp.Request, job payload.PayloadJob) error {
+func BuildHTTPRequest(httpclient *HTTPClient, req *fasthttp.Request, job payload.PayloadJob) error {
 	//req.Reset()
 	req.UseHostHeader = false
 	req.Header.SetMethod(job.Method)
@@ -106,9 +120,10 @@ func BuildHTTPRequest(httpclient *HttpClient, req *fasthttp.Request, job payload
 }
 
 // ProcessHTTPResponse handles response processing
-func ProcessHTTPResponse(httpclient *HttpClient, resp *fasthttp.Response, job payload.PayloadJob) *RawHTTPResponseDetails {
+func ProcessHTTPResponse(httpclient *HTTPClient, resp *fasthttp.Response, job payload.PayloadJob) *RawHTTPResponseDetails {
 	statusCode := resp.StatusCode()
 	contentLength := resp.Header.ContentLength()
+
 	httpClientOpts := httpclient.GetHTTPClientOptions()
 
 	result := &RawHTTPResponseDetails{
@@ -120,35 +135,15 @@ func ProcessHTTPResponse(httpclient *HttpClient, resp *fasthttp.Response, job pa
 
 	// Check for redirect early
 	if fasthttp.StatusCodeIsRedirect(statusCode) {
-		if location := PeekHeaderKeyCaseInsensitive(&resp.Header, []byte("Location")); len(location) > 0 {
+		if location := PeekHeaderKeyCaseInsensitive(&resp.Header, strLocationHeader); len(location) > 0 {
 			result.RedirectURL = append([]byte(nil), location...)
 		}
 	}
 
-	// Create header buffer
-	headerBuf := headerBufPool.Get()
-	defer headerBufPool.Put(headerBuf)
-	headerBuf.Reset()
+	// Get all HTTP response headers
+	result.ResponseHeaders = GetResponseHeaders(&resp.Header, statusCode)
 
-	// Write status line
-	headerBuf.Write(resp.Header.Protocol())
-	headerBuf.Write(strSpace)
-	headerBuf.B = fasthttp.AppendUint(headerBuf.B, statusCode)
-	headerBuf.Write(strSpace)
-	headerBuf.Write(resp.Header.StatusMessage())
-	headerBuf.Write(strCRLF)
-
-	// Process headers
-	resp.Header.VisitAll(func(key, value []byte) {
-		headerBuf.Write(key)
-		headerBuf.Write(strColonSpace)
-		headerBuf.Write(value)
-		headerBuf.Write(strCRLF)
-	})
-	headerBuf.Write(strCRLF)
-
-	// Store processed data
-	result.ResponseHeaders = append([]byte(nil), headerBuf.B...)
+	// Store the rest of the processed data
 	result.ContentType = append([]byte(nil), resp.Header.ContentType()...)
 	result.ServerInfo = append([]byte(nil), resp.Header.Server()...)
 
@@ -165,11 +160,13 @@ func ProcessHTTPResponse(httpclient *HttpClient, resp *fasthttp.Response, job pa
 				} else if n > 0 {
 					result.ResponsePreview = append([]byte(nil), previewBuf[:n]...)
 				}
-				result.ResponseBytes = len(result.ResponsePreview)
 				resp.CloseBodyStream()
+
+				// For streaming, always use content length from header
+				result.ResponseBytes = int(contentLength)
 			}
 		} else {
-			// Non-streaming case, -> resp.Body()
+			// Non-streaming case -> resp.Body()
 			if body := resp.Body(); len(body) > 0 {
 				previewSize := httpClientOpts.ResponseBodyPreviewSize
 				if len(body) > previewSize {
@@ -177,7 +174,13 @@ func ProcessHTTPResponse(httpclient *HttpClient, resp *fasthttp.Response, job pa
 				} else {
 					result.ResponsePreview = append([]byte(nil), body...)
 				}
-				result.ResponseBytes = len(result.ResponsePreview)
+
+				// For non-streaming, use content length if available, otherwise use body length
+				if contentLength > 0 {
+					result.ResponseBytes = int(contentLength)
+				} else {
+					result.ResponseBytes = len(body)
+				}
 			}
 		}
 	}
@@ -252,6 +255,33 @@ func BuildCurlCommandPoc(job payload.PayloadJob) []byte {
 	return append([]byte(nil), bb.B...)
 }
 
+// GetResponseHeaders gets all HTTP headers including values from the response
+func GetResponseHeaders(h *fasthttp.ResponseHeader, statusCode int) []byte {
+	headerBuf := headerBufPool.Get()
+	defer headerBufPool.Put(headerBuf)
+	headerBuf.Reset()
+
+	// Write status line
+	headerBuf.Write(h.Protocol())
+	headerBuf.Write(strSpace)
+	headerBuf.B = fasthttp.AppendUint(headerBuf.B, statusCode)
+	headerBuf.Write(strSpace)
+	headerBuf.Write(h.StatusMessage())
+	headerBuf.Write(strCRLF)
+
+	// Process headers
+	h.VisitAll(func(key, value []byte) {
+		headerBuf.Write(key)
+		headerBuf.Write(strColonSpace)
+		headerBuf.Write(value)
+		headerBuf.Write(strCRLF)
+	})
+	headerBuf.Write(strCRLF)
+
+	// Return copy of buffer contents
+	return append([]byte(nil), headerBuf.B...)
+}
+
 // Helper function to peek a header key case insensitive
 func PeekHeaderKeyCaseInsensitive(h *fasthttp.ResponseHeader, key []byte) []byte {
 	// Try original
@@ -266,20 +296,30 @@ func PeekHeaderKeyCaseInsensitive(h *fasthttp.ResponseHeader, key []byte) []byte
 
 // Helper function to extract title from HTML
 func ExtractTitle(body []byte) []byte {
-	lower := bytes.ToLower(body)
-	titleStart := bytes.Index(lower, strTitle)
-	if titleStart == -1 {
+	if len(body) == 0 {
 		return nil
 	}
 
+	// Find start of title tag
+	titleStart := bytes.Index(body, strTitle)
+	if titleStart == -1 {
+		return nil
+	}
 	titleStart += 7 // len("<title>")
 
-	titleEnd := bytes.Index(lower[titleStart:], strCloseTitle)
+	// Find closing tag
+	titleEnd := bytes.Index(body[titleStart:], strCloseTitle)
 	if titleEnd == -1 {
 		return nil
 	}
 
-	return append([]byte(nil), body[titleStart:titleStart+titleEnd]...)
+	// Extract title content
+	title := bytes.TrimSpace(body[titleStart : titleStart+titleEnd])
+	if len(title) == 0 {
+		return nil
+	}
+
+	return append([]byte(nil), title...)
 }
 
 func matchStatusCodes(code int, codes []int) bool {

@@ -33,7 +33,6 @@ type Scanner struct {
 	config       *ScannerOpts
 	urls         []string
 	errorHandler *GB403ErrorHandler.ErrorHandler
-	progress     *ProgressCounter
 }
 
 // NewScanner creates a new Scanner instance
@@ -45,7 +44,6 @@ func NewScanner(opts *ScannerOpts, urls []string) *Scanner {
 		config:       opts,
 		urls:         urls,
 		errorHandler: GB403ErrorHandler.NewErrorHandler(32),
-		progress:     NewProgressCounter(),
 	}
 }
 
@@ -54,10 +52,6 @@ func (s *Scanner) Run() error {
 	defer s.Close()
 
 	GB403Logger.Info().Msgf("Initializing scanner with %d URLs", len(s.urls))
-
-	// Start progress counter here instead
-	s.progress.Start()
-	defer s.progress.Stop() // Move Stop here to ensure it runs after all URLs are processed
 
 	for _, url := range s.urls {
 		if err := s.scanURL(url); err != nil {
@@ -87,9 +81,10 @@ func (s *Scanner) scanURL(url string) error {
 	// Process results as they come in
 	for result := range resultsChannel {
 		if result != nil {
-			//GB403Logger.Verbose().Msgf("Processing result for module: %s, status: %d", result.BypassModule, result.StatusCode)
+			GB403Logger.Debug().Msgf("Processing results for bypass module: %s, status: %d", result.BypassModule, result.StatusCode)
 			allFindings = append(allFindings, result)
 		}
+
 	}
 
 	// If we have any findings, sort and save them
@@ -110,11 +105,10 @@ func (s *Scanner) scanURL(url string) error {
 
 		// Print results only once
 		fmt.Println()
-		PrintTableHeader(url)
-		PrintTableRow(allFindings)
+		PrintResultsTable(url, allFindings)
 
 		fmt.Println()
-		GB403Logger.Info().Msgf("Results saved to %s\n\n", outputFile)
+		GB403Logger.Success().Msgf("Results saved to %s\n\n", outputFile)
 	}
 
 	return nil

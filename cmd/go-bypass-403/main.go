@@ -24,7 +24,7 @@ func main() {
 		}
 	}
 
-	GB403Logger.Info().Msg("Initializing go-bypass-403...")
+	GB403Logger.Info().Msgf("Initializing go-bypass-403...")
 
 	if err := payload.InitializePayloadsDir(); err != nil {
 		GB403Logger.Error().Msgf("Failed to initialize payloads: %v", err)

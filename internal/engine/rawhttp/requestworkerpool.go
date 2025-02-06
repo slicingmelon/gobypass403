@@ -1,52 +1,167 @@
 package rawhttp
 
 import (
+	"crypto/rand"
+	"math"
+	"math/big"
+	"sync/atomic"
+	"time"
+
 	"github.com/alitto/pond/v2"
 	"github.com/slicingmelon/go-bypass-403/internal/engine/payload"
 	GB403ErrorHandler "github.com/slicingmelon/go-bypass-403/internal/utils/error"
+	GB403Logger "github.com/slicingmelon/go-bypass-403/internal/utils/logger"
 	"github.com/valyala/fasthttp"
 )
 
-type RawHTTPResponseDetails struct {
-	URL             []byte
-	BypassModule    []byte
-	CurlCommand     []byte
-	StatusCode      int
-	ResponsePreview []byte
-	ResponseHeaders []byte
-	ContentType     []byte
-	ContentLength   int64
-	ServerInfo      []byte
-	RedirectURL     []byte
-	ResponseBytes   int
-	Title           []byte
-}
-
 // RequestWorkerPool manages concurrent HTTP request/response processing
 type RequestWorkerPool struct {
-	httpClient   *HttpClient
+	httpClient   *HTTPClient
 	errorHandler *GB403ErrorHandler.ErrorHandler
 	pool         pond.Pool
+	throttler    *Throttler
 }
 
-// GetPoolStats returns current pool statistics
+type ThrottleConfig struct {
+	BaseRequestDelay        time.Duration
+	MaxRequestDelay         time.Duration
+	ExponentialRequestDelay float64 // Exponential request delay
+	RequestDelayJitter      int     // For random delay, percentage of variation (0-100)
+	ThrottleStatusCodes     []int   // Status codes that trigger throttling
+}
+
+// Throttler handles request rate limiting
+type Throttler struct {
+	config       atomic.Pointer[ThrottleConfig]
+	attempts     atomic.Int32 // Counts consecutive throttled responses
+	lastDelay    atomic.Int64 // Last calculated delay in nanoseconds
+	isThrottling atomic.Bool  // Indicates if auto throttling is currently active
+}
+
+// DefaultThrottleConfig returns sensible defaults
+func DefaultThrottleConfig() *ThrottleConfig {
+	return &ThrottleConfig{
+		BaseRequestDelay:        100 * time.Millisecond,
+		MaxRequestDelay:         3000 * time.Millisecond,
+		RequestDelayJitter:      20,  // 20% of the base request delay
+		ExponentialRequestDelay: 2.0, // Each throttle doubles the delay
+		ThrottleStatusCodes:     []int{429, 503, 507},
+	}
+}
+
+// NewThrottler creates a new throttler instance
+func NewThrottler(config *ThrottleConfig) *Throttler {
+	t := &Throttler{}
+	if config == nil {
+		config = DefaultThrottleConfig()
+	}
+	t.config.Store(config)
+	return t
+}
+
+// ShouldThrottle checks if we should throttle based on status code
+func (t *Throttler) ShouldThrottle(statusCode int) bool {
+	config := t.config.Load()
+	if matchStatusCodes(statusCode, config.ThrottleStatusCodes) {
+		wasThrottling := t.isThrottling.Swap(true)
+		t.attempts.Add(1)
+		if !wasThrottling {
+			GB403Logger.Warning().Msgf("Auto throttling enabled due to status code: %d", statusCode)
+		}
+		return true
+	}
+	return false
+}
+
+// GetDelay calculates the next delay based on config and attempts
+func (t *Throttler) GetDelay() time.Duration {
+	config := t.config.Load()
+	delay := config.BaseRequestDelay
+
+	// Apply exponential delay if configured
+	if config.ExponentialRequestDelay > 0 {
+		attempts := t.attempts.Load()
+		multiplier := math.Pow(config.ExponentialRequestDelay, float64(attempts))
+		delay = time.Duration(float64(config.BaseRequestDelay) * multiplier)
+	}
+
+	// Apply jitter if configured
+	if config.RequestDelayJitter > 0 {
+		jitterRange := int64(float64(delay.Nanoseconds()) * float64(config.RequestDelayJitter) / 100.0)
+		if jitter, err := rand.Int(rand.Reader, big.NewInt(jitterRange)); err == nil {
+			delay += time.Duration(jitter.Int64())
+		}
+	}
+
+	// Ensure we don't exceed max delay
+	if delay > config.MaxRequestDelay {
+		delay = config.MaxRequestDelay
+	}
+
+	t.lastDelay.Store(int64(delay))
+	return delay
+}
+
+// UpdateThrottleConfig safely updates throttle configuration
+func (t *Throttler) UpdateThrottleConfig(config *ThrottleConfig) {
+	t.config.Store(config)
+	t.attempts.Store(0) // Reset attempts counter
+}
+
+// Reset resets the throttler state
+func (t *Throttler) Reset() {
+	wasThrottling := t.isThrottling.Swap(false)
+	t.attempts.Store(0)
+	t.lastDelay.Store(0)
+	if wasThrottling {
+		GB403Logger.Info().Msgf("Auto throttling disabled - returning to normal request rate")
+	}
+
+}
+
+// RequestWorkerPoolStats utilities -> get current pool statistics
 // Each worker pool instance exposes useful metrics that can be queried through the following methods:
 // pool.RunningWorkers() int64: Current number of running workers
+
 // pool.SubmittedTasks() uint64: Total number of tasks submitted since the pool was created
 // pool.WaitingTasks() uint64: Current number of tasks in the queue that are waiting to be executed
 // pool.SuccessfulTasks() uint64: Total number of tasks that have successfully completed their execution since the pool was created
 // pool.FailedTasks() uint64: Total number of tasks that completed with panic since the pool was created
 // pool.CompletedTasks() uint64: Total number of tasks that have completed their execution either successfully or with panic since the pool was created
-func (wp *RequestWorkerPool) GetCurrentStats() (running int64, waiting uint64) {
-	return wp.pool.RunningWorkers(), wp.pool.WaitingTasks()
+func (wp *RequestWorkerPool) GetReqWPActiveWorkers() (running int64) {
+	return wp.pool.RunningWorkers()
+}
+
+func (wp *RequestWorkerPool) GetReqWPSubmittedTasks() (submitted uint64) {
+	return wp.pool.SubmittedTasks()
+}
+
+func (wp *RequestWorkerPool) GetReqWPWaitingTasks() (waiting uint64) {
+	return wp.pool.WaitingTasks()
+}
+
+func (wp *RequestWorkerPool) GetReqWPCompletedTasks() (completed uint64) {
+	return wp.pool.CompletedTasks()
 }
 
 // NewWorkerPool initializes a new RequestWorkerPool instance
-func NewRequestWorkerPool(opts *HttpClientOptions, maxWorkers int, errorHandler *GB403ErrorHandler.ErrorHandler) *RequestWorkerPool {
+func NewRequestWorkerPool(opts *HTTPClientOptions, maxWorkers int, errorHandler *GB403ErrorHandler.ErrorHandler) *RequestWorkerPool {
+	// Create throttler with default config
+	throttler := NewThrottler(nil)
+
+	// If client has RequestDelay set, update the base delay
+	if opts.RequestDelay > 0 {
+		config := throttler.config.Load()
+		config.BaseRequestDelay = opts.RequestDelay
+		config.MaxRequestDelay = opts.Timeout // Use client timeout as max delay
+		throttler.UpdateThrottleConfig(config)
+	}
+
 	return &RequestWorkerPool{
 		httpClient:   NewHTTPClient(opts, errorHandler),
 		errorHandler: errorHandler,
 		pool:         pond.NewPool(maxWorkers),
+		throttler:    throttler,
 	}
 }
 
@@ -58,7 +173,7 @@ func (wp *RequestWorkerPool) ProcessRequests(jobs []payload.PayloadJob) <-chan *
 	for _, job := range jobs {
 		job := job // Capture for closure
 		group.Submit(func() {
-			if resp := wp.processJob(job); resp != nil {
+			if resp := wp.ProcessRequestResponseJob(job); resp != nil {
 				results <- resp
 			}
 		})
@@ -79,17 +194,24 @@ func (wp *RequestWorkerPool) Close() {
 	wp.httpClient.Close()
 }
 
-// processJob handles a single job: builds request, sends it, and processes response
-func (wp *RequestWorkerPool) processJob(job payload.PayloadJob) *RawHTTPResponseDetails {
+// ProcessRequestResponseJob handles a single job: builds request, sends it, and processes response
+func (wp *RequestWorkerPool) ProcessRequestResponseJob(job payload.PayloadJob) *RawHTTPResponseDetails {
 	req := wp.httpClient.AcquireRequest()
 	resp := wp.httpClient.AcquireResponse()
 	defer wp.httpClient.ReleaseRequest(req)
 	defer wp.httpClient.ReleaseResponse(resp)
 
+	// Apply current delay if throttling is active
+	if wp.throttler != nil {
+		if delay := wp.throttler.GetDelay(); delay > 0 {
+			time.Sleep(delay)
+		}
+	}
+
 	// Build HTTP Request
 	if err := wp.BuildRequestTask(req, job); err != nil {
 		if err := wp.errorHandler.HandleError(err, GB403ErrorHandler.ErrorContext{
-			ErrorSource:  []byte("RequestWorkerPool.BuildRequest"),
+			ErrorSource:  []byte("RequestWorkerPool.BuildRequestTask"),
 			Host:         []byte(job.Host),
 			BypassModule: []byte(job.BypassModule),
 		}); err != nil {
@@ -100,7 +222,7 @@ func (wp *RequestWorkerPool) processJob(job payload.PayloadJob) *RawHTTPResponse
 	// Send request using SendRequestTask
 	if err := wp.SendRequestTask(req, resp); err != nil {
 		if err := wp.errorHandler.HandleError(err, GB403ErrorHandler.ErrorContext{
-			ErrorSource:  []byte("RequestWorkerPool.SendRequest"),
+			ErrorSource:  []byte("RequestWorkerPool.SendRequestTask"),
 			Host:         []byte(job.Host),
 			BypassModule: []byte(job.BypassModule),
 		}); err != nil {
@@ -108,7 +230,18 @@ func (wp *RequestWorkerPool) processJob(job payload.PayloadJob) *RawHTTPResponse
 		}
 	}
 
-	return wp.ProcessResponseTask(resp, job)
+	// Process response
+	result := wp.ProcessResponseTask(resp, job)
+
+	// Handle throttling based on response
+	if wp.throttler != nil {
+		if wp.throttler.ShouldThrottle(result.StatusCode) {
+			wp.throttler.GetDelay() // This will update the delay based on attempts
+			//GB403Logger.Warning().Msgf("Throttling request due to status code: %d", result.StatusCode)
+		}
+	}
+
+	return result
 }
 
 // buildRequest constructs the HTTP request

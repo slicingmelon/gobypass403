@@ -1,7 +1,9 @@
-package payload
+package tests
 
 import (
 	"testing"
+
+	"github.com/slicingmelon/go-bypass-403/internal/engine/payload"
 )
 
 func TestGenerateHeaderIPJobs_RequestFormat(t *testing.T) {
@@ -9,7 +11,7 @@ func TestGenerateHeaderIPJobs_RequestFormat(t *testing.T) {
 	bypassModule := "header_ip"
 
 	// Create PayloadGenerator instance
-	pg := NewPayloadGenerator()
+	pg := payload.NewPayloadGenerator()
 
 	// Generate sample jobs
 	jobs := pg.GenerateHeaderIPJobs(targetURL, bypassModule, "", "")
@@ -80,7 +82,7 @@ func TestGenerateHeaderIPJobs_RequestFormatAllJobs(t *testing.T) {
 	bypassModule := "header_ip"
 
 	// Create PayloadGenerator instance
-	pg := NewPayloadGenerator()
+	pg := payload.NewPayloadGenerator()
 
 	// Generate all jobs
 	jobs := pg.GenerateHeaderIPJobs(targetURL, bypassModule, "", "")
@@ -137,18 +139,20 @@ func TestGenerateHeaderIPJobs_RequestFormatAllJobs(t *testing.T) {
 
 func TestPayloadSeedRoundTrip(t *testing.T) {
 	// Test case matching your HeaderIP job
-	original := SeedData{
+	original := payload.SeedData{
 		FullURL: "https://www.example.com/admin",
-		Headers: []Header{{
+		Headers: []payload.Header{{
 			Header: "X-AppEngine-Trusted-IP-Request",
 			Value:  "1",
 		}},
 	}
+
 	// Generate seed
-	seed := GenerateDebugToken(original)
+	seed := payload.GenerateDebugToken(original)
 	t.Logf("Generated seed: %s", seed)
 	// Recover data
-	recovered, err := DecodeDebugToken(seed)
+	recovered, err := payload.DecodeDebugToken(seed)
+
 	if err != nil {
 		t.Fatalf("Failed to recover seed: %v", err)
 	}

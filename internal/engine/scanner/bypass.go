@@ -92,7 +92,6 @@ func InitializeBypassModules() {
 
 type BypassWorker struct {
 	bypassmodule string
-	progress     *ProgressCounter
 	cancel       chan struct{}
 	wg           *sync.WaitGroup
 	once         sync.Once
@@ -101,7 +100,7 @@ type BypassWorker struct {
 	workerCount  int32
 }
 
-func NewBypassWorker(bypassmodule string, total int, targetURL string, scannerOpts *ScannerOpts, errorHandler *GB403ErrorHandler.ErrorHandler, progress *ProgressCounter) *BypassWorker {
+func NewBypassWorker(bypassmodule string, total int, targetURL string, scannerOpts *ScannerOpts, errorHandler *GB403ErrorHandler.ErrorHandler) *BypassWorker {
 	httpClientOpts := rawhttp.DefaultHTTPClientOptions()
 
 	// Override specific settings from user options
@@ -124,7 +123,6 @@ func NewBypassWorker(bypassmodule string, total int, targetURL string, scannerOp
 
 	return &BypassWorker{
 		bypassmodule: bypassmodule,
-		progress:     progress,
 		cancel:       make(chan struct{}),
 		wg:           &sync.WaitGroup{},
 		once:         sync.Once{},
@@ -208,40 +206,45 @@ func (s *Scanner) RunBypassModule(bypassModule string, targetURL string, results
 		return
 	}
 
+	// Generate jobs
 	allJobs := moduleInstance.GenerateJobs(targetURL, bypassModule, s.config)
 	if len(allJobs) == 0 {
 		GB403Logger.Verbose().Msgf("No jobs generated for module: %s", bypassModule)
 		return
 	}
 
-	s.progress.StartModule(bypassModule, len(allJobs), targetURL)
-	lastStatsUpdate := time.Now()
+	ctx := NewBypassWorker(bypassModule, len(allJobs), targetURL, s.config, s.errorHandler)
 
-	ctx := NewBypassWorker(bypassModule, len(allJobs), targetURL, s.config, s.errorHandler, s.progress)
+	// Create progress bar with total workers from config
+	progressbar := NewProgressBar(bypassModule, len(allJobs), s.config.Threads)
+
 	defer func() {
-		// Get stats from pond pool
-		running, _ := ctx.requestPool.GetCurrentStats()
-		s.progress.UpdateWorkerStats(bypassModule, running)
+		progressbar.SpinnerSuccess(
+			bypassModule,
+			s.config.Threads,
+			int(ctx.requestPool.GetReqWPActiveWorkers()),
+			int(ctx.requestPool.GetReqWPCompletedTasks()),
+			int(ctx.requestPool.GetReqWPSubmittedTasks()),
+		)
 		ctx.Stop()
-		time.Sleep(100 * time.Millisecond)
-		s.progress.MarkModuleAsDone(bypassModule)
+		progressbar.Stop()
 	}()
 
+	// Process requests and update progress
 	responses := ctx.requestPool.ProcessRequests(allJobs)
+
 	for response := range responses {
-		if response == nil {
-			s.progress.IncrementProgress(bypassModule, false)
-			continue
-		}
-		s.progress.IncrementProgress(bypassModule, true)
+		progressbar.Increment()
+		progressbar.UpdateSpinnerText(
+			bypassModule,
+			s.config.Threads,
+			int(ctx.requestPool.GetReqWPActiveWorkers()),
+			int(ctx.requestPool.GetReqWPCompletedTasks()),
+			int(ctx.requestPool.GetReqWPSubmittedTasks()),
+		)
 
-		if time.Since(lastStatsUpdate) > 500*time.Millisecond {
-			running, _ := ctx.requestPool.GetCurrentStats()
-			s.progress.UpdateWorkerStats(bypassModule, running)
-			lastStatsUpdate = time.Now()
-		}
-
-		if matchStatusCodes(response.StatusCode, s.config.MatchStatusCodes) {
+		// Process matching responses
+		if response != nil && matchStatusCodes(response.StatusCode, s.config.MatchStatusCodes) {
 			results <- &Result{
 				TargetURL:       string(response.URL),
 				BypassModule:    bypassModule,
@@ -257,9 +260,6 @@ func (s *Scanner) RunBypassModule(bypassModule string, targetURL string, results
 				RedirectURL:     string(response.RedirectURL),
 			}
 		}
-	}
-	if ctx.requestPool != nil {
-		ctx.requestPool.Close()
 	}
 }
 

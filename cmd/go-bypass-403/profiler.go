@@ -60,7 +60,7 @@ func (p *Profiler) Stop() {
 	// Check CPU profile size
 	cpuPath := filepath.Join(p.profileDir, fmt.Sprintf("cpu-%s.prof", p.timestamp))
 	if fi, err := os.Stat(cpuPath); err == nil && fi.Size() == 0 {
-		GB403Logger.Error().Msg("CPU profile is empty - program may have run too quickly to capture meaningful data")
+		GB403Logger.Error().Msgf("CPU profile is empty - program may have run too quickly to capture meaningful data")
 		// Remove empty CPU profile
 		os.Remove(cpuPath)
 	}
