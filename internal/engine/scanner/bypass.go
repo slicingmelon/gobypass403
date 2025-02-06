@@ -250,7 +250,9 @@ func (s *Scanner) RunBypassModule(bypassModule string, targetURL string, results
 		//s.progress.IncrementProgress(bypassModule)
 		//pb1.Increment()
 		pb1.Increment()
+		spinner1.UpdateText("Spnner 1 update " + "-> workers: " + strconv.Itoa(int(ctx.requestPool.GetReqWPActiveWorkers())))
 		// Update worker stats periodically (every 500ms)
+
 		if time.Since(lastStatsUpdate) > 20*time.Millisecond {
 			//running := ctx.requestPool.GetReqWPActiveWorkers()
 
