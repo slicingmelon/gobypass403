@@ -84,7 +84,7 @@ func getTableRows(results []*Result) [][]string {
 			result.BypassModule,
 			result.CurlPocCommand,
 			strconv.Itoa(result.StatusCode),
-			FormatBytesH(result.ContentLength),
+			FormatBytes(int64(result.ResponseBytes)),
 			formatContentType(result.ContentType),
 			formatValue(result.Title),
 			formatValue(result.ServerInfo),
@@ -99,10 +99,10 @@ func PrintResultsTable(targetURL string, results []*Result) {
 		return
 	}
 
+	// fancy table title
 	pterm.DefaultHeader.WithBackgroundStyle(pterm.NewStyle(pterm.BgGreen)).
 		Println("Results for " + targetURL)
 
-	//pterm.DefaultTable.WithHasHeader().WithBoxed().WithData(tableData).Render()
 	// Create table data
 	tableData := pterm.TableData{getTableHeader()}
 	for _, row := range getTableRows(results) {
@@ -110,7 +110,6 @@ func PrintResultsTable(targetURL string, results []*Result) {
 	}
 
 	// Render table
-
 	time.Sleep(500 * time.Millisecond)
 	pterm.DefaultTable.
 		WithHasHeader().
@@ -136,6 +135,13 @@ func formatContentType(contentType string) string {
 		return strings.TrimSpace(strings.Split(contentType, ";")[0])
 	}
 	return contentType
+}
+
+func FormatBytes(bytes int64) string {
+	if bytes <= 0 {
+		return "[-]"
+	}
+	return strconv.FormatInt(bytes, 10) + " B"
 }
 
 func FormatBytesH(bytes int64) string {

@@ -53,10 +53,6 @@ func (s *Scanner) Run() error {
 
 	GB403Logger.Info().Msgf("Initializing scanner with %d URLs", len(s.urls))
 
-	// Start progress counter here instead
-	//s.progress.Start()
-	//defer s.progress.Stop() // Move Stop here to ensure it runs after all URLs are processed
-
 	for _, url := range s.urls {
 		if err := s.scanURL(url); err != nil {
 			GB403Logger.Error().Msgf("Error scanning %s: %v", url, err)
@@ -85,12 +81,11 @@ func (s *Scanner) scanURL(url string) error {
 	// Process results as they come in
 	for result := range resultsChannel {
 		if result != nil {
-			//GB403Logger.Verbose().Msgf("Processing result for module: %s, status: %d", result.BypassModule, result.StatusCode)
+			GB403Logger.Debug().Msgf("Processing results for bypass module: %s, status: %d", result.BypassModule, result.StatusCode)
 			allFindings = append(allFindings, result)
 		}
-	}
 
-	//s.progress.Stop()
+	}
 
 	// If we have any findings, sort and save them
 	if len(allFindings) > 0 {
