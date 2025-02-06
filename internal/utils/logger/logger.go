@@ -20,32 +20,35 @@ func init() {
 		debug:   false,
 	}
 
-	// Configure pterm styles
-	// Configure pterm styles with distinct colors and prefixes
-	pterm.Info.Prefix = pterm.Prefix{
-		Text:  "INFO",
-		Style: pterm.NewStyle(pterm.BgBlue, pterm.FgBlack),
-	}
+	// stupid pterm
+	pterm.EnableDebugMessages()
 
-	pterm.Debug.Prefix = pterm.Prefix{ // Add Debug configuration
-		Text:  "DEBUG",
-		Style: pterm.NewStyle(pterm.BgGray, pterm.FgBlack),
-	}
+	// // Configure pterm styles
+	// pterm.Info.Prefix = pterm.Prefix{
+	// 	Text:  "INFO",
+	// 	Style: pterm.NewStyle(pterm.BgBlue, pterm.FgBlack),
+	// }
 
-	pterm.Success.Prefix = pterm.Prefix{
-		Text:  "SUCCESS",
-		Style: pterm.NewStyle(pterm.BgGreen, pterm.FgBlack),
-	}
+	// pterm.Debug.Prefix = pterm.Prefix{
+	// 	Text:  "DEBUG",
+	// 	Style: pterm.NewStyle(pterm.BgGray, pterm.FgWhite), // Changed to white text for better visibility
+	// }
 
-	pterm.Warning.Prefix = pterm.Prefix{
-		Text:  "WARNING",
-		Style: pterm.NewStyle(pterm.BgYellow, pterm.FgBlack),
-	}
+	// pterm.Success.Prefix = pterm.Prefix{
+	// 	Text:  "SUCCESS",
+	// 	Style: pterm.NewStyle(pterm.BgGreen, pterm.FgBlack),
+	// }
 
-	pterm.Error.Prefix = pterm.Prefix{
-		Text:  "ERROR",
-		Style: pterm.NewStyle(pterm.BgRed, pterm.FgBlack),
-	}
+	// pterm.Warning.Prefix = pterm.Prefix{
+	// 	Text:  "WARNING",
+	// 	Style: pterm.NewStyle(pterm.BgYellow, pterm.FgBlack),
+	// }
+
+	// pterm.Error.Prefix = pterm.Prefix{
+	// 	Text:  "ERROR",
+	// 	Style: pterm.NewStyle(pterm.BgRed, pterm.FgBlack),
+	// }
+
 }
 
 type Event struct {
@@ -82,10 +85,10 @@ func Warning() *Event {
 }
 
 func Debug() *Event {
-	if !DefaultLogger.debug {
+	if !DefaultLogger.IsDebugEnabled() {
 		return nil
 	}
-	return DefaultLogger.newEvent(pterm.Debug) // Use pterm.Debug instead of pterm.Info
+	return DefaultLogger.newEvent(pterm.Debug)
 }
 
 func Verbose() *Event {

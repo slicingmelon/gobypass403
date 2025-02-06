@@ -92,7 +92,7 @@ func (s *Scanner) scanURL(url string) error {
 		}
 	}
 
-	s.progress.Stop()
+	//s.progress.Stop()
 
 	// If we have any findings, sort and save them
 	if len(allFindings) > 0 {
@@ -116,7 +116,7 @@ func (s *Scanner) scanURL(url string) error {
 		//PrintTableRow(allFindings)
 
 		fmt.Println()
-		GB403Logger.Info().Msgf("Results saved to %s\n\n", outputFile)
+		GB403Logger.Success().Msgf("Results saved to %s\n\n", outputFile)
 	}
 
 	return nil

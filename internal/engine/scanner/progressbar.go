@@ -64,7 +64,7 @@ func (pc *ProgressCounter) StartModule(moduleName string, totalJobs int, targetU
 	}
 
 	// Print initial module info
-	pterm.Info.Printf("[%s] Generated %d payloads for %s", moduleName, totalJobs, targetURL)
+	pterm.Info.Printfln("[%s] Generated %d payloads for %s", moduleName, totalJobs, targetURL)
 }
 
 // UpdateWorkerStats updates the active worker count for a module
@@ -112,7 +112,7 @@ func (pc *ProgressCounter) MarkModuleAsDone(moduleName string) {
 		stats.ReqPerSec = reqPerSec
 
 		// Print completion message
-		pterm.Success.Printf("[%s] Completed %d requests in %s (%.2f req/s)",
+		pterm.Success.Printfln("[%s] Completed %d requests in %s (%.2f req/s)",
 			moduleName,
 			stats.CompletedJobs.Load(),
 			duration.Round(time.Millisecond),

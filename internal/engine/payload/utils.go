@@ -159,7 +159,7 @@ func ReadPayloadsFromFile(filename string) ([]string, error) {
 	var embeddedPayloads []string
 	lines := strings.Split(text, "\n")
 
-	GB403Logger.Verbose().Msgf("Read %d raw lines from embedded payload file", len(lines))
+	GB403Logger.Debug().Msgf("Read %d raw lines from embedded payload file", len(lines))
 
 	for _, line := range lines {
 		line = strings.TrimSpace(line)
@@ -168,7 +168,7 @@ func ReadPayloadsFromFile(filename string) ([]string, error) {
 		}
 	}
 
-	GB403Logger.Verbose().Msgf("Processed %d valid payloads", len(embeddedPayloads))
+	GB403Logger.Debug().Msgf("Processed %d valid payloads", len(embeddedPayloads))
 	return embeddedPayloads, nil
 }
 
@@ -190,7 +190,7 @@ func ReadMaxPayloadsFromFile(filename string, maxNum int) ([]string, error) {
 	var payloads []string
 	lines := strings.Split(text, "\n")
 
-	GB403Logger.Verbose().Msgf("Read %d raw lines from payload file", len(lines))
+	GB403Logger.Debug().Msgf("Read %d raw lines from payload file", len(lines))
 
 	for i, line := range lines {
 		if maxNum != -1 && i >= maxNum {

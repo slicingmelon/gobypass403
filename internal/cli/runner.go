@@ -32,6 +32,7 @@ func (r *Runner) Initialize() error {
 	}
 	if opts.Debug {
 		GB403Logger.DefaultLogger.EnableDebug()
+
 	}
 
 	// Step 2: Initialize URL Processor and process (recon) URLs

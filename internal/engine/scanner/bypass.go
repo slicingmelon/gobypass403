@@ -1,10 +1,12 @@
 package scanner
 
 import (
+	"strconv"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/pterm/pterm"
 	"github.com/slicingmelon/go-bypass-403/internal/engine/payload"
 	"github.com/slicingmelon/go-bypass-403/internal/engine/rawhttp"
 	GB403ErrorHandler "github.com/slicingmelon/go-bypass-403/internal/utils/error"
@@ -216,18 +218,27 @@ func (s *Scanner) RunBypassModule(bypassModule string, targetURL string, results
 	}
 
 	// Initialize progress tracking
-	s.progress.StartModule(bypassModule, len(allJobs), targetURL)
+	//s.progress.StartModule(bypassModule, len(allJobs), targetURL)
+
+	multi := pterm.DefaultMultiPrinter
+	spinner1, _ := pterm.DefaultSpinner.WithWriter(multi.NewWriter()).Start("Spinner 1")
+	pb1, _ := pterm.DefaultProgressbar.WithTotal(len(allJobs)).WithWriter(multi.NewWriter()).Start("Progressbar 1")
+
+	multi.Start()
 
 	// Create bypass worker
 	ctx := NewBypassWorker(bypassModule, len(allJobs), targetURL, s.config, s.errorHandler, s.progress)
 	defer func() {
 		// Final worker stats update before completion
 		running := ctx.requestPool.GetReqWPActiveWorkers()
-		s.progress.UpdateWorkerStats(bypassModule, running)
+		//s.progress.UpdateWorkerStats(bypassModule, running)
+		spinner1.Success("Spinner 1 is done! " + "-> workers: " + strconv.Itoa(int(running)))
 		ctx.Stop()
 
 		// Mark module as complete
-		s.progress.MarkModuleAsDone(bypassModule)
+		//s.progress.MarkModuleAsDone(bypassModule)
+		multi.Stop()
+
 	}()
 
 	// Process requests and update progress
@@ -236,12 +247,14 @@ func (s *Scanner) RunBypassModule(bypassModule string, targetURL string, results
 
 	for response := range responses {
 		// Update progress
-		s.progress.IncrementProgress(bypassModule)
-
+		//s.progress.IncrementProgress(bypassModule)
+		//pb1.Increment()
+		pb1.Increment()
 		// Update worker stats periodically (every 500ms)
-		if time.Since(lastStatsUpdate) > 500*time.Millisecond {
-			running := ctx.requestPool.GetReqWPActiveWorkers()
-			s.progress.UpdateWorkerStats(bypassModule, running)
+		if time.Since(lastStatsUpdate) > 20*time.Millisecond {
+			//running := ctx.requestPool.GetReqWPActiveWorkers()
+
+			//s.progress.UpdateWorkerStats(bypassModule, running)
 			lastStatsUpdate = time.Now()
 		}
 
@@ -263,6 +276,7 @@ func (s *Scanner) RunBypassModule(bypassModule string, targetURL string, results
 			}
 		}
 	}
+
 }
 
 // match HTTP status code in list
