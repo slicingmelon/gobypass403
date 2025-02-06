@@ -1,12 +1,10 @@
 package scanner
 
 import (
-	"strconv"
 	"strings"
 	"sync"
 	"time"
 
-	"github.com/pterm/pterm"
 	"github.com/slicingmelon/go-bypass-403/internal/engine/payload"
 	"github.com/slicingmelon/go-bypass-403/internal/engine/rawhttp"
 	GB403ErrorHandler "github.com/slicingmelon/go-bypass-403/internal/utils/error"
@@ -94,7 +92,6 @@ func InitializeBypassModules() {
 
 type BypassWorker struct {
 	bypassmodule string
-	progress     *ProgressCounter
 	cancel       chan struct{}
 	wg           *sync.WaitGroup
 	once         sync.Once
@@ -103,7 +100,7 @@ type BypassWorker struct {
 	workerCount  int32
 }
 
-func NewBypassWorker(bypassmodule string, total int, targetURL string, scannerOpts *ScannerOpts, errorHandler *GB403ErrorHandler.ErrorHandler, progress *ProgressCounter) *BypassWorker {
+func NewBypassWorker(bypassmodule string, total int, targetURL string, scannerOpts *ScannerOpts, errorHandler *GB403ErrorHandler.ErrorHandler) *BypassWorker {
 	httpClientOpts := rawhttp.DefaultHTTPClientOptions()
 
 	// Override specific settings from user options
@@ -126,7 +123,6 @@ func NewBypassWorker(bypassmodule string, total int, targetURL string, scannerOp
 
 	return &BypassWorker{
 		bypassmodule: bypassmodule,
-		progress:     progress,
 		cancel:       make(chan struct{}),
 		wg:           &sync.WaitGroup{},
 		once:         sync.Once{},
@@ -217,48 +213,35 @@ func (s *Scanner) RunBypassModule(bypassModule string, targetURL string, results
 		return
 	}
 
-	// Initialize progress tracking
-	//s.progress.StartModule(bypassModule, len(allJobs), targetURL)
+	ctx := NewBypassWorker(bypassModule, len(allJobs), targetURL, s.config, s.errorHandler)
 
-	multi := pterm.DefaultMultiPrinter
-	spinner1, _ := pterm.DefaultSpinner.WithWriter(multi.NewWriter()).Start("Spinner 1")
-	pb1, _ := pterm.DefaultProgressbar.WithTotal(len(allJobs)).WithWriter(multi.NewWriter()).Start("Progressbar 1")
+	// Create progress bar with total workers from config
+	progressbar := NewProgressBar(bypassModule, len(allJobs), s.config.Threads)
 
-	multi.Start()
-
-	// Create bypass worker
-	ctx := NewBypassWorker(bypassModule, len(allJobs), targetURL, s.config, s.errorHandler, s.progress)
 	defer func() {
-		// Final worker stats update before completion
-		running := ctx.requestPool.GetReqWPActiveWorkers()
-		//s.progress.UpdateWorkerStats(bypassModule, running)
-		spinner1.Success("Spinner 1 is done! " + "-> workers: " + strconv.Itoa(int(running)))
+		progressbar.SpinnerSuccess(
+			bypassModule,
+			s.config.Threads,
+			int(ctx.requestPool.GetReqWPActiveWorkers()),
+			int(ctx.requestPool.GetReqWPCompletedTasks()),
+			int(ctx.requestPool.GetReqWPSubmittedTasks()),
+		)
 		ctx.Stop()
-
-		// Mark module as complete
-		//s.progress.MarkModuleAsDone(bypassModule)
-		multi.Stop()
-
+		progressbar.Stop()
 	}()
 
 	// Process requests and update progress
 	responses := ctx.requestPool.ProcessRequests(allJobs)
-	lastStatsUpdate := time.Now()
 
 	for response := range responses {
-		// Update progress
-		//s.progress.IncrementProgress(bypassModule)
-		//pb1.Increment()
-		pb1.Increment()
-		spinner1.UpdateText("Spnner 1 update " + "-> workers: " + strconv.Itoa(int(ctx.requestPool.GetReqWPActiveWorkers())))
-		// Update worker stats periodically (every 500ms)
-
-		if time.Since(lastStatsUpdate) > 20*time.Millisecond {
-			//running := ctx.requestPool.GetReqWPActiveWorkers()
-
-			//s.progress.UpdateWorkerStats(bypassModule, running)
-			lastStatsUpdate = time.Now()
-		}
+		progressbar.Increment()
+		progressbar.UpdateSpinnerText(
+			bypassModule,
+			s.config.Threads,
+			int(ctx.requestPool.GetReqWPActiveWorkers()),
+			int(ctx.requestPool.GetReqWPCompletedTasks()),
+			int(ctx.requestPool.GetReqWPSubmittedTasks()),
+		)
 
 		// Process matching responses
 		if response != nil && matchStatusCodes(response.StatusCode, s.config.MatchStatusCodes) {
@@ -278,7 +261,6 @@ func (s *Scanner) RunBypassModule(bypassModule string, targetURL string, results
 			}
 		}
 	}
-
 }
 
 // match HTTP status code in list

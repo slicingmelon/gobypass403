@@ -33,7 +33,6 @@ type Scanner struct {
 	config       *ScannerOpts
 	urls         []string
 	errorHandler *GB403ErrorHandler.ErrorHandler
-	progress     *ProgressCounter
 }
 
 // NewScanner creates a new Scanner instance
@@ -45,7 +44,6 @@ func NewScanner(opts *ScannerOpts, urls []string) *Scanner {
 		config:       opts,
 		urls:         urls,
 		errorHandler: GB403ErrorHandler.NewErrorHandler(32),
-		progress:     NewProgressCounter(),
 	}
 }
 
@@ -112,8 +110,7 @@ func (s *Scanner) scanURL(url string) error {
 
 		// Print results only once
 		fmt.Println()
-		//PrintTableHeader(url)
-		//PrintTableRow(allFindings)
+		PrintResultsTable(url, allFindings)
 
 		fmt.Println()
 		GB403Logger.Success().Msgf("Results saved to %s\n\n", outputFile)

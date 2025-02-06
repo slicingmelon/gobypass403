@@ -7,16 +7,16 @@ import (
 	"html"
 	"os"
 	"path/filepath"
+	"sort"
+	"strconv"
 	"strings"
 	"sync"
+	"time"
 
-	"github.com/jedib0t/go-pretty/v6/table"
-	"github.com/jedib0t/go-pretty/v6/text"
+	"github.com/pterm/pterm"
 	GB403Logger "github.com/slicingmelon/go-bypass-403/internal/utils/logger"
-	"golang.org/x/term"
 )
 
-// Result represents a single bypass attempt result
 type Result struct {
 	TargetURL       string `json:"target_url"`
 	BypassModule    string `json:"bypass_module"`
@@ -58,17 +58,69 @@ type ResponseDetails struct {
 	Title           string
 }
 
-// PrintTableHeader prints the header for results table
-func PrintTableHeader(targetURL string) {
-	// Title only
-	fmt.Println()
-	fmt.Println()
-	GB403Logger.PrintGreen("[##########] Results for %s", targetURL)
-	GB403Logger.PrintYellow("%s\n", targetURL)
-	GB403Logger.PrintGreen("[##########]")
-	fmt.Println()
+// getTableHeader returns the header row for the results table
+func getTableHeader() []string {
+	return []string{
+		"Module",
+		"Curl CMD",
+		"Status",
+		"Length",
+		"Type",
+		"Title",
+		"Server",
+	}
 }
 
+// getTableRows converts results to table rows, sorted by status code
+func getTableRows(results []*Result) [][]string {
+	// Sort results by status code
+	sort.Slice(results, func(i, j int) bool {
+		return results[i].StatusCode < results[j].StatusCode
+	})
+
+	rows := make([][]string, len(results))
+	for i, result := range results {
+		rows[i] = []string{
+			result.BypassModule,
+			result.CurlPocCommand,
+			strconv.Itoa(result.StatusCode),
+			FormatBytesH(result.ContentLength),
+			formatContentType(result.ContentType),
+			formatValue(result.Title),
+			formatValue(result.ServerInfo),
+		}
+	}
+	return rows
+}
+
+// PrintResultsTable prints the results in a formatted table
+func PrintResultsTable(targetURL string, results []*Result) {
+	if len(results) == 0 {
+		return
+	}
+
+	pterm.DefaultHeader.WithBackgroundStyle(pterm.NewStyle(pterm.BgGreen)).
+		Println("Results for " + targetURL)
+
+	//pterm.DefaultTable.WithHasHeader().WithBoxed().WithData(tableData).Render()
+	// Create table data
+	tableData := pterm.TableData{getTableHeader()}
+	for _, row := range getTableRows(results) {
+		tableData = append(tableData, row)
+	}
+
+	// Render table
+
+	time.Sleep(500 * time.Millisecond)
+	pterm.DefaultTable.
+		WithHasHeader().
+		WithBoxed().
+		WithData(tableData).
+		Render()
+
+}
+
+// Helper functions remain unchanged
 func formatValue(val string) string {
 	if val == "" {
 		return "[-]"
@@ -76,144 +128,32 @@ func formatValue(val string) string {
 	return val
 }
 
-type columnStats struct {
-	maxModuleWidth int
-	maxCurlWidth   int
-	maxStatusWidth int
-	maxLengthWidth int
-	maxContentType int
-	maxTitleWidth  int
-	maxServerWidth int
-	hasServer      bool
+func formatContentType(contentType string) string {
+	if contentType == "" {
+		return "[-]"
+	}
+	if strings.Contains(contentType, ";") {
+		return strings.TrimSpace(strings.Split(contentType, ";")[0])
+	}
+	return contentType
 }
 
-func analyzeResults(results []*Result) columnStats {
-	stats := columnStats{}
-
-	for _, result := range results {
-		// Bypass Module width
-		stats.maxModuleWidth = max(stats.maxModuleWidth, len(result.BypassModule))
-
-		// Curl command width
-		stats.maxCurlWidth = max(stats.maxCurlWidth, len(result.CurlPocCommand))
-
-		// Status code width
-		stats.maxStatusWidth = max(stats.maxStatusWidth, len(fmt.Sprintf("%d", result.StatusCode)))
-
-		// Content Length width
-		stats.maxLengthWidth = max(stats.maxLengthWidth, len(FormatBytesH(result.ContentLength)))
-
-		// Content Type width
-		contentType := formatContentType(result.ContentType)
-		stats.maxContentType = max(stats.maxContentType, len(contentType))
-
-		// Title width
-		stats.maxTitleWidth = max(stats.maxTitleWidth, len(result.Title))
-
-		// Server width
-		if result.ServerInfo != "" {
-			stats.hasServer = true
-			stats.maxServerWidth = max(stats.maxServerWidth, len(result.ServerInfo))
-		}
+func FormatBytesH(bytes int64) string {
+	if bytes <= 0 {
+		return "[-]"
 	}
 
-	return stats
-}
-
-// PrintTableRow prints a single result row
-func PrintTableRow(results []*Result) {
-	stats := analyzeResults(results)
-
-	t := table.NewWriter()
-	t.SetOutputMirror(os.Stdout)
-
-	// Get terminal width
-	width, _, err := term.GetSize(int(os.Stdout.Fd()))
-	if err != nil {
-		width = 80
+	const unit = 1024
+	if bytes < unit {
+		return fmt.Sprintf("%d B", bytes)
 	}
 
-	// Base headers
-	tableHeaders := []interface{}{
-		"Module",
-		"Curl PoC",
-		"Status",
-		"Length",
-		"Type",
-		"Title",
+	div, exp := int64(unit), 0
+	for n := bytes / unit; n >= unit; n /= unit {
+		div *= unit
+		exp++
 	}
-
-	// Add server header if needed
-	if stats.hasServer {
-		tableHeaders = append(tableHeaders, "Server")
-	}
-
-	// Calculate available width for curl command
-	fixedWidth := stats.maxModuleWidth + // Module
-		stats.maxStatusWidth + // Status
-		stats.maxLengthWidth + // Length
-		stats.maxContentType + // Type
-		stats.maxTitleWidth + // Title
-		(6 * 3) // Padding and borders between columns
-
-	if stats.hasServer {
-		fixedWidth += stats.maxServerWidth + 3 // Add server width and its padding
-	}
-
-	// Adjust curl width to fit terminal
-	curlWidth := stats.maxCurlWidth
-	if fixedWidth+curlWidth > width {
-		curlWidth = width - fixedWidth - 5 // -5 for safety margin
-	}
-
-	// Configure columns with exact widths
-	columns := []table.ColumnConfig{
-		{Name: "MODULE", WidthMax: stats.maxModuleWidth, WidthMin: stats.maxModuleWidth},
-		{Name: "CURL POC", WidthMax: curlWidth, WidthMin: curlWidth},
-		{Name: "STATUS", WidthMax: stats.maxStatusWidth, WidthMin: stats.maxStatusWidth},
-		{Name: "LENGTH", WidthMax: stats.maxLengthWidth, WidthMin: stats.maxLengthWidth},
-		{Name: "TYPE", WidthMax: stats.maxContentType, WidthMin: stats.maxContentType},
-		{Name: "TITLE", WidthMax: stats.maxTitleWidth, WidthMin: stats.maxTitleWidth},
-	}
-
-	if stats.hasServer {
-		columns = append(columns, table.ColumnConfig{
-			Name:     "SERVER",
-			WidthMax: stats.maxServerWidth,
-			WidthMin: stats.maxServerWidth,
-		})
-	}
-
-	// Set styling
-	t.SetStyle(table.StyleLight)
-	t.Style().Color.Header = text.Colors{text.FgHiCyan, text.Bold}
-	t.Style().Options.SeparateRows = true
-	t.Style().Options.DrawBorder = true
-	t.Style().Box.PaddingLeft = ""
-	t.Style().Box.PaddingRight = ""
-
-	t.SetColumnConfigs(columns)
-	t.AppendHeader(tableHeaders)
-
-	// Add rows
-	for _, result := range results {
-		row := []interface{}{
-			text.Colors{text.FgBlue}.Sprint(result.BypassModule),
-			text.Colors{text.FgYellow}.Sprint(result.CurlPocCommand),
-			text.Colors{text.FgGreen}.Sprintf("%d", result.StatusCode),
-			text.Colors{text.FgMagenta}.Sprint(FormatBytesH(result.ContentLength)),
-			text.Colors{text.FgHiYellow}.Sprint(formatContentType(result.ContentType)),
-			text.Colors{text.FgHiCyan}.Sprint(formatValue(result.Title)),
-		}
-
-		if stats.hasServer {
-			row = append(row, text.Colors{text.FgHiBlack}.Sprint(formatValue(result.ServerInfo)))
-		}
-
-		t.AppendRow(row)
-	}
-
-	t.Render()
+	return fmt.Sprintf("%.1f%cB", float64(bytes)/float64(div), "KMGTPE"[exp])
 }
 
 // AppendResultsToJSON appends scan results to JSON file
@@ -277,41 +217,4 @@ func AppendResultsToJSON(outputFile, url, mode string, findings []*Result) error
 	}
 
 	return writer.Flush()
-}
-
-func formatContentType(contentType string) string {
-	if contentType == "" {
-		return "[-]"
-	}
-	if strings.Contains(contentType, ";") {
-		return strings.TrimSpace(strings.Split(contentType, ";")[0])
-	}
-	return contentType
-}
-
-// Helper function to format bytes
-func formatBytes(bytes int64) string {
-	if bytes <= 0 {
-		return "[-]"
-	}
-	return fmt.Sprintf("%d", bytes)
-}
-
-// Helper function to format bytes (so you can see human readable size)
-func FormatBytesH(bytes int64) string {
-	if bytes <= 0 {
-		return "[-]"
-	}
-
-	const unit = 1024
-	if bytes < unit {
-		return fmt.Sprintf("%d B", bytes)
-	}
-
-	div, exp := int64(unit), 0
-	for n := bytes / unit; n >= unit; n /= unit {
-		div *= unit
-		exp++
-	}
-	return fmt.Sprintf("%.1f%cB", float64(bytes)/float64(div), "KMGTPE"[exp])
 }

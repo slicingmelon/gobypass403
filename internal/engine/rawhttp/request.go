@@ -62,10 +62,6 @@ type RawHTTPResponseDetails struct {
 	Title           []byte
 }
 
-type ProgressTracker interface {
-	UpdateWorkerStats(moduleName string, totalWorkers int64)
-}
-
 // Request must contain at least non-zero RequestURI with full url (including
 // scheme and host) or non-zero Host header + RequestURI.
 //

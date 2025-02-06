@@ -1,133 +1,75 @@
 package scanner
 
 import (
-	"math"
-	"sync"
-	"sync/atomic"
-	"time"
+	"strconv"
 
 	"github.com/pterm/pterm"
 )
 
-// ModuleStats tracks statistics for each bypass module
-type ModuleStats struct {
-	TotalJobs     int64
-	CompletedJobs atomic.Int64
-	ActiveWorkers atomic.Int64
-	StartTime     time.Time
-	ReqPerSec     float64
+// ProgressBar manages a combined spinner and progress bar display
+type ProgressBar struct {
+	multiprinter *pterm.MultiPrinter
+	spinner      *pterm.SpinnerPrinter
+	progressbar  *pterm.ProgressbarPrinter
 }
 
-// ProgressCounter manages progress bars and stats for bypass modules
-type ProgressCounter struct {
-	multi         pterm.MultiPrinter // Correct type without pointer
-	moduleStats   map[string]*ModuleStats
-	progressBars  map[string]*pterm.ProgressbarPrinter
-	mu            sync.RWMutex
-	activeModules atomic.Int32
-}
+// NewProgressBar creates a new progress display for a bypass module
+func NewProgressBar(bypassModule string, totalJobs int, totalWorkers int) *ProgressBar {
+	multi := pterm.DefaultMultiPrinter
 
-func NewProgressCounter() *ProgressCounter {
-	return &ProgressCounter{
-		multi:        pterm.DefaultMultiPrinter, // Use directly, no dereferencing
-		moduleStats:  make(map[string]*ModuleStats),
-		progressBars: make(map[string]*pterm.ProgressbarPrinter),
-	}
-}
+	initialText := bypassModule +
+		" - Total Workers: " + strconv.Itoa(totalWorkers) +
+		" - Active Workers: 0" +
+		" - Jobs: 0/" + strconv.Itoa(totalJobs)
 
-// StartModule initializes tracking for a new bypass module
-func (pc *ProgressCounter) StartModule(moduleName string, totalJobs int, targetURL string) {
-	pc.mu.Lock()
-	defer pc.mu.Unlock()
-
-	// Initialize module stats
-	pc.moduleStats[moduleName] = &ModuleStats{
-		TotalJobs: int64(totalJobs),
-		StartTime: time.Now(),
-	}
-
-	// Create progress bar
-	pb, _ := pterm.DefaultProgressbar.
+	spinner, _ := pterm.DefaultSpinner.WithWriter(multi.NewWriter()).Start(initialText)
+	progressbar, _ := pterm.DefaultProgressbar.
 		WithTotal(totalJobs).
-		WithTitle(pterm.FgCyan.Sprintf("[%s]", moduleName)).
-		WithWriter(pc.multi.NewWriter()).
-		WithShowCount(true).
-		WithShowPercentage(true).
-		Start()
+		WithWriter(multi.NewWriter()).
+		Start(bypassModule)
 
-	pc.progressBars[moduleName] = pb
-	pc.activeModules.Add(1)
+	multi.Start()
 
-	// Start multi printer for first module
-	if pc.activeModules.Load() == 1 {
-		pc.multi.Start()
-	}
-
-	// Print initial module info
-	pterm.Info.Printfln("[%s] Generated %d payloads for %s", moduleName, totalJobs, targetURL)
-}
-
-// UpdateWorkerStats updates the active worker count for a module
-func (pc *ProgressCounter) UpdateWorkerStats(moduleName string, activeWorkers int64) {
-	pc.mu.RLock()
-	defer pc.mu.RUnlock()
-
-	if stats := pc.moduleStats[moduleName]; stats != nil {
-		oldWorkers := stats.ActiveWorkers.Load()
-		if activeWorkers == 0 || oldWorkers == 0 ||
-			math.Abs(float64(activeWorkers-oldWorkers))/float64(oldWorkers) > 0.1 {
-			stats.ActiveWorkers.Store(activeWorkers)
-			if pb := pc.progressBars[moduleName]; pb != nil {
-				title := pterm.FgCyan.Sprintf("[%s] (%d workers)", moduleName, activeWorkers)
-				pb.UpdateTitle(title)
-			}
-		}
+	return &ProgressBar{
+		multiprinter: &multi,
+		spinner:      spinner,
+		progressbar:  progressbar,
 	}
 }
 
-// IncrementProgress updates progress for a module
-func (pc *ProgressCounter) IncrementProgress(moduleName string) {
-	pc.mu.RLock()
-	defer pc.mu.RUnlock()
-
-	if stats := pc.moduleStats[moduleName]; stats != nil {
-		stats.CompletedJobs.Add(1)
-		if pb := pc.progressBars[moduleName]; pb != nil {
-			pb.Increment()
-		}
-	}
+// Increment advances the progress bar by one step
+func (pb *ProgressBar) Increment() {
+	pb.progressbar.Increment()
 }
 
-// MarkModuleAsDone finalizes a module and prints completion stats
-func (pc *ProgressCounter) MarkModuleAsDone(moduleName string) {
-	pc.mu.RLock()
-	stats := pc.moduleStats[moduleName]
-	pb := pc.progressBars[moduleName]
-	pc.mu.RUnlock()
+// UpdateSpinnerText updates the spinner text
+func (pb *ProgressBar) UpdateSpinnerText(bypassModule string, totalWorkers int, activeWorkers int, completedTasks int, submittedTasks int) {
+	text := bypassModule +
+		" - Total Workers: " + strconv.Itoa(totalWorkers) +
+		" - Active Workers: " + strconv.Itoa(activeWorkers) +
+		" - Jobs: " + strconv.Itoa(completedTasks) +
+		"/" + strconv.Itoa(submittedTasks)
 
-	if stats != nil && pb != nil {
-		// Calculate final stats
-		duration := time.Since(stats.StartTime)
-		reqPerSec := float64(stats.CompletedJobs.Load()) / duration.Seconds()
-		stats.ReqPerSec = reqPerSec
-
-		// Print completion message
-		pterm.Success.Printfln("[%s] Completed %d requests in %s (%.2f req/s)",
-			moduleName,
-			stats.CompletedJobs.Load(),
-			duration.Round(time.Millisecond),
-			reqPerSec)
-
-		pc.activeModules.Add(-1)
-
-		// Stop multi printer if all modules complete
-		if pc.activeModules.Load() == 0 {
-			pc.multi.Stop()
-		}
-	}
+	pb.spinner.UpdateText(text)
 }
 
-// Stop stops all progress tracking
-func (pc *ProgressCounter) Stop() {
-	pc.multi.Stop()
+// SpinnerSuccess marks the spinner as complete with success message
+func (pb *ProgressBar) SpinnerSuccess(bypassModule string, totalWorkers int, activeWorkers int, completedTasks int, submittedTasks int) {
+	text := bypassModule +
+		" - Total Workers: " + strconv.Itoa(totalWorkers) +
+		" - Active Workers: " + strconv.Itoa(activeWorkers) +
+		" - Jobs: " + strconv.Itoa(completedTasks) +
+		"/" + strconv.Itoa(submittedTasks)
+
+	pb.spinner.Success(text)
+}
+
+// Stop terminates the progress display
+func (pb *ProgressBar) Stop() {
+	pb.multiprinter.Stop()
+}
+
+// UpdateProgressbarTitle updates the progress bar title
+func (pb *ProgressBar) UpdateProgressbarTitle(title string) {
+	pb.progressbar.UpdateTitle(title)
 }
