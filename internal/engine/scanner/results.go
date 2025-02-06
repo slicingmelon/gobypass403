@@ -93,7 +93,6 @@ func getTableRows(results []*Result) [][]string {
 	return rows
 }
 
-// PrintResultsTable prints the results in a formatted table
 func PrintResultsTable(targetURL string, results []*Result) {
 	if len(results) == 0 {
 		return
@@ -103,7 +102,6 @@ func PrintResultsTable(targetURL string, results []*Result) {
 	pterm.DefaultHeader.WithBackgroundStyle(pterm.NewStyle(pterm.BgGreen)).
 		Println("Results for " + targetURL)
 
-	// Create table data
 	tableData := pterm.TableData{getTableHeader()}
 	for _, row := range getTableRows(results) {
 		tableData = append(tableData, row)
@@ -111,15 +109,22 @@ func PrintResultsTable(targetURL string, results []*Result) {
 
 	// Render table
 	time.Sleep(500 * time.Millisecond)
-	pterm.DefaultTable.
+	table := pterm.DefaultTable.
 		WithHasHeader().
 		WithBoxed().
-		WithData(tableData).
-		Render()
+		WithData(tableData)
 
+	output, err := table.Srender()
+	if err != nil {
+		return
+	}
+
+	// Print the rendered table
+	fmt.Println(output)
 }
 
 // Helper functions remain unchanged
+
 func formatValue(val string) string {
 	if val == "" {
 		return "[-]"
@@ -141,7 +146,7 @@ func FormatBytes(bytes int64) string {
 	if bytes <= 0 {
 		return "[-]"
 	}
-	return strconv.FormatInt(bytes, 10) + " B"
+	return strconv.FormatInt(bytes, 10) // + " B"
 }
 
 func FormatBytesH(bytes int64) string {
