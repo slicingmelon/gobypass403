@@ -31,7 +31,7 @@ type ThrottleConfig struct {
 	MaxRequestDelay         time.Duration
 	ExponentialRequestDelay float64 // Exponential request delay
 	RequestDelayJitter      int     // For random delay, percentage of variation (0-100)
-	ThrottleStatusCodes     []int   // Status codes that trigger throttling
+	ThrottleOnStatusCodes   []int   // Status codes that trigger throttling
 }
 
 // Throttler handles request rate limiting
@@ -46,10 +46,10 @@ type Throttler struct {
 func DefaultThrottleConfig() *ThrottleConfig {
 	return &ThrottleConfig{
 		BaseRequestDelay:        100 * time.Millisecond,
-		MaxRequestDelay:         3000 * time.Millisecond,
+		MaxRequestDelay:         5000 * time.Millisecond,
 		RequestDelayJitter:      20,  // 20% of the base request delay
 		ExponentialRequestDelay: 2.0, // Each throttle doubles the delay
-		ThrottleStatusCodes:     []int{429, 503, 507},
+		ThrottleOnStatusCodes:   []int{429, 503, 507},
 	}
 }
 
@@ -66,7 +66,7 @@ func NewThrottler(config *ThrottleConfig) *Throttler {
 // ShouldThrottle checks if we should throttle based on status code
 func (t *Throttler) ShouldThrottle(statusCode int) bool {
 	config := t.config.Load()
-	if matchStatusCodes(statusCode, config.ThrottleStatusCodes) {
+	if matchStatusCodes(statusCode, config.ThrottleOnStatusCodes) {
 		wasThrottling := t.isThrottling.Swap(true)
 		t.attempts.Add(1)
 		if !wasThrottling {
@@ -120,7 +120,6 @@ func (t *Throttler) Reset() {
 	if wasThrottling {
 		GB403Logger.Info().Msgf("Auto throttling disabled - returning to normal request rate")
 	}
-
 }
 
 // RequestWorkerPoolStats utilities -> get current pool statistics
@@ -151,22 +150,11 @@ func (wp *RequestWorkerPool) GetReqWPCompletedTasks() (completed uint64) {
 
 // NewWorkerPool initializes a new RequestWorkerPool instance
 func NewRequestWorkerPool(opts *HTTPClientOptions, maxWorkers int, errorHandler *GB403ErrorHandler.ErrorHandler) *RequestWorkerPool {
-	// Create throttler with default config
-	throttler := NewThrottler(nil)
-
-	// If client has RequestDelay set, update the base delay
-	if opts.RequestDelay > 0 {
-		config := throttler.config.Load()
-		config.BaseRequestDelay = opts.RequestDelay
-		config.MaxRequestDelay = opts.Timeout // Use client timeout as max delay
-		throttler.UpdateThrottleConfig(config)
-	}
-
 	wp := &RequestWorkerPool{
 		httpClient:   NewHTTPClient(opts, errorHandler),
 		errorHandler: errorHandler,
 		pool:         pond.NewPool(maxWorkers),
-		throttler:    throttler,
+		throttler:    NewThrottler(nil),
 	}
 
 	// Initialize start time

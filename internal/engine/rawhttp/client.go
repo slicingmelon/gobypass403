@@ -118,6 +118,10 @@ func (c *HTTPClient) SetHTTPClientOptions(opts *HTTPClientOptions) {
 
 // DoRequest performs a HTTP request (raw)
 func (c *HTTPClient) DoRequest(req *fasthttp.Request, resp *fasthttp.Response) error {
+	if delay := c.options.RequestDelay; delay > 0 {
+		time.Sleep(delay)
+	}
+
 	return c.client.Do(req, resp)
 }
 
