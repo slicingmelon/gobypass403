@@ -123,7 +123,6 @@ func BuildHTTPRequest(httpclient *HTTPClient, req *fasthttp.Request, job payload
 
 // ProcessHTTPResponse handles response processing
 func ProcessHTTPResponse(httpclient *HTTPClient, resp *fasthttp.Response, job payload.PayloadJob) *RawHTTPResponseDetails {
-
 	startTime := time.Now()
 
 	statusCode := resp.StatusCode()
@@ -327,6 +326,13 @@ func ExtractTitle(body []byte) []byte {
 	}
 
 	return append([]byte(nil), title...)
+}
+
+func GetHTTPResponseTime(details *RawHTTPResponseDetails) int64 {
+	if details == nil {
+		return -1
+	}
+	return details.ResponseTime
 }
 
 func matchStatusCodes(code int, codes []int) bool {
