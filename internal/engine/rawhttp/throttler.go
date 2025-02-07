@@ -48,7 +48,7 @@ func NewThrottler(config *ThrottleConfig) *Throttler {
 }
 
 // ShouldThrottle checks if we should throttle based on status code
-func (t *Throttler) ShouldThrottle(statusCode int) bool {
+func (t *Throttler) ShouldThrottleOnStatusCode(statusCode int) bool {
 	config := t.config.Load()
 	if matchStatusCodes(statusCode, config.ThrottleOnStatusCodes) {
 		wasThrottling := t.isThrottling.Swap(true)

@@ -187,7 +187,7 @@ func (wp *RequestWorkerPool) ProcessRequestResponseJob(job payload.PayloadJob) *
 
 	// Handle throttling based on response
 	if wp.throttler != nil {
-		if wp.throttler.ShouldThrottle(result.StatusCode) {
+		if wp.throttler.ShouldThrottleOnStatusCode(result.StatusCode) {
 			wp.throttler.GetDelay() // This will update the delay based on attempts
 			//GB403Logger.Warning().Msgf("Throttling request due to status code: %d", result.StatusCode)
 		}

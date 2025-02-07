@@ -218,6 +218,8 @@ func (s *Scanner) RunBypassModule(bypassModule string, targetURL string, results
 	// Create progress bar
 	progressbar := NewProgressBar(bypassModule, len(allJobs), s.scannerOpts.Threads)
 
+	progressbar.Start()
+
 	defer func() {
 		progressbar.SpinnerSuccess(
 			bypassModule,

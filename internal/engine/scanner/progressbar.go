@@ -2,6 +2,7 @@ package scanner
 
 import (
 	"strconv"
+	"sync"
 
 	"github.com/pterm/pterm"
 )
@@ -11,6 +12,7 @@ type ProgressBar struct {
 	multiprinter *pterm.MultiPrinter
 	spinner      *pterm.SpinnerPrinter
 	progressbar  *pterm.ProgressbarPrinter
+	mu           sync.Mutex
 }
 
 // NewProgressBar creates a new progress display for a bypass module
@@ -29,13 +31,14 @@ func NewProgressBar(bypassModule string, totalJobs int, totalWorkers int) *Progr
 		WithWriter(multi.NewWriter()).
 		Start(bypassModule)
 
-	multi.Start()
+	//multi.Start()
 
 	return &ProgressBar{
 		multiprinter: &multi,
 		spinner:      spinner,
 		progressbar:  progressbar,
 	}
+
 }
 
 // Increment advances the progress bar by one step
@@ -85,9 +88,31 @@ func (pb *ProgressBar) SpinnerSuccess(
 	pb.spinner.Success(text)
 }
 
+func (pb *ProgressBar) Start() {
+	pb.mu.Lock()
+	defer pb.mu.Unlock()
+
+	if pb.multiprinter != nil {
+		pb.multiprinter.Start()
+	}
+
+}
+
 // Stop terminates the progress display
 func (pb *ProgressBar) Stop() {
-	pb.multiprinter.Stop()
+	pb.mu.Lock()
+
+	defer pb.mu.Unlock()
+
+	if pb.multiprinter != nil {
+		pb.multiprinter.Stop()
+	}
+	if pb.spinner != nil {
+		pb.spinner.Stop()
+	}
+	if pb.progressbar != nil {
+		pb.progressbar.Stop()
+	}
 }
 
 // UpdateProgressbarTitle updates the progress bar title
