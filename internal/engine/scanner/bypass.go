@@ -219,14 +219,40 @@ func (s *Scanner) RunBypassModule(bypassModule string, targetURL string, results
 	progressbar := NewProgressBar(bypassModule, len(allJobs), s.scannerOpts.Threads)
 
 	// Create a done channel to coordinate shutdown
-	done := make(chan struct{})
+	updateCh := make(chan struct{})
+	doneCh := make(chan struct{})
 
 	//progressbar.Start()
 
 	go func() {
 		progressbar.Start()
-		<-done // Wait for signal to stop
-		progressbar.Stop()
+		for {
+			select {
+			case <-updateCh:
+				progressbar.UpdateSpinnerText(
+					bypassModule,
+					s.scannerOpts.Threads,
+					int(ctx.requestPool.GetReqWPActiveWorkers()),
+					int(ctx.requestPool.GetReqWPCompletedTasks()),
+					int(ctx.requestPool.GetReqWPSubmittedTasks()),
+					ctx.requestPool.GetRequestRate(),
+					ctx.requestPool.GetAverageRequestRate(),
+				)
+			case <-doneCh:
+				progressbar.SpinnerSuccess(
+					bypassModule,
+					s.scannerOpts.Threads,
+					int(ctx.requestPool.GetReqWPActiveWorkers()),
+					int(ctx.requestPool.GetReqWPCompletedTasks()),
+					int(ctx.requestPool.GetReqWPSubmittedTasks()),
+					ctx.requestPool.GetRequestRate(),
+					ctx.requestPool.GetAverageRequestRate(),
+					ctx.requestPool.GetPeakRequestRate(),
+				)
+				progressbar.Stop()
+				return
+			}
+		}
 	}()
 
 	defer func() {
@@ -249,15 +275,12 @@ func (s *Scanner) RunBypassModule(bypassModule string, targetURL string, results
 
 	for response := range responses {
 		progressbar.Increment()
-		progressbar.UpdateSpinnerText(
-			bypassModule,
-			s.scannerOpts.Threads,
-			int(ctx.requestPool.GetReqWPActiveWorkers()),
-			int(ctx.requestPool.GetReqWPCompletedTasks()),
-			int(ctx.requestPool.GetReqWPSubmittedTasks()),
-			ctx.requestPool.GetRequestRate(),        // Current submission rate
-			ctx.requestPool.GetAverageRequestRate(), // Average completion rate
-		)
+		// Signal update instead of direct call
+		select {
+		case updateCh <- struct{}{}:
+		default:
+			// Skip update if previous one hasn't been processed
+		}
 
 		// Process matching responses
 		if response != nil && matchStatusCodes(response.StatusCode, s.scannerOpts.MatchStatusCodes) {
@@ -278,6 +301,10 @@ func (s *Scanner) RunBypassModule(bypassModule string, targetURL string, results
 			}
 		}
 	}
+
+	// Signal completion and cleanup
+	close(doneCh)
+	ctx.Stop()
 }
 
 // match HTTP status code in list
