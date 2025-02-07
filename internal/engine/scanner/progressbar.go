@@ -1,8 +1,10 @@
 package scanner
 
 import (
+	"os"
 	"strconv"
 	"sync"
+	"time"
 
 	"github.com/pterm/pterm"
 )
@@ -12,19 +14,18 @@ type ProgressBar struct {
 	multiprinter *pterm.MultiPrinter
 	spinner      *pterm.SpinnerPrinter
 	progressbar  *pterm.ProgressbarPrinter
-	mu           sync.Mutex
+	mu           sync.RWMutex
 }
 
 // NewProgressBar creates a new progress display for a bypass module
 func NewProgressBar(bypassModule string, totalJobs int, totalWorkers int) *ProgressBar {
-	multi := pterm.DefaultMultiPrinter
+	//multi := pterm.DefaultMultiPrinter
 
-	// multi := pterm.MultiPrinter{
-	// 	Writer:      os.Stdout,
-	// 	UpdateDelay: time.Millisecond * 200,
-	// 	buffers:     []*bytes.Buffer{},
-	// 	area:        pterm.DefaultArea,
-	// }
+	multi := &pterm.MultiPrinter{
+		Writer:      os.Stdout,
+		UpdateDelay: time.Millisecond * 200,
+		// buffers and area will be initialized by pterm internally
+	}
 
 	initialText := bypassModule +
 		" - Total Workers: " + strconv.Itoa(totalWorkers) +
@@ -32,19 +33,44 @@ func NewProgressBar(bypassModule string, totalJobs int, totalWorkers int) *Progr
 		" - Requests: 0/" + strconv.Itoa(totalJobs) +
 		" - Rate: 0 req/s"
 
-	spinner, _ := pterm.DefaultSpinner.WithWriter(multi.NewWriter()).Start(initialText)
-	progressbar, _ := pterm.DefaultProgressbar.
-		WithTotal(totalJobs).
-		WithWriter(multi.NewWriter()).
-		Start(bypassModule)
+	spinnerPrinter := &pterm.SpinnerPrinter{
+		Sequence:            []string{"▀ ", " ▀", " ▄", "▄ "},
+		Style:               &pterm.ThemeDefault.SpinnerStyle,
+		Delay:               time.Millisecond * 200,
+		MessageStyle:        &pterm.ThemeDefault.SpinnerTextStyle,
+		SuccessPrinter:      &pterm.Success,
+		FailPrinter:         &pterm.Error,
+		WarningPrinter:      &pterm.Warning,
+		ShowTimer:           true,
+		TimerRoundingFactor: time.Second,
+		TimerStyle:          &pterm.ThemeDefault.TimerStyle,
+		Writer:              multi.NewWriter(),
+	}
 
-	//multi.Start()
+	progressPrinter := &pterm.ProgressbarPrinter{
+		Total:                     totalJobs,
+		BarCharacter:              "█",
+		LastCharacter:             "█",
+		ElapsedTimeRoundingFactor: time.Second,
+		BarStyle:                  &pterm.ThemeDefault.ProgressbarBarStyle,
+		TitleStyle:                &pterm.ThemeDefault.ProgressbarTitleStyle,
+		ShowTitle:                 true,
+		ShowCount:                 true,
+		ShowPercentage:            true,
+		ShowElapsedTime:           true,
+		BarFiller:                 pterm.Gray("█"),
+		MaxWidth:                  80,
+		Writer:                    multi.NewWriter(),
+	}
+
+	spinner, _ := spinnerPrinter.Start(initialText)
+	progressbar, _ := progressPrinter.Start(bypassModule)
 
 	return &ProgressBar{
-		multiprinter: &multi,
+		multiprinter: multi,
 		spinner:      spinner,
 		progressbar:  progressbar,
-		mu:           sync.Mutex{},
+		mu:           sync.RWMutex{},
 	}
 
 }
