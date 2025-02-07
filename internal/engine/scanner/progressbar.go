@@ -59,7 +59,7 @@ func (pb *ProgressBar) UpdateSpinnerText(
 		" - Requests: " + strconv.Itoa(completedTasks) +
 		"/" + strconv.Itoa(submittedTasks) +
 		" - Rate: " + strconv.FormatUint(currentRate, 10) + " req/s" +
-		" - Throughput: " + strconv.FormatUint(avgRate, 10) + " req/s"
+		" - Completed Rate: " + strconv.FormatUint(avgRate, 10) + " req/s"
 
 	pb.spinner.UpdateText(text)
 }

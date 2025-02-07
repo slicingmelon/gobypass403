@@ -328,6 +328,7 @@ func ExtractTitle(body []byte) []byte {
 	return append([]byte(nil), title...)
 }
 
+// GetHTTPResponseTime returns the response time (in ms) of the HTTP response
 func GetHTTPResponseTime(details *RawHTTPResponseDetails) int64 {
 	if details == nil {
 		return -1

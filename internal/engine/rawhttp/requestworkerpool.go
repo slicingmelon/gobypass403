@@ -1,16 +1,12 @@
 package rawhttp
 
 import (
-	"crypto/rand"
-	"math"
-	"math/big"
 	"sync/atomic"
 	"time"
 
 	"github.com/alitto/pond/v2"
 	"github.com/slicingmelon/go-bypass-403/internal/engine/payload"
 	GB403ErrorHandler "github.com/slicingmelon/go-bypass-403/internal/utils/error"
-	GB403Logger "github.com/slicingmelon/go-bypass-403/internal/utils/logger"
 	"github.com/valyala/fasthttp"
 )
 
@@ -26,108 +22,25 @@ type RequestWorkerPool struct {
 	peakRequestRate  atomic.Uint64 // For tracking peak rate
 }
 
-type ThrottleConfig struct {
-	BaseRequestDelay        time.Duration
-	MaxRequestDelay         time.Duration
-	ExponentialRequestDelay float64 // Exponential request delay
-	RequestDelayJitter      int     // For random delay, percentage of variation (0-100)
-	ThrottleOnStatusCodes   []int   // Status codes that trigger throttling
-}
-
-// Throttler handles request rate limiting
-type Throttler struct {
-	config       atomic.Pointer[ThrottleConfig]
-	attempts     atomic.Int32 // Counts consecutive throttled responses
-	lastDelay    atomic.Int64 // Last calculated delay in nanoseconds
-	isThrottling atomic.Bool  // Indicates if auto throttling is currently active
-}
-
-// DefaultThrottleConfig returns sensible defaults
-func DefaultThrottleConfig() *ThrottleConfig {
-	return &ThrottleConfig{
-		BaseRequestDelay:        100 * time.Millisecond,
-		MaxRequestDelay:         5000 * time.Millisecond,
-		RequestDelayJitter:      20,  // 20% of the base request delay
-		ExponentialRequestDelay: 2.0, // Each throttle doubles the delay
-		ThrottleOnStatusCodes:   []int{429, 503, 507},
-	}
-}
-
-// NewThrottler creates a new throttler instance
-func NewThrottler(config *ThrottleConfig) *Throttler {
-	t := &Throttler{}
-	if config == nil {
-		config = DefaultThrottleConfig()
-	}
-	t.config.Store(config)
-	return t
-}
-
-// ShouldThrottle checks if we should throttle based on status code
-func (t *Throttler) ShouldThrottle(statusCode int) bool {
-	config := t.config.Load()
-	if matchStatusCodes(statusCode, config.ThrottleOnStatusCodes) {
-		wasThrottling := t.isThrottling.Swap(true)
-		t.attempts.Add(1)
-		if !wasThrottling {
-			GB403Logger.Warning().Msgf("Auto throttling enabled due to status code: %d", statusCode)
-		}
-		return true
-	}
-	return false
-}
-
-// GetDelay calculates the next delay based on config and attempts
-func (t *Throttler) GetDelay() time.Duration {
-	config := t.config.Load()
-	delay := config.BaseRequestDelay
-
-	// Apply exponential delay if configured
-	if config.ExponentialRequestDelay > 0 {
-		attempts := t.attempts.Load()
-		multiplier := math.Pow(config.ExponentialRequestDelay, float64(attempts))
-		delay = time.Duration(float64(config.BaseRequestDelay) * multiplier)
+// NewWorkerPool initializes a new RequestWorkerPool instance
+func NewRequestWorkerPool(opts *HTTPClientOptions, maxWorkers int, errorHandler *GB403ErrorHandler.ErrorHandler) *RequestWorkerPool {
+	wp := &RequestWorkerPool{
+		httpClient:   NewHTTPClient(opts, errorHandler),
+		errorHandler: errorHandler,
+		pool:         pond.NewPool(maxWorkers),
+		throttler:    NewThrottler(nil),
 	}
 
-	// Apply jitter if configured
-	if config.RequestDelayJitter > 0 {
-		jitterRange := int64(float64(delay.Nanoseconds()) * float64(config.RequestDelayJitter) / 100.0)
-		if jitter, err := rand.Int(rand.Reader, big.NewInt(jitterRange)); err == nil {
-			delay += time.Duration(jitter.Int64())
-		}
-	}
-
-	// Ensure we don't exceed max delay
-	if delay > config.MaxRequestDelay {
-		delay = config.MaxRequestDelay
-	}
-
-	t.lastDelay.Store(int64(delay))
-	return delay
-}
-
-// UpdateThrottleConfig safely updates throttle configuration
-func (t *Throttler) UpdateThrottleConfig(config *ThrottleConfig) {
-	t.config.Store(config)
-	t.attempts.Store(0) // Reset attempts counter
-}
-
-// Reset resets the throttler state
-func (t *Throttler) Reset() {
-	wasThrottling := t.isThrottling.Swap(false)
-	t.attempts.Store(0)
-	t.lastDelay.Store(0)
-	if wasThrottling {
-		GB403Logger.Info().Msgf("Auto throttling disabled - returning to normal request rate")
-	}
+	// Initialize start time
+	wp.requestStartTime.Store(time.Now().UnixNano())
+	wp.ResetPeakRate()
+	return wp
 }
 
 // RequestWorkerPoolStats utilities -> get current pool statistics
 // Each worker pool instance exposes useful metrics that can be queried through the following methods:
 // pool.RunningWorkers() int64: Current number of running workers
-
 // pool.SubmittedTasks() uint64: Total number of tasks submitted since the pool was created
-
 // pool.WaitingTasks() uint64: Current number of tasks in the queue that are waiting to be executed
 // pool.SuccessfulTasks() uint64: Total number of tasks that have successfully completed their execution since the pool was created
 // pool.FailedTasks() uint64: Total number of tasks that completed with panic since the pool was created
@@ -148,27 +61,12 @@ func (wp *RequestWorkerPool) GetReqWPCompletedTasks() (completed uint64) {
 	return wp.pool.CompletedTasks()
 }
 
-// NewWorkerPool initializes a new RequestWorkerPool instance
-func NewRequestWorkerPool(opts *HTTPClientOptions, maxWorkers int, errorHandler *GB403ErrorHandler.ErrorHandler) *RequestWorkerPool {
-	wp := &RequestWorkerPool{
-		httpClient:   NewHTTPClient(opts, errorHandler),
-		errorHandler: errorHandler,
-		pool:         pond.NewPool(maxWorkers),
-		throttler:    NewThrottler(nil),
-	}
-
-	// Initialize start time
-	wp.requestStartTime.Store(time.Now().UnixNano())
-	wp.ResetPeakRate()
-	return wp
-}
-
 // GetRequestRate returns the current requests per second
 func (wp *RequestWorkerPool) GetRequestRate() uint64 {
 	currentTime := time.Now().UnixNano()
 	elapsedSeconds := float64(currentTime-wp.requestStartTime.Load()) / float64(time.Second)
 
-	if elapsedSeconds < 0.1 { // Minimum 100ms elapsed
+	if elapsedSeconds < 0.1 {
 		return 0
 	}
 
@@ -187,8 +85,7 @@ func (wp *RequestWorkerPool) GetRequestRate() uint64 {
 	return rate
 }
 
-// GetAverageRequestRate returns the same as GetRequestRate
-// since we're already calculating based on total progress
+// GetAverageRequestRate returns the live request rate
 func (wp *RequestWorkerPool) GetAverageRequestRate() uint64 {
 	currentTime := time.Now().UnixNano()
 	elapsedSeconds := float64(currentTime-wp.requestStartTime.Load()) / float64(time.Second)
@@ -238,8 +135,9 @@ func (wp *RequestWorkerPool) ProcessRequests(jobs []payload.PayloadJob) <-chan *
 
 // Close gracefully shuts down the worker pool
 func (wp *RequestWorkerPool) Close() {
-	wp.ResetPeakRate()
 	wp.pool.StopAndWait()
+	wp.ResetPeakRate()
+	wp.throttler.Reset()
 	wp.httpClient.Close()
 }
 
