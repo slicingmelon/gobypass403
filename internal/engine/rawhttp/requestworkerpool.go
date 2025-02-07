@@ -179,20 +179,16 @@ func NewRequestWorkerPool(opts *HTTPClientOptions, maxWorkers int, errorHandler 
 	return wp
 }
 
-func (wp *RequestWorkerPool) incrementRequestCount() {
+func (wp *RequestWorkerPool) incrementRequestCounter() {
 	wp.requestCounter.Add(1)
 }
 
+// GetTotalRequests returns the total number of requests sent
 func (wp *RequestWorkerPool) GetTotalRequests() uint64 {
 	return wp.requestCounter.Load()
 }
 
-func (wp *RequestWorkerPool) GetAverageRequestRate() float64 {
-	currentTime := time.Now().UnixNano()
-	totalTime := float64(currentTime-wp.requestStartTime.Load()) / float64(time.Second)
-	return float64(wp.requestCounter.Load()) / totalTime
-}
-
+// GetRequestRate returns the current requests per second
 func (wp *RequestWorkerPool) GetRequestRate() float64 {
 	currentTime := time.Now().UnixNano()
 	currentCount := wp.requestCounter.Load()
@@ -212,8 +208,14 @@ func (wp *RequestWorkerPool) GetRequestRate() float64 {
 	return rate
 }
 
-// ProcessRequests handles multiple payload jobs
+// GetAverageRequestRate returns the average requests per second since start
+func (wp *RequestWorkerPool) GetAverageRequestRate() float64 {
+	currentTime := time.Now().UnixNano()
+	totalTime := float64(currentTime-wp.requestStartTime.Load()) / float64(time.Second)
+	return float64(wp.requestCounter.Load()) / totalTime
+}
 
+// ProcessRequests handles multiple payload jobs
 func (wp *RequestWorkerPool) ProcessRequests(jobs []payload.PayloadJob) <-chan *RawHTTPResponseDetails {
 	results := make(chan *RawHTTPResponseDetails)
 	group := wp.pool.NewGroup()
@@ -279,7 +281,7 @@ func (wp *RequestWorkerPool) ProcessRequestResponseJob(job payload.PayloadJob) *
 	}
 
 	// Increment counter after successful request
-	wp.incrementRequestCount()
+	wp.incrementRequestCounter()
 
 	// Process response
 	result := wp.ProcessResponseTask(resp, job)

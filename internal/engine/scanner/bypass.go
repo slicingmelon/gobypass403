@@ -225,6 +225,7 @@ func (s *Scanner) RunBypassModule(bypassModule string, targetURL string, results
 			int(ctx.requestPool.GetReqWPActiveWorkers()),
 			int(ctx.requestPool.GetReqWPCompletedTasks()),
 			int(ctx.requestPool.GetReqWPSubmittedTasks()),
+			ctx.requestPool.GetAverageRequestRate(), // Add average rate for final message
 		)
 		ctx.Stop()
 		progressbar.Stop()
@@ -241,6 +242,7 @@ func (s *Scanner) RunBypassModule(bypassModule string, targetURL string, results
 			int(ctx.requestPool.GetReqWPActiveWorkers()),
 			int(ctx.requestPool.GetReqWPCompletedTasks()),
 			int(ctx.requestPool.GetReqWPSubmittedTasks()),
+			ctx.requestPool.GetRequestRate(), // Add current rate for spinning updates
 		)
 
 		// Process matching responses
