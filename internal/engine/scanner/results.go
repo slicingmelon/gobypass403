@@ -31,6 +31,7 @@ type Result struct {
 	ServerInfo      string `json:"response_server_info"`
 	RedirectURL     string `json:"response_redirect_url"`
 	HTMLFilename    string `json:"response_html_filename"`
+	ResponseTime    int64  `json:"response_time"`
 }
 
 // ScanResult represents results for a single URL scan
@@ -56,6 +57,7 @@ type ResponseDetails struct {
 	RedirectURL     string
 	ResponseBytes   int
 	Title           string
+	ResponseTime    int64
 }
 
 // getTableHeader returns the header row for the results table

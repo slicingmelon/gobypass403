@@ -225,8 +225,9 @@ func (s *Scanner) RunBypassModule(bypassModule string, targetURL string, results
 			int(ctx.requestPool.GetReqWPActiveWorkers()),
 			int(ctx.requestPool.GetReqWPCompletedTasks()),
 			int(ctx.requestPool.GetReqWPSubmittedTasks()),
-			ctx.requestPool.GetAverageRequestRate(), // Average rate
-			ctx.requestPool.GetPeakRequestRate(),    // Peak rate
+			ctx.requestPool.GetRequestRate(),        // Current submission rate
+			ctx.requestPool.GetAverageRequestRate(), // Average completion rate
+			ctx.requestPool.GetPeakRequestRate(),    // Peak submission rate
 		)
 		ctx.Stop()
 		progressbar.Stop()
@@ -243,7 +244,8 @@ func (s *Scanner) RunBypassModule(bypassModule string, targetURL string, results
 			int(ctx.requestPool.GetReqWPActiveWorkers()),
 			int(ctx.requestPool.GetReqWPCompletedTasks()),
 			int(ctx.requestPool.GetReqWPSubmittedTasks()),
-			ctx.requestPool.GetRequestRate(), // Add current rate for spinning updates
+			ctx.requestPool.GetRequestRate(),        // Current submission rate
+			ctx.requestPool.GetAverageRequestRate(), // Average completion rate
 		)
 
 		// Process matching responses
@@ -261,6 +263,7 @@ func (s *Scanner) RunBypassModule(bypassModule string, targetURL string, results
 				Title:           string(response.Title),
 				ServerInfo:      string(response.ServerInfo),
 				RedirectURL:     string(response.RedirectURL),
+				ResponseTime:    response.ResponseTime,
 			}
 		}
 	}

@@ -22,11 +22,8 @@ type RequestWorkerPool struct {
 	throttler    *Throttler
 
 	// Request rate tracking
-	requestCounter   atomic.Uint64
-	requestStartTime atomic.Int64
-	requestLastCount atomic.Uint64
-	requestLastTime  atomic.Int64
-	peakRequestRate  atomic.Uint64
+	requestStartTime atomic.Int64  // For elapsed time calculation
+	peakRequestRate  atomic.Uint64 // For tracking peak rate
 }
 
 type ThrottleConfig struct {
@@ -126,11 +123,6 @@ func (t *Throttler) Reset() {
 
 }
 
-func (wp *RequestWorkerPool) initRateTracking() {
-	wp.requestStartTime.Store(time.Now().UnixNano())
-	wp.requestLastTime.Store(wp.requestStartTime.Load())
-}
-
 // RequestWorkerPoolStats utilities -> get current pool statistics
 // Each worker pool instance exposes useful metrics that can be queried through the following methods:
 // pool.RunningWorkers() int64: Current number of running workers
@@ -177,84 +169,58 @@ func NewRequestWorkerPool(opts *HTTPClientOptions, maxWorkers int, errorHandler 
 		throttler:    throttler,
 	}
 
-	wp.initRateTracking()
+	// Initialize start time
+	wp.requestStartTime.Store(time.Now().UnixNano())
 	wp.ResetPeakRate()
 	return wp
-}
-
-func (wp *RequestWorkerPool) incrementRequestCounter() {
-	wp.requestCounter.Add(1)
-}
-
-// GetTotalRequests returns the total number of requests sent
-func (wp *RequestWorkerPool) GetTotalRequests() uint64 {
-	return wp.requestCounter.Load()
 }
 
 // GetRequestRate returns the current requests per second
 func (wp *RequestWorkerPool) GetRequestRate() uint64 {
 	currentTime := time.Now().UnixNano()
-	currentCount := wp.requestCounter.Load()
+	elapsedSeconds := float64(currentTime-wp.requestStartTime.Load()) / float64(time.Second)
 
-	// Get last check values
-	lastCheck := wp.requestLastTime.Load()
-	lastCount := wp.requestLastCount.Load()
-
-	// Calculate elapsed time in nanoseconds
-	elapsed := currentTime - lastCheck
-	if elapsed < int64(time.Millisecond) {
+	if elapsedSeconds < 0.1 { // Minimum 100ms elapsed
 		return 0
 	}
 
-	// Calculate count difference
-	countDiff := currentCount - lastCount
+	// Use SubmittedTasks for real-time rate (requests sent)
+	submittedTasks := wp.GetReqWPSubmittedTasks()
 
-	// Calculate requests per second using integer arithmetic
-	// Multiply by 1e9 (nanos per second) before division to maintain precision
-	rate := uint64(float64(countDiff) * float64(time.Second) / float64(elapsed))
+	// Calculate rate based on submitted tasks and elapsed time
+	rate := uint64(float64(submittedTasks) / elapsedSeconds)
 
 	// Update peak rate if current rate is higher
-	for {
-		currentPeak := wp.peakRequestRate.Load()
-		if rate <= currentPeak {
-			break
-		}
-		if wp.peakRequestRate.CompareAndSwap(currentPeak, rate) {
-			break
-		}
+	currentPeak := wp.peakRequestRate.Load()
+	if rate > currentPeak {
+		wp.peakRequestRate.Store(rate)
 	}
-
-	// Update last check values
-	wp.requestLastTime.Store(currentTime)
-	wp.requestLastCount.Store(currentCount)
 
 	return rate
 }
 
-// GetAverageRequestRate returns the average requests per second since start
+// GetAverageRequestRate returns the same as GetRequestRate
+// since we're already calculating based on total progress
 func (wp *RequestWorkerPool) GetAverageRequestRate() uint64 {
 	currentTime := time.Now().UnixNano()
-	elapsed := currentTime - wp.requestStartTime.Load()
+	elapsedSeconds := float64(currentTime-wp.requestStartTime.Load()) / float64(time.Second)
 
-	if elapsed < int64(time.Millisecond) {
+	if elapsedSeconds < 0.1 {
 		return 0
 	}
 
-	totalRequests := wp.requestCounter.Load()
-	if totalRequests == 0 {
-		return 0
-	}
+	// Use CompletedTasks for average throughput (actual processed requests)
+	completedTasks := wp.GetReqWPCompletedTasks()
 
-	rate := uint64(float64(totalRequests) * float64(time.Second) / float64(elapsed))
-
-	return rate
+	return uint64(float64(completedTasks) / elapsedSeconds)
 }
 
-// GetPeakRequestRate returns the highest observed request rate
+// GetPeakRequestRate returns the highest observed submission rate
 func (wp *RequestWorkerPool) GetPeakRequestRate() uint64 {
 	return wp.peakRequestRate.Load()
 }
 
+// ResetPeakRate resets the peak rate counter
 func (wp *RequestWorkerPool) ResetPeakRate() {
 	wp.peakRequestRate.Store(0)
 }
@@ -291,6 +257,8 @@ func (wp *RequestWorkerPool) Close() {
 
 // ProcessRequestResponseJob handles a single job: builds request, sends it, and processes response
 func (wp *RequestWorkerPool) ProcessRequestResponseJob(job payload.PayloadJob) *RawHTTPResponseDetails {
+	startTime := time.Now()
+
 	req := wp.httpClient.AcquireRequest()
 	resp := wp.httpClient.AcquireResponse()
 	defer wp.httpClient.ReleaseRequest(req)
@@ -325,11 +293,11 @@ func (wp *RequestWorkerPool) ProcessRequestResponseJob(job payload.PayloadJob) *
 		}
 	}
 
-	// Increment counter after successful request
-	wp.incrementRequestCounter()
-
 	// Process response
 	result := wp.ProcessResponseTask(resp, job)
+	if result != nil {
+		result.ResponseTime = time.Since(startTime).Milliseconds()
+	}
 
 	// Handle throttling based on response
 	if wp.throttler != nil {
