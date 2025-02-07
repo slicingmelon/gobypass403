@@ -21,7 +21,7 @@ func NewProgressBar(bypassModule string, totalJobs int, totalWorkers int) *Progr
 		" - Total Workers: " + strconv.Itoa(totalWorkers) +
 		" - Active Workers: 0" +
 		" - Requests: 0/" + strconv.Itoa(totalJobs) +
-		" - Request Rate: 0/s"
+		" - Request Rate: 0req/s"
 
 	spinner, _ := pterm.DefaultSpinner.WithWriter(multi.NewWriter()).Start(initialText)
 	progressbar, _ := pterm.DefaultProgressbar.
@@ -44,25 +44,26 @@ func (pb *ProgressBar) Increment() {
 }
 
 // UpdateSpinnerText updates the spinner text
-func (pb *ProgressBar) UpdateSpinnerText(bypassModule string, totalWorkers int, activeWorkers int, completedTasks int, submittedTasks int, reqRate float64) {
+func (pb *ProgressBar) UpdateSpinnerText(bypassModule string, totalWorkers int, activeWorkers int, completedTasks int, submittedTasks int, reqRate uint64) {
 	text := bypassModule +
 		" - Total Workers: " + strconv.Itoa(totalWorkers) +
 		" - Active Workers: " + strconv.Itoa(activeWorkers) +
 		" - Requests: " + strconv.Itoa(completedTasks) +
 		"/" + strconv.Itoa(submittedTasks) +
-		" - Request Rate: " + strconv.FormatFloat(reqRate, 'f', 0, 64) + "/s"
+		" - Request Rate: " + strconv.FormatUint(reqRate, 10) + "req/s"
 
 	pb.spinner.UpdateText(text)
 }
 
 // SpinnerSuccess marks the spinner as complete with success message
-func (pb *ProgressBar) SpinnerSuccess(bypassModule string, totalWorkers int, activeWorkers int, completedTasks int, submittedTasks int, avgReqRate float64) {
+func (pb *ProgressBar) SpinnerSuccess(bypassModule string, totalWorkers int, activeWorkers int, completedTasks int, submittedTasks int, avgReqRate uint64, peakReqRate uint64) {
 	text := bypassModule +
 		" - Total Workers: " + strconv.Itoa(totalWorkers) +
 		" - Active Workers: " + strconv.Itoa(activeWorkers) +
 		" - Requests: " + strconv.Itoa(completedTasks) +
 		"/" + strconv.Itoa(submittedTasks) +
-		" - Average Request Rate: " + strconv.FormatFloat(avgReqRate, 'f', 0, 64) + "/s"
+		" - Average Request Rate: " + strconv.FormatUint(avgReqRate, 10) + "req/s" +
+		" - Peak Request Rate: " + strconv.FormatUint(peakReqRate, 10) + "req/s"
 
 	pb.spinner.Success(text)
 }

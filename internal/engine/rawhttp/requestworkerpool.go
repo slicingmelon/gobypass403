@@ -21,10 +21,12 @@ type RequestWorkerPool struct {
 	pool         pond.Pool
 	throttler    *Throttler
 
+	// Request rate tracking
 	requestCounter   atomic.Uint64
 	requestStartTime atomic.Int64
 	requestLastCount atomic.Uint64
 	requestLastTime  atomic.Int64
+	peakRequestRate  atomic.Uint64
 }
 
 type ThrottleConfig struct {
@@ -176,6 +178,7 @@ func NewRequestWorkerPool(opts *HTTPClientOptions, maxWorkers int, errorHandler 
 	}
 
 	wp.initRateTracking()
+	wp.ResetPeakRate()
 	return wp
 }
 
@@ -189,7 +192,7 @@ func (wp *RequestWorkerPool) GetTotalRequests() uint64 {
 }
 
 // GetRequestRate returns the current requests per second
-func (wp *RequestWorkerPool) GetRequestRate() float64 {
+func (wp *RequestWorkerPool) GetRequestRate() uint64 {
 	currentTime := time.Now().UnixNano()
 	currentCount := wp.requestCounter.Load()
 
@@ -197,9 +200,29 @@ func (wp *RequestWorkerPool) GetRequestRate() float64 {
 	lastCheck := wp.requestLastTime.Load()
 	lastCount := wp.requestLastCount.Load()
 
-	// Calculate rate over the interval since last check
-	interval := float64(currentTime-lastCheck) / float64(time.Second)
-	rate := float64(currentCount-lastCount) / interval
+	// Calculate elapsed time in nanoseconds
+	elapsed := currentTime - lastCheck
+	if elapsed < int64(time.Millisecond) {
+		return 0
+	}
+
+	// Calculate count difference
+	countDiff := currentCount - lastCount
+
+	// Calculate requests per second using integer arithmetic
+	// Multiply by 1e9 (nanos per second) before division to maintain precision
+	rate := uint64(float64(countDiff) * float64(time.Second) / float64(elapsed))
+
+	// Update peak rate if current rate is higher
+	for {
+		currentPeak := wp.peakRequestRate.Load()
+		if rate <= currentPeak {
+			break
+		}
+		if wp.peakRequestRate.CompareAndSwap(currentPeak, rate) {
+			break
+		}
+	}
 
 	// Update last check values
 	wp.requestLastTime.Store(currentTime)
@@ -209,10 +232,31 @@ func (wp *RequestWorkerPool) GetRequestRate() float64 {
 }
 
 // GetAverageRequestRate returns the average requests per second since start
-func (wp *RequestWorkerPool) GetAverageRequestRate() float64 {
+func (wp *RequestWorkerPool) GetAverageRequestRate() uint64 {
 	currentTime := time.Now().UnixNano()
-	totalTime := float64(currentTime-wp.requestStartTime.Load()) / float64(time.Second)
-	return float64(wp.requestCounter.Load()) / totalTime
+	elapsed := currentTime - wp.requestStartTime.Load()
+
+	if elapsed < int64(time.Millisecond) {
+		return 0
+	}
+
+	totalRequests := wp.requestCounter.Load()
+	if totalRequests == 0 {
+		return 0
+	}
+
+	rate := uint64(float64(totalRequests) * float64(time.Second) / float64(elapsed))
+
+	return rate
+}
+
+// GetPeakRequestRate returns the highest observed request rate
+func (wp *RequestWorkerPool) GetPeakRequestRate() uint64 {
+	return wp.peakRequestRate.Load()
+}
+
+func (wp *RequestWorkerPool) ResetPeakRate() {
+	wp.peakRequestRate.Store(0)
 }
 
 // ProcessRequests handles multiple payload jobs
@@ -240,6 +284,7 @@ func (wp *RequestWorkerPool) ProcessRequests(jobs []payload.PayloadJob) <-chan *
 
 // Close gracefully shuts down the worker pool
 func (wp *RequestWorkerPool) Close() {
+	wp.ResetPeakRate()
 	wp.pool.StopAndWait()
 	wp.httpClient.Close()
 }

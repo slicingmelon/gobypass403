@@ -102,7 +102,7 @@ func (pg *PayloadGenerator) GenerateMidPathsJobs(targetURL string, bypassModule 
 		}
 	}
 
-	GB403Logger.Info().BypassModule(bypassModule).Msgf("Generated %d payloads for %s", len(urls), targetURL)
+	GB403Logger.Info().BypassModule(bypassModule).Msgf("Generated %d payloads for %s\n", len(urls), targetURL)
 
 	// Convert to PayloadJobs
 	for fullURL, rawURI := range urls {
@@ -169,7 +169,7 @@ func (pg *PayloadGenerator) GenerateEndPathsJobs(targetURL string, bypassModule 
 		}
 	}
 
-	GB403Logger.Info().BypassModule(bypassModule).Msgf("Generated %d payloads for %s", len(urls), targetURL)
+	GB403Logger.Info().BypassModule(bypassModule).Msgf("Generated %d payloads for %s\n", len(urls), targetURL)
 
 	// Convert URLs to PayloadJobs
 	for fullURL, rawURI := range urls {
@@ -290,7 +290,7 @@ func (pg *PayloadGenerator) GenerateHeaderIPJobs(targetURL string, bypassModule 
 		}
 	}
 
-	GB403Logger.Info().Msgf("[%s] Generated %d payloads for %s", bypassModule, len(allJobs), targetURL)
+	GB403Logger.Info().Msgf("[%s] Generated %d payloads for %s\n", bypassModule, len(allJobs), targetURL)
 	return allJobs
 }
 
@@ -338,7 +338,7 @@ func (pg *PayloadGenerator) GenerateCaseSubstitutionJobs(targetURL string, bypas
 		})
 	}
 
-	GB403Logger.Info().BypassModule(bypassModule).Msgf("Generated %d payloads for %s", len(allJobs), targetURL)
+	GB403Logger.Info().BypassModule(bypassModule).Msgf("Generated %d payloads for %s\n", len(allJobs), targetURL)
 	return allJobs
 }
 
@@ -415,7 +415,7 @@ func (pg *PayloadGenerator) GenerateCharEncodeJobs(targetURL string, bypassModul
 	}
 
 	totalJobs := len(singleUrls) + len(doubleUrls) + len(tripleUrls)
-	GB403Logger.Info().BypassModule(bypassModule).Msgf("Generated %d payloads for %s", totalJobs, targetURL)
+	GB403Logger.Info().BypassModule(bypassModule).Msgf("Generated %d payloads for %s\n", totalJobs, targetURL)
 	return allJobs
 }
 
@@ -494,7 +494,7 @@ func (pg *PayloadGenerator) GenerateHeaderSchemeJobs(targetURL string, bypassMod
 		}
 	}
 
-	GB403Logger.Info().BypassModule(bypassModule).Msgf("Generated %d payloads for %s", len(allJobs), targetURL)
+	GB403Logger.Info().BypassModule(bypassModule).Msgf("Generated %d payloads for %s\n", len(allJobs), targetURL)
 	return allJobs
 }
 
@@ -596,7 +596,7 @@ func (pg *PayloadGenerator) GenerateHeaderURLJobs(targetURL string, bypassModule
 		}
 	}
 
-	GB403Logger.Info().BypassModule(bypassModule).Msgf("Generated %d payloads for %s", len(allJobs), targetURL)
+	GB403Logger.Info().BypassModule(bypassModule).Msgf("Generated %d payloads for %s\n", len(allJobs), targetURL)
 	return allJobs
 }
 
@@ -644,7 +644,7 @@ func (pg *PayloadGenerator) GenerateHeaderPortJobs(targetURL string, bypassModul
 		}
 	}
 
-	GB403Logger.Info().BypassModule(bypassModule).Msgf("Generated %d payloads for %s", len(allJobs), targetURL)
+	GB403Logger.Info().BypassModule(bypassModule).Msgf("Generated %d payloads for %s\n", len(allJobs), targetURL)
 	return allJobs
 }
 
@@ -766,6 +766,6 @@ func (pg *PayloadGenerator) GenerateHostHeaderJobs(targetURL string, bypassModul
 		}
 	}
 
-	GB403Logger.Info().BypassModule(bypassModule).Msgf("Generated %d payloads for %s", len(allJobs), targetURL)
+	GB403Logger.Info().BypassModule(bypassModule).Msgf("Generated %d payloads for %s\n", len(allJobs), targetURL)
 	return allJobs
 }

@@ -225,7 +225,8 @@ func (s *Scanner) RunBypassModule(bypassModule string, targetURL string, results
 			int(ctx.requestPool.GetReqWPActiveWorkers()),
 			int(ctx.requestPool.GetReqWPCompletedTasks()),
 			int(ctx.requestPool.GetReqWPSubmittedTasks()),
-			ctx.requestPool.GetAverageRequestRate(), // Add average rate for final message
+			ctx.requestPool.GetAverageRequestRate(), // Average rate
+			ctx.requestPool.GetPeakRequestRate(),    // Peak rate
 		)
 		ctx.Stop()
 		progressbar.Stop()
