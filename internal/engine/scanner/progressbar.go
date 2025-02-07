@@ -19,6 +19,13 @@ type ProgressBar struct {
 func NewProgressBar(bypassModule string, totalJobs int, totalWorkers int) *ProgressBar {
 	multi := pterm.DefaultMultiPrinter
 
+	// multi := pterm.MultiPrinter{
+	// 	Writer:      os.Stdout,
+	// 	UpdateDelay: time.Millisecond * 200,
+	// 	buffers:     []*bytes.Buffer{},
+	// 	area:        pterm.DefaultArea,
+	// }
+
 	initialText := bypassModule +
 		" - Total Workers: " + strconv.Itoa(totalWorkers) +
 		" - Active Workers: 0" +
