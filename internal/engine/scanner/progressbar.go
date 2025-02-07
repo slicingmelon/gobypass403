@@ -37,6 +37,7 @@ func NewProgressBar(bypassModule string, totalJobs int, totalWorkers int) *Progr
 		multiprinter: &multi,
 		spinner:      spinner,
 		progressbar:  progressbar,
+		mu:           sync.Mutex{},
 	}
 
 }
