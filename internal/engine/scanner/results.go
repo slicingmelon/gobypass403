@@ -123,8 +123,7 @@ func PrintResultsTable(targetURL string, results []*Result) {
 	fmt.Println(output)
 }
 
-// Helper functions remain unchanged
-
+// Helper functions
 func formatValue(val string) string {
 	if val == "" {
 		return "[-]"
