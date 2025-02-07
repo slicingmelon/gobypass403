@@ -43,6 +43,8 @@ func NewProgressBar(bypassModule string, totalJobs int, totalWorkers int) *Progr
 
 // Increment advances the progress bar by one step
 func (pb *ProgressBar) Increment() {
+	pb.mu.Lock()
+	defer pb.mu.Unlock()
 	pb.progressbar.Increment()
 }
 
@@ -56,6 +58,9 @@ func (pb *ProgressBar) UpdateSpinnerText(
 	currentRate uint64,
 	avgRate uint64,
 ) {
+	pb.mu.Lock()
+	defer pb.mu.Unlock()
+
 	text := bypassModule +
 		" - Workers: " + strconv.Itoa(totalWorkers) +
 		" (" + strconv.Itoa(activeWorkers) + " active)" +
@@ -78,6 +83,9 @@ func (pb *ProgressBar) SpinnerSuccess(
 	avgRate uint64,
 	peakRate uint64,
 ) {
+	pb.mu.Lock()
+	defer pb.mu.Unlock()
+
 	text := bypassModule +
 		" - Workers: " + strconv.Itoa(totalWorkers) +
 		" - Completed: " + strconv.Itoa(completedTasks) +
@@ -88,6 +96,14 @@ func (pb *ProgressBar) SpinnerSuccess(
 	pb.spinner.Success(text)
 }
 
+// UpdateProgressbarTitle updates the progress bar title
+func (pb *ProgressBar) UpdateProgressbarTitle(title string) {
+	pb.mu.Lock()
+	defer pb.mu.Unlock()
+	pb.progressbar.UpdateTitle(title)
+}
+
+// Start initializes the progressbar
 func (pb *ProgressBar) Start() {
 	pb.mu.Lock()
 	defer pb.mu.Unlock()
@@ -95,7 +111,6 @@ func (pb *ProgressBar) Start() {
 	if pb.multiprinter != nil {
 		pb.multiprinter.Start()
 	}
-
 }
 
 // Stop terminates the progress display
@@ -113,9 +128,4 @@ func (pb *ProgressBar) Stop() {
 	if pb.progressbar != nil {
 		pb.progressbar.Stop()
 	}
-}
-
-// UpdateProgressbarTitle updates the progress bar title
-func (pb *ProgressBar) UpdateProgressbarTitle(title string) {
-	pb.progressbar.UpdateTitle(title)
 }

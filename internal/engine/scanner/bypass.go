@@ -218,7 +218,16 @@ func (s *Scanner) RunBypassModule(bypassModule string, targetURL string, results
 	// Create progress bar
 	progressbar := NewProgressBar(bypassModule, len(allJobs), s.scannerOpts.Threads)
 
-	progressbar.Start()
+	// Create a done channel to coordinate shutdown
+	done := make(chan struct{})
+
+	//progressbar.Start()
+
+	go func() {
+		progressbar.Start()
+		<-done // Wait for signal to stop
+		progressbar.Stop()
+	}()
 
 	defer func() {
 		progressbar.SpinnerSuccess(
