@@ -184,7 +184,7 @@ func (wp *RequestWorkerPool) GetRequestRate() uint64 {
 		return 0
 	}
 
-	// Use SubmittedTasks for real-time rate (requests sent)
+	// Use SubmittedTasks for real-time rate
 	submittedTasks := wp.GetReqWPSubmittedTasks()
 
 	// Calculate rate based on submitted tasks and elapsed time
