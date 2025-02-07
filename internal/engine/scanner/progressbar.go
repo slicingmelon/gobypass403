@@ -50,7 +50,7 @@ func (pb *ProgressBar) UpdateSpinnerText(bypassModule string, totalWorkers int, 
 		" - Active Workers: " + strconv.Itoa(activeWorkers) +
 		" - Requests: " + strconv.Itoa(completedTasks) +
 		"/" + strconv.Itoa(submittedTasks) +
-		" - Request Rate/s: " + strconv.FormatFloat(reqRate, 'f', 0, 64)
+		" - Request Rate: " + strconv.FormatFloat(reqRate, 'f', 0, 64) + "/s"
 
 	pb.spinner.UpdateText(text)
 }
@@ -62,7 +62,7 @@ func (pb *ProgressBar) SpinnerSuccess(bypassModule string, totalWorkers int, act
 		" - Active Workers: " + strconv.Itoa(activeWorkers) +
 		" - Requests: " + strconv.Itoa(completedTasks) +
 		"/" + strconv.Itoa(submittedTasks) +
-		" - Average Requests Rate/s: " + strconv.FormatFloat(avgReqRate, 'f', 0, 64)
+		" - Average Request Rate: " + strconv.FormatFloat(avgReqRate, 'f', 0, 64) + "/s"
 
 	pb.spinner.Success(text)
 }
