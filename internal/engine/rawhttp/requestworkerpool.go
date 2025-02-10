@@ -143,8 +143,6 @@ func (wp *RequestWorkerPool) Close() {
 
 // ProcessRequestResponseJob handles a single job: builds request, sends it, and processes response
 func (wp *RequestWorkerPool) ProcessRequestResponseJob(job payload.PayloadJob) *RawHTTPResponseDetails {
-	//startTime := time.Now()
-
 	req := wp.httpClient.AcquireRequest()
 	resp := wp.httpClient.AcquireResponse()
 	defer wp.httpClient.ReleaseRequest(req)
