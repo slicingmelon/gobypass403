@@ -47,6 +47,9 @@ type CliOptions struct {
 
 	//UpdatePayloads
 	UpdatePayloads bool
+
+	// Enable profiler
+	Profile bool
 }
 
 // ModesConfig -- all bypass modes and their status
@@ -131,7 +134,7 @@ func (o *CliOptions) setDefaults() {
 
 	// Max response body size default
 	if o.ResponseBodyPreviewSize < 0 {
-		o.ResponseBodyPreviewSize = 512
+		o.ResponseBodyPreviewSize = 1024
 	}
 }
 

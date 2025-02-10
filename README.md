@@ -67,9 +67,9 @@ Usage:
   -delay
         Delay between requests in milliseconds (Default: 0)
   -v, -verbose
-        Verbose output
+        Verbose output (Default: false)
   -d, -debug
-        Debug mode with request canaries
+        Debug mode with request canaries (Default: false)
   -mc, -match-status-code
         Filter results by HTTP status codes (example: -mc 200, 301, 500, all). Default: All status codes
   -http2
@@ -86,6 +86,8 @@ Usage:
         Maximum number of bytes to retrieve from response body (Default: 512)
   -update-payloads
         Update payload files to latest version
+  -profile
+        Enable pprof profiler (Default: false)
 ```
 
 ## Standard WAF 403/401 Bypass

@@ -1,4 +1,4 @@
-package main
+package profiler
 
 import (
 	"fmt"
@@ -66,20 +66,21 @@ func (p *Profiler) Stop() {
 	}
 
 	for _, profType := range []string{"heap", "allocs", "goroutine"} {
-		if err := p.writeProfile(profType); err != nil {
+		if err := p.WriteProfile(profType); err != nil {
 			GB403Logger.Error().Msgf("Failed to write %s profile: %v", profType, err)
 			continue
 		}
 
-		if err := p.generateVisualization(profType); err != nil {
+		if err := p.GenerateVisualization(profType); err != nil {
 			GB403Logger.Error().Msgf("Failed to generate %s visualization: %v", profType, err)
 			continue
 		}
+
 	}
 
 	// Handle CPU profile separately
 	if fi, err := os.Stat(cpuPath); err == nil && fi.Size() > 0 {
-		if err := p.generateVisualization("cpu"); err != nil {
+		if err := p.GenerateVisualization("cpu"); err != nil {
 			GB403Logger.Error().Msgf("Failed to generate CPU visualization: %v", err)
 		}
 	}
@@ -87,7 +88,7 @@ func (p *Profiler) Stop() {
 	GB403Logger.Info().Msgf("Profile data and visualizations written to: %s", p.profileDir)
 }
 
-func (p *Profiler) writeProfile(profType string) error {
+func (p *Profiler) WriteProfile(profType string) error {
 	filename := filepath.Join(p.profileDir, fmt.Sprintf("%s-%s.prof", profType, p.timestamp))
 	f, err := os.Create(filename)
 	if err != nil {
@@ -110,7 +111,7 @@ func (p *Profiler) writeProfile(profType string) error {
 	return nil
 }
 
-func (p *Profiler) generateVisualization(profType string) error {
+func (p *Profiler) GenerateVisualization(profType string) error {
 	profPath := filepath.Join(p.profileDir, fmt.Sprintf("%s-%s.prof", profType, p.timestamp))
 	dotPath := filepath.Join(p.profileDir, fmt.Sprintf("%s-%s.dot", profType, p.timestamp))
 	svgPath := filepath.Join(p.profileDir, fmt.Sprintf("%s-%s.svg", profType, p.timestamp))
