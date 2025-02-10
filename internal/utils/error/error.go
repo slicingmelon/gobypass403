@@ -47,11 +47,13 @@ type ErrorStats struct {
 }
 
 type ErrorHandler struct {
-	cache             *fastcache.Cache
-	cacheLock         sync.RWMutex
-	whitelist         map[string]struct{}
-	whitelistLock     sync.RWMutex
-	stripErrorMsgLock sync.RWMutex
+	cache              *fastcache.Cache
+	cacheLock          sync.RWMutex
+	whitelist          map[string]struct{}
+	whitelistLock      sync.RWMutex
+	stripErrorMsgLock  sync.RWMutex
+	whitelistStats     map[string]int64
+	whitelistStatsLock sync.RWMutex
 }
 
 type ErrorCache struct {
@@ -66,8 +68,9 @@ type ErrorCache struct {
 // cacheSizeMB is the size of the cache in MB
 func NewErrorHandler(cacheSizeMB int) *ErrorHandler {
 	handler := &ErrorHandler{
-		cache:     fastcache.New(cacheSizeMB * 1024 * 1024),
-		whitelist: make(map[string]struct{}),
+		cache:          fastcache.New(cacheSizeMB * 1024 * 1024),
+		whitelist:      make(map[string]struct{}),
+		whitelistStats: make(map[string]int64),
 	}
 
 	// Initialize default whitelisted errors
@@ -95,10 +98,13 @@ func (e *ErrorHandler) IsWhitelisted(err error) bool {
 	e.whitelistLock.RLock()
 	defer e.whitelistLock.RUnlock()
 
-	// Check the error message itself
 	errMsg := err.Error()
 	for whitelisted := range e.whitelist {
 		if strings.Contains(errMsg, whitelisted) {
+			// Increment counter for this whitelisted error
+			e.whitelistStatsLock.Lock()
+			e.whitelistStats[whitelisted]++
+			e.whitelistStatsLock.Unlock()
 			return true
 		}
 	}
@@ -183,6 +189,14 @@ func (e *ErrorHandler) PrintErrorStats() {
 	fmt.Fprintf(&buf, "Cache Set Calls: %d\n", stats.SetCalls)
 	fmt.Fprintf(&buf, "Cache Misses: %d\n", stats.Misses)
 
+	fmt.Fprintln(&buf, "\n=== Whitelisted Error Statistics ===")
+	e.whitelistStatsLock.RLock()
+	for err, count := range e.whitelistStats {
+		fmt.Fprintf(&buf, "Whitelisted Error: %s\n", err)
+		fmt.Fprintf(&buf, "Count: %d occurrences\n", count)
+	}
+	e.whitelistStatsLock.RUnlock()
+
 	// Get all keys with prefix "h:"
 	// Since fastcache doesn't provide iteration, we need to maintain a separate index
 	indexKey := []byte("index:hosts")
@@ -236,6 +250,11 @@ func (e *ErrorHandler) Reset() {
 	e.cacheLock.Lock()
 	defer e.cacheLock.Unlock()
 	e.cache.Reset()
+
+	// Also reset whitelisted error stats
+	e.whitelistStatsLock.Lock()
+	e.whitelistStats = make(map[string]int64)
+	e.whitelistStatsLock.Unlock()
 }
 
 // Helper method to maintain the host index
