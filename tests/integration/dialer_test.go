@@ -52,7 +52,7 @@ func TestDialerInMemory(t *testing.T) {
 			FullURL:      "http://example.com/test",
 			Method:       "GET",
 			BypassModule: "test-dialer",
-			Headers:      []payload.Header{},
+			Headers:      []payload.Headers{},
 			PayloadToken: "test-token",
 		},
 	}
@@ -120,7 +120,7 @@ func TestDialerWithProxy(t *testing.T) {
 			FullURL:      "http://example.com/test",
 			Method:       "GET",
 			BypassModule: "test-proxy",
-			Headers:      []payload.Header{},
+			Headers:      []payload.Headers{},
 			PayloadToken: "test-proxy-token",
 		},
 	}

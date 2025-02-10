@@ -15,7 +15,7 @@ func BenchmarkBuildHTTPRequest(b *testing.B) {
 	job := payload.PayloadJob{
 		FullURL:      "http://example.com/test",
 		Method:       "GET",
-		Headers:      []payload.Header{{Header: "X-Test", Value: "test-value"}},
+		Headers:      []payload.Headers{{Header: "X-Test", Value: "test-value"}},
 		BypassModule: "test-mode",
 	}
 
@@ -48,7 +48,7 @@ func BenchmarkProcessRequests(b *testing.B) {
 	job := payload.PayloadJob{
 		FullURL:      "http://example.com/test",
 		Method:       "GET",
-		Headers:      []payload.Header{{Header: "Accept", Value: "*/*"}},
+		Headers:      []payload.Headers{{Header: "Accept", Value: "*/*"}},
 		BypassModule: "test-mode",
 	}
 
@@ -84,7 +84,7 @@ func BenchmarkBuildCurlCmd(b *testing.B) {
 	job := payload.PayloadJob{
 		FullURL:      "http://example.com/test",
 		Method:       "POST",
-		Headers:      []payload.Header{{Header: "Content-Type", Value: "application/json"}, {Header: "Authorization", Value: "Bearer test-token"}},
+		Headers:      []payload.Headers{{Header: "Content-Type", Value: "application/json"}, {Header: "Authorization", Value: "Bearer test-token"}},
 		BypassModule: "test-mode",
 	}
 

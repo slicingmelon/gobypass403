@@ -22,7 +22,7 @@ func TestCompressionComparison(t *testing.T) {
 	// Test case with realistic data
 	original := payload.SeedData{
 		FullURL: "https://www.example.com/admin",
-		Headers: []payload.Header{{
+		Headers: []payload.Headers{{
 			Header: "X-AppEngine-Trusted-IP-Request",
 			Value:  "1",
 		}},
@@ -99,7 +99,7 @@ func TestCompressionComparisonLargePayload(t *testing.T) {
 	// Create a larger test case
 	original := payload.SeedData{
 		FullURL: "https://www.example.com/admin/dashboard/users/settings?param1=value1&param2=value2",
-		Headers: []payload.Header{
+		Headers: []payload.Headers{
 			{Header: "X-AppEngine-Trusted-IP-Request", Value: "1"},
 
 			{Header: "X-Forwarded-For", Value: "127.0.0.1"},
@@ -155,7 +155,7 @@ func TestCompressionComparisonLargePayload(t *testing.T) {
 func TestAdvancedCompressionComparison(t *testing.T) {
 	original := payload.SeedData{
 		FullURL: "https://www.example.com/admin/dashboard/users/settings?param1=value1&param2=value2&param3=value3",
-		Headers: []payload.Header{
+		Headers: []payload.Headers{
 			{Header: "X-AppEngine-Trusted-IP-Request", Value: "1"},
 
 			{Header: "X-Forwarded-For", Value: "127.0.0.1, 10.0.0.1, 192.168.1.1"},
@@ -269,7 +269,7 @@ func TestMessagePackComparison(t *testing.T) {
 	// Test case
 	original := payload.SeedData{
 		FullURL: "https://www.example.com/admin",
-		Headers: []payload.Header{{
+		Headers: []payload.Headers{{
 			Header: "X-AppEngine-Trusted-IP-Request",
 			Value:  "1",
 		}},
@@ -354,7 +354,7 @@ func TestPayloadSeedSimple(t *testing.T) {
 		t.Errorf("URL mismatch: got %s, want %s", recovered1.FullURL, urlOnly.FullURL)
 	}
 	headerOnly := payload.SeedData{
-		Headers: []payload.Header{{
+		Headers: []payload.Headers{{
 			Header: "X-Test",
 			Value:  "test",
 		}},
@@ -398,7 +398,7 @@ func TestStringVsBytes(t *testing.T) {
 		BypassModule: "header_ip",
 
 		FullURL: "https://www.example.com/admin",
-		Headers: []payload.Header{{
+		Headers: []payload.Headers{{
 			Header: "X-AppEngine-Trusted-IP-Request",
 			Value:  "1",
 		}},

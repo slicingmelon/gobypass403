@@ -30,7 +30,7 @@ type ScannerOpts struct {
 
 // Scanner represents the main scanner structure, perhaps the highest level in the hierarchy of the tool
 type Scanner struct {
-	config       *ScannerOpts
+	scannerOpts  *ScannerOpts
 	urls         []string
 	errorHandler *GB403ErrorHandler.ErrorHandler
 }
@@ -41,7 +41,7 @@ func NewScanner(opts *ScannerOpts, urls []string) *Scanner {
 	InitializeBypassModules()
 
 	return &Scanner{
-		config:       opts,
+		scannerOpts:  opts,
 		urls:         urls,
 		errorHandler: GB403ErrorHandler.NewErrorHandler(32),
 	}
@@ -59,7 +59,7 @@ func (s *Scanner) Run() error {
 			if handleErr := s.errorHandler.HandleError(err, GB403ErrorHandler.ErrorContext{
 				TargetURL:    []byte(url),
 				ErrorSource:  []byte("Scanner.Run"),
-				BypassModule: []byte(s.config.BypassModule),
+				BypassModule: []byte(s.scannerOpts.BypassModule),
 			}); handleErr != nil {
 				GB403Logger.Error().Msgf("Error handling error: %v", handleErr)
 			}
@@ -98,8 +98,8 @@ func (s *Scanner) scanURL(url string) error {
 		})
 
 		// Save findings first
-		outputFile := filepath.Join(s.config.OutDir, "findings.json")
-		if err := AppendResultsToJSON(outputFile, url, s.config.BypassModule, allFindings); err != nil {
+		outputFile := filepath.Join(s.scannerOpts.OutDir, "findings.json")
+		if err := AppendResultsToJSON(outputFile, url, s.scannerOpts.BypassModule, allFindings); err != nil {
 			GB403Logger.Error().Msgf("Failed to save findings for %s: %v", url, err)
 		}
 

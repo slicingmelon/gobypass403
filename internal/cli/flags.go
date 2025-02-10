@@ -36,8 +36,9 @@ func parseFlags() (*CliOptions, error) {
 		{name: "spoof-header", usage: "Add more headers used to spoof IPs (example: X-SecretIP-Header,X-GO-IP)", value: &opts.SpoofHeader},
 		{name: "spoof-ip", usage: "Add more spoof IPs (example: 10.10.20.20,172.16.30.10)", value: &opts.SpoofIP},
 		{name: "fr,follow-redirects", usage: "Follow HTTP redirects", value: &opts.FollowRedirects},
-		{name: "rbps,response-body-preview-size", usage: "Maximum number of bytes to retrieve from response body", value: &opts.ResponseBodyPreviewSize, defVal: 512},
+		{name: "rbps,response-body-preview-size", usage: "Maximum number of bytes to retrieve from response body", value: &opts.ResponseBodyPreviewSize, defVal: 1024},
 		{name: "update-payloads", usage: "Update payload files to latest version", value: &opts.UpdatePayloads},
+		{name: "profile", usage: "Enable pprof profiler", value: &opts.Profile, defVal: false},
 	}
 
 	// Set up custom usage

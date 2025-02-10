@@ -49,7 +49,7 @@ func TestClient301RedirectInmemory(t *testing.T) {
 			FullURL:      "http://example.com/test",
 			Method:       "GET",
 			BypassModule: "test-redirect",
-			Headers:      []payload.Header{},
+			Headers:      []payload.Headers{},
 			PayloadToken: "test-token",
 		},
 	}
@@ -137,7 +137,7 @@ func TestClient302RedirectCaseInsensitive(t *testing.T) {
 			FullURL:      "http://example.com/test",
 			Method:       "GET",
 			BypassModule: "test-redirect",
-			Headers:      []payload.Header{},
+			Headers:      []payload.Headers{},
 			PayloadToken: "test-token",
 		},
 	}
@@ -211,21 +211,21 @@ func TestRequestDelay(t *testing.T) {
 			FullURL:      "http://example.com/test1",
 			Method:       "GET",
 			BypassModule: "test-delay",
-			Headers:      []payload.Header{},
+			Headers:      []payload.Headers{},
 			PayloadToken: "test-token-1",
 		},
 		{
 			FullURL:      "http://example.com/test2",
 			Method:       "GET",
 			BypassModule: "test-delay",
-			Headers:      []payload.Header{},
+			Headers:      []payload.Headers{},
 			PayloadToken: "test-token-2",
 		},
 		{
 			FullURL:      "http://example.com/test3",
 			Method:       "GET",
 			BypassModule: "test-delay",
-			Headers:      []payload.Header{},
+			Headers:      []payload.Headers{},
 			PayloadToken: "test-token-3",
 		},
 	}

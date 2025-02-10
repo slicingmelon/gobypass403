@@ -141,7 +141,7 @@ func TestPayloadSeedRoundTrip(t *testing.T) {
 	// Test case matching your HeaderIP job
 	original := payload.SeedData{
 		FullURL: "https://www.example.com/admin",
-		Headers: []payload.Header{{
+		Headers: []payload.Headers{{
 			Header: "X-AppEngine-Trusted-IP-Request",
 			Value:  "1",
 		}},

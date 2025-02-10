@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"runtime"
+	"time"
 	"unsafe"
 
 	"github.com/slicingmelon/go-bypass-403/internal/engine/payload"
@@ -60,6 +61,7 @@ type RawHTTPResponseDetails struct {
 	RedirectURL     []byte
 	ResponseBytes   int
 	Title           []byte
+	ResponseTime    int64 // in milliseconds
 }
 
 // Request must contain at least non-zero RequestURI with full url (including
@@ -121,6 +123,8 @@ func BuildHTTPRequest(httpclient *HTTPClient, req *fasthttp.Request, job payload
 
 // ProcessHTTPResponse handles response processing
 func ProcessHTTPResponse(httpclient *HTTPClient, resp *fasthttp.Response, job payload.PayloadJob) *RawHTTPResponseDetails {
+	startTime := time.Now()
+
 	statusCode := resp.StatusCode()
 	contentLength := resp.Header.ContentLength()
 
@@ -194,6 +198,8 @@ func ProcessHTTPResponse(httpclient *HTTPClient, resp *fasthttp.Response, job pa
 
 	// Generate curl command PoC
 	result.CurlCommand = BuildCurlCommandPoc(job)
+
+	result.ResponseTime = time.Since(startTime).Milliseconds()
 
 	return result
 }
@@ -320,6 +326,14 @@ func ExtractTitle(body []byte) []byte {
 	}
 
 	return append([]byte(nil), title...)
+}
+
+// GetHTTPResponseTime returns the response time (in ms) of the HTTP response
+func GetHTTPResponseTime(details *RawHTTPResponseDetails) int64 {
+	if details == nil {
+		return -1
+	}
+	return details.ResponseTime
 }
 
 func matchStatusCodes(code int, codes []int) bool {
