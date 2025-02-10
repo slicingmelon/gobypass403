@@ -240,13 +240,13 @@ func isLetter(c byte) bool {
 	return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')
 }
 
-type Header struct {
+type Headers struct {
 	Header string
 	Value  string
 }
 
 // Helper function to convert a slice of Header structs to a map
-func HeadersToMap(headers []Header) map[string]string {
+func HeadersToMap(headers []Headers) map[string]string {
 	m := make(map[string]string)
 	for _, h := range headers {
 		m[h.Header] = h.Value

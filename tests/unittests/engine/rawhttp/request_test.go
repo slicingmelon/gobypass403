@@ -344,7 +344,7 @@ func TestRequestBuilderHostHeaders(t *testing.T) {
 				Method:  "GET",
 				Host:    "google.com",
 				FullURL: tc.url,
-				Headers: []payload.Header{
+				Headers: []payload.Headers{
 					{Header: "Host", Value: "yahoo.com"},
 				},
 			}

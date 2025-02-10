@@ -203,7 +203,7 @@ func main() {
 			Method:       "GET",
 			FullURL:      fmt.Sprintf("%s%d", baseURL, i),
 			PayloadToken: strconv.Itoa(i),
-			Headers: []payload.Header{
+			Headers: []payload.Headers{
 				{Header: "User-Agent", Value: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"},
 			},
 		})

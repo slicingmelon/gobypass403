@@ -150,7 +150,6 @@ func (pb *ProgressBar) Start() {
 // Stop terminates the progress display
 func (pb *ProgressBar) Stop() {
 	pb.mu.Lock()
-
 	defer pb.mu.Unlock()
 
 	if pb.multiprinter != nil {

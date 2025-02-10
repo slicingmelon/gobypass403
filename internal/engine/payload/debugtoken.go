@@ -22,7 +22,7 @@ type SeedData struct {
 	Method       string
 	Host         string
 	RawURI       string
-	Headers      []Header
+	Headers      []Headers
 	BypassModule string
 	FullURL      string
 }
@@ -154,10 +154,11 @@ func DecodeDebugToken(seed string) (SeedData, error) {
 				}
 				headerValue := string(bb[pos : pos+valueLen])
 				pos += valueLen
-				data.Headers = append(data.Headers, Header{
+				data.Headers = append(data.Headers, Headers{
 					Header: headerName,
 					Value:  headerValue,
 				})
+
 			}
 		}
 	}
