@@ -83,7 +83,7 @@ Usage:
   -fr, -follow-redirects
         Follow HTTP redirects
   -rbps, -response-body-preview-size
-        Maximum number of bytes to retrieve from response body (Default: 512)
+        Maximum number of bytes to retrieve from response body (Default: 1024)
   -update-payloads
         Update payload files to latest version
   -profile
