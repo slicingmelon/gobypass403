@@ -3,6 +3,7 @@ package rawhttp
 import (
 	"crypto/tls"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	GB403ErrorHandler "github.com/slicingmelon/go-bypass-403/internal/utils/error"
@@ -38,11 +39,12 @@ type HTTPClientOptions struct {
 
 // HTTPClient represents a reusable HTTP client
 type HTTPClient struct {
-	client       *fasthttp.Client
-	options      *HTTPClientOptions
-	errorHandler *GB403ErrorHandler.ErrorHandler
-	retryConfig  *RetryConfig
-	mu           sync.RWMutex
+	client           *fasthttp.Client
+	options          *HTTPClientOptions
+	errorHandler     *GB403ErrorHandler.ErrorHandler
+	retryConfig      *RetryConfig
+	mu               sync.RWMutex
+	lastResponseTime int64 // last HTTP response time
 }
 
 // DefaultHTTPClientOptions returns the default HTTP client options
@@ -121,8 +123,22 @@ func (c *HTTPClient) DoRequest(req *fasthttp.Request, resp *fasthttp.Response) e
 	if delay := c.options.RequestDelay; delay > 0 {
 		time.Sleep(delay)
 	}
+	// Record the start right here (after the delay, so the delay is excluded)
+	start := time.Now()
 
-	return c.client.Do(req, resp)
+	// Carry out the HTTP request
+	err := c.client.Do(req, resp)
+
+	// Record only the network round-trip time (in milliseconds)
+	// This will not include the subsequent parsing in ProcessHTTPResponse.
+	atomic.StoreInt64(&c.lastResponseTime, time.Since(start).Milliseconds())
+
+	return err
+}
+
+// GetLastResponseTime returns the last HTTP response time in milliseconds
+func (c *HTTPClient) GetLastResponseTime() int64 {
+	return atomic.LoadInt64(&c.lastResponseTime)
 }
 
 // Close releases all idle connections

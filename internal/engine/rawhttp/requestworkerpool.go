@@ -143,7 +143,7 @@ func (wp *RequestWorkerPool) Close() {
 
 // ProcessRequestResponseJob handles a single job: builds request, sends it, and processes response
 func (wp *RequestWorkerPool) ProcessRequestResponseJob(job payload.PayloadJob) *RawHTTPResponseDetails {
-	startTime := time.Now()
+	//startTime := time.Now()
 
 	req := wp.httpClient.AcquireRequest()
 	resp := wp.httpClient.AcquireResponse()
@@ -181,9 +181,9 @@ func (wp *RequestWorkerPool) ProcessRequestResponseJob(job payload.PayloadJob) *
 
 	// Process response
 	result := wp.ProcessResponseTask(resp, job)
-	if result != nil {
-		result.ResponseTime = time.Since(startTime).Milliseconds()
-	}
+	//if result != nil {
+	//	result.ResponseTime = time.Since(startTime).Milliseconds()
+	//}
 
 	// Handle throttling based on response
 	if wp.throttler != nil {
