@@ -154,19 +154,22 @@ func ProcessHTTPResponse(httpclient *HTTPClient, resp *fasthttp.Response, job pa
 	// Handle body preview
 	if httpClientOpts.MaxResponseBodySize > 0 && httpClientOpts.ResponseBodyPreviewSize > 0 {
 		if httpClientOpts.StreamResponseBody {
-			// Streaming case -> resp.BodyStream and LimitReader
 			if stream := resp.BodyStream(); stream != nil {
-				previewBuf := make([]byte, httpClientOpts.ResponseBodyPreviewSize)
-				limitedReader := io.LimitReader(stream, int64(httpClientOpts.ResponseBodyPreviewSize))
-				n, err := limitedReader.Read(previewBuf)
-				if err != nil && err != io.EOF {
-					result.ResponsePreview = []byte(fmt.Sprintf("Error reading stream: %v", err))
-				} else if n > 0 {
-					result.ResponsePreview = append([]byte(nil), previewBuf[:n]...)
+				// Create a buffer for preview
+				previewBuf := bytes.NewBuffer(make([]byte, 0, httpClientOpts.ResponseBodyPreviewSize))
+
+				// Read limited amount of data
+				if _, err := io.CopyN(previewBuf, stream, int64(httpClientOpts.ResponseBodyPreviewSize)); err != nil && err != io.EOF {
+					// Only set error message if it's not EOF
+					result.ResponsePreview = []byte(fmt.Sprintf("Error reading preview: %v", err))
+				} else {
+					// Successfully read the preview
+					result.ResponsePreview = append([]byte(nil), previewBuf.Bytes()...)
 				}
+
 				resp.CloseBodyStream()
 
-				// For streaming, always use content length from header
+				// For streaming, use content length from header
 				result.ResponseBytes = int(contentLength)
 			}
 		} else {
