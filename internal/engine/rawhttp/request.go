@@ -79,7 +79,6 @@ type RawHTTPResponseDetails struct {
 // to the requested host are busy.
 // BuildRequest creates and configures a HTTP request from a bypass job (payload job)
 func BuildHTTPRequest(httpclient *HTTPClient, req *fasthttp.Request, job payload.PayloadJob) error {
-	//req.Reset()
 	req.UseHostHeader = false
 	req.Header.SetMethod(job.Method)
 

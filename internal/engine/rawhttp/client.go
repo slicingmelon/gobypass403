@@ -44,7 +44,7 @@ type HTTPClient struct {
 	errorHandler     *GB403ErrorHandler.ErrorHandler
 	retryConfig      *RetryConfig
 	mu               sync.RWMutex
-	lastResponseTime int64 // last HTTP response time
+	lastResponseTime int64
 }
 
 // DefaultHTTPClientOptions returns the default HTTP client options
@@ -123,14 +123,12 @@ func (c *HTTPClient) DoRequest(req *fasthttp.Request, resp *fasthttp.Response) e
 	if delay := c.options.RequestDelay; delay > 0 {
 		time.Sleep(delay)
 	}
-	// Record the start right here (after the delay, so the delay is excluded)
+
 	start := time.Now()
 
-	// Carry out the HTTP request
 	err := c.client.Do(req, resp)
 
-	// Record only the network round-trip time (in milliseconds)
-	// This will not include the subsequent parsing in ProcessHTTPResponse.
+	// HTTP Resposne time. Record only the network round-trip time (in milliseconds)
 	atomic.StoreInt64(&c.lastResponseTime, time.Since(start).Milliseconds())
 
 	return err

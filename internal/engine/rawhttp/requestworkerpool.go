@@ -169,6 +169,7 @@ func (wp *RequestWorkerPool) ProcessRequestResponseJob(job payload.PayloadJob) *
 	}
 
 	// Send request using SendRequestTask
+	start := time.Now()
 	if err := wp.SendRequestTask(req, resp); err != nil {
 		if err := wp.errorHandler.HandleError(err, GB403ErrorHandler.ErrorContext{
 			ErrorSource:  []byte("RequestWorkerPool.SendRequestTask"),
@@ -178,12 +179,13 @@ func (wp *RequestWorkerPool) ProcessRequestResponseJob(job payload.PayloadJob) *
 			return nil
 		}
 	}
+	respTime := time.Since(start).Milliseconds()
 
 	// Process response
 	result := wp.ProcessResponseTask(resp, job)
-	//if result != nil {
-	//	result.ResponseTime = time.Since(startTime).Milliseconds()
-	//}
+	if result != nil {
+		result.ResponseTime = respTime
+	}
 
 	// Handle throttling based on response
 	if wp.throttler != nil {
