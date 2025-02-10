@@ -79,6 +79,7 @@ func NewProgressBar(bypassModule string, totalJobs int, totalWorkers int) *Progr
 func (pb *ProgressBar) Increment() {
 	pb.mu.Lock()
 	defer pb.mu.Unlock()
+
 	pb.progressbar.Increment()
 }
 
@@ -86,47 +87,45 @@ func (pb *ProgressBar) Increment() {
 func (pb *ProgressBar) UpdateSpinnerText(
 	bypassModule string,
 	totalWorkers int,
-	activeWorkers int,
-	completedTasks int,
-	submittedTasks int,
-	currentRate uint64,
-	avgRate uint64,
+	activeWorkers int64, // from GetReqWPActiveWorkers(),
+	completedTasks uint64, // from GetReqWPCompletedTasks()
+	submittedTasks uint64, // from GetReqWPSubmittedTasks()
+	currentRate uint64, // from GetRequestRate()
+	avgRate uint64, // from GetAverageRequestRate()
 ) {
 	pb.mu.Lock()
 	defer pb.mu.Unlock()
 
 	text := bypassModule +
 		" - Workers: " + strconv.Itoa(totalWorkers) +
-		" (" + strconv.Itoa(activeWorkers) + " active)" +
-		" - Requests: " + strconv.Itoa(completedTasks) +
-		"/" + strconv.Itoa(submittedTasks) +
+		" (" + strconv.FormatInt(activeWorkers, 10) + " active)" +
+		" - Requests: " + strconv.FormatUint(completedTasks, 10) +
+		"/" + strconv.FormatUint(submittedTasks, 10) +
 		" - Rate: " + strconv.FormatUint(currentRate, 10) + " req/s" +
 		" - Completed Rate: " + strconv.FormatUint(avgRate, 10) + " req/s"
-
 	pb.spinner.UpdateText(text)
 }
 
 // SpinnerSuccess marks the spinner as complete with success message
 func (pb *ProgressBar) SpinnerSuccess(
 	bypassModule string,
-	totalWorkers int,
-	activeWorkers int,
-	completedTasks int,
-	submittedTasks int,
-	currentRate uint64,
-	avgRate uint64,
-	peakRate uint64,
+	totalWorkers int, // remains int since it's configured
+	activeWorkers int64, // from GetReqWPActiveWorkers()
+	completedTasks uint64, // from GetReqWPCompletedTasks()
+	submittedTasks uint64, // from GetReqWPSubmittedTasks()
+	currentRate uint64, // current request rate
+	avgRate uint64, // average rate
+	peakRate uint64, // peak request rate
 ) {
 	pb.mu.Lock()
 	defer pb.mu.Unlock()
 
 	text := bypassModule +
 		" - Workers: " + strconv.Itoa(totalWorkers) +
-		" - Completed: " + strconv.Itoa(completedTasks) +
-		"/" + strconv.Itoa(submittedTasks) +
+		" - Completed: " + strconv.FormatUint(completedTasks, 10) +
+		"/" + strconv.FormatUint(submittedTasks, 10) +
 		" - Avg Rate: " + strconv.FormatUint(avgRate, 10) + " req/s" +
 		" - Peak Rate: " + strconv.FormatUint(peakRate, 10) + " req/s"
-
 	pb.spinner.Success(text)
 }
 

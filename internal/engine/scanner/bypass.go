@@ -232,9 +232,9 @@ func (s *Scanner) RunBypassModule(bypassModule string, targetURL string, results
 				progressbar.UpdateSpinnerText(
 					bypassModule,
 					s.scannerOpts.Threads,
-					int(ctx.requestPool.GetReqWPActiveWorkers()),
-					int(ctx.requestPool.GetReqWPCompletedTasks()),
-					int(ctx.requestPool.GetReqWPSubmittedTasks()),
+					ctx.requestPool.GetReqWPActiveWorkers(),
+					ctx.requestPool.GetReqWPCompletedTasks(),
+					ctx.requestPool.GetReqWPSubmittedTasks(),
 					ctx.requestPool.GetRequestRate(),
 					ctx.requestPool.GetAverageRequestRate(),
 				)
@@ -242,9 +242,9 @@ func (s *Scanner) RunBypassModule(bypassModule string, targetURL string, results
 				progressbar.SpinnerSuccess(
 					bypassModule,
 					s.scannerOpts.Threads,
-					int(ctx.requestPool.GetReqWPActiveWorkers()),
-					int(ctx.requestPool.GetReqWPCompletedTasks()),
-					int(ctx.requestPool.GetReqWPSubmittedTasks()),
+					ctx.requestPool.GetReqWPActiveWorkers(),
+					ctx.requestPool.GetReqWPCompletedTasks(),
+					ctx.requestPool.GetReqWPSubmittedTasks(),
 					ctx.requestPool.GetRequestRate(),
 					ctx.requestPool.GetAverageRequestRate(),
 					ctx.requestPool.GetPeakRequestRate(),
@@ -259,12 +259,13 @@ func (s *Scanner) RunBypassModule(bypassModule string, targetURL string, results
 		progressbar.SpinnerSuccess(
 			bypassModule,
 			s.scannerOpts.Threads,
-			int(ctx.requestPool.GetReqWPActiveWorkers()),
-			int(ctx.requestPool.GetReqWPCompletedTasks()),
-			int(ctx.requestPool.GetReqWPSubmittedTasks()),
+			ctx.requestPool.GetReqWPActiveWorkers(),
+			ctx.requestPool.GetReqWPCompletedTasks(),
+			ctx.requestPool.GetReqWPSubmittedTasks(),
 			ctx.requestPool.GetRequestRate(),        // Current submission rate
 			ctx.requestPool.GetAverageRequestRate(), // Average completion rate
-			ctx.requestPool.GetPeakRequestRate(),    // Peak submission rate
+
+			ctx.requestPool.GetPeakRequestRate(), // Peak submission rate
 		)
 		ctx.Stop()
 		progressbar.Stop()
@@ -298,6 +299,7 @@ func (s *Scanner) RunBypassModule(bypassModule string, targetURL string, results
 				ServerInfo:      string(response.ServerInfo),
 				RedirectURL:     string(response.RedirectURL),
 				ResponseTime:    response.ResponseTime,
+				DebugToken:      string(response.DebugToken),
 			}
 		}
 	}

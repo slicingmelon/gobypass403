@@ -180,7 +180,6 @@ func (l *Logger) IsVerboseEnabled() bool {
 	return l.verbose
 }
 
-// And these package-level functions
 func IsDebugEnabled() bool {
 	return DefaultLogger.IsDebugEnabled()
 }

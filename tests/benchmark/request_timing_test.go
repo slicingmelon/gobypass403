@@ -60,10 +60,43 @@ func BenchmarkProcessRequests(b *testing.B) {
 	})
 }
 
+func BenchmarkProcessHTTPResponse(b *testing.B) {
+	// Setup client
+	client := rawhttp.NewHTTPClient(rawhttp.DefaultHTTPClientOptions(), nil)
+
+	// Create test response with realistic data
+	resp := client.AcquireResponse()
+	defer client.ReleaseResponse(resp)
+
+	// Setup response data
+	resp.SetStatusCode(200)
+	resp.Header.SetContentType("text/html")
+	resp.Header.Set("Server", "nginx/1.18.0")
+	resp.Header.Set("Content-Length", "1024")
+	resp.SetBody([]byte(`<!DOCTYPE html><html><head><title>Test Page</title></head><body>test response body</body></html>`))
+
+	// Setup test job
+	job := payload.PayloadJob{
+		FullURL:      "http://example.com/test",
+		Method:       "GET",
+		Headers:      []payload.Headers{{Header: "Accept", Value: "*/*"}},
+		BypassModule: "test-mode",
+		PayloadToken: "test-token",
+	}
+
+	b.ResetTimer()
+	b.RunParallel(func(pb *testing.PB) {
+		for pb.Next() {
+			rawhttp.ProcessHTTPResponse(client, resp, job)
+		}
+	})
+}
+
 func BenchmarkString2ByteConversion(b *testing.B) {
 	s := "test string for conversion benchmark"
 	b.ResetTimer()
 	b.RunParallel(func(pb *testing.PB) {
+
 		for pb.Next() {
 			_ = rawhttp.String2Byte(s)
 		}
