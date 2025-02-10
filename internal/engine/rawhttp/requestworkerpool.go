@@ -166,9 +166,7 @@ func (wp *RequestWorkerPool) ProcessRequestResponseJob(job payload.PayloadJob) *
 		}
 	}
 
-	// Send request using SendRequestTask
-	start := time.Now()
-	if err := wp.SendRequestTask(req, resp); err != nil {
+	if _, err := wp.SendRequestTask(req, resp); err != nil {
 		if err := wp.errorHandler.HandleError(err, GB403ErrorHandler.ErrorContext{
 			ErrorSource:  []byte("RequestWorkerPool.SendRequestTask"),
 			Host:         []byte(job.Host),
@@ -177,13 +175,9 @@ func (wp *RequestWorkerPool) ProcessRequestResponseJob(job payload.PayloadJob) *
 			return nil
 		}
 	}
-	respTime := time.Since(start).Milliseconds()
 
 	// Process response
 	result := wp.ProcessResponseTask(resp, job)
-	if result != nil {
-		result.ResponseTime = respTime
-	}
 
 	// Handle throttling based on response
 	if wp.throttler != nil {
@@ -216,7 +210,7 @@ func (wp *RequestWorkerPool) BuildRequestTask(req *fasthttp.Request, job payload
 // 'Connection: close' response header before closing the connection
 // or add 'Connection: close' request header before sending requests
 // to broken server.
-func (wp *RequestWorkerPool) SendRequestTask(req *fasthttp.Request, resp *fasthttp.Response) error {
+func (wp *RequestWorkerPool) SendRequestTask(req *fasthttp.Request, resp *fasthttp.Response) (int64, error) {
 	return wp.httpClient.DoRequest(req, resp)
 }
 

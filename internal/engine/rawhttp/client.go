@@ -44,7 +44,7 @@ type HTTPClient struct {
 	errorHandler     *GB403ErrorHandler.ErrorHandler
 	retryConfig      *RetryConfig
 	mu               sync.RWMutex
-	lastResponseTime int64
+	lastResponseTime atomic.Int64
 }
 
 // DefaultHTTPClientOptions returns the default HTTP client options
@@ -119,24 +119,25 @@ func (c *HTTPClient) SetHTTPClientOptions(opts *HTTPClientOptions) {
 }
 
 // DoRequest performs a HTTP request (raw)
-func (c *HTTPClient) DoRequest(req *fasthttp.Request, resp *fasthttp.Response) error {
+// Returns the HTTP response time (in ms) and error
+func (c *HTTPClient) DoRequest(req *fasthttp.Request, resp *fasthttp.Response) (int64, error) {
 	if delay := c.options.RequestDelay; delay > 0 {
 		time.Sleep(delay)
 	}
 
 	start := time.Now()
-
 	err := c.client.Do(req, resp)
+	responseTime := time.Since(start).Milliseconds()
 
-	// HTTP Resposne time. Record only the network round-trip time (in milliseconds)
-	atomic.StoreInt64(&c.lastResponseTime, time.Since(start).Milliseconds())
+	// Use Store instead of atomic.StoreInt64
+	c.lastResponseTime.Store(responseTime)
 
-	return err
+	return responseTime, err
 }
 
 // GetLastResponseTime returns the last HTTP response time in milliseconds
 func (c *HTTPClient) GetLastResponseTime() int64 {
-	return atomic.LoadInt64(&c.lastResponseTime)
+	return c.lastResponseTime.Load()
 }
 
 // Close releases all idle connections
