@@ -3,6 +3,7 @@ package rawhttp
 import (
 	"errors"
 	"io"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -28,6 +29,8 @@ type RetryConfig struct {
 
 	// currentInterval tracks the current sleep time.
 	currentInterval time.Duration
+
+	mu sync.RWMutex
 }
 
 type RetryManager struct {
@@ -53,11 +56,12 @@ func (c *HTTPClient) SetRetryConfig(cfg *RetryConfig) {
 // DefaultRetryConfig returns the default retry configuration
 func DefaultRetryConfig() *RetryConfig {
 	return &RetryConfig{
-		InitialDelay:    1 * time.Second,
+		InitialDelay:    300 * time.Millisecond,
 		MaxBackoffTime:  32 * time.Second,
 		Multiplier:      2.0,
 		MaxRetries:      3,
-		currentInterval: 1 * time.Second,
+		currentInterval: 500 * time.Millisecond,
+		mu:              sync.RWMutex{},
 	}
 }
 

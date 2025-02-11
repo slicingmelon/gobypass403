@@ -128,6 +128,11 @@ func (c *HTTPClient) execFunc(req *fasthttp.Request, resp *fasthttp.Response) (i
 	var responseTime int64
 	var lastErr error
 
+	// Reset retry attempts counter for new request
+	c.retryConfig.mu.Lock()
+	c.retryConfig.retriedAttempts.Store(0)
+	c.retryConfig.mu.Unlock()
+
 	for attempt := 0; attempt <= c.retryConfig.MaxRetries; attempt++ {
 		start := time.Now()
 		err := c.client.Do(req, resp)
@@ -143,7 +148,10 @@ func (c *HTTPClient) execFunc(req *fasthttp.Request, resp *fasthttp.Response) (i
 			break
 		}
 
-		c.retryConfig.IncrementAttempts()
+		c.retryConfig.mu.Lock()
+		c.retryConfig.retriedAttempts.Add(1)
+		c.retryConfig.mu.Unlock()
+
 		time.Sleep(c.retryConfig.currentInterval)
 	}
 
