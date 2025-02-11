@@ -1,12 +1,14 @@
 package rawhttp
 
 import (
+	"errors"
 	"sync/atomic"
 	"time"
 
 	"github.com/alitto/pond/v2"
 	"github.com/slicingmelon/go-bypass-403/internal/engine/payload"
 	GB403ErrorHandler "github.com/slicingmelon/go-bypass-403/internal/utils/error"
+	GB403Logger "github.com/slicingmelon/go-bypass-403/internal/utils/logger"
 	"github.com/valyala/fasthttp"
 )
 
@@ -168,7 +170,6 @@ func (wp *RequestWorkerPool) ProcessRequestResponseJob(job payload.PayloadJob) *
 
 	respTime, err := wp.SendRequestTask(req, resp)
 	if err != nil {
-		// Handle the error and get result
 		handledErr := wp.errorHandler.HandleError(err, GB403ErrorHandler.ErrorContext{
 			ErrorSource:  []byte("RequestWorkerPool.SendRequestTask"),
 			Host:         []byte(job.Host),
@@ -176,10 +177,22 @@ func (wp *RequestWorkerPool) ProcessRequestResponseJob(job payload.PayloadJob) *
 		})
 
 		if handledErr != nil {
-			// Non-whitelisted error occurred, stop processing
-			return nil
+			if errors.Is(handledErr, fasthttp.ErrConnectionClosed) {
+				GB403Logger.Warning().Msgf("ErrConnectionClosed detected! Disabling keep-alive\n")
+				// Update client options once for this worker
+				currentOpts := wp.httpClient.GetHTTPClientOptions()
+				currentOpts.DisableKeepAlive = true
+				wp.httpClient.SetHTTPClientOptions(currentOpts)
+
+				// Retry with new settings
+				respTime, err = wp.SendRequestTask(req, resp)
+				if err != nil {
+					return nil
+				}
+			} else {
+				return nil
+			}
 		}
-		// Whitelisted error, continue processing
 	}
 
 	// Process response
