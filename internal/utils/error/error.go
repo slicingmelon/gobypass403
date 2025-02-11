@@ -27,6 +27,12 @@ var (
 	ErrConnForciblyClosedWin = errors.New("wsarecv: An existing connection was forcibly closed by the remote host")
 )
 
+var defaultWhitelistedErrors = []error{
+	ErrBodyTooLarge,
+	ErrInvalidResponseHeader,
+	//ErrConnForciblyClosedWin,
+}
+
 // ErrorContext holds metadata about where/when the error occurred
 type ErrorContext struct {
 	Host         []byte    `json:"host"`
@@ -105,6 +111,22 @@ func (e *ErrorHandler) IsWhitelisted(err error) bool {
 			e.whitelistStatsLock.Lock()
 			e.whitelistStats[whitelisted]++
 			e.whitelistStatsLock.Unlock()
+			return true
+		}
+	}
+	return false
+}
+
+// IsWhitelistedError checks if an error is in the default whitelist
+// global function, might be needed in other places
+func IsWhitelistedError(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	errMsg := err.Error()
+	for _, whitelisted := range defaultWhitelistedErrors {
+		if strings.Contains(errMsg, whitelisted.Error()) {
 			return true
 		}
 	}

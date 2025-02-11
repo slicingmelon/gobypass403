@@ -78,10 +78,14 @@ func NewHTTPClient(opts *HTTPClientOptions, errorHandler *GB403ErrorHandler.Erro
 		opts = DefaultHTTPClientOptions()
 	}
 
+	retryConfig := DefaultRetryConfig()
+	retryConfig.MaxRetries = opts.MaxRetries
+	retryConfig.RetryDelay = opts.RetryDelay
+
 	c := &HTTPClient{
 		options:      opts,
 		errorHandler: errorHandler,
-		retryConfig:  DefaultRetryConfig(),
+		retryConfig:  retryConfig,
 		mu:           sync.RWMutex{},
 	}
 
@@ -124,45 +128,93 @@ func (c *HTTPClient) SetHTTPClientOptions(opts *HTTPClientOptions) {
 	c.options = opts
 }
 
+// func (c *HTTPClient) execFunc(req *fasthttp.Request, resp *fasthttp.Response) (int64, error) {
+// 	c.retryConfig.ResetPerReqAttempts()
+// 	var lastErr error
+
+// 	// Simplify: just use MaxRetries directly
+// 	for attempt := 0; attempt <= c.options.MaxRetries; attempt++ {
+// 		// Apply request delay if configured
+// 		if c.GetHTTPClientOptions().RequestDelay > 0 {
+// 			time.Sleep(c.GetHTTPClientOptions().RequestDelay)
+// 		}
+
+// 		// Start timing after delays
+// 		start := time.Now()
+
+// 		reqv := fasthttp.AcquireRequest()
+// 		respv := fasthttp.AcquireResponse()
+
+// 		req.CopyTo(reqv)
+// 		err := c.client.Do(reqv, respv)
+// 		lastErr = err
+
+// 		if err == nil {
+// 			respTime := time.Since(start).Milliseconds()
+// 			respv.CopyTo(resp)
+// 			fasthttp.ReleaseRequest(reqv)
+// 			fasthttp.ReleaseResponse(respv)
+// 			return respTime, nil
+// 		}
+
+// 		fasthttp.ReleaseRequest(reqv)
+// 		fasthttp.ReleaseResponse(respv)
+
+// 		if !IsRetryableError(err) {
+// 			return time.Since(start).Milliseconds(), err
+// 		}
+
+// 		if attempt < c.options.MaxRetries {
+// 			c.retryConfig.PerReqRetriedAttempts.Add(1)
+// 			time.Sleep(c.options.RetryDelay)
+// 		}
+// 	}
+
+// 	return 0, fmt.Errorf("max retries reached: %w", lastErr)
+// }
+
 func (c *HTTPClient) execFunc(req *fasthttp.Request, resp *fasthttp.Response) (int64, error) {
-	var responseTime int64
+	c.retryConfig.ResetPerReqAttempts()
+	var lastErr error
 
-	// Reset retry attempts counter for new request
-	c.retryConfig.mu.Lock()
-	c.retryConfig.retriedAttempts.Store(0)
-	c.retryConfig.mu.Unlock()
+	// Create a copy of the original request for retries
+	reqCopy := fasthttp.AcquireRequest()
+	defer fasthttp.ReleaseRequest(reqCopy)
+	req.CopyTo(reqCopy)
 
-	start := time.Now()
-	err := NewRetry(&RetryConfig{
-		MaxRetries:      c.options.MaxRetries,
-		InitialInterval: 100 * time.Millisecond, // Start with 100ms
-		MaxInterval:     2 * time.Second,        // Cap at 2 seconds
-		Multiplier:      2.0,                    // Double the delay each time
-	}).Do(func() error {
-		err := c.client.Do(req, resp)
-		if err != nil && IsRetryableError(err) {
-			// Only increment counter for retryable errors
-			c.retryConfig.mu.Lock()
-			c.retryConfig.retriedAttempts.Add(1)
-			c.retryConfig.mu.Unlock()
+	for attempt := 0; attempt <= c.options.MaxRetries; attempt++ {
+		if c.GetHTTPClientOptions().RequestDelay > 0 {
+			time.Sleep(c.GetHTTPClientOptions().RequestDelay)
 		}
-		return err
-	})
 
-	responseTime = time.Since(start).Milliseconds()
-	c.lastResponseTime.Store(responseTime)
+		start := time.Now()
 
-	return responseTime, err
+		// Use the original request copy for each attempt
+		err := c.client.Do(reqCopy, resp)
+		lastErr = err
+
+		if err == nil {
+			return time.Since(start).Milliseconds(), nil
+		}
+
+		if !IsRetryableError(err) {
+			return time.Since(start).Milliseconds(), err
+		}
+
+		if attempt < c.options.MaxRetries {
+			c.retryConfig.PerReqRetriedAttempts.Add(1)
+			time.Sleep(c.options.RetryDelay)
+			// Reset response for next attempt
+			resp.Reset()
+		}
+	}
+
+	return 0, fmt.Errorf("max retries reached: %w", lastErr)
 }
 
 // DoRequest performs a HTTP request (raw)
 // Returns the HTTP response time (in ms) and error
 func (c *HTTPClient) DoRequest(req *fasthttp.Request, resp *fasthttp.Response) (int64, error) {
-	// Apply request delay if configured
-	if delay := c.options.RequestDelay; delay > 0 {
-		time.Sleep(delay)
-	}
-
 	// Execute request with retry handling
 	respTime, err := c.execFunc(req, resp)
 
@@ -177,19 +229,19 @@ func (c *HTTPClient) DoRequest(req *fasthttp.Request, resp *fasthttp.Response) (
 		if handleErr != nil {
 			// If error handling itself failed, we should probably know about it
 			return respTime, fmt.Errorf("request failed after %d retries and error handling failed: %w (handler error: %v)",
-				c.retryConfig.GetRetriedAttempts(), err, handleErr)
+				c.retryConfig.GetPerReqRetriedAttempts(), err, handleErr)
 		}
 
 		// Return original error with retry context
 		return respTime, fmt.Errorf("request failed after %d retries: %w",
-			c.retryConfig.GetRetriedAttempts(), err)
+			c.retryConfig.GetPerReqRetriedAttempts(), err)
 	}
 
 	return respTime, nil
 }
 
-func (c *HTTPClient) GetRetryAttempts() int32 {
-	return c.retryConfig.GetRetriedAttempts()
+func (c *HTTPClient) GetPerReqRetryAttempts() int32 {
+	return c.retryConfig.GetPerReqRetriedAttempts()
 }
 
 // GetLastResponseTime returns the last HTTP response time in milliseconds
