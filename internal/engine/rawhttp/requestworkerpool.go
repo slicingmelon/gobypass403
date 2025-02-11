@@ -168,13 +168,18 @@ func (wp *RequestWorkerPool) ProcessRequestResponseJob(job payload.PayloadJob) *
 
 	respTime, err := wp.SendRequestTask(req, resp)
 	if err != nil {
-		if err := wp.errorHandler.HandleError(err, GB403ErrorHandler.ErrorContext{
+		// Handle the error and get result
+		handledErr := wp.errorHandler.HandleError(err, GB403ErrorHandler.ErrorContext{
 			ErrorSource:  []byte("RequestWorkerPool.SendRequestTask"),
 			Host:         []byte(job.Host),
 			BypassModule: []byte(job.BypassModule),
-		}); err != nil {
+		})
+
+		if handledErr != nil {
+			// Non-whitelisted error occurred, stop processing
 			return nil
 		}
+		// Whitelisted error, continue processing
 	}
 
 	// Process response
