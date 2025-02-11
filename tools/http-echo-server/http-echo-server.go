@@ -64,8 +64,8 @@ func main() {
 	// cli args
 	timeoutFlag := flag.Int("timeout", 200, "Timeout to close connection (ms)")
 	dumpFlag := flag.String("dump", "", "Dump incoming request to a file")
-	portFlag := flag.String("port", "8888", "Listening port")
-	tlsFlag := flag.Bool("tls", false, "Use TLS encryption")
+	portFlag := flag.String("port", "", "HTTP listening port")
+	tlsPortFlag := flag.String("tlsport", "", "HTTPS/TLS listening port")
 	verboseFlag := flag.Bool("v", false, "Display request with special characters")
 	helpFlag := flag.Bool("h", false, "Show help")
 
@@ -76,9 +76,11 @@ func main() {
 		fmt.Fprintf(os.Stderr, "Flags:\n")
 		flag.PrintDefaults()
 		fmt.Fprintf(os.Stderr, "\nExamples:\n")
-		fmt.Fprintf(os.Stderr, "  Dump request to file:     http-echo-server -d request.txt\n")
-		fmt.Fprintf(os.Stderr, "  Run with TLS:            http-echo-server --tls\n")
-		fmt.Fprintf(os.Stderr, "  Show special characters: http-echo-server -v\n")
+		fmt.Fprintf(os.Stderr, "  HTTP only:              http-echo-server -port 8888\n")
+		fmt.Fprintf(os.Stderr, "  HTTPS only:             http-echo-server -tlsport 8443\n")
+		fmt.Fprintf(os.Stderr, "  Both HTTP and HTTPS:    http-echo-server -port 8888 -tlsport 8443\n")
+		fmt.Fprintf(os.Stderr, "  Dump request to file:   http-echo-server -port 8888 -d request.txt\n")
+		fmt.Fprintf(os.Stderr, "  Show special chars:     http-echo-server -port 8888 -v\n")
 	}
 
 	flag.Parse()
@@ -88,39 +90,70 @@ func main() {
 		os.Exit(0)
 	}
 
+	if *portFlag == "" && *tlsPortFlag == "" {
+		log.Fatal("At least one of -port or -tlsport must be specified")
+	}
+
 	verbose = *verboseFlag
 
-	// Setup listener
-	port := fmt.Sprintf(":%s", *portFlag)
-	var ln net.Listener
-	var err error
+	var wg sync.WaitGroup
 
-	if *tlsFlag {
-		tlsConfig, err := generateTLSConfig()
-		if err != nil {
-			log.Fatalf("Failed to generate TLS config: %v", err)
-		}
-		ln, err = tls.Listen("tcp", port, tlsConfig)
-	} else {
-		ln, err = net.Listen("tcp", port)
+	if *portFlag != "" {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			httpPort := fmt.Sprintf(":%s", *portFlag)
+			ln, err := net.Listen("tcp", httpPort)
+			if err != nil {
+				log.Fatalf("Failed to start HTTP listener: %v", err)
+			}
+			defer ln.Close()
+			log.Printf("HTTP Server listening on %s", httpPort)
+
+			for {
+				conn, err := ln.Accept()
+				if err != nil {
+					log.Printf("Failed to accept HTTP connection: %v", err)
+					continue
+				}
+				conn.SetDeadline(time.Now().Add(time.Duration(*timeoutFlag) * time.Millisecond))
+				go handleConnection(conn, *dumpFlag, *timeoutFlag)
+			}
+		}()
 	}
 
-	if err != nil {
-		log.Fatalf("Failed to start listener: %v", err)
-	}
-	defer ln.Close()
+	// Start HTTPS server if tlsport specified
+	if *tlsPortFlag != "" {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			tlsPort := fmt.Sprintf(":%s", *tlsPortFlag)
 
-	log.Printf("Server listening on %s (TLS: %v)", port, *tlsFlag)
+			tlsConfig, err := generateTLSConfig()
+			if err != nil {
+				log.Fatalf("Failed to generate TLS config: %v", err)
+			}
 
-	for {
-		conn, err := ln.Accept()
-		if err != nil {
-			log.Printf("Failed to accept connection: %v", err)
-			continue
-		}
-		conn.SetDeadline(time.Now().Add(time.Duration(*timeoutFlag) * time.Millisecond))
-		go handleConnection(conn, *dumpFlag, *timeoutFlag)
+			ln, err := tls.Listen("tcp", tlsPort, tlsConfig)
+			if err != nil {
+				log.Fatalf("Failed to start HTTPS listener: %v", err)
+			}
+			defer ln.Close()
+			log.Printf("HTTPS Server listening on %s", tlsPort)
+
+			for {
+				conn, err := ln.Accept()
+				if err != nil {
+					log.Printf("Failed to accept HTTPS connection: %v", err)
+					continue
+				}
+				conn.SetDeadline(time.Now().Add(time.Duration(*timeoutFlag) * time.Millisecond))
+				go handleConnection(conn, *dumpFlag, *timeoutFlag)
+			}
+		}()
 	}
+
+	wg.Wait()
 }
 
 func handleConnection(conn net.Conn, dump string, timeout int) {
