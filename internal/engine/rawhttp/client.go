@@ -37,6 +37,7 @@ type HTTPClientOptions struct {
 	EnableHTTP2             bool
 	Dialer                  fasthttp.DialFunc
 	RequestDelay            time.Duration // ScannerCliOpts
+	IsTLS                   bool          // fasthttp core
 }
 
 // HTTPClient represents a reusable HTTP client
