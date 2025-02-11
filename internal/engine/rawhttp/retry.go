@@ -1,8 +1,13 @@
 package rawhttp
 
 import (
+	"errors"
+	"io"
 	"sync/atomic"
 	"time"
+
+	GB403Logger "github.com/slicingmelon/go-bypass-403/internal/utils/logger"
+	"github.com/valyala/fasthttp"
 )
 
 type RetryConfig struct {
@@ -17,7 +22,9 @@ type RetryConfig struct {
 	Multiplier float64
 
 	// MaxRetryCount is the maximum number of retry count.
-	MaxRetryCount int
+	MaxRetries int
+
+	retriedAttempts atomic.Int32
 
 	// currentInterval tracks the current sleep time.
 	currentInterval time.Duration
@@ -49,7 +56,28 @@ func DefaultRetryConfig() *RetryConfig {
 		InitialDelay:    1 * time.Second,
 		MaxBackoffTime:  32 * time.Second,
 		Multiplier:      2.0,
-		MaxRetryCount:   3,
+		MaxRetries:      3,
 		currentInterval: 1 * time.Second,
 	}
+}
+
+// IsRetryableError checks if the error should trigger a retry
+func IsRetryableError(err error) bool {
+	return err == io.EOF || errors.Is(err, fasthttp.ErrConnectionClosed)
+}
+
+// ShouldRetry checks if we can retry based on attempts and config
+func (rc *RetryConfig) ShouldRetry() bool {
+	return rc.retriedAttempts.Load() < int32(rc.MaxRetries)
+}
+
+// IncrementAttempts increments the retry counter
+func (rc *RetryConfig) IncrementAttempts() int32 {
+	return rc.retriedAttempts.Add(1)
+}
+
+// GetRetriedAttempts returns current retry count
+func (rc *RetryConfig) GetRetriedAttempts() int32 {
+	GB403Logger.Warning().Msgf("GetRetriedAttempts: %d\n", rc.retriedAttempts.Load())
+	return rc.retriedAttempts.Load()
 }

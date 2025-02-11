@@ -117,6 +117,11 @@ func BuildHTTPRequest(httpclient *HTTPClient, req *fasthttp.Request, job payload
 		//req.SetConnectionClose()
 	}
 
+	GB403Logger.Debug().Msgf("BuildHTTPRequest - Full Request:\nMethod: %s\nURL: %s\nHeaders:\n%s\n",
+		string(req.Header.Method()),
+		string(req.URI().FullURI()),
+		string(req.Header.String()))
+
 	return nil
 }
 

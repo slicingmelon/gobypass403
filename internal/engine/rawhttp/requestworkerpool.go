@@ -1,14 +1,12 @@
 package rawhttp
 
 import (
-	"errors"
 	"sync/atomic"
 	"time"
 
 	"github.com/alitto/pond/v2"
 	"github.com/slicingmelon/go-bypass-403/internal/engine/payload"
 	GB403ErrorHandler "github.com/slicingmelon/go-bypass-403/internal/utils/error"
-	GB403Logger "github.com/slicingmelon/go-bypass-403/internal/utils/logger"
 	"github.com/valyala/fasthttp"
 )
 
@@ -18,7 +16,6 @@ type RequestWorkerPool struct {
 	errorHandler *GB403ErrorHandler.ErrorHandler
 	pool         pond.Pool
 	throttler    *Throttler
-
 	// Request rate tracking
 	requestStartTime atomic.Int64  // For elapsed time calculation
 	peakRequestRate  atomic.Uint64 // For tracking peak rate
@@ -150,49 +147,24 @@ func (wp *RequestWorkerPool) ProcessRequestResponseJob(job payload.PayloadJob) *
 	defer wp.httpClient.ReleaseRequest(req)
 	defer wp.httpClient.ReleaseResponse(resp)
 
-	// Apply current delay if throttling is active
-	if wp.throttler != nil {
-		if delay := wp.throttler.GetDelay(); delay > 0 {
-			time.Sleep(delay)
-		}
-	}
+	// Apply delays (throttling)
+	wp.applyDelays()
 
-	// Build HTTP Request
-	if err := wp.BuildRequestTask(req, job); err != nil {
-		if err := wp.errorHandler.HandleError(err, GB403ErrorHandler.ErrorContext{
+	if err := BuildHTTPRequest(wp.httpClient, req, job); err != nil {
+		handleErr := wp.errorHandler.HandleError(err, GB403ErrorHandler.ErrorContext{
 			ErrorSource:  []byte("RequestWorkerPool.BuildRequestTask"),
 			Host:         []byte(job.Host),
 			BypassModule: []byte(job.BypassModule),
-		}); err != nil {
+		})
+		if handleErr != nil {
 			return nil
 		}
 	}
 
-	respTime, err := wp.SendRequestTask(req, resp)
+	// DoRequest already handles error logging/handling
+	respTime, err := wp.httpClient.DoRequest(req, resp)
 	if err != nil {
-		handledErr := wp.errorHandler.HandleError(err, GB403ErrorHandler.ErrorContext{
-			ErrorSource:  []byte("RequestWorkerPool.SendRequestTask"),
-			Host:         []byte(job.Host),
-			BypassModule: []byte(job.BypassModule),
-		})
-
-		if handledErr != nil {
-			if errors.Is(handledErr, fasthttp.ErrConnectionClosed) {
-				GB403Logger.Warning().Msgf("ErrConnectionClosed detected! Disabling keep-alive\n")
-				// Update client options once for this worker
-				currentOpts := wp.httpClient.GetHTTPClientOptions()
-				currentOpts.DisableKeepAlive = true
-				wp.httpClient.SetHTTPClientOptions(currentOpts)
-
-				// Retry with new settings
-				respTime, err = wp.SendRequestTask(req, resp)
-				if err != nil {
-					return nil
-				}
-			} else {
-				return nil
-			}
-		}
+		return nil // Error already handled by HTTPClient
 	}
 
 	// Process response
@@ -202,14 +174,22 @@ func (wp *RequestWorkerPool) ProcessRequestResponseJob(job payload.PayloadJob) *
 	}
 
 	// Handle throttling based on response
-	if wp.throttler != nil {
+	if wp.throttler != nil && result != nil {
 		if wp.throttler.ShouldThrottleOnStatusCode(result.StatusCode) {
-			wp.throttler.GetDelay() // This will update the delay based on attempts
-			//GB403Logger.Warning().Msgf("Throttling request due to status code: %d", result.StatusCode)
+			wp.throttler.GetDelay()
 		}
 	}
 
 	return result
+}
+
+func (wp *RequestWorkerPool) applyDelays() {
+	// Apply throttler delay if active
+	if wp.throttler != nil {
+		if delay := wp.throttler.GetDelay(); delay > 0 {
+			time.Sleep(delay)
+		}
+	}
 }
 
 // buildRequest constructs the HTTP request

@@ -2,6 +2,7 @@ package rawhttp
 
 import (
 	"crypto/tls"
+	"fmt"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -16,6 +17,7 @@ var (
 
 // HTTPClientOptions contains configuration options for the HTTPClient
 type HTTPClientOptions struct {
+	BypassModule            string        // ScannerCliOpts
 	Timeout                 time.Duration // ScannerCliOpts
 	DialTimeout             time.Duration // Custom Dial Timeout
 	MaxConnsPerHost         int           // fasthttp core
@@ -43,6 +45,7 @@ type HTTPClient struct {
 	options          *HTTPClientOptions
 	errorHandler     *GB403ErrorHandler.ErrorHandler
 	retryConfig      *RetryConfig
+	retryCount       map[string]int
 	mu               sync.RWMutex
 	lastResponseTime atomic.Int64
 }
@@ -50,6 +53,7 @@ type HTTPClient struct {
 // DefaultHTTPClientOptions returns the default HTTP client options
 func DefaultHTTPClientOptions() *HTTPClientOptions {
 	return &HTTPClientOptions{
+		BypassModule:        "",
 		Timeout:             20 * time.Second,
 		DialTimeout:         5 * time.Second,
 		MaxConnsPerHost:     128,
@@ -74,6 +78,13 @@ func NewHTTPClient(opts *HTTPClientOptions, errorHandler *GB403ErrorHandler.Erro
 		opts = DefaultHTTPClientOptions()
 	}
 
+	c := &HTTPClient{
+		options:      opts,
+		errorHandler: errorHandler,
+		retryConfig:  DefaultRetryConfig(),
+		mu:           sync.RWMutex{},
+	}
+
 	client := &fasthttp.Client{
 		MaxConnsPerHost:               opts.MaxConnsPerHost,
 		MaxIdleConnDuration:           opts.MaxIdleConnDuration,
@@ -95,13 +106,8 @@ func NewHTTPClient(opts *HTTPClientOptions, errorHandler *GB403ErrorHandler.Erro
 		},
 	}
 
-	return &HTTPClient{
-		client:       client,
-		options:      opts,
-		errorHandler: errorHandler,
-		retryConfig:  DefaultRetryConfig(), // Use default retry config
-		mu:           sync.RWMutex{},       // Initialize mutex properly
-	}
+	c.client = client
+	return c
 }
 
 // GetHTTPClientOptions returns the HTTP client options
@@ -118,21 +124,67 @@ func (c *HTTPClient) SetHTTPClientOptions(opts *HTTPClientOptions) {
 	c.options = opts
 }
 
+func (c *HTTPClient) execFunc(req *fasthttp.Request, resp *fasthttp.Response) (int64, error) {
+	var responseTime int64
+	var lastErr error
+
+	for attempt := 0; attempt <= c.retryConfig.MaxRetries; attempt++ {
+		start := time.Now()
+		err := c.client.Do(req, resp)
+		responseTime = time.Since(start).Milliseconds()
+		c.lastResponseTime.Store(responseTime)
+
+		if err == nil {
+			return responseTime, nil
+		}
+
+		lastErr = err
+		if !IsRetryableError(err) || attempt == c.retryConfig.MaxRetries {
+			break
+		}
+
+		c.retryConfig.IncrementAttempts()
+		time.Sleep(c.retryConfig.currentInterval)
+	}
+
+	return responseTime, lastErr
+}
+
 // DoRequest performs a HTTP request (raw)
 // Returns the HTTP response time (in ms) and error
 func (c *HTTPClient) DoRequest(req *fasthttp.Request, resp *fasthttp.Response) (int64, error) {
+	// Apply request delay if configured
 	if delay := c.options.RequestDelay; delay > 0 {
 		time.Sleep(delay)
 	}
 
-	start := time.Now()
-	err := c.client.Do(req, resp)
-	responseTime := time.Since(start).Milliseconds()
+	// Execute request with retry handling
+	respTime, err := c.execFunc(req, resp)
 
-	// Use Store instead of atomic.StoreInt64
-	c.lastResponseTime.Store(responseTime)
+	if err != nil {
+		// Handle the error first
+		handleErr := c.errorHandler.HandleError(err, GB403ErrorHandler.ErrorContext{
+			ErrorSource:  []byte("HTTPClient.DoRequest"),
+			Host:         append([]byte(nil), req.Host()...),
+			BypassModule: []byte(c.options.BypassModule),
+		})
 
-	return responseTime, err
+		if handleErr != nil {
+			// If error handling itself failed, we should probably know about it
+			return respTime, fmt.Errorf("request failed after %d retries and error handling failed: %w (handler error: %v)",
+				c.retryConfig.GetRetriedAttempts(), err, handleErr)
+		}
+
+		// Return original error with retry context
+		return respTime, fmt.Errorf("request failed after %d retries: %w",
+			c.retryConfig.GetRetriedAttempts(), err)
+	}
+
+	return respTime, nil
+}
+
+func (c *HTTPClient) GetRetryAttempts() int32 {
+	return c.retryConfig.GetRetriedAttempts()
 }
 
 // GetLastResponseTime returns the last HTTP response time in milliseconds
