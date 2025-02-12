@@ -78,7 +78,7 @@ func DefaultHTTPClientOptions() *HTTPClientOptions {
 		RequestDelay:             0,
 		DisableKeepAlive:         false, // Keep connections alive
 		Dialer:                   nil,
-		MaxConsecutiveFailedReqs: 20,
+		MaxConsecutiveFailedReqs: 15,
 	}
 }
 

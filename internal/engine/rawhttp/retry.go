@@ -20,7 +20,7 @@ type RetryConfig struct {
 
 func DefaultRetryConfig() *RetryConfig {
 	return &RetryConfig{
-		MaxRetries: 2, // 2 retries means: initial attempt + 2 retries = 3 total attempts
+		MaxRetries: 2,
 		RetryDelay: 500 * time.Millisecond,
 	}
 }

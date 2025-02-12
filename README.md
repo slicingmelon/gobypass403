@@ -63,9 +63,15 @@ Usage:
   -t, -threads
         Number of concurrent threads (Default: 15)
   -T, -timeout
-        Timeout in seconds (Default: 20)
+        Total timeout (in milliseconds) (Default: 20000)
   -delay
-        Delay between requests in milliseconds (Default: 0)
+        Delay between requests (in milliseconds) (Default: 0)
+  -max-retries
+        Maximum number of retries for failed requests (Default: 2)
+  -retry-delay
+        Delay between retries (in milliseconds) (Default: 1000)
+  -max-cfr, -max-consecutive-fails
+        Maximum number of consecutive failed requests before cancelling current bypass module (Default: 15)
   -v, -verbose
         Verbose output (Default: false)
   -d, -debug
