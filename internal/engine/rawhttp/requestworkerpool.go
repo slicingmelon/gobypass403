@@ -163,7 +163,6 @@ func (wp *RequestWorkerPool) Close() {
 func (wp *RequestWorkerPool) ProcessRequestResponseJob(job payload.PayloadJob) *RawHTTPResponseDetails {
 	req := wp.httpClient.AcquireRequest()
 	resp := wp.httpClient.AcquireResponse()
-	httpResponseDetails := AcquireResponseDetails()
 	defer wp.httpClient.ReleaseRequest(req)
 	defer wp.httpClient.ReleaseResponse(resp)
 
@@ -184,28 +183,26 @@ func (wp *RequestWorkerPool) ProcessRequestResponseJob(job payload.PayloadJob) *
 	// DoRequest already handles error logging/handling
 	respTime, err := wp.httpClient.DoRequest(req, resp)
 	if err != nil {
-		ReleaseResponseDetails(httpResponseDetails) // Release on error
 		if err == ErrReqFailedMaxConsecutiveFails {
 			wp.cancel()
 		}
 		return nil
 	}
 
-	// Process response
-	if err := ProcessHTTPResponse(wp.httpClient, resp, job, httpResponseDetails); err != nil {
-		ReleaseResponseDetails(httpResponseDetails) // Release on error
-		return nil
+	// Let ProcessHTTPResponse handle its own resource lifecycle
+	result := ProcessHTTPResponse(wp.httpClient, resp, job)
+	if result != nil {
+		result.ResponseTime = respTime
 	}
-	httpResponseDetails.ResponseTime = respTime
 
 	// Handle throttling based on response
-	if wp.throttler != nil {
-		if wp.throttler.ShouldThrottleOnStatusCode(httpResponseDetails.StatusCode) {
+	if wp.throttler != nil && result != nil {
+		if wp.throttler.ShouldThrottleOnStatusCode(result.StatusCode) {
 			wp.throttler.GetDelay()
 		}
 	}
 
-	return httpResponseDetails
+	return result
 }
 
 func (wp *RequestWorkerPool) applyDelays() {
@@ -242,6 +239,6 @@ func (wp *RequestWorkerPool) SendRequestTask(req *fasthttp.Request, resp *fastht
 }
 
 // processResponse processes the HTTP response and extracts details
-func (wp *RequestWorkerPool) ProcessResponseTask(resp *fasthttp.Response, job payload.PayloadJob, httpRespDetails *RawHTTPResponseDetails) error {
-	return ProcessHTTPResponse(wp.httpClient, resp, job, httpRespDetails)
+func (wp *RequestWorkerPool) ProcessResponseTask(resp *fasthttp.Response, job payload.PayloadJob) *RawHTTPResponseDetails {
+	return ProcessHTTPResponse(wp.httpClient, resp, job)
 }

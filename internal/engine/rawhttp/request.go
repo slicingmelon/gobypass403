@@ -157,7 +157,9 @@ func BuildHTTPRequest(httpclient *HTTPClient, req *fasthttp.Request, job payload
 	return nil
 }
 
-func ProcessHTTPResponse(httpclient *HTTPClient, resp *fasthttp.Response, job payload.PayloadJob, result *RawHTTPResponseDetails) error {
+func ProcessHTTPResponse(httpclient *HTTPClient, resp *fasthttp.Response, job payload.PayloadJob) *RawHTTPResponseDetails {
+	result := AcquireResponseDetails() // Allocate new result each time
+
 	statusCode := resp.StatusCode()
 	contentLength := resp.Header.ContentLength()
 	httpClientOpts := httpclient.GetHTTPClientOptions()
@@ -189,11 +191,9 @@ func ProcessHTTPResponse(httpclient *HTTPClient, resp *fasthttp.Response, job pa
 			if stream := resp.BodyStream(); stream != nil {
 				result.ResponsePreview = ReadLimitedResponseBodyStream(stream, httpClientOpts.ResponseBodyPreviewSize, result.ResponsePreview)
 				resp.CloseBodyStream()
-				// For streaming, use content length from header
 				result.ResponseBytes = int(contentLength)
 			}
 		} else {
-			// Non-streaming case -> resp.Body()
 			if body := resp.Body(); len(body) > 0 {
 				previewSize := httpClientOpts.ResponseBodyPreviewSize
 				if len(body) > previewSize {
@@ -202,7 +202,6 @@ func ProcessHTTPResponse(httpclient *HTTPClient, resp *fasthttp.Response, job pa
 					result.ResponsePreview = append(result.ResponsePreview, body...)
 				}
 
-				// For non-streaming, use content length if available, otherwise use body length
 				if contentLength > 0 {
 					result.ResponseBytes = int(contentLength)
 				} else {
@@ -214,15 +213,13 @@ func ProcessHTTPResponse(httpclient *HTTPClient, resp *fasthttp.Response, job pa
 
 	// Extract title if HTML response
 	if len(result.ResponsePreview) > 0 && bytes.Contains(result.ContentType, strHTML) {
-		if title := ExtractTitle(result.ResponsePreview); title != nil {
-			result.Title = append(result.Title, title...)
-		}
+		result.Title = ExtractTitle(result.ResponsePreview, result.Title)
 	}
 
 	// Generate curl command PoC
 	result.CurlCommand = BuildCurlCommandPoc(job, result.CurlCommand)
 
-	return nil
+	return result
 }
 
 // String2Byte converts string to a byte slice without memory allocation.
@@ -335,31 +332,59 @@ func PeekHeaderKeyCaseInsensitive(h *fasthttp.ResponseHeader, key []byte) []byte
 }
 
 // Helper function to extract title from HTML
-func ExtractTitle(body []byte) []byte {
+// func ExtractTitle(body []byte) []byte {
+// 	if len(body) == 0 {
+// 		return nil
+// 	}
+
+// 	// Find start of title tag
+// 	titleStart := bytes.Index(body, strTitle)
+// 	if titleStart == -1 {
+// 		return nil
+// 	}
+// 	titleStart += 7 // len("<title>")
+
+// 	// Find closing tag
+// 	titleEnd := bytes.Index(body[titleStart:], strCloseTitle)
+// 	if titleEnd == -1 {
+// 		return nil
+// 	}
+
+// 	// Extract title content
+// 	title := bytes.TrimSpace(body[titleStart : titleStart+titleEnd])
+// 	if len(title) == 0 {
+// 		return nil
+// 	}
+
+// 	return append([]byte(nil), title...)
+// }
+
+func ExtractTitle(body []byte, dest []byte) []byte {
 	if len(body) == 0 {
-		return nil
+		return dest
 	}
 
 	// Find start of title tag
 	titleStart := bytes.Index(body, strTitle)
 	if titleStart == -1 {
-		return nil
+		return dest
 	}
 	titleStart += 7 // len("<title>")
 
 	// Find closing tag
 	titleEnd := bytes.Index(body[titleStart:], strCloseTitle)
 	if titleEnd == -1 {
-		return nil
+		return dest
 	}
 
 	// Extract title content
 	title := bytes.TrimSpace(body[titleStart : titleStart+titleEnd])
 	if len(title) == 0 {
-		return nil
+		return dest
 	}
 
-	return append([]byte(nil), title...)
+	// Append to existing buffer instead of allocating
+	return append(dest, title...)
 }
 
 // GetHTTPResponseTime returns the response time (in ms) of the HTTP response

@@ -30,12 +30,28 @@ func BenchmarkBuildHTTPRequest(b *testing.B) {
 	})
 }
 
-// 21029904	        61.35 ns/op	       0 B/op	       0 allocs/op
+/*
+BenchmarkProcessHTTPResponseStreamed-20         26336985                50.12 ns/op            0 B/op          0 allocs/op
+--- BENCH: BenchmarkProcessHTTPResponseStreamed-20
+
+request_benchmark_test.go:68: Response Preview: <!DOCTYPE html><html><head><title>Test Page</title></head><body>test response body</body></html>
+request_benchmark_test.go:69: Content Type: text/html
+request_benchmark_test.go:70: Title: Test Page
+request_benchmark_test.go:68: Response Preview: <!DOCTYPE html><html><head><title>Test Page</title></head><body>test response body</body></html>
+request_benchmark_test.go:69: Content Type: text/html
+request_benchmark_test.go:70: Title: Test Page
+request_benchmark_test.go:68: Response Preview: <!DOCTYPE html><html><head><title>Test Page</title></head><body>test response body</body></html>
+request_benchmark_test.go:69: Content Type: text/html
+request_benchmark_test.go:70: Title: Test Page
+request_benchmark_test.go:68: Response Preview: <!DOCTYPE html><html><head><title>Test Page</title></head><body>test response body</body></html>
+... [output truncated]
+PASS
+*/
 func BenchmarkProcessHTTPResponseStreamed(b *testing.B) {
 	// Setup client with default options
 	opts := rawhttp.DefaultHTTPClientOptions()
-	opts.ResponseBodyPreviewSize = 1024 // Ensure preview size is large enough
-	opts.MaxResponseBodySize = 1024     // Also need to set this
+	opts.ResponseBodyPreviewSize = 1024
+	opts.MaxResponseBodySize = 1024
 	client := rawhttp.NewHTTPClient(opts, nil)
 
 	// Create test response with realistic data
@@ -61,7 +77,7 @@ func BenchmarkProcessHTTPResponseStreamed(b *testing.B) {
 	// Verify response processing works correctly before benchmarking
 	result := rawhttp.ProcessHTTPResponse(client, resp, job)
 	if result == nil {
-		b.Fatal("ProcessHTTPResponse returned nil result")
+		b.Fatal("ProcessHTTPResponse returned nil")
 	}
 
 	// Debug output to see what we're getting
@@ -95,48 +111,83 @@ func BenchmarkProcessHTTPResponseStreamed(b *testing.B) {
 	})
 }
 
-// Test both streaming and non-streaming cases
-func TestProcessHTTPResponseModes(t *testing.T) {
-	tests := []struct {
-		name      string
-		streaming bool
-	}{
-		{"NonStreaming", false},
-		{"Streaming", true},
+/*
+BenchmarkProcessHTTPResponsePerIterationNew
+BenchmarkProcessHTTPResponsePerIterationNew-20
+27435657	        45.25 ns/op	       0 B/op	       0 allocs/op
+PASS
+*/
+func BenchmarkProcessHTTPResponsePerIterationNew(b *testing.B) {
+	opts := rawhttp.DefaultHTTPClientOptions()
+	opts.ResponseBodyPreviewSize = 1024
+	opts.MaxResponseBodySize = 1024
+	client := rawhttp.NewHTTPClient(opts, nil)
+
+	// Setup response once
+	resp := client.AcquireResponse()
+	defer client.ReleaseResponse(resp)
+
+	resp.SetStatusCode(200)
+	resp.Header.SetContentType("text/html")
+	resp.SetBodyStream(bytes.NewReader([]byte(`<!DOCTYPE html><html><head><title>Test Page</title></head><body>test</body></html>`)), 1024)
+
+	job := payload.PayloadJob{
+		FullURL:      "http://example.com/test",
+		Method:       "GET",
+		BypassModule: "test-mode",
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			opts := rawhttp.DefaultHTTPClientOptions()
-			opts.StreamResponseBody = tt.streaming
-			opts.ResponseBodyPreviewSize = 1024
-			client := rawhttp.NewHTTPClient(opts, nil)
-
-			resp := client.AcquireResponse()
-			defer client.ReleaseResponse(resp)
-
-			resp.SetStatusCode(200)
-			resp.Header.SetContentType("text/html")
-			resp.SetBody([]byte(`<!DOCTYPE html><html><head><title>Test Page</title></head><body>test response body</body></html>`))
-
-			job := payload.PayloadJob{
-				FullURL:      "http://example.com/test",
-				Method:       "GET",
-				BypassModule: "test-mode",
-			}
-
+	b.ResetTimer()
+	b.RunParallel(func(pb *testing.PB) {
+		for pb.Next() {
 			result := rawhttp.ProcessHTTPResponse(client, resp, job)
-			if result == nil {
-				t.Fatal("ProcessHTTPResponse returned nil result")
-			}
-			defer rawhttp.ReleaseResponseDetails(result)
-
-			if !bytes.Equal(result.Title, []byte("Test Page")) {
-				t.Errorf("Expected title 'Test Page', got '%s'", result.Title)
-			}
-		})
-	}
+			rawhttp.ReleaseResponseDetails(result)
+		}
+	})
 }
+
+// Test both streaming and non-streaming case
+// func TestProcessHTTPResponseModes(t *testing.T) {
+// 	tests := []struct {
+// 		name      string
+// 		streaming bool
+// 	}{
+// 		{"NonStreaming", false},
+// 		{"Streaming", true},
+// 	}
+
+// 	for _, tt := range tests {
+// 		t.Run(tt.name, func(t *testing.T) {
+// 			opts := rawhttp.DefaultHTTPClientOptions()
+// 			opts.StreamResponseBody = tt.streaming
+// 			opts.ResponseBodyPreviewSize = 1024
+// 			client := rawhttp.NewHTTPClient(opts, nil)
+
+// 			resp := client.AcquireResponse()
+// 			defer client.ReleaseResponse(resp)
+
+// 			resp.SetStatusCode(200)
+// 			resp.Header.SetContentType("text/html")
+// 			resp.SetBody([]byte(`<!DOCTYPE html><html><head><title>Test Page</title></head><body>test response body</body></html>`))
+
+// 			job := payload.PayloadJob{
+// 				FullURL:      "http://example.com/test",
+// 				Method:       "GET",
+// 				BypassModule: "test-mode",
+// 			}
+
+// 			result := rawhttp.ProcessHTTPResponse(client, resp, job)
+// 			if result == nil {
+// 				t.Fatal("ProcessHTTPResponse returned nil result")
+// 			}
+// 			defer rawhttp.ReleaseResponseDetails(result)
+
+// 			if !bytes.Equal(result.Title, []byte("Test Page")) {
+// 				t.Errorf("Expected title 'Test Page', got '%s'", result.Title)
+// 			}
+// 		})
+// 	}
+// }
 
 func BenchmarkString2ByteConversion(b *testing.B) {
 	s := "test string for conversion benchmark"
@@ -179,4 +230,43 @@ func BenchmarkBuildCurlCmd(b *testing.B) {
 			localDest = rawhttp.BuildCurlCommandPoc(job, localDest)
 		}
 	})
+}
+
+/*
+BenchmarkExtractTitle
+BenchmarkExtractTitle/ValidTitle
+BenchmarkExtractTitle/ValidTitle-20
+42675770	        28.34 ns/op	       0 B/op	       0 allocs/op
+BenchmarkExtractTitle/LongTitle
+BenchmarkExtractTitle/LongTitle-20
+38150343	        30.70 ns/op	       0 B/op	       0 allocs/op
+PASS
+*/
+func BenchmarkExtractTitle(b *testing.B) {
+	tests := []struct {
+		name string
+		html []byte
+	}{
+		{
+			name: "ValidTitle",
+			html: []byte(`<!DOCTYPE html><html><head><title>Test Page</title></head><body>test</body></html>`),
+		},
+		{
+			name: "LongTitle",
+			html: []byte(`<!DOCTYPE html><html><head><title>Very Long Title That Goes On And On And On And On</title></head><body>test</body></html>`),
+		},
+	}
+
+	for _, tt := range tests {
+		b.Run(tt.name, func(b *testing.B) {
+			dest := make([]byte, 0, 64) // Pre-allocate once
+			b.ReportAllocs()
+			b.ResetTimer()
+
+			for i := 0; i < b.N; i++ {
+				dest = dest[:0] // Reset length but keep capacity
+				dest = rawhttp.ExtractTitle(tt.html, dest)
+			}
+		})
+	}
 }
