@@ -151,14 +151,6 @@ func (wp *RequestWorkerPool) ProcessRequests(jobs []payload.PayloadJob) <-chan *
 	return results
 }
 
-// // Close gracefully shuts down the worker pool
-// func (wp *RequestWorkerPool) Close() {
-// 	wp.pool.StopAndWait()
-// 	wp.ResetPeakRate()
-// 	wp.throttler.Reset()
-// 	wp.httpClient.Close()
-// }
-
 func (wp *RequestWorkerPool) Close() {
 	wp.cancel()           // Cancel context if not already done
 	wp.pool.StopAndWait() // Ensure all workers are stopped

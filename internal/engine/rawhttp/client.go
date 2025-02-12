@@ -53,7 +53,6 @@ type HTTPClient struct {
 	options               *HTTPClientOptions
 	errorHandler          *GB403ErrorHandler.ErrorHandler
 	retryConfig           *RetryConfig
-	retryCount            map[string]int
 	mu                    sync.RWMutex
 	lastResponseTime      atomic.Int64
 	consecutiveFailedReqs atomic.Int32

@@ -479,7 +479,7 @@ func TestResponseProcessingWithSpacedHeaders(t *testing.T) {
 			}
 
 			// Get response headers
-			headers := rawhttp.GetResponseHeaders(&resp.Header, resp.StatusCode())
+			headers := rawhttp.GetResponseHeaders(&resp.Header, resp.StatusCode(), []byte{})
 
 			// Log response details for debugging
 			GB403Logger.Info().Msgf("\n=== Response Details for %s ===\n", tc.name)

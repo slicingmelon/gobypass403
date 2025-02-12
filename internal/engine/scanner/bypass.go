@@ -333,6 +333,8 @@ func (s *Scanner) RunBypassModule(bypassModule string, targetURL string, results
 	responses := worker.requestPool.ProcessRequests(allJobs)
 
 	for response := range responses {
+		defer rawhttp.ReleaseResponseDetails(response)
+
 		progressbar.Increment()
 		progressbar.UpdateSpinnerText(
 			bypassModule,
