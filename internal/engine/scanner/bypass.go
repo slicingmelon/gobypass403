@@ -215,7 +215,7 @@ func (s *Scanner) RunBypassModule(bypassModule string, targetURL string, results
 		return
 	}
 
-	ctx := NewBypassWorker(bypassModule, len(allJobs), targetURL, s.scannerOpts, s.errorHandler)
+	worker := NewBypassWorker(bypassModule, len(allJobs), targetURL, s.scannerOpts, s.errorHandler)
 
 	// Create progress bar
 	progressbar := NewProgressBar(bypassModule, len(allJobs), s.scannerOpts.Threads)
@@ -234,22 +234,22 @@ func (s *Scanner) RunBypassModule(bypassModule string, targetURL string, results
 				progressbar.UpdateSpinnerText(
 					bypassModule,
 					s.scannerOpts.Threads,
-					ctx.requestPool.GetReqWPActiveWorkers(),
-					ctx.requestPool.GetReqWPCompletedTasks(),
-					ctx.requestPool.GetReqWPSubmittedTasks(),
-					ctx.requestPool.GetRequestRate(),
-					ctx.requestPool.GetAverageRequestRate(),
+					worker.requestPool.GetReqWPActiveWorkers(),
+					worker.requestPool.GetReqWPCompletedTasks(),
+					worker.requestPool.GetReqWPSubmittedTasks(),
+					worker.requestPool.GetRequestRate(),
+					worker.requestPool.GetAverageRequestRate(),
 				)
 			case <-doneCh:
 				progressbar.SpinnerSuccess(
 					bypassModule,
 					s.scannerOpts.Threads,
-					ctx.requestPool.GetReqWPActiveWorkers(),
-					ctx.requestPool.GetReqWPCompletedTasks(),
-					ctx.requestPool.GetReqWPSubmittedTasks(),
-					ctx.requestPool.GetRequestRate(),
-					ctx.requestPool.GetAverageRequestRate(),
-					ctx.requestPool.GetPeakRequestRate(),
+					worker.requestPool.GetReqWPActiveWorkers(),
+					worker.requestPool.GetReqWPCompletedTasks(),
+					worker.requestPool.GetReqWPSubmittedTasks(),
+					worker.requestPool.GetRequestRate(),
+					worker.requestPool.GetAverageRequestRate(),
+					worker.requestPool.GetPeakRequestRate(),
 				)
 				progressbar.Stop()
 				return
@@ -261,20 +261,20 @@ func (s *Scanner) RunBypassModule(bypassModule string, targetURL string, results
 		progressbar.SpinnerSuccess(
 			bypassModule,
 			s.scannerOpts.Threads,
-			ctx.requestPool.GetReqWPActiveWorkers(),
-			ctx.requestPool.GetReqWPCompletedTasks(),
-			ctx.requestPool.GetReqWPSubmittedTasks(),
-			ctx.requestPool.GetRequestRate(),        // Current submission rate
-			ctx.requestPool.GetAverageRequestRate(), // Average completion rate
+			worker.requestPool.GetReqWPActiveWorkers(),
+			worker.requestPool.GetReqWPCompletedTasks(),
+			worker.requestPool.GetReqWPSubmittedTasks(),
+			worker.requestPool.GetRequestRate(),        // Current submission rate
+			worker.requestPool.GetAverageRequestRate(), // Average completion rate
 
-			ctx.requestPool.GetPeakRequestRate(), // Peak submission rate
+			worker.requestPool.GetPeakRequestRate(), // Peak submission rate
 		)
-		ctx.Stop()
+		worker.Stop()
 		progressbar.Stop()
 	}()
 
 	// Process requests and update progress
-	responses := ctx.requestPool.ProcessRequests(allJobs)
+	responses := worker.requestPool.ProcessRequests(allJobs)
 
 	for response := range responses {
 		progressbar.Increment()
@@ -304,11 +304,12 @@ func (s *Scanner) RunBypassModule(bypassModule string, targetURL string, results
 				DebugToken:      string(response.DebugToken),
 			}
 		}
+
 	}
 
 	// Signal completion and cleanup
 	close(doneCh)
-	ctx.Stop()
+	worker.Stop()
 }
 
 // match HTTP status code in list

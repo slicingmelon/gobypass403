@@ -8,6 +8,7 @@ import (
 	"github.com/alitto/pond/v2"
 	"github.com/slicingmelon/go-bypass-403/internal/engine/payload"
 	GB403ErrorHandler "github.com/slicingmelon/go-bypass-403/internal/utils/error"
+	GB403Logger "github.com/slicingmelon/go-bypass-403/internal/utils/logger"
 	"github.com/valyala/fasthttp"
 )
 
@@ -15,6 +16,8 @@ import (
 type RequestWorkerPool struct {
 	httpClient   *HTTPClient
 	errorHandler *GB403ErrorHandler.ErrorHandler
+	ctx          context.Context
+	cancel       context.CancelFunc
 	pool         pond.Pool
 	throttler    *Throttler
 	// Request rate tracking
@@ -24,10 +27,14 @@ type RequestWorkerPool struct {
 
 // NewWorkerPool initializes a new RequestWorkerPool instance
 func NewRequestWorkerPool(opts *HTTPClientOptions, maxWorkers int, totalJobs int, errorHandler *GB403ErrorHandler.ErrorHandler) *RequestWorkerPool {
+	ctx, cancel := context.WithCancel(context.Background())
+
 	wp := &RequestWorkerPool{
 		httpClient:   NewHTTPClient(opts, errorHandler),
 		errorHandler: errorHandler,
-		pool:         pond.NewPool(maxWorkers),
+		ctx:          ctx,
+		cancel:       cancel,
+		pool:         pond.NewPool(maxWorkers, pond.WithContext(ctx)),
 		throttler:    NewThrottler(nil),
 	}
 
@@ -113,29 +120,45 @@ func (wp *RequestWorkerPool) ResetPeakRate() {
 // ProcessRequests handles multiple payload jobs
 func (wp *RequestWorkerPool) ProcessRequests(jobs []payload.PayloadJob) <-chan *RawHTTPResponseDetails {
 	results := make(chan *RawHTTPResponseDetails)
-	group := wp.pool.NewGroupContext(context.Background())
+	group := wp.pool.NewGroupContext(wp.ctx)
 
 	for _, job := range jobs {
-		job := job // Capture job for closure
+		job := job // Capture for closure
 		group.Submit(func() {
 			if resp := wp.ProcessRequestResponseJob(job); resp != nil {
-				results <- resp
+				select {
+				case <-wp.ctx.Done():
+					return
+				case results <- resp:
+				}
 			}
 		})
 	}
 
-	// Close results channel when all tasks complete
 	go func() {
-		group.Wait() // Wait for all tasks to complete
+		select {
+		case <-wp.ctx.Done():
+			// Context was cancelled (due to max consecutive failures)
+			GB403Logger.Warning().Msgf("Worker pool cancelled: max consecutive failures reached for module [%s]", wp.httpClient.options.BypassModule)
+		case <-group.Done():
+			// Normal completion
+		}
 		close(results)
 	}()
 
 	return results
 }
 
-// Close gracefully shuts down the worker pool
+// // Close gracefully shuts down the worker pool
+// func (wp *RequestWorkerPool) Close() {
+// 	wp.pool.StopAndWait()
+// 	wp.ResetPeakRate()
+// 	wp.throttler.Reset()
+// 	wp.httpClient.Close()
+// }
+
 func (wp *RequestWorkerPool) Close() {
-	wp.pool.StopAndWait()
+	wp.cancel() // Cancel context if not already done
 	wp.ResetPeakRate()
 	wp.throttler.Reset()
 	wp.httpClient.Close()
@@ -165,7 +188,12 @@ func (wp *RequestWorkerPool) ProcessRequestResponseJob(job payload.PayloadJob) *
 	// DoRequest already handles error logging/handling
 	respTime, err := wp.httpClient.DoRequest(req, resp)
 	if err != nil {
-		return nil // Error already handled by HTTPClient
+		if err == ErrReqFailedMaxConsecutiveFails {
+			// Cancel the context which will stop all workers
+			GB403Logger.Warning().Msgf("Max consecutive fails reached, cancelling [%s] for URL: %s\n", job.BypassModule, job.OriginalURL)
+			wp.cancel()
+		}
+		return nil
 	}
 
 	// Process response
