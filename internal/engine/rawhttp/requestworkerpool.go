@@ -163,7 +163,7 @@ func (wp *RequestWorkerPool) Close() {
 func (wp *RequestWorkerPool) ProcessRequestResponseJob(job payload.PayloadJob) *RawHTTPResponseDetails {
 	req := wp.httpClient.AcquireRequest()
 	resp := wp.httpClient.AcquireResponse()
-	httpResponseDetails := AcquireResponseDetails() // Acquire here
+	httpResponseDetails := AcquireResponseDetails()
 	defer wp.httpClient.ReleaseRequest(req)
 	defer wp.httpClient.ReleaseResponse(resp)
 
@@ -205,7 +205,7 @@ func (wp *RequestWorkerPool) ProcessRequestResponseJob(job payload.PayloadJob) *
 		}
 	}
 
-	return httpResponseDetails // Ownership transferred to caller
+	return httpResponseDetails
 }
 
 func (wp *RequestWorkerPool) applyDelays() {

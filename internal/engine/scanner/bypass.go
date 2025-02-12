@@ -244,7 +244,7 @@ func (s *Scanner) RunBypassModule(bypassModule string, targetURL string, results
 			worker.requestPool.GetAverageRequestRate(),
 		)
 
-		if response != nil && matchStatusCodes(response.StatusCode, s.scannerOpts.MatchStatusCodes) {
+		if matchStatusCodes(response.StatusCode, s.scannerOpts.MatchStatusCodes) {
 			results <- &Result{
 				TargetURL:       string(response.URL),
 				BypassModule:    bypassModule,
