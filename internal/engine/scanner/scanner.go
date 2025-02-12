@@ -11,23 +11,24 @@ import (
 )
 
 type ScannerOpts struct {
-	Timeout                 int
-	Threads                 int
-	MatchStatusCodes        []int
-	Debug                   bool
-	Verbose                 bool
-	BypassModule            string
-	OutDir                  string
-	Delay                   int
-	MaxRetries              int
-	RetryDelay              int
-	Proxy                   string
-	EnableHTTP2             bool
-	SpoofHeader             string
-	SpoofIP                 string
-	FollowRedirects         bool
-	ResponseBodyPreviewSize int
-	ReconCache              *recon.ReconCache
+	Timeout                  int
+	Threads                  int
+	MatchStatusCodes         []int
+	Debug                    bool
+	Verbose                  bool
+	BypassModule             string
+	OutDir                   string
+	Delay                    int
+	MaxRetries               int
+	RetryDelay               int
+	MaxConsecutiveFailedReqs int
+	Proxy                    string
+	EnableHTTP2              bool
+	SpoofHeader              string
+	SpoofIP                  string
+	FollowRedirects          bool
+	ResponseBodyPreviewSize  int
+	ReconCache               *recon.ReconCache
 }
 
 // Scanner represents the main scanner structure, perhaps the highest level in the hierarchy of the tool

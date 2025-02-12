@@ -243,20 +243,6 @@ func handleConnection(conn net.Conn, dump string, timeout int, template string) 
 }
 
 // Helper function to print requests
-// func printRequest(req string, verbose bool, isTLS bool) {
-// 	if verbose {
-// 		// Replace special characters with colored versions
-// 		req = strings.ReplaceAll(req, "\r", text.Colors{text.FgGreen}.Sprint("\\r"))
-// 		req = strings.ReplaceAll(req, "\n", text.Colors{text.FgGreen}.Sprint("\\n\n"))
-// 	}
-
-// 	// Color the text terminal req
-// 	if isTLS {
-// 		fmt.Print(text.Colors{text.FgYellow}.Sprint(req))
-// 	} else {
-// 		fmt.Print(text.Colors{text.FgWhite}.Sprint(req))
-// 	}
-// }
 
 func printRequest(req string, verbose bool, isTLS bool) {
 	if verbose {

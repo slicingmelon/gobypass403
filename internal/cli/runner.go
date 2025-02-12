@@ -44,15 +44,16 @@ func (r *Runner) Initialize() error {
 
 	// Step 4: Initialize scanner with processed URLs
 	scannerOpts := &scanner.ScannerOpts{
-		BypassModule: r.RunnerOptions.Module,
-		OutDir:       r.RunnerOptions.OutDir,
-		Timeout:      r.RunnerOptions.Timeout,
-		Threads:      r.RunnerOptions.Threads,
-		Delay:        r.RunnerOptions.Delay,
-		MaxRetries:   r.RunnerOptions.MaxRetries,
-		RetryDelay:   r.RunnerOptions.RetryDelay,
-		Proxy:        "",
-		EnableHTTP2:  r.RunnerOptions.EnableHTTP2,
+		BypassModule:             r.RunnerOptions.Module,
+		OutDir:                   r.RunnerOptions.OutDir,
+		Timeout:                  r.RunnerOptions.Timeout,
+		Threads:                  r.RunnerOptions.Threads,
+		Delay:                    r.RunnerOptions.Delay,
+		MaxRetries:               r.RunnerOptions.MaxRetries,
+		RetryDelay:               r.RunnerOptions.RetryDelay,
+		MaxConsecutiveFailedReqs: r.RunnerOptions.MaxConsecutiveFailedReqs,
+		Proxy:                    "",
+		EnableHTTP2:              r.RunnerOptions.EnableHTTP2,
 
 		SpoofHeader:             r.RunnerOptions.SpoofHeader,
 		SpoofIP:                 r.RunnerOptions.SpoofIP,

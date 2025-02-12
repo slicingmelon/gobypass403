@@ -22,15 +22,16 @@ type CliOptions struct {
 	SubstituteHostsFile string
 
 	// Scan configuration
-	Module                  string
-	MatchStatusCodesStr     string
-	MatchStatusCodes        []int
-	Threads                 int
-	Timeout                 int
-	Delay                   int
-	MaxRetries              int
-	RetryDelay              int // in milliseconds
-	ResponseBodyPreviewSize int // in bytes, we don't need too much, Response Headers and a small body preview is enough
+	Module                   string
+	MatchStatusCodesStr      string
+	MatchStatusCodes         []int
+	Threads                  int
+	Timeout                  int
+	Delay                    int
+	MaxRetries               int
+	RetryDelay               int // in milliseconds
+	MaxConsecutiveFailedReqs int
+	ResponseBodyPreviewSize  int // in bytes, we don't need too much, Response Headers and a small body preview is enough
 
 	// Output options
 	OutDir  string

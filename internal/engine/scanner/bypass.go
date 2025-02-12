@@ -99,7 +99,7 @@ type BypassWorker struct {
 	requestPool  *rawhttp.RequestWorkerPool
 }
 
-func NewBypassWorker(bypassmodule string, totalJobs int, targetURL string, scannerOpts *ScannerOpts, errorHandler *GB403ErrorHandler.ErrorHandler) *BypassWorker {
+func NewBypassWorker(bypassmodule string, targetURL string, scannerOpts *ScannerOpts, errorHandler *GB403ErrorHandler.ErrorHandler) *BypassWorker {
 	httpClientOpts := rawhttp.DefaultHTTPClientOptions()
 
 	// Override specific settings from user options
@@ -123,6 +123,7 @@ func NewBypassWorker(bypassmodule string, totalJobs int, targetURL string, scann
 
 	httpClientOpts.MaxRetries = scannerOpts.MaxRetries
 	httpClientOpts.RetryDelay = time.Duration(scannerOpts.RetryDelay) * time.Millisecond
+	httpClientOpts.MaxConsecutiveFailedReqs = scannerOpts.MaxConsecutiveFailedReqs
 
 	return &BypassWorker{
 		bypassmodule: bypassmodule,
@@ -131,7 +132,7 @@ func NewBypassWorker(bypassmodule string, totalJobs int, targetURL string, scann
 		once:         sync.Once{},
 		opts:         scannerOpts,
 
-		requestPool: rawhttp.NewRequestWorkerPool(httpClientOpts, scannerOpts.Threads, totalJobs, errorHandler),
+		requestPool: rawhttp.NewRequestWorkerPool(httpClientOpts, scannerOpts.Threads, errorHandler),
 	}
 }
 
@@ -202,6 +203,110 @@ func (s *Scanner) RunAllBypasses(targetURL string) chan *Result {
 }
 
 // Run a specific bypass module
+// func (s *Scanner) RunBypassModule(bypassModule string, targetURL string, results chan<- *Result) {
+// 	moduleInstance, exists := bypassModules[bypassModule]
+// 	if !exists {
+// 		return
+// 	}
+
+// 	// Generate jobs
+// 	allJobs := moduleInstance.GenerateJobs(targetURL, bypassModule, s.scannerOpts)
+// 	if len(allJobs) == 0 {
+// 		GB403Logger.Warning().Msgf("No jobs generated for bypass module: %s\n", bypassModule)
+// 		return
+// 	}
+
+// 	worker := NewBypassWorker(bypassModule, targetURL, s.scannerOpts, s.errorHandler)
+// 	defer worker.Stop()
+
+// 	// Create progress bar
+// 	progressbar := NewProgressBar(bypassModule, len(allJobs), s.scannerOpts.Threads)
+// 	defer progressbar.Stop()
+
+// 	// Create a done channel to coordinate shutdown
+// 	updateCh := make(chan struct{})
+// 	doneCh := make(chan struct{})
+// 	defer close(doneCh)
+
+// 	//progressbar.Start()
+
+// 	go func() {
+// 		progressbar.Start()
+// 		for {
+// 			select {
+// 			case <-updateCh:
+// 				progressbar.UpdateSpinnerText(
+// 					bypassModule,
+// 					s.scannerOpts.Threads,
+// 					worker.requestPool.GetReqWPActiveWorkers(),
+// 					worker.requestPool.GetReqWPCompletedTasks(),
+// 					worker.requestPool.GetReqWPSubmittedTasks(),
+// 					worker.requestPool.GetRequestRate(),
+// 					worker.requestPool.GetAverageRequestRate(),
+// 				)
+// 			case <-doneCh:
+// 				progressbar.SpinnerSuccess(
+// 					bypassModule,
+// 					s.scannerOpts.Threads,
+// 					worker.requestPool.GetReqWPActiveWorkers(),
+// 					worker.requestPool.GetReqWPCompletedTasks(),
+// 					worker.requestPool.GetReqWPSubmittedTasks(),
+// 					worker.requestPool.GetRequestRate(),
+// 					worker.requestPool.GetAverageRequestRate(),
+// 					worker.requestPool.GetPeakRequestRate(),
+// 				)
+// 				return
+// 			}
+// 		}
+// 	}()
+
+// 	defer func() {
+// 		progressbar.SpinnerSuccess(
+// 			bypassModule,
+// 			s.scannerOpts.Threads,
+// 			worker.requestPool.GetReqWPActiveWorkers(),
+// 			worker.requestPool.GetReqWPCompletedTasks(),
+// 			worker.requestPool.GetReqWPSubmittedTasks(),
+// 			worker.requestPool.GetRequestRate(),        // Current submission rate
+// 			worker.requestPool.GetAverageRequestRate(), // Average completion rate
+
+// 			worker.requestPool.GetPeakRequestRate(), // Peak submission rate
+// 		)
+// 		worker.Stop()
+// 		progressbar.Stop()
+// 	}()
+
+// 	// Process requests and update progress
+// 	responses := worker.requestPool.ProcessRequests(allJobs)
+
+// 	for response := range responses {
+// 		progressbar.Increment()
+// 		select {
+// 		case updateCh <- struct{}{}:
+// 		default:
+// 		}
+
+// 		if response != nil && matchStatusCodes(response.StatusCode, s.scannerOpts.MatchStatusCodes) {
+// 			results <- &Result{
+// 				TargetURL:       string(response.URL),
+// 				BypassModule:    bypassModule,
+// 				StatusCode:      response.StatusCode,
+// 				ResponseHeaders: string(response.ResponseHeaders),
+// 				CurlPocCommand:  string(response.CurlCommand),
+// 				ResponsePreview: string(response.ResponsePreview),
+// 				ContentType:     string(response.ContentType),
+// 				ContentLength:   response.ContentLength,
+// 				ResponseBytes:   response.ResponseBytes,
+// 				Title:           string(response.Title),
+// 				ServerInfo:      string(response.ServerInfo),
+// 				RedirectURL:     string(response.RedirectURL),
+// 				ResponseTime:    response.ResponseTime,
+// 				DebugToken:      string(response.DebugToken),
+// 			}
+// 		}
+// 	}
+// }
+
 func (s *Scanner) RunBypassModule(bypassModule string, targetURL string, results chan<- *Result) {
 	moduleInstance, exists := bypassModules[bypassModule]
 	if !exists {
@@ -215,77 +320,30 @@ func (s *Scanner) RunBypassModule(bypassModule string, targetURL string, results
 		return
 	}
 
-	worker := NewBypassWorker(bypassModule, len(allJobs), targetURL, s.scannerOpts, s.errorHandler)
+	worker := NewBypassWorker(bypassModule, targetURL, s.scannerOpts, s.errorHandler)
+	defer worker.Stop()
 
 	// Create progress bar
 	progressbar := NewProgressBar(bypassModule, len(allJobs), s.scannerOpts.Threads)
+	defer progressbar.Stop()
 
-	// Create a done channel to coordinate shutdown
-	updateCh := make(chan struct{})
-	doneCh := make(chan struct{})
-
-	//progressbar.Start()
-
-	go func() {
-		progressbar.Start()
-		for {
-			select {
-			case <-updateCh:
-				progressbar.UpdateSpinnerText(
-					bypassModule,
-					s.scannerOpts.Threads,
-					worker.requestPool.GetReqWPActiveWorkers(),
-					worker.requestPool.GetReqWPCompletedTasks(),
-					worker.requestPool.GetReqWPSubmittedTasks(),
-					worker.requestPool.GetRequestRate(),
-					worker.requestPool.GetAverageRequestRate(),
-				)
-			case <-doneCh:
-				progressbar.SpinnerSuccess(
-					bypassModule,
-					s.scannerOpts.Threads,
-					worker.requestPool.GetReqWPActiveWorkers(),
-					worker.requestPool.GetReqWPCompletedTasks(),
-					worker.requestPool.GetReqWPSubmittedTasks(),
-					worker.requestPool.GetRequestRate(),
-					worker.requestPool.GetAverageRequestRate(),
-					worker.requestPool.GetPeakRequestRate(),
-				)
-				progressbar.Stop()
-				return
-			}
-		}
-	}()
-
-	defer func() {
-		progressbar.SpinnerSuccess(
-			bypassModule,
-			s.scannerOpts.Threads,
-			worker.requestPool.GetReqWPActiveWorkers(),
-			worker.requestPool.GetReqWPCompletedTasks(),
-			worker.requestPool.GetReqWPSubmittedTasks(),
-			worker.requestPool.GetRequestRate(),        // Current submission rate
-			worker.requestPool.GetAverageRequestRate(), // Average completion rate
-
-			worker.requestPool.GetPeakRequestRate(), // Peak submission rate
-		)
-		worker.Stop()
-		progressbar.Stop()
-	}()
+	progressbar.Start()
 
 	// Process requests and update progress
 	responses := worker.requestPool.ProcessRequests(allJobs)
 
 	for response := range responses {
 		progressbar.Increment()
-		// Signal update instead of direct call
-		select {
-		case updateCh <- struct{}{}:
-		default:
-			// Skip update if previous one hasn't been processed
-		}
+		progressbar.UpdateSpinnerText(
+			bypassModule,
+			s.scannerOpts.Threads,
+			worker.requestPool.GetReqWPActiveWorkers(),
+			worker.requestPool.GetReqWPCompletedTasks(),
+			worker.requestPool.GetReqWPSubmittedTasks(),
+			worker.requestPool.GetRequestRate(),
+			worker.requestPool.GetAverageRequestRate(),
+		)
 
-		// Process matching responses
 		if response != nil && matchStatusCodes(response.StatusCode, s.scannerOpts.MatchStatusCodes) {
 			results <- &Result{
 				TargetURL:       string(response.URL),
@@ -304,12 +362,19 @@ func (s *Scanner) RunBypassModule(bypassModule string, targetURL string, results
 				DebugToken:      string(response.DebugToken),
 			}
 		}
-
 	}
 
-	// Signal completion and cleanup
-	close(doneCh)
-	worker.Stop()
+	// Final progress update
+	progressbar.SpinnerSuccess(
+		bypassModule,
+		s.scannerOpts.Threads,
+		worker.requestPool.GetReqWPActiveWorkers(),
+		worker.requestPool.GetReqWPCompletedTasks(),
+		worker.requestPool.GetReqWPSubmittedTasks(),
+		worker.requestPool.GetRequestRate(),
+		worker.requestPool.GetAverageRequestRate(),
+		worker.requestPool.GetPeakRequestRate(),
+	)
 }
 
 // match HTTP status code in list

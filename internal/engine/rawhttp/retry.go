@@ -57,7 +57,7 @@ func IsRetryableError(err error) bool {
 
 	// Check for specific error types
 	if err == io.EOF || errors.Is(err, fasthttp.ErrConnectionClosed) || errors.Is(err, fasthttp.ErrTimeout) ||
-		strings.Contains(err.Error(), "timeout") {
+		strings.Contains(err.Error(), "timeout") || strings.Contains(err.Error(), "existing connection was forcibly closed") {
 		return true
 	}
 
