@@ -98,6 +98,9 @@ func NewHTTPClient(opts *HTTPClientOptions, errorHandler *GB403ErrorHandler.Erro
 		retryConfig:  retryConfig,
 	}
 
+	// reset failed consecutive requests
+	c.ResetConsecutiveFailedReqs()
+
 	client := &fasthttp.Client{
 		MaxConnsPerHost:               opts.MaxConnsPerHost,
 		MaxIdleConnDuration:           opts.MaxIdleConnDuration,
@@ -249,6 +252,10 @@ func (c *HTTPClient) DoRequest(req *fasthttp.Request, resp *fasthttp.Response) (
 
 func (c *HTTPClient) GetPerReqRetryAttempts() int32 {
 	return c.retryConfig.GetPerReqRetriedAttempts()
+}
+
+func (c *HTTPClient) ResetConsecutiveFailedReqs() {
+	c.consecutiveFailedReqs.Store(0)
 }
 
 // GetLastResponseTime returns the last HTTP response time in milliseconds
