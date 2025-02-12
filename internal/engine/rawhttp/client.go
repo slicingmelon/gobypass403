@@ -65,8 +65,8 @@ func DefaultHTTPClientOptions() *HTTPClientOptions {
 		ReadBufferSize:      12288, // Hardlimit at 12KB
 		WriteBufferSize:     12288, // Hardlimit at 12KB
 		StreamResponseBody:  true,
-		MaxRetries:          3,
-		RetryDelay:          1 * time.Second,
+		MaxRetries:          2,
+		RetryDelay:          1000 * time.Millisecond,
 		RequestDelay:        0,
 		DisableKeepAlive:    false, // Keep connections alive
 		Dialer:              nil,
@@ -87,7 +87,6 @@ func NewHTTPClient(opts *HTTPClientOptions, errorHandler *GB403ErrorHandler.Erro
 		options:      opts,
 		errorHandler: errorHandler,
 		retryConfig:  retryConfig,
-		mu:           sync.RWMutex{},
 	}
 
 	client := &fasthttp.Client{

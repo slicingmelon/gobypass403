@@ -21,7 +21,6 @@ func DefaultRetryConfig() *RetryConfig {
 	return &RetryConfig{
 		MaxRetries: 2, // 2 retries means: initial attempt + 2 retries = 3 total attempts
 		RetryDelay: 500 * time.Millisecond,
-		mu:         sync.RWMutex{},
 	}
 }
 

@@ -28,6 +28,8 @@ type CliOptions struct {
 	Threads                 int
 	Timeout                 int
 	Delay                   int
+	MaxRetries              int
+	RetryDelay              int // in milliseconds
 	ResponseBodyPreviewSize int // in bytes, we don't need too much, Response Headers and a small body preview is enough
 
 	// Output options
@@ -120,6 +122,12 @@ func (o *CliOptions) setDefaults() {
 	}
 	if o.Delay <= 0 {
 		o.Delay = 0
+	}
+	if o.MaxRetries == 0 {
+		o.MaxRetries = 2
+	}
+	if o.RetryDelay == 0 {
+		o.RetryDelay = 1000
 	}
 
 	// Status codes default - accept all codes

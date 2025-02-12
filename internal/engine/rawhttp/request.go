@@ -79,15 +79,16 @@ type RawHTTPResponseDetails struct {
 // to the requested host are busy.
 // BuildRequest creates and configures a HTTP request from a bypass job (payload job)
 func BuildHTTPRequest(httpclient *HTTPClient, req *fasthttp.Request, job payload.PayloadJob) error {
+	// Disable all normalizing to preserve raw paths
+	req.URI().DisablePathNormalizing = true
+	req.Header.DisableNormalizing()
+	req.Header.SetNoDefaultContentType(true)
+
 	req.UseHostHeader = false
 	req.Header.SetMethod(job.Method)
 
 	req.SetRequestURI(job.FullURL)
-
-	// Disable all normalizing for raw path testing
-	req.URI().DisablePathNormalizing = true
-	req.Header.DisableNormalizing()
-	req.Header.SetNoDefaultContentType(true)
+	req.URI().SetScheme(job.Scheme)
 
 	// !!Always close connection when custom headers are present
 	shouldCloseConn := len(job.Headers) > 0 ||

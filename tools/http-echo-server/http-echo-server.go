@@ -67,6 +67,7 @@ func main() {
 	portFlag := flag.String("port", "", "HTTP listening port")
 	tlsPortFlag := flag.String("tlsport", "", "HTTPS/TLS listening port")
 	verboseFlag := flag.Bool("v", false, "Display request with special characters")
+	templateFlag := flag.String("template", "echo", "Response template (echo, timeout)")
 	helpFlag := flag.Bool("h", false, "Show help")
 
 	// helper
@@ -81,6 +82,7 @@ func main() {
 		fmt.Fprintf(os.Stderr, "  Both HTTP and HTTPS:    http-echo-server -port 8888 -tlsport 8443\n")
 		fmt.Fprintf(os.Stderr, "  Dump request to file:   http-echo-server -port 8888 -d request.txt\n")
 		fmt.Fprintf(os.Stderr, "  Show special chars:     http-echo-server -port 8888 -v\n")
+		fmt.Fprintf(os.Stderr, "  Timeout template:       http-echo-server -port 8888 -template timeout\n")
 	}
 
 	flag.Parse()
@@ -88,6 +90,10 @@ func main() {
 	if *helpFlag {
 		flag.Usage()
 		os.Exit(0)
+	}
+
+	if *templateFlag != "echo" && *templateFlag != "timeout" {
+		log.Fatal("Template must be either 'echo' or 'timeout'")
 	}
 
 	if *portFlag == "" && *tlsPortFlag == "" {
@@ -117,7 +123,7 @@ func main() {
 					continue
 				}
 				conn.SetDeadline(time.Now().Add(time.Duration(*timeoutFlag) * time.Millisecond))
-				go handleConnection(conn, *dumpFlag, *timeoutFlag)
+				go handleConnection(conn, *dumpFlag, *timeoutFlag, *templateFlag)
 			}
 		}()
 	}
@@ -148,7 +154,7 @@ func main() {
 					continue
 				}
 				conn.SetDeadline(time.Now().Add(time.Duration(*timeoutFlag) * time.Millisecond))
-				go handleConnection(conn, *dumpFlag, *timeoutFlag)
+				go handleConnection(conn, *dumpFlag, *timeoutFlag, *templateFlag)
 			}
 		}()
 	}
@@ -156,15 +162,24 @@ func main() {
 	wg.Wait()
 }
 
-func handleConnection(conn net.Conn, dump string, timeout int) {
+func handleConnection(conn net.Conn, dump string, timeout int, template string) {
 	defer conn.Close()
 
 	var mu sync.Mutex
 	var request strings.Builder
 
+	// Determine if connection is TLS
+	_, isTLS := conn.(*tls.Conn)
+
 	// Send HTTP 200 OK response immediately
 	if _, err := conn.Write([]byte("HTTP/1.1 200 OK\r\n\r\n")); err != nil {
 		log.Printf("Failed to write response: %v", err)
+		return
+	}
+
+	// If template is timeout, wait 1 second then close connection
+	if template == "timeout" {
+		time.Sleep(2 * time.Second)
 		return
 	}
 
@@ -185,7 +200,7 @@ func handleConnection(conn net.Conn, dump string, timeout int) {
 			if reader.Buffered() > 0 {
 				if data, err := reader.Peek(reader.Buffered()); err == nil {
 					request.Write(data)
-					printRequest(string(data), verbose)
+					printRequest(string(data), verbose, isTLS)
 				}
 			}
 			mu.Unlock()
@@ -212,7 +227,7 @@ func handleConnection(conn net.Conn, dump string, timeout int) {
 		// If we have a complete request (empty line), print it
 		if line == "\r\n" || line == "\n" {
 			requestStr := currentRequest.String()
-			printRequest(requestStr, verbose)
+			printRequest(requestStr, verbose, isTLS)
 			request.WriteString(requestStr)
 			currentRequest.Reset()
 
@@ -241,13 +256,25 @@ func handleConnection(conn net.Conn, dump string, timeout int) {
 }
 
 // Helper function to print requests
-func printRequest(req string, verbose bool) {
+func printRequest(req string, verbose bool, isTLS bool) {
 	if verbose {
 		// Replace special characters with colored versions
 		req = strings.ReplaceAll(req, "\r", text.Colors{text.FgGreen}.Sprint("\\r"))
 		req = strings.ReplaceAll(req, "\n", text.Colors{text.FgGreen}.Sprint("\\n\n"))
-		fmt.Print(req)
+
+		// Color the text based on connection type
+		if isTLS {
+			// Yellow text for HTTPS
+			fmt.Print(text.Colors{text.FgYellow}.Sprint(req))
+		} else {
+			// White text for HTTP
+			fmt.Print(text.Colors{text.FgWhite}.Sprint(req))
+		}
 	} else {
-		fmt.Print(req)
+		if isTLS {
+			fmt.Print(text.Colors{text.FgYellow}.Sprint(req))
+		} else {
+			fmt.Print(text.Colors{text.FgWhite}.Sprint(req))
+		}
 	}
 }
