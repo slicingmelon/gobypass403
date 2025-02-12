@@ -19,6 +19,8 @@ type ScannerOpts struct {
 	BypassModule            string
 	OutDir                  string
 	Delay                   int
+	MaxRetries              int
+	RetryDelay              int
 	Proxy                   string
 	EnableHTTP2             bool
 	SpoofHeader             string

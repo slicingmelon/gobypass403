@@ -118,7 +118,7 @@ func (o *CliOptions) setDefaults() {
 		o.Threads = 15
 	}
 	if o.Timeout == 0 {
-		o.Timeout = 20
+		o.Timeout = 20000
 	}
 	if o.Delay <= 0 {
 		o.Delay = 0

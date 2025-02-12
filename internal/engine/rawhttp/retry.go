@@ -3,6 +3,7 @@ package rawhttp
 import (
 	"errors"
 	"io"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -55,7 +56,8 @@ func IsRetryableError(err error) bool {
 	}
 
 	// Check for specific error types
-	if err == io.EOF || errors.Is(err, fasthttp.ErrConnectionClosed) {
+	if err == io.EOF || errors.Is(err, fasthttp.ErrConnectionClosed) || errors.Is(err, fasthttp.ErrTimeout) ||
+		strings.Contains(err.Error(), "timeout") {
 		return true
 	}
 

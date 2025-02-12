@@ -104,7 +104,7 @@ func NewBypassWorker(bypassmodule string, total int, targetURL string, scannerOp
 
 	// Override specific settings from user options
 	httpClientOpts.BypassModule = bypassmodule
-	httpClientOpts.Timeout = time.Duration(scannerOpts.Timeout) * time.Second
+	httpClientOpts.Timeout = time.Duration(scannerOpts.Timeout) * time.Millisecond
 	httpClientOpts.ResponseBodyPreviewSize = scannerOpts.ResponseBodyPreviewSize
 
 	// Ensure MaxConnsPerHost is at least equal to number of workers plus buffer
@@ -120,6 +120,9 @@ func NewBypassWorker(bypassmodule string, total int, targetURL string, scannerOp
 	if scannerOpts.Delay > 0 {
 		httpClientOpts.RequestDelay = time.Duration(scannerOpts.Delay) * time.Millisecond
 	}
+
+	httpClientOpts.MaxRetries = scannerOpts.MaxRetries
+	httpClientOpts.RetryDelay = time.Duration(scannerOpts.RetryDelay) * time.Millisecond
 
 	return &BypassWorker{
 		bypassmodule: bypassmodule,

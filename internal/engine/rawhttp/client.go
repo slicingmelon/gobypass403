@@ -55,7 +55,7 @@ type HTTPClient struct {
 func DefaultHTTPClientOptions() *HTTPClientOptions {
 	return &HTTPClientOptions{
 		BypassModule:        "",
-		Timeout:             20 * time.Second,
+		Timeout:             20000 * time.Millisecond,
 		DialTimeout:         5 * time.Second,
 		MaxConnsPerHost:     128,
 		MaxIdleConnDuration: 1 * time.Minute, // Idle keep-alive connections are closed after this duration.
@@ -100,9 +100,9 @@ func NewHTTPClient(opts *HTTPClientOptions, errorHandler *GB403ErrorHandler.Erro
 		ReadBufferSize:                opts.ReadBufferSize,
 		WriteBufferSize:               opts.WriteBufferSize,
 		StreamResponseBody:            opts.StreamResponseBody,
-		ReadTimeout:                   opts.Timeout,
-		WriteTimeout:                  opts.Timeout,
-		Dial:                          CreateDialFunc(opts, errorHandler),
+		//ReadTimeout:                   opts.Timeout,
+		//WriteTimeout:                  opts.Timeout,
+		Dial: CreateDialFunc(opts, errorHandler),
 		TLSConfig: &tls.Config{
 			InsecureSkipVerify: true,
 			MinVersion:         tls.VersionTLS10,
@@ -114,82 +114,54 @@ func NewHTTPClient(opts *HTTPClientOptions, errorHandler *GB403ErrorHandler.Erro
 	return c
 }
 
-// GetHTTPClientOptions returns the HTTP client options
-func (c *HTTPClient) GetHTTPClientOptions() *HTTPClientOptions {
+// // GetHTTPClientOptions returns the HTTP client options
+// func (c *HTTPClient) GetHTTPClientOptions() *HTTPClientOptions {
+// 	c.mu.RLock()
+// 	defer c.mu.RUnlock()
+// 	return c.options
+// }
+
+// // SetOptions updates the client options
+// func (c *HTTPClient) SetHTTPClientOptions(opts *HTTPClientOptions) {
+// 	c.mu.Lock()
+// 	defer c.mu.Unlock()
+// 	c.options = opts
+// }
+
+func (c *HTTPClient) GetHTTPClientOptions() HTTPClientOptions {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	return c.options
+	return *c.options // Return a copy
 }
 
-// SetOptions updates the client options
-func (c *HTTPClient) SetHTTPClientOptions(opts *HTTPClientOptions) {
+// SetHTTPClientOptions updates the client options with a copy
+func (c *HTTPClient) SetHTTPClientOptions(opts HTTPClientOptions) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	c.options = opts
-}
-
-func (c *HTTPClient) execFunc(req *fasthttp.Request, resp *fasthttp.Response) (int64, error) {
-	c.retryConfig.ResetPerReqAttempts()
-	var lastErr error
-
-	// Create a copy of the original request for retries
-	reqCopy := fasthttp.AcquireRequest()
-	defer fasthttp.ReleaseRequest(reqCopy)
-	req.CopyTo(reqCopy)
-
-	for attempt := 0; attempt <= c.options.MaxRetries; attempt++ {
-		if c.GetHTTPClientOptions().RequestDelay > 0 {
-			time.Sleep(c.GetHTTPClientOptions().RequestDelay)
-		}
-
-		start := time.Now()
-		err := c.client.Do(reqCopy, resp)
-		lastErr = err
-
-		if err == nil {
-			return time.Since(start).Milliseconds(), nil
-		}
-
-		if !IsRetryableError(err) {
-			return time.Since(start).Milliseconds(), err
-		}
-
-		// On retryable error, disable keep-alive for subsequent attempts
-		if attempt == 0 {
-			opts := c.GetHTTPClientOptions()
-			opts.DisableKeepAlive = true
-			c.SetHTTPClientOptions(opts)
-			reqCopy.SetConnectionClose() // Force connection close for this request
-		}
-
-		if attempt < c.options.MaxRetries {
-			c.retryConfig.PerReqRetriedAttempts.Add(1)
-			time.Sleep(c.options.RetryDelay)
-			resp.Reset()
-		}
-	}
-
-	return 0, fmt.Errorf("max retries reached: %w", lastErr)
+	c.options = &opts // Store a copy
 }
 
 // func (c *HTTPClient) execFunc(req *fasthttp.Request, resp *fasthttp.Response) (int64, error) {
 // 	c.retryConfig.ResetPerReqAttempts()
 // 	var lastErr error
 
-// 	// Create a copy of the original request for retries
 // 	reqCopy := fasthttp.AcquireRequest()
 // 	defer fasthttp.ReleaseRequest(reqCopy)
 // 	req.CopyTo(reqCopy)
 
 // 	for attempt := 0; attempt <= c.options.MaxRetries; attempt++ {
-// 		if c.GetHTTPClientOptions().RequestDelay > 0 {
+// 		// Apply request delay before first request
+// 		if attempt == 0 && c.GetHTTPClientOptions().RequestDelay > 0 {
 // 			time.Sleep(c.GetHTTPClientOptions().RequestDelay)
 // 		}
 
-// 		start := time.Now()
+// 		// Apply retry delay before retry attempts
+// 		if attempt > 0 {
+// 			time.Sleep(c.options.RetryDelay)
+// 		}
 
-// 		// Use the original request copy for each attempt
-// 		err := c.client.Do(reqCopy, resp)
+// 		start := time.Now()
+// 		err := c.client.DoTimeout(reqCopy, resp, c.options.Timeout+c.options.RetryDelay)
 // 		lastErr = err
 
 // 		if err == nil {
@@ -200,16 +172,83 @@ func (c *HTTPClient) execFunc(req *fasthttp.Request, resp *fasthttp.Response) (i
 // 			return time.Since(start).Milliseconds(), err
 // 		}
 
+// 		// Prepare for next retry
 // 		if attempt < c.options.MaxRetries {
+// 			opts := c.GetHTTPClientOptions()
+// 			opts.DisableKeepAlive = true
+// 			c.SetHTTPClientOptions(opts)
+
+// 			reqCopy.Header.Del("Connection")
+// 			reqCopy.SetConnectionClose()
+// 			reqCopy.Header.Set("X-Retry", fmt.Sprintf("%d", attempt+1))
+
 // 			c.retryConfig.PerReqRetriedAttempts.Add(1)
-// 			time.Sleep(c.options.RetryDelay)
-// 			// Reset response for next attempt
 // 			resp.Reset()
 // 		}
 // 	}
 
 // 	return 0, fmt.Errorf("max retries reached: %w", lastErr)
 // }
+
+func (c *HTTPClient) execFunc(req *fasthttp.Request, resp *fasthttp.Response) (int64, error) {
+	c.retryConfig.ResetPerReqAttempts()
+	var lastErr error
+
+	reqCopy := fasthttp.AcquireRequest()
+	defer fasthttp.ReleaseRequest(reqCopy)
+	req.CopyTo(reqCopy)
+
+	for attempt := 0; attempt <= c.options.MaxRetries; attempt++ {
+		// Apply request delay before first request
+		if attempt == 0 {
+			reqDelay := c.GetHTTPClientOptions().RequestDelay
+			if reqDelay > 0 {
+				time.Sleep(reqDelay)
+			}
+		}
+
+		// Apply retry delay before retry attempts
+		if attempt > 0 {
+			retryDelay := c.GetHTTPClientOptions().RetryDelay
+			time.Sleep(retryDelay)
+		}
+
+		start := time.Now()
+
+		var timeout time.Duration
+		timeout = c.GetHTTPClientOptions().Timeout
+		if attempt > 0 {
+			timeout += c.options.RetryDelay // Only add delay for retry attempts
+		}
+
+		err := c.client.DoTimeout(reqCopy, resp, timeout)
+		lastErr = err
+
+		if err == nil {
+			return time.Since(start).Milliseconds(), nil
+		}
+
+		if !IsRetryableError(err) {
+			return time.Since(start).Milliseconds(), err
+		}
+
+		// Prepare for next retry
+		if attempt < c.options.MaxRetries {
+			opts := c.GetHTTPClientOptions()
+			opts.DisableKeepAlive = true
+			c.SetHTTPClientOptions(opts)
+
+			reqCopy.Header.Del("Connection")
+			reqCopy.SetConnectionClose()
+			reqCopy.Header.Set("X-Retry", fmt.Sprintf("%d", attempt+1))
+
+			c.retryConfig.PerReqRetriedAttempts.Add(1)
+			resp.Reset()
+		}
+	}
+
+	return 0, fmt.Errorf("max retries reached: %w", lastErr)
+}
 
 // DoRequest performs a HTTP request (raw)
 // Returns the HTTP response time (in ms) and error

@@ -49,6 +49,8 @@ func (r *Runner) Initialize() error {
 		Timeout:      r.RunnerOptions.Timeout,
 		Threads:      r.RunnerOptions.Threads,
 		Delay:        r.RunnerOptions.Delay,
+		MaxRetries:   r.RunnerOptions.MaxRetries,
+		RetryDelay:   r.RunnerOptions.RetryDelay,
 		Proxy:        "",
 		EnableHTTP2:  r.RunnerOptions.EnableHTTP2,
 
