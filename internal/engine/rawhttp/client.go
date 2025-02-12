@@ -8,6 +8,7 @@ import (
 	"time"
 
 	GB403ErrorHandler "github.com/slicingmelon/go-bypass-403/internal/utils/error"
+	GB403Logger "github.com/slicingmelon/go-bypass-403/internal/utils/logger"
 	"github.com/valyala/fasthttp"
 )
 
@@ -37,7 +38,6 @@ type HTTPClientOptions struct {
 	EnableHTTP2             bool
 	Dialer                  fasthttp.DialFunc
 	RequestDelay            time.Duration // ScannerCliOpts
-	IsTLS                   bool          // fasthttp core
 }
 
 // HTTPClient represents a reusable HTTP client
@@ -114,31 +114,20 @@ func NewHTTPClient(opts *HTTPClientOptions, errorHandler *GB403ErrorHandler.Erro
 	return c
 }
 
-// // GetHTTPClientOptions returns the HTTP client options
-// func (c *HTTPClient) GetHTTPClientOptions() *HTTPClientOptions {
-// 	c.mu.RLock()
-// 	defer c.mu.RUnlock()
-// 	return c.options
-// }
-
-// // SetOptions updates the client options
-// func (c *HTTPClient) SetHTTPClientOptions(opts *HTTPClientOptions) {
-// 	c.mu.Lock()
-// 	defer c.mu.Unlock()
-// 	c.options = opts
-// }
-
-func (c *HTTPClient) GetHTTPClientOptions() HTTPClientOptions {
+func (c *HTTPClient) GetHTTPClientOptions() *HTTPClientOptions {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	return *c.options // Return a copy
+
+	return c.options
 }
 
 // SetHTTPClientOptions updates the client options with a copy
-func (c *HTTPClient) SetHTTPClientOptions(opts HTTPClientOptions) {
+func (c *HTTPClient) SetHTTPClientOptions(opts *HTTPClientOptions) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	c.options = &opts // Store a copy
+
+	newOpts := *opts
+	c.options = &newOpts
 }
 
 // func (c *HTTPClient) execFunc(req *fasthttp.Request, resp *fasthttp.Response) (int64, error) {
@@ -147,41 +136,116 @@ func (c *HTTPClient) SetHTTPClientOptions(opts HTTPClientOptions) {
 
 // 	reqCopy := fasthttp.AcquireRequest()
 // 	defer fasthttp.ReleaseRequest(reqCopy)
-// 	req.CopyTo(reqCopy)
+// 	req.CopyTo(reqCopy) // we need to make a req copy to avoid modifying the original request
 
-// 	for attempt := 0; attempt <= c.options.MaxRetries; attempt++ {
-// 		// Apply request delay before first request
-// 		if attempt == 0 && c.GetHTTPClientOptions().RequestDelay > 0 {
-// 			time.Sleep(c.GetHTTPClientOptions().RequestDelay)
+// 	// Capture original timeout and retry delay from the global options and retry config.
+// 	origOpts := c.GetHTTPClientOptions()
+// 	originalTimeout := origOpts.Timeout
+// 	retryDelay := c.retryConfig.RetryDelay
+
+// 	// Apply the request delay to all requests (from cli opts)
+// 	if origOpts.RequestDelay > 0 {
+// 		time.Sleep(origOpts.RequestDelay)
+// 	}
+
+// 	for attempt := 0; attempt <= origOpts.MaxRetries; attempt++ {
+// 		// Calculate timeout for this attempt.
+// 		var currentTimeout time.Duration
+// 		if attempt == 0 {
+// 			currentTimeout = originalTimeout
+// 		} else {
+// 			// For retry attempts, sleep for retry delay
+// 			GB403Logger.Debug().Msgf("Sleeping for retry delay: %v\n", retryDelay)
+// 			time.Sleep(retryDelay)
+// 			currentTimeout = originalTimeout + time.Duration(attempt)*retryDelay
+// 			// Disable keep-alive for retries without affecting global config?? to think about it
+// 			reqCopy.SetConnectionClose()
 // 		}
 
-// 		// Apply retry delay before retry attempts
-// 		if attempt > 0 {
-// 			time.Sleep(c.options.RetryDelay)
-// 		}
+// 		GB403Logger.Debug().Msgf("Attempt %d: timeout=%v\n", attempt, currentTimeout)
 
 // 		start := time.Now()
-// 		err := c.client.DoTimeout(reqCopy, resp, c.options.Timeout+c.options.RetryDelay)
+// 		err := c.client.DoTimeout(reqCopy, resp, currentTimeout)
+// 		elapsed := time.Since(start)
+
+// 		GB403Logger.Debug().Msgf("Attempt %d completed in %v with error: %v\n", attempt, elapsed, err)
 // 		lastErr = err
 
 // 		if err == nil {
-// 			return time.Since(start).Milliseconds(), nil
+// 			return elapsed.Milliseconds(), nil
 // 		}
 
 // 		if !IsRetryableError(err) {
-// 			return time.Since(start).Milliseconds(), err
+// 			GB403Logger.Debug().Msgf("Non-retryable error: %v\n", err)
+// 			return elapsed.Milliseconds(), err
 // 		}
 
-// 		// Prepare for next retry
-// 		if attempt < c.options.MaxRetries {
-// 			opts := c.GetHTTPClientOptions()
-// 			opts.DisableKeepAlive = true
-// 			c.SetHTTPClientOptions(opts)
-
+// 		if attempt < origOpts.MaxRetries {
+// 			// Prepare for next retry.
 // 			reqCopy.Header.Del("Connection")
-// 			reqCopy.SetConnectionClose()
 // 			reqCopy.Header.Set("X-Retry", fmt.Sprintf("%d", attempt+1))
+// 			c.retryConfig.PerReqRetriedAttempts.Add(1)
+// 			resp.Reset()
+// 		}
+// 	}
 
+// 	return 0, fmt.Errorf("max retries reached: %w", lastErr)
+// }
+
+// func (c *HTTPClient) execFunc(req *fasthttp.Request, resp *fasthttp.Response) (int64, error) {
+// 	c.retryConfig.ResetPerReqAttempts()
+// 	var lastErr error
+
+// 	reqCopy := fasthttp.AcquireRequest()
+// 	defer fasthttp.ReleaseRequest(reqCopy)
+// 	req.CopyTo(reqCopy) // we need to make a req copy to avoid modifying the original request
+
+// 	// Capture original timeout and retry delay from the global options and retry config.
+// 	origOpts := c.GetHTTPClientOptions()
+// 	originalTimeout := origOpts.Timeout
+// 	retryDelay := c.retryConfig.RetryDelay
+
+// 	// Apply the request delay to all requests (from cli opts)
+// 	if origOpts.RequestDelay > 0 {
+// 		time.Sleep(origOpts.RequestDelay)
+// 	}
+
+// 	for attempt := 0; attempt <= origOpts.MaxRetries; attempt++ {
+// 		// Calculate timeout for this attempt.
+// 		var currentTimeout time.Duration
+// 		if attempt == 0 {
+// 			currentTimeout = originalTimeout
+// 		} else {
+// 			// For retry attempts, sleep for retry delay
+// 			GB403Logger.Debug().Msgf("Sleeping for retry delay: %v\n", retryDelay)
+// 			time.Sleep(retryDelay)
+// 			currentTimeout = originalTimeout + time.Duration(attempt)*retryDelay
+// 			// Disable keep-alive for retries without affecting global config?? to think about it
+// 			reqCopy.SetConnectionClose()
+// 		}
+
+// 		GB403Logger.Debug().Msgf("Attempt %d: timeout=%v\n", attempt, currentTimeout)
+
+// 		start := time.Now()
+// 		err := c.client.DoTimeout(reqCopy, resp, currentTimeout)
+// 		elapsed := time.Since(start)
+
+// 		GB403Logger.Debug().Msgf("Attempt %d completed in %v with error: %v\n", attempt, elapsed, err)
+// 		lastErr = err
+
+// 		if err == nil {
+// 			return elapsed.Milliseconds(), nil
+// 		}
+
+// 		if !IsRetryableError(err) {
+// 			GB403Logger.Debug().Msgf("Non-retryable error: %v\n", err)
+// 			return elapsed.Milliseconds(), err
+// 		}
+
+// 		if attempt < origOpts.MaxRetries {
+// 			// Prepare for next retry.
+// 			reqCopy.Header.Del("Connection")
+// 			reqCopy.Header.Set("X-Retry", fmt.Sprintf("%d", attempt+1))
 // 			c.retryConfig.PerReqRetriedAttempts.Add(1)
 // 			resp.Reset()
 // 		}
@@ -198,50 +262,54 @@ func (c *HTTPClient) execFunc(req *fasthttp.Request, resp *fasthttp.Response) (i
 	defer fasthttp.ReleaseRequest(reqCopy)
 	req.CopyTo(reqCopy)
 
-	for attempt := 0; attempt <= c.options.MaxRetries; attempt++ {
-		// Apply request delay before first request
-		if attempt == 0 {
-			reqDelay := c.GetHTTPClientOptions().RequestDelay
-			if reqDelay > 0 {
-				time.Sleep(reqDelay)
-			}
+	// Capture original timeout and retry delay from the global options and retry config.
+	origOpts := c.GetHTTPClientOptions()
+	baseTimeout := origOpts.Timeout
+	retryDelay := c.retryConfig.RetryDelay
+
+	// Apply the request delay to all requests (from cli opts)
+	if origOpts.RequestDelay > 0 {
+		time.Sleep(origOpts.RequestDelay)
+	}
+
+	for attempt := 0; attempt <= origOpts.MaxRetries; attempt++ {
+		// Calculate timeout for this attempt
+		currentTimeout := baseTimeout
+		if attempt > 0 {
+			// For retry attempts:
+			// 1. Sleep for retry delay
+			GB403Logger.Debug().Msgf("Sleeping for retry delay: %v\n", retryDelay)
+			time.Sleep(retryDelay)
+
+			// 2. Increase timeout based on attempt number
+			currentTimeout = baseTimeout + time.Duration(attempt)*retryDelay
+
+			// 3. Disable keep-alive for retries
+			reqCopy.SetConnectionClose()
 		}
 
-		// Apply retry delay before retry attempts
-		if attempt > 0 {
-			retryDelay := c.GetHTTPClientOptions().RetryDelay
-			time.Sleep(retryDelay)
-		}
+		GB403Logger.Debug().Msgf("Attempt %d: timeout=%v (base=%v)\n", attempt, currentTimeout, baseTimeout)
 
 		start := time.Now()
+		err := c.client.DoTimeout(reqCopy, resp, currentTimeout)
+		elapsed := time.Since(start)
 
-		var timeout time.Duration
-		timeout = c.GetHTTPClientOptions().Timeout
-		if attempt > 0 {
-			timeout += c.options.RetryDelay // Only add delay for retry attempts
-		}
-
-		err := c.client.DoTimeout(reqCopy, resp, timeout)
+		GB403Logger.Debug().Msgf("Attempt %d completed in %v with error: %v\n", attempt, elapsed, err)
 		lastErr = err
 
 		if err == nil {
-			return time.Since(start).Milliseconds(), nil
+			return elapsed.Milliseconds(), nil
 		}
 
 		if !IsRetryableError(err) {
-			return time.Since(start).Milliseconds(), err
+			GB403Logger.Debug().Msgf("Non-retryable error: %v\n", err)
+			return elapsed.Milliseconds(), err
 		}
 
-		// Prepare for next retry
-		if attempt < c.options.MaxRetries {
-			opts := c.GetHTTPClientOptions()
-			opts.DisableKeepAlive = true
-			c.SetHTTPClientOptions(opts)
-
+		if attempt < origOpts.MaxRetries {
+			// Prepare for next retry
 			reqCopy.Header.Del("Connection")
-			reqCopy.SetConnectionClose()
 			reqCopy.Header.Set("X-Retry", fmt.Sprintf("%d", attempt+1))
-
 			c.retryConfig.PerReqRetriedAttempts.Add(1)
 			resp.Reset()
 		}
