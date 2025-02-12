@@ -307,7 +307,7 @@ func (c *HTTPClient) execFunc(req *fasthttp.Request, resp *fasthttp.Response) (i
 		}
 
 		if attempt < origOpts.MaxRetries {
-			// Prepare for next retry
+			// Prepare req for next retry
 			reqCopy.Header.Del("Connection")
 			reqCopy.Header.Set("X-Retry", fmt.Sprintf("%d", attempt+1))
 			c.retryConfig.PerReqRetriedAttempts.Add(1)
