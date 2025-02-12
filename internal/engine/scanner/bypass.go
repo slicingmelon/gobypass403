@@ -99,7 +99,7 @@ type BypassWorker struct {
 	requestPool  *rawhttp.RequestWorkerPool
 }
 
-func NewBypassWorker(bypassmodule string, total int, targetURL string, scannerOpts *ScannerOpts, errorHandler *GB403ErrorHandler.ErrorHandler) *BypassWorker {
+func NewBypassWorker(bypassmodule string, totalJobs int, targetURL string, scannerOpts *ScannerOpts, errorHandler *GB403ErrorHandler.ErrorHandler) *BypassWorker {
 	httpClientOpts := rawhttp.DefaultHTTPClientOptions()
 
 	// Override specific settings from user options
@@ -131,7 +131,7 @@ func NewBypassWorker(bypassmodule string, total int, targetURL string, scannerOp
 		once:         sync.Once{},
 		opts:         scannerOpts,
 
-		requestPool: rawhttp.NewRequestWorkerPool(httpClientOpts, scannerOpts.Threads, errorHandler),
+		requestPool: rawhttp.NewRequestWorkerPool(httpClientOpts, scannerOpts.Threads, totalJobs, errorHandler),
 	}
 }
 
@@ -162,7 +162,7 @@ func (s *Scanner) RunAllBypasses(targetURL string) chan *Result {
 			ErrorSource: []byte("Scanner.RunAllBypasses"),
 		})
 		if err != nil {
-			GB403Logger.Error().Msgf("Failed to parse URL: %s", targetURL)
+			GB403Logger.Error().Msgf("Failed to parse URL: %s\n", targetURL)
 			close(results)
 			return results
 		}
@@ -174,26 +174,25 @@ func (s *Scanner) RunAllBypasses(targetURL string) chan *Result {
 		// Run dumb check once at the start
 		s.RunBypassModule("dumb_check", targetURL, results)
 
-		modes := strings.Split(s.scannerOpts.BypassModule, ",")
-		for _, mode := range modes {
-			mode = strings.TrimSpace(mode)
+		bpModules := strings.Split(s.scannerOpts.BypassModule, ",")
+		for _, module := range bpModules {
+			module = strings.TrimSpace(module)
 
-			if mode == "all" {
+			if module == "all" {
 				// Run all registered modules except dumb_check
-				for modeName := range bypassModules {
-					if modeName != "dumb_check" {
-						s.RunBypassModule(modeName, targetURL, results)
+				for bpModuleName := range bypassModules {
+					if bpModuleName != "dumb_check" {
+						s.RunBypassModule(bpModuleName, targetURL, results)
 					}
 				}
-
 				continue
 			}
 
 			// Check if module exists in registry
-			if _, exists := bypassModules[mode]; exists && mode != "dumb_check" {
-				s.RunBypassModule(mode, targetURL, results)
+			if _, exists := bypassModules[module]; exists && module != "dumb_check" {
+				s.RunBypassModule(module, targetURL, results)
 			} else {
-				GB403Logger.Error().Msgf("Unknown bypass mode: %s", mode)
+				GB403Logger.Error().Msgf("Unknown bypass module: %s\n", module)
 			}
 
 		}
@@ -212,7 +211,7 @@ func (s *Scanner) RunBypassModule(bypassModule string, targetURL string, results
 	// Generate jobs
 	allJobs := moduleInstance.GenerateJobs(targetURL, bypassModule, s.scannerOpts)
 	if len(allJobs) == 0 {
-		GB403Logger.Verbose().Msgf("No jobs generated for module: %s", bypassModule)
+		GB403Logger.Warning().Msgf("No jobs generated for bypass module: %s\n", bypassModule)
 		return
 	}
 

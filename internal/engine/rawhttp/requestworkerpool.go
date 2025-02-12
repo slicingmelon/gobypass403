@@ -1,6 +1,7 @@
 package rawhttp
 
 import (
+	"context"
 	"sync/atomic"
 	"time"
 
@@ -22,7 +23,7 @@ type RequestWorkerPool struct {
 }
 
 // NewWorkerPool initializes a new RequestWorkerPool instance
-func NewRequestWorkerPool(opts *HTTPClientOptions, maxWorkers int, errorHandler *GB403ErrorHandler.ErrorHandler) *RequestWorkerPool {
+func NewRequestWorkerPool(opts *HTTPClientOptions, maxWorkers int, totalJobs int, errorHandler *GB403ErrorHandler.ErrorHandler) *RequestWorkerPool {
 	wp := &RequestWorkerPool{
 		httpClient:   NewHTTPClient(opts, errorHandler),
 		errorHandler: errorHandler,
@@ -112,10 +113,10 @@ func (wp *RequestWorkerPool) ResetPeakRate() {
 // ProcessRequests handles multiple payload jobs
 func (wp *RequestWorkerPool) ProcessRequests(jobs []payload.PayloadJob) <-chan *RawHTTPResponseDetails {
 	results := make(chan *RawHTTPResponseDetails)
-	group := wp.pool.NewGroup()
+	group := wp.pool.NewGroupContext(context.Background())
 
 	for _, job := range jobs {
-		job := job // Capture for closure
+		job := job // Capture job for closure
 		group.Submit(func() {
 			if resp := wp.ProcessRequestResponseJob(job); resp != nil {
 				results <- resp
@@ -125,7 +126,7 @@ func (wp *RequestWorkerPool) ProcessRequests(jobs []payload.PayloadJob) <-chan *
 
 	// Close results channel when all tasks complete
 	go func() {
-		group.Wait()
+		group.Wait() // Wait for all tasks to complete
 		close(results)
 	}()
 
