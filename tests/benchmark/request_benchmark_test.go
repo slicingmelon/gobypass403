@@ -31,7 +31,7 @@ func BenchmarkBuildHTTPRequest(b *testing.B) {
 }
 
 // 21029904	        61.35 ns/op	       0 B/op	       0 allocs/op
-func BenchmarkProcessHTTPResponse(b *testing.B) {
+func BenchmarkProcessHTTPResponseStreamed(b *testing.B) {
 	// Setup client with default options
 	opts := rawhttp.DefaultHTTPClientOptions()
 	opts.ResponseBodyPreviewSize = 1024 // Ensure preview size is large enough

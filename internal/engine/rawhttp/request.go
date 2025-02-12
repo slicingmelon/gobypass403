@@ -157,10 +157,7 @@ func BuildHTTPRequest(httpclient *HTTPClient, req *fasthttp.Request, job payload
 	return nil
 }
 
-func ProcessHTTPResponse(httpclient *HTTPClient, resp *fasthttp.Response, job payload.PayloadJob) *RawHTTPResponseDetails {
-	result := AcquireResponseDetails()
-
-	responseTime := httpclient.GetLastResponseTime()
+func ProcessHTTPResponse(httpclient *HTTPClient, resp *fasthttp.Response, job payload.PayloadJob, result *RawHTTPResponseDetails) error {
 	statusCode := resp.StatusCode()
 	contentLength := resp.Header.ContentLength()
 	httpClientOpts := httpclient.GetHTTPClientOptions()
@@ -225,10 +222,7 @@ func ProcessHTTPResponse(httpclient *HTTPClient, resp *fasthttp.Response, job pa
 	// Generate curl command PoC
 	result.CurlCommand = BuildCurlCommandPoc(job, result.CurlCommand)
 
-	// update response time
-	result.ResponseTime = responseTime
-
-	return result
+	return nil
 }
 
 // String2Byte converts string to a byte slice without memory allocation.
