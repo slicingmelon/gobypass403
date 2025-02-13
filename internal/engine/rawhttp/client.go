@@ -45,6 +45,7 @@ type HTTPClientOptions struct {
 	Dialer                   fasthttp.DialFunc
 	RequestDelay             time.Duration // ScannerCliOpts
 	MaxConsecutiveFailedReqs int           // ScannerCliOpts
+	DisablePathNormalizing   bool
 }
 
 // HTTPClient represents a reusable HTTP client
@@ -76,6 +77,7 @@ func DefaultHTTPClientOptions() *HTTPClientOptions {
 		RetryDelay:               500 * time.Millisecond,
 		RequestDelay:             0,
 		DisableKeepAlive:         false, // Keep connections alive
+		DisablePathNormalizing:   true,
 		Dialer:                   nil,
 		MaxConsecutiveFailedReqs: 15,
 	}
@@ -85,6 +87,11 @@ func DefaultHTTPClientOptions() *HTTPClientOptions {
 func NewHTTPClient(opts *HTTPClientOptions, errorHandler *GB403ErrorHandler.ErrorHandler) *HTTPClient {
 	if opts == nil {
 		opts = DefaultHTTPClientOptions()
+	}
+
+	// Set the default dialer if none is provided
+	if opts.Dialer == nil {
+		opts.Dialer = CreateDialFunc(opts, errorHandler)
 	}
 
 	retryConfig := DefaultRetryConfig()
@@ -105,7 +112,7 @@ func NewHTTPClient(opts *HTTPClientOptions, errorHandler *GB403ErrorHandler.Erro
 		MaxIdleConnDuration:           opts.MaxIdleConnDuration,
 		MaxConnWaitTimeout:            opts.MaxConnWaitTimeout,
 		DisableHeaderNamesNormalizing: true,
-		DisablePathNormalizing:        true,
+		DisablePathNormalizing:        opts.DisablePathNormalizing,
 		NoDefaultUserAgentHeader:      true,
 		MaxResponseBodySize:           opts.MaxResponseBodySize,
 		ReadBufferSize:                opts.ReadBufferSize,
@@ -113,7 +120,7 @@ func NewHTTPClient(opts *HTTPClientOptions, errorHandler *GB403ErrorHandler.Erro
 		StreamResponseBody:            opts.StreamResponseBody,
 		//ReadTimeout:                   opts.Timeout,
 		//WriteTimeout:                  opts.Timeout,
-		Dial: CreateDialFunc(opts, errorHandler),
+		Dial: opts.Dialer,
 		TLSConfig: &tls.Config{
 			InsecureSkipVerify: true,
 			MinVersion:         tls.VersionTLS10,
