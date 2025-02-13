@@ -29,7 +29,7 @@ func parseFlags() (*CliOptions, error) {
 		{name: "T,timeout", usage: "Total timeout (in milliseconds)", value: &opts.Timeout, defVal: 20000},
 		{name: "delay", usage: "Delay between requests (in milliseconds)", value: &opts.Delay, defVal: 0},
 		{name: "max-retries", usage: "Maximum number of retries for failed requests", value: &opts.MaxRetries, defVal: 2},
-		{name: "retry-delay", usage: "Delay between retries (in milliseconds)", value: &opts.RetryDelay, defVal: 1000},
+		{name: "retry-delay", usage: "Delay between retries (in milliseconds)", value: &opts.RetryDelay, defVal: 500},
 		{name: "max-cfr,max-consecutive-fails", usage: "Maximum number of consecutive failed requests before cancelling current bypass module", value: &opts.MaxConsecutiveFailedReqs, defVal: 15},
 		{name: "v,verbose", usage: "Verbose output", value: &opts.Verbose, defVal: false},
 		{name: "d,debug", usage: "Debug mode with request canaries", value: &opts.Debug, defVal: false},

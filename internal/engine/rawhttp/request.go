@@ -181,7 +181,7 @@ func BuildRawHTTPRequest(httpclient *HTTPClient, req *fasthttp.Request, job payl
 	req.URI().DisablePathNormalizing = true
 	req.Header.DisableNormalizing()
 	req.Header.SetNoDefaultContentType(true)
-	req.UseHostHeader = true
+	req.UseHostHeader = false
 
 	// Get raw request buffer from pool
 	buf := AcquireRawRequest()

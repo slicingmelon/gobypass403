@@ -65,7 +65,7 @@ func CreateDialFunc(opts *HTTPClientOptions, errorHandler *GB403ErrorHandler.Err
 		// foobar.baz:443
 		// foo.bar:80
 		// aaa.com:8080
-		conn, err := dialer.DialTimeout(addr, opts.DialTimeout)
+		conn, err := dialer.DialDualStackTimeout(addr, opts.DialTimeout)
 		if err != nil {
 			if handleErr := errorHandler.HandleError(err, GB403ErrorHandler.ErrorContext{
 				ErrorSource: []byte("Client.directDial"),

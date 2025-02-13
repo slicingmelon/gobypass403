@@ -124,11 +124,9 @@ func (o *CliOptions) setDefaults() {
 	if o.Delay <= 0 {
 		o.Delay = 0
 	}
-	if o.MaxRetries == 0 {
-		o.MaxRetries = 2
-	}
+
 	if o.RetryDelay == 0 {
-		o.RetryDelay = 1000
+		o.RetryDelay = 500
 	}
 
 	// Status codes default - accept all codes
