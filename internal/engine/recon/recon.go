@@ -162,7 +162,7 @@ func ResolveThroughSystemHostsFile(host string) string {
 	if err := scanner.Err(); err != nil {
 		GB403Logger.Error().
 			Metadata("ResolveThroughSystemHostsFile()", "failed").
-			Msgf("Error reading hosts file: %v", err)
+			Msgf("Error reading hosts file: %v\n", err)
 		return ""
 	}
 
@@ -231,18 +231,18 @@ func (s *ReconService) handleIP(ip string) error {
 	services := result.IPv4Services
 	if strings.Contains(ip, ":") {
 		services = result.IPv6Services
-		GB403Logger.Verbose().Msgf("Handling IPv6: %s", ip)
+		GB403Logger.Verbose().Msgf("Handling IPv6: %s\n", ip)
 	} else {
-		GB403Logger.Verbose().Msgf("Handling IPv4: %s", ip)
+		GB403Logger.Verbose().Msgf("Handling IPv4: %s\n", ip)
 	}
 
 	// Check both ports and store all available schemes
 	foundService := false
 	for _, port := range []string{"80", "443"} {
-		GB403Logger.Verbose().Msgf("Probing %s:%s", ip, port)
+		GB403Logger.Verbose().Msgf("Probing %s:%s\n", ip, port)
 		if scheme := s.ProbeScheme(ip, port); scheme != "" {
 			foundService = true
-			GB403Logger.Verbose().Msgf("Found open port %s:%s -> %s", ip, port, scheme)
+			GB403Logger.Verbose().Msgf("Found open port %s:%s -> %s\n", ip, port, scheme)
 			if services[scheme] == nil {
 				services[scheme] = make(map[string][]string)
 			}
@@ -254,7 +254,7 @@ func (s *ReconService) handleIP(ip string) error {
 		return fmt.Errorf("no services found for IP %s", ip)
 	}
 
-	GB403Logger.Verbose().Msgf("Caching result for %s: IPv4=%v, IPv6=%v",
+	GB403Logger.Verbose().Msgf("Caching result for %s: IPv4=%v, IPv6=%v\n",
 		ip, result.IPv4Services, result.IPv6Services)
 
 	if err := s.cache.Set(ip, result); err != nil {
@@ -267,7 +267,7 @@ func (s *ReconService) handleIP(ip string) error {
 func (s *ReconService) handleDomain(host string) error {
 	ips, err := s.ResolveHost(host)
 	if err != nil {
-		GB403Logger.Error().Msgf("Failed to resolve host %s: %v", host, err)
+		GB403Logger.Error().Msgf("Failed to resolve host %s: %v\n", host, err)
 		return err
 	}
 
@@ -345,16 +345,16 @@ func (s *ReconService) ResolveHost(hostname string) (*IPAddrs, error) {
 		}
 		return result, nil
 	}
-	GB403Logger.Debug().Msgf("System resolver failed for %s: %v", hostname, err)
+	GB403Logger.Debug().Msgf("System resolver failed for %s: %v\n", hostname, err)
 
 	// Fall back to custom resolver
-	GB403Logger.Debug().Msgf("Trying custom resolvers for %s", hostname)
+	GB403Logger.Debug().Msgf("Trying custom resolvers for %s\n", hostname)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
 	customIPs, err := s.dialer.Resolver.LookupIPAddr(ctx, hostname)
 	if err != nil {
-		GB403Logger.Error().Msgf("All resolvers failed for %s: %v", hostname, err)
+		GB403Logger.Error().Msgf("All resolvers failed for %s: %v\n", hostname, err)
 		return nil, err
 	}
 
@@ -381,7 +381,7 @@ func (s *ReconService) ProbeScheme(host, port string) string {
 	// Check if the port is open using a TCP connection
 	conn, err := net.DialTimeout("tcp", addr, 5*time.Second)
 	if err != nil {
-		GB403Logger.Debug().Msgf("Port %s is closed: %v", addr, err)
+		GB403Logger.Debug().Msgf("Port %s is closed: %v\n", addr, err)
 		return ""
 	}
 
@@ -416,13 +416,15 @@ func (s *ReconService) ProbeScheme(host, port string) string {
 	defer fasthttp.ReleaseResponse(resp)
 
 	req.SetRequestURI(fmt.Sprintf("http://%s", addr))
+	req.URI().SetScheme("http")
+
 	err = client.Do(req, resp)
 	if err == nil {
 		// HTTP request succeeded, indicating HTTP support
-		GB403Logger.Verbose().Msgf("HTTP supported on %s", addr)
+		GB403Logger.Verbose().Msgf("HTTP supported on %s\n", addr)
 		return "http"
 	}
-	GB403Logger.Verbose().Msgf("HTTP request failed on %s: %v", addr, err)
+	GB403Logger.Verbose().Msgf("HTTP request failed on %s: %v\n", addr, err)
 
 	// If both checks fail, return an empty string
 	return ""
