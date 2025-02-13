@@ -4,10 +4,14 @@ import (
 	"fmt"
 	"path/filepath"
 	"sync"
+	"time"
 
 	"github.com/slicingmelon/go-bypass-403/internal/engine/payload"
+	"github.com/slicingmelon/go-bypass-403/internal/engine/rawhttp"
 	"github.com/slicingmelon/go-bypass-403/internal/engine/scanner"
+	GB403ErrorHandler "github.com/slicingmelon/go-bypass-403/internal/utils/error"
 	GB403Logger "github.com/slicingmelon/go-bypass-403/internal/utils/logger"
+	rawurlparser "github.com/slicingmelon/go-rawurlparser"
 )
 
 type Runner struct {
@@ -106,57 +110,50 @@ func (r *Runner) handleResendRequest() error {
 		return fmt.Errorf("failed to decode debug token: %w", err)
 	}
 
-	// Print the decoded information
-	fmt.Println("=== Debug Token Information ===")
-	fmt.Printf("Full URL: %s\n", data.FullURL)
-	fmt.Printf("Bypass Module: %s\n", data.BypassModule)
-	fmt.Println("Headers:")
-	for _, h := range data.Headers {
-		fmt.Printf("  %s: %s\n", h.Header, h.Value)
+	GB403Logger.Debug().Msgf("Decoded token data: %+v", data)
+
+	// Parse the URL using rawurlparser
+	parsedURL, err := rawurlparser.RawURLParse(data.FullURL)
+	if err != nil {
+		return fmt.Errorf("failed to parse URL: %w", err)
 	}
 
-	// Set a default bypass module if empty
-	if data.BypassModule == "" {
-		data.BypassModule = "resend_request"
+	// Create the job with all required fields
+	job := payload.PayloadJob{
+		FullURL:      data.FullURL,
+		Method:       "GET",
+		Host:         parsedURL.Host,
+		Scheme:       parsedURL.Scheme,
+		RawURI:       parsedURL.Path,
+		Headers:      data.Headers,
+		BypassModule: "resend_request",
+		PayloadToken: payload.GenerateDebugToken(payload.SeedData{FullURL: data.FullURL}),
 	}
 
-	// Initialize the scanner if it's nil
-	if r.Scanner == nil {
-		scannerOpts := &scanner.ScannerOpts{
-			BypassModule:              data.BypassModule, // Use the module from the token
-			OutDir:                    r.RunnerOptions.OutDir,
-			Timeout:                   r.RunnerOptions.Timeout,
-			Threads:                   1, // Only need 1 thread for resend
-			Delay:                     r.RunnerOptions.Delay,
-			MaxRetries:                r.RunnerOptions.MaxRetries,
-			RetryDelay:                r.RunnerOptions.RetryDelay,
-			MaxConsecutiveFailedReqs:  r.RunnerOptions.MaxConsecutiveFailedReqs,
-			Proxy:                     r.RunnerOptions.Proxy,
-			EnableHTTP2:               r.RunnerOptions.EnableHTTP2,
-			SpoofHeader:               r.RunnerOptions.SpoofHeader,
-			SpoofIP:                   r.RunnerOptions.SpoofIP,
-			FollowRedirects:           r.RunnerOptions.FollowRedirects,
-			MatchStatusCodes:          r.RunnerOptions.MatchStatusCodes,
-			Debug:                     r.RunnerOptions.Debug,
-			Verbose:                   r.RunnerOptions.Verbose,
-			ResponseBodyPreviewSize:   r.RunnerOptions.ResponseBodyPreviewSize,
-			DisableStreamResponseBody: r.RunnerOptions.DisableStreamResponseBody,
-		}
-		r.Scanner = scanner.NewScanner(scannerOpts, []string{data.FullURL})
-	}
+	GB403Logger.Debug().Msgf("Created job: method=%s scheme=%s host=%s rawuri=%s",
+		job.Method, job.Scheme, job.Host, job.RawURI)
 
 	// Create results channel with buffer
 	results := make(chan *scanner.Result, 1)
-
-	// Create a WaitGroup for both sending and collecting results
 	var wg sync.WaitGroup
-	wg.Add(2) // One for sending, one for collecting
+	wg.Add(2)
 
-	// Slice to store findings with mutex for safe concurrent access
+	// Slice to store findings
 	var allFindings []*scanner.Result
 	var findingsMutex sync.Mutex
 
-	GB403Logger.Info().Msgf("Resending request to: %s\n", data.FullURL)
+	GB403Logger.Info().Msgf("Resending request to: %s", data.FullURL)
+
+	// Create worker directly without initializing full scanner
+	httpClientOpts := &rawhttp.HTTPClientOptions{
+		Timeout:                 time.Duration(r.RunnerOptions.Timeout) * time.Millisecond,
+		MaxConnsPerHost:         r.RunnerOptions.Threads + (r.RunnerOptions.Threads / 2),
+		ResponseBodyPreviewSize: r.RunnerOptions.ResponseBodyPreviewSize,
+		ProxyURL:                r.RunnerOptions.Proxy,
+	}
+
+	worker := rawhttp.NewRequestWorkerPool(httpClientOpts, 1, GB403ErrorHandler.NewErrorHandler(32))
+	defer worker.Close()
 
 	// Start the results collector goroutine
 	go func() {
@@ -167,9 +164,8 @@ func (r *Runner) handleResendRequest() error {
 				allFindings = append(allFindings, result)
 				findingsMutex.Unlock()
 
-				// Print result immediately
 				scanner.PrintResultsTable(data.FullURL, []*scanner.Result{result})
-				GB403Logger.Debug().Msgf("Received result with status code: %d\n", result.StatusCode)
+				GB403Logger.Debug().Msgf("Received result with status code: %d", result.StatusCode)
 			}
 		}
 	}()
@@ -177,15 +173,51 @@ func (r *Runner) handleResendRequest() error {
 	// Start the request sender goroutine
 	go func() {
 		defer wg.Done()
-		defer close(results) // Close results channel when done sending
-		GB403Logger.Debug().Msgf("Starting request...")
-		r.Scanner.ResendRequestWithDebugToken(r.RunnerOptions.ResendRequest, results)
-		GB403Logger.Debug().Msgf("Finished sending request")
+		defer close(results)
+
+		GB403Logger.Debug().Msgf("Processing request...")
+
+		// Process request directly
+		responses := worker.ProcessRequests([]payload.PayloadJob{job})
+
+		responseReceived := false
+		for response := range responses {
+			responseReceived = true
+			if response == nil {
+				GB403Logger.Debug().Msgf("Received nil response")
+				continue
+			}
+
+			GB403Logger.Debug().Msgf("Received response with status code: %d", response.StatusCode)
+
+			result := &scanner.Result{
+				TargetURL:       string(response.URL),
+				BypassModule:    job.BypassModule,
+				StatusCode:      response.StatusCode,
+				ResponseHeaders: string(response.ResponseHeaders),
+				CurlPocCommand:  string(response.CurlCommand),
+				ResponsePreview: string(response.ResponsePreview),
+				ContentType:     string(response.ContentType),
+				ContentLength:   response.ContentLength,
+				ResponseBytes:   response.ResponseBytes,
+				Title:           string(response.Title),
+				ServerInfo:      string(response.ServerInfo),
+				RedirectURL:     string(response.RedirectURL),
+				ResponseTime:    response.ResponseTime,
+				DebugToken:      string(response.DebugToken),
+			}
+
+			results <- result
+			rawhttp.ReleaseResponseDetails(response)
+		}
+
+		if !responseReceived {
+			GB403Logger.Warning().Msgf("No response was received from the request pool")
+		}
 	}()
 
 	// Wait for both goroutines to complete
 	wg.Wait()
-	GB403Logger.Debug().Msgf("All goroutines completed")
 
 	// Process findings
 	findingsMutex.Lock()
@@ -194,9 +226,9 @@ func (r *Runner) handleResendRequest() error {
 	if len(allFindings) > 0 {
 		outputFile := filepath.Join(r.RunnerOptions.OutDir, "findings.json")
 		if err := scanner.AppendResultsToJSON(outputFile, data.FullURL, data.BypassModule, allFindings); err != nil {
-			GB403Logger.Error().Msgf("Failed to save findings for %s: %v\n", data.FullURL, err)
+			GB403Logger.Error().Msgf("Failed to save findings for %s: %v", data.FullURL, err)
 		}
-		GB403Logger.Success().Msgf("Results saved to %s\n", outputFile)
+		GB403Logger.Success().Msgf("Results saved to %s", outputFile)
 	} else {
 		GB403Logger.Warning().Msgf("No results received from request")
 	}

@@ -370,8 +370,11 @@ func BuildRawHTTPRequest(httpclient *HTTPClient, req *fasthttp.Request, job payl
 	// Parse back into fasthttp.Request
 	br := bufio.NewReader(bytes.NewReader(buf.Bytes()))
 	if err := req.Read(br); err != nil {
+		GB403Logger.Debug().Msgf("Failed to parse raw request: %v", err)
 		return fmt.Errorf("failed to parse raw request: %v", err)
 	}
+
+	GB403Logger.Debug().Msgf("Raw request:\n%s", buf.String())
 
 	// Disable all normalizing and encodings !! AFTER parsing the raw request into fasthttp req
 	req.URI().DisablePathNormalizing = true

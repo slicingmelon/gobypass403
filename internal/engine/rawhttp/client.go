@@ -157,10 +157,17 @@ func (c *HTTPClient) execFunc(req *fasthttp.Request, resp *fasthttp.Response) (i
 	req.CopyTo(reqCopy)
 
 	// Preserve special flags
-	reqCopy.URI().DisablePathNormalizing = req.URI().DisablePathNormalizing
+	reqCopy.URI().DisablePathNormalizing = true
 	reqCopy.Header.DisableNormalizing()
 	reqCopy.Header.SetNoDefaultContentType(true)
-	reqCopy.UseHostHeader = req.UseHostHeader
+	reqCopy.UseHostHeader = true
+
+	// Re-set scheme and host after copy to preserve raw path
+	reqCopy.URI().SetScheme(string(req.URI().Scheme()))
+	reqCopy.URI().SetHost(string(req.URI().Host()))
+
+	GB403Logger.Debug().Msgf("Request copy details: scheme=%s host=%s path=%s",
+		reqCopy.URI().Scheme(), reqCopy.URI().Host(), reqCopy.URI().Path())
 
 	// Capture original timeout and retry delay from the global options and retry config.
 	origOpts := c.GetHTTPClientOptions()
@@ -190,6 +197,15 @@ func (c *HTTPClient) execFunc(req *fasthttp.Request, resp *fasthttp.Response) (i
 			reqCopy.SetConnectionClose()
 		}
 
+		// For retries, re-apply all settings again
+		reqCopy.SetConnectionClose()
+		reqCopy.URI().DisablePathNormalizing = true
+		reqCopy.Header.DisableNormalizing()
+		reqCopy.Header.SetNoDefaultContentType(true)
+		reqCopy.UseHostHeader = true
+		reqCopy.URI().SetScheme(string(req.URI().Scheme()))
+		reqCopy.URI().SetHost(string(req.URI().Host()))
+
 		GB403Logger.Debug().Msgf("Attempt %d: timeout=%v (base=%v)\n", attempt, currentTimeout, baseTimeout)
 
 		start := time.Now()
@@ -212,11 +228,14 @@ func (c *HTTPClient) execFunc(req *fasthttp.Request, resp *fasthttp.Response) (i
 
 		if attempt < maxRetries {
 			// Prepare req for next retry
-			reqCopy.Header.Del("Connection")
-			reqCopy.Header.Set("X-Retry", fmt.Sprintf("%d", attempt+1))
-			reqCopy.URI().DisablePathNormalizing = true // Re-ensure flag
-			reqCopy.Header.DisableNormalizing()         // Re-ensure flag
+			// For retries, re-apply all settings again
 			reqCopy.SetConnectionClose()
+			reqCopy.URI().DisablePathNormalizing = true
+			reqCopy.Header.DisableNormalizing()
+			reqCopy.Header.SetNoDefaultContentType(true)
+			reqCopy.UseHostHeader = true
+			reqCopy.URI().SetScheme(string(req.URI().Scheme()))
+			reqCopy.URI().SetHost(string(req.URI().Host()))
 			c.retryConfig.PerReqRetriedAttempts.Add(1)
 			resp.Reset()
 		}

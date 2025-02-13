@@ -286,7 +286,9 @@ func (s *Scanner) RunBypassModule(bypassModule string, targetURL string, results
 }
 
 func (s *Scanner) ResendRequestDirectly(job payload.PayloadJob, results chan<- *Result) {
-	GB403Logger.Debug().Msgf("Creating bypass worker for module: %s\n", job.BypassModule)
+	GB403Logger.Debug().Msgf("Creating bypass worker for module: %s", job.BypassModule)
+	GB403Logger.Debug().Msgf("URL: %s", job.FullURL)
+	GB403Logger.Debug().Msgf("Headers: %+v", job.Headers)
 
 	// Create a bypass worker
 	worker := NewBypassWorker(job.BypassModule, job.FullURL, s.scannerOpts, s.errorHandler)
@@ -297,16 +299,21 @@ func (s *Scanner) ResendRequestDirectly(job payload.PayloadJob, results chan<- *
 	// Process the request
 	responses := worker.requestPool.ProcessRequests([]payload.PayloadJob{job})
 
+	responseReceived := false
 	GB403Logger.Debug().Msgf("Processing responses...")
+
 	for response := range responses {
+		responseReceived = true
 		if response == nil {
 			GB403Logger.Debug().Msgf("Received nil response")
 			continue
 		}
 
-		GB403Logger.Debug().Msgf("Received response with status code: %d\n", response.StatusCode)
+		GB403Logger.Debug().Msgf("Received response with status code: %d", response.StatusCode)
+		GB403Logger.Debug().Msgf("Response headers: %s", string(response.ResponseHeaders))
+		GB403Logger.Debug().Msgf("Response preview: %s", string(response.ResponsePreview))
 
-		// Create a result object
+		// Always create and send the result for resend requests
 		result := &Result{
 			TargetURL:       string(response.URL),
 			BypassModule:    job.BypassModule,
@@ -326,10 +333,16 @@ func (s *Scanner) ResendRequestDirectly(job payload.PayloadJob, results chan<- *
 
 		GB403Logger.Debug().Msgf("Sending result to channel...")
 		results <- result
+		GB403Logger.Debug().Msgf("Result sent to channel")
 
 		// Release response details
 		rawhttp.ReleaseResponseDetails(response)
 	}
+
+	if !responseReceived {
+		GB403Logger.Warning().Msgf("No response was received from the request pool")
+	}
+
 	GB403Logger.Debug().Msgf("Finished processing request")
 }
 
