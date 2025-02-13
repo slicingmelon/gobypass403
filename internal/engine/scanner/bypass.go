@@ -285,6 +285,45 @@ func (s *Scanner) RunBypassModule(bypassModule string, targetURL string, results
 	)
 }
 
+func (s *Scanner) ResendRequestDirectly(job payload.PayloadJob, results chan<- *Result) {
+	// Create a bypass worker
+	worker := NewBypassWorker(job.BypassModule, job.FullURL, s.scannerOpts, s.errorHandler)
+	defer worker.Stop()
+
+	// Process the request
+	responses := worker.requestPool.ProcessRequests([]payload.PayloadJob{job})
+
+	for response := range responses {
+		if response == nil {
+			continue
+		}
+
+		// Create a result object
+		result := &Result{
+			TargetURL:       string(response.URL),
+			BypassModule:    job.BypassModule,
+			StatusCode:      response.StatusCode,
+			ResponseHeaders: string(response.ResponseHeaders),
+			CurlPocCommand:  string(response.CurlCommand),
+			ResponsePreview: string(response.ResponsePreview),
+			ContentType:     string(response.ContentType),
+			ContentLength:   response.ContentLength,
+			ResponseBytes:   response.ResponseBytes,
+			Title:           string(response.Title),
+			ServerInfo:      string(response.ServerInfo),
+			RedirectURL:     string(response.RedirectURL),
+			ResponseTime:    response.ResponseTime,
+			DebugToken:      string(response.DebugToken),
+		}
+
+		// Send the result to the channel
+		results <- result
+
+		// Release response details
+		rawhttp.ReleaseResponseDetails(response)
+	}
+}
+
 // func (s *Scanner) ResendRequestWithDebugToken(debugToken string, results chan<- *Result) {
 // 	if debugToken == "" {
 // 		GB403Logger.Error().Msgf("Debug token is empty\n")

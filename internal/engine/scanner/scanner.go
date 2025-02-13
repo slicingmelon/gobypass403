@@ -134,8 +134,22 @@ func (s *Scanner) ResendRequestWithDebugToken(debugToken string, results chan<- 
 		return
 	}
 
-	// Run the bypass module for the resend request
-	s.RunBypassModule(tokenData.BypassModule, tokenData.FullURL, results)
+	var bypassModule string
+	if tokenData.BypassModule == "" {
+		bypassModule = "DebugRequest"
+	} else {
+		bypassModule = tokenData.BypassModule
+	}
+
+	// Create a single job for the resend request
+	job := payload.PayloadJob{
+		FullURL:      tokenData.FullURL,
+		Headers:      tokenData.Headers,
+		BypassModule: bypassModule, // Use the bypass module from scanner options
+	}
+
+	// Resend the request directly
+	s.ResendRequestDirectly(job, results)
 }
 
 // Close the scanner instance
