@@ -169,7 +169,19 @@ func (wp *RequestWorkerPool) ProcessRequestResponseJob(job payload.PayloadJob) *
 	// Apply delays (throttling)
 	wp.applyDelays()
 
-	if err := BuildHTTPRequest(wp.httpClient, req, job); err != nil {
+	// if err := BuildHTTPRequest(wp.httpClient, req, job); err != nil {
+	// 	handleErr := wp.errorHandler.HandleError(err, GB403ErrorHandler.ErrorContext{
+	// 		ErrorSource:  []byte("RequestWorkerPool.BuildRequestTask"),
+	// 		Host:         []byte(job.Host),
+	// 		BypassModule: []byte(job.BypassModule),
+	// 	})
+	// 	if handleErr != nil {
+	// 		return nil
+	// 	}
+	// }
+
+	// Change this line
+	if err := BuildRawHTTPRequest(wp.httpClient, req, job); err != nil {
 		handleErr := wp.errorHandler.HandleError(err, GB403ErrorHandler.ErrorContext{
 			ErrorSource:  []byte("RequestWorkerPool.BuildRequestTask"),
 			Host:         []byte(job.Host),

@@ -166,6 +166,7 @@ func (c *HTTPClient) execFunc(req *fasthttp.Request, resp *fasthttp.Response) (i
 		time.Sleep(origOpts.RequestDelay)
 	}
 
+	var lastErr error
 	for attempt := 0; attempt <= maxRetries; attempt++ {
 		// Calculate timeout for this attempt
 		currentTimeout := baseTimeout
@@ -195,6 +196,8 @@ func (c *HTTPClient) execFunc(req *fasthttp.Request, resp *fasthttp.Response) (i
 			return elapsed.Milliseconds(), nil
 		}
 
+		lastErr = err
+
 		if !IsRetryableError(err) {
 			GB403Logger.Debug().Msgf("Non-retryable error: %v\n", err)
 			return elapsed.Milliseconds(), err
@@ -217,7 +220,7 @@ func (c *HTTPClient) execFunc(req *fasthttp.Request, resp *fasthttp.Response) (i
 		}
 	}
 
-	return 0, nil
+	return 0, lastErr
 }
 
 // DoRequest performs a HTTP request (raw)

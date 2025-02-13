@@ -1,7 +1,9 @@
 package rawhttp
 
 import (
+	"bufio"
 	"bytes"
+	"fmt"
 	"io"
 	"runtime"
 	"sync"
@@ -153,6 +155,85 @@ func BuildHTTPRequest(httpclient *HTTPClient, req *fasthttp.Request, job payload
 	}
 
 	//GB403Logger.Debug().Msgf("[%s] - Request:\n%s\n", job.BypassModule, string(req.String()))
+
+	return nil
+}
+
+var rawRequestPool = sync.Pool{
+	New: func() interface{} {
+		return bytes.NewBuffer(make([]byte, 0, 4096)) // Pre-allocate 4KB
+	},
+}
+
+// AcquireRawRequest gets a buffer from the pool
+func AcquireRawRequest() *bytes.Buffer {
+	return rawRequestPool.Get().(*bytes.Buffer)
+}
+
+// ReleaseRawRequest returns a buffer to the pool
+func ReleaseRawRequest(buf *bytes.Buffer) {
+	buf.Reset()
+	rawRequestPool.Put(buf)
+}
+
+func BuildRawHTTPRequest(httpclient *HTTPClient, req *fasthttp.Request, job payload.PayloadJob) error {
+	// Disable all normalizing and encodings
+	req.URI().DisablePathNormalizing = true
+	req.Header.DisableNormalizing()
+	req.Header.SetNoDefaultContentType(true)
+	req.UseHostHeader = true
+
+	// Get raw request buffer from pool
+	buf := AcquireRawRequest()
+	defer ReleaseRawRequest(buf)
+
+	// Build request
+	buf.WriteString(job.Method)
+	buf.WriteString(" ")
+	buf.WriteString(job.RawURI)
+	buf.WriteString(" HTTP/1.1\r\n")
+
+	// Headers
+	buf.WriteString("Host: ")
+	buf.WriteString(job.Host)
+	buf.WriteString("\r\n")
+
+	// Custom headers
+	shouldCloseConn := len(job.Headers) > 0 ||
+		httpclient.GetHTTPClientOptions().DisableKeepAlive ||
+		httpclient.GetHTTPClientOptions().ProxyURL != ""
+
+	for _, h := range job.Headers {
+		if h.Header == "Host" {
+			shouldCloseConn = true // Force close if Host header is overridden
+		}
+		buf.WriteString(h.Header)
+		buf.WriteString(": ")
+		buf.WriteString(h.Value)
+		buf.WriteString("\r\n")
+	}
+
+	// Connection handling
+	if shouldCloseConn {
+		buf.WriteString("Connection: close\r\n")
+	} else {
+		buf.WriteString("Connection: keep-alive\r\n")
+	}
+
+	// Debug token
+	if GB403Logger.IsDebugEnabled() {
+		buf.WriteString("X-GB403-Token: ")
+		buf.WriteString(job.PayloadToken)
+		buf.WriteString("\r\n")
+	}
+
+	buf.WriteString("\r\n")
+
+	// Parse back into fasthttp.Request
+	br := bufio.NewReader(bytes.NewReader(buf.Bytes()))
+	if err := req.Read(br); err != nil {
+		return fmt.Errorf("failed to parse raw request: %v", err)
+	}
 
 	return nil
 }
@@ -332,33 +413,7 @@ func PeekHeaderKeyCaseInsensitive(h *fasthttp.ResponseHeader, key []byte) []byte
 }
 
 // Helper function to extract title from HTML
-// func ExtractTitle(body []byte) []byte {
-// 	if len(body) == 0 {
-// 		return nil
-// 	}
-
-// 	// Find start of title tag
-// 	titleStart := bytes.Index(body, strTitle)
-// 	if titleStart == -1 {
-// 		return nil
-// 	}
-// 	titleStart += 7 // len("<title>")
-
-// 	// Find closing tag
-// 	titleEnd := bytes.Index(body[titleStart:], strCloseTitle)
-// 	if titleEnd == -1 {
-// 		return nil
-// 	}
-
-// 	// Extract title content
-// 	title := bytes.TrimSpace(body[titleStart : titleStart+titleEnd])
-// 	if len(title) == 0 {
-// 		return nil
-// 	}
-
-// 	return append([]byte(nil), title...)
-// }
-
+// Appends the result to dest slice
 func ExtractTitle(body []byte, dest []byte) []byte {
 	if len(body) == 0 {
 		return dest
