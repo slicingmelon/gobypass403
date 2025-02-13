@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"sort"
 
+	"github.com/slicingmelon/go-bypass-403/internal/engine/payload"
 	"github.com/slicingmelon/go-bypass-403/internal/engine/recon"
 	GB403ErrorHandler "github.com/slicingmelon/go-bypass-403/internal/utils/error"
 	GB403Logger "github.com/slicingmelon/go-bypass-403/internal/utils/logger"
@@ -55,26 +56,6 @@ func NewScanner(opts *ScannerOpts, urls []string) *Scanner {
 // Run runs the scanner..
 func (s *Scanner) Run() error {
 	defer s.Close()
-
-	// Handle resend request if specified
-	if s.scannerOpts.ResendRequest != "" {
-		results := make(chan *Result, 1)
-		defer close(results)
-
-		s.ResendRequestWithDebugToken(s.scannerOpts.ResendRequest, results)
-
-		// Process the result
-		for result := range results {
-			if result != nil {
-				PrintResultsTable(result.TargetURL, []*Result{result})
-			}
-		}
-
-		// Print error stats and exit
-		fmt.Println()
-		s.errorHandler.PrintErrorStats()
-		return nil
-	}
 
 	// Normal scanning mode
 	GB403Logger.Info().Msgf("Initializing scanner with %d URLs", len(s.urls))
@@ -138,6 +119,23 @@ func (s *Scanner) scanURL(url string) error {
 	}
 
 	return nil
+}
+
+func (s *Scanner) ResendRequestWithDebugToken(debugToken string, results chan<- *Result) {
+	if debugToken == "" {
+		GB403Logger.Error().Msgf("Debug token is empty\n")
+		return
+	}
+
+	// Decode the token
+	tokenData, err := payload.DecodeDebugToken(debugToken)
+	if err != nil {
+		GB403Logger.Error().Msgf("Failed to decode debug token: %s\n", err)
+		return
+	}
+
+	// Run the bypass module for the resend request
+	s.RunBypassModule(tokenData.BypassModule, tokenData.FullURL, results)
 }
 
 // Close the scanner instance
