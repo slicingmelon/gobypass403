@@ -176,26 +176,45 @@ func ReleaseRawRequest(buf *bytes.Buffer) {
 	rawRequestPool.Put(buf)
 }
 
+/*
+Crucial information
+
+The detination/target URL is built based on req.URI, aka where the request will be sent to.
+
+Use req.URI().SetScheme("https") to set the scheme to https
+Use req.URI().SetHost("example.com") to set the target host.
+Use req.SetRequestURI("/path") to set the path (e.g., / or /ssdaf).
+
+For spoofed/custom Host header!
+Set req.UseHostHeader = true to ensure the custom Host header is used instead of the URI host (fasthttp will extract it from the URI)
+Use req.Header.SetHost("evil.com") to set the spoofed Host header
+*/
 func BuildRawHTTPRequest(httpclient *HTTPClient, req *fasthttp.Request, job payload.PayloadJob) error {
 	// Disable all normalizing and encodings
 	req.URI().DisablePathNormalizing = true
 	req.Header.DisableNormalizing()
 	req.Header.SetNoDefaultContentType(true)
-	req.UseHostHeader = false
+
+	// Always use custom Host header
+	req.UseHostHeader = true
 
 	// Get raw request buffer from pool
 	buf := AcquireRawRequest()
 	defer ReleaseRawRequest(buf)
 
-	// Build request
+	// Build request line
 	buf.WriteString(job.Method)
 	buf.WriteString(" ")
-	buf.WriteString(job.RawURI)
+	buf.WriteString(job.RawURI) // e.g., "/path?query=1"
 	buf.WriteString(" HTTP/1.1\r\n")
 
-	// Headers
-	buf.WriteString("Host: ")
-	buf.WriteString(job.Host)
+	// Set the target host in the URI
+	req.URI().SetScheme(job.Scheme) // "https" or "http"
+	req.URI().SetHost(job.Host)     // e.g., "example.com"
+
+	// Set the custom Host header
+	buf.WriteString("Host: ") // same as req.Header.SetHost
+	buf.WriteString(job.Host) // e.g., "evil.com"
 	buf.WriteString("\r\n")
 
 	// Custom headers
@@ -205,7 +224,7 @@ func BuildRawHTTPRequest(httpclient *HTTPClient, req *fasthttp.Request, job payl
 
 	for _, h := range job.Headers {
 		if h.Header == "Host" {
-			shouldCloseConn = true // Force close if Host header is overridden
+			shouldCloseConn = true // Force close if Host header is explicitly in Headers[]
 		}
 		buf.WriteString(h.Header)
 		buf.WriteString(": ")
@@ -227,6 +246,7 @@ func BuildRawHTTPRequest(httpclient *HTTPClient, req *fasthttp.Request, job payl
 		buf.WriteString("\r\n")
 	}
 
+	// End of headers
 	buf.WriteString("\r\n")
 
 	// Parse back into fasthttp.Request
