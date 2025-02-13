@@ -115,6 +115,32 @@ func (r *Runner) handleResendRequest() error {
 		fmt.Printf("  %s: %s\n", h.Header, h.Value)
 	}
 
+	// Initialize the scanner if it's nil
+	if r.Scanner == nil {
+		scannerOpts := &scanner.ScannerOpts{
+			BypassModule:              r.RunnerOptions.Module,
+			OutDir:                    r.RunnerOptions.OutDir,
+			Timeout:                   r.RunnerOptions.Timeout,
+			Threads:                   r.RunnerOptions.Threads,
+			Delay:                     r.RunnerOptions.Delay,
+			MaxRetries:                r.RunnerOptions.MaxRetries,
+			RetryDelay:                r.RunnerOptions.RetryDelay,
+			MaxConsecutiveFailedReqs:  r.RunnerOptions.MaxConsecutiveFailedReqs,
+			Proxy:                     "",
+			EnableHTTP2:               r.RunnerOptions.EnableHTTP2,
+			SpoofHeader:               r.RunnerOptions.SpoofHeader,
+			SpoofIP:                   r.RunnerOptions.SpoofIP,
+			FollowRedirects:           r.RunnerOptions.FollowRedirects,
+			MatchStatusCodes:          r.RunnerOptions.MatchStatusCodes,
+			Debug:                     r.RunnerOptions.Debug,
+			Verbose:                   r.RunnerOptions.Verbose,
+			ResponseBodyPreviewSize:   r.RunnerOptions.ResponseBodyPreviewSize,
+			DisableStreamResponseBody: r.RunnerOptions.DisableStreamResponseBody,
+			ResendRequest:             r.RunnerOptions.ResendRequest,
+		}
+		r.Scanner = scanner.NewScanner(scannerOpts, []string{data.FullURL})
+	}
+
 	// Create results channel
 	results := make(chan *scanner.Result, 1)
 
