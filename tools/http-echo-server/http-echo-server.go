@@ -207,8 +207,8 @@ func handleConnection(conn net.Conn, dump string, timeout int, template string) 
 	// Handle different templates
 	switch template {
 	case "timeout":
-		fmt.Printf("Sleeping for 2 seconds...\n")
-		time.Sleep(2 * time.Second)
+		fmt.Printf("Sleeping for 1 seconds...\n")
+		time.Sleep(1 * time.Second)
 		fmt.Printf("Sleep done, sending response\n")
 
 		response := fmt.Sprintf("HTTP/1.1 200 OK\r\n"+

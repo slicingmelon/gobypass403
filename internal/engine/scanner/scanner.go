@@ -103,7 +103,7 @@ func (s *Scanner) scanURL(url string) error {
 		// Save findings first
 		outputFile := filepath.Join(s.scannerOpts.OutDir, "findings.json")
 		if err := AppendResultsToJSON(outputFile, url, s.scannerOpts.BypassModule, allFindings); err != nil {
-			GB403Logger.Error().Msgf("Failed to save findings for %s: %v", url, err)
+			GB403Logger.Error().Msgf("Failed to save findings for %s: %v\n", url, err)
 		}
 
 		// Print results only once

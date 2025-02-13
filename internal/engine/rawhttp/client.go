@@ -149,6 +149,12 @@ func (c *HTTPClient) execFunc(req *fasthttp.Request, resp *fasthttp.Response) (i
 	defer fasthttp.ReleaseRequest(reqCopy)
 	req.CopyTo(reqCopy)
 
+	// Preserve special flags
+	reqCopy.URI().DisablePathNormalizing = req.URI().DisablePathNormalizing
+	reqCopy.Header.DisableNormalizing()
+	reqCopy.Header.SetNoDefaultContentType(true)
+	reqCopy.UseHostHeader = req.UseHostHeader
+
 	// Capture original timeout and retry delay from the global options and retry config.
 	origOpts := c.GetHTTPClientOptions()
 	baseTimeout := origOpts.Timeout
@@ -198,6 +204,9 @@ func (c *HTTPClient) execFunc(req *fasthttp.Request, resp *fasthttp.Response) (i
 			// Prepare req for next retry
 			reqCopy.Header.Del("Connection")
 			reqCopy.Header.Set("X-Retry", fmt.Sprintf("%d", attempt+1))
+			reqCopy.URI().DisablePathNormalizing = true // Re-ensure flag
+			reqCopy.Header.DisableNormalizing()         // Re-ensure flag
+			reqCopy.SetConnectionClose()
 			c.retryConfig.PerReqRetriedAttempts.Add(1)
 			resp.Reset()
 		}
@@ -255,6 +264,10 @@ func (c *HTTPClient) GetPerReqRetryAttempts() int32 {
 
 func (c *HTTPClient) ResetConsecutiveFailedReqs() {
 	c.consecutiveFailedReqs.Store(0)
+}
+
+func (c *HTTPClient) GetConsecutiveFailures() int32 {
+	return c.consecutiveFailedReqs.Load()
 }
 
 // GetLastResponseTime returns the last HTTP response time in milliseconds

@@ -187,12 +187,12 @@ func AppendResultsToJSON(outputFile, url, mode string, findings []*Result) error
 		data = JSONData{
 			Scans: make([]ScanResult, 0),
 		}
-		GB403Logger.Verbose().Msgf("[JSON] Initializing new JSON file")
+		GB403Logger.Verbose().Msgf("[AppendResultsToJSON] Initializing new JSON file\n")
 	} else {
 		if err := json.Unmarshal(fileData, &data); err != nil {
 			return fmt.Errorf("failed to parse existing JSON: %v", err)
 		}
-		GB403Logger.Verbose().Msgf("[JSON] Read existing JSON file with %d scans", len(data.Scans))
+		GB403Logger.Verbose().Msgf("[AppendResultsToJSON] Read existing JSON file with %d scans\n", len(data.Scans))
 	}
 
 	// Clean up findings
@@ -212,7 +212,7 @@ func AppendResultsToJSON(outputFile, url, mode string, findings []*Result) error
 	}
 
 	data.Scans = append(data.Scans, scan)
-	GB403Logger.Verbose().Msgf("[JSON] Updated JSON now has %d scans", len(data.Scans))
+	GB403Logger.Verbose().Msgf("[JSON] Updated JSON now has %d scans\n", len(data.Scans))
 
 	// Create a buffered writer
 	file, err := os.OpenFile(outputFile, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
