@@ -5,7 +5,6 @@ import (
 	"path/filepath"
 	"sort"
 
-	"github.com/slicingmelon/go-bypass-403/internal/engine/payload"
 	"github.com/slicingmelon/go-bypass-403/internal/engine/recon"
 	GB403ErrorHandler "github.com/slicingmelon/go-bypass-403/internal/utils/error"
 	GB403Logger "github.com/slicingmelon/go-bypass-403/internal/utils/logger"
@@ -19,7 +18,7 @@ type ScannerOpts struct {
 	Verbose                   bool
 	BypassModule              string
 	OutDir                    string
-	Delay                     int
+	RequestDelay              int
 	MaxRetries                int
 	RetryDelay                int
 	MaxConsecutiveFailedReqs  int
@@ -121,39 +120,39 @@ func (s *Scanner) scanURL(url string) error {
 	return nil
 }
 
-func (s *Scanner) ResendRequestWithDebugToken(debugToken string, results chan<- *Result) {
-	if debugToken == "" {
-		GB403Logger.Error().Msgf("Debug token is empty")
-		return
-	}
+// func (s *Scanner) ResendRequestWithDebugToken(debugToken string, results chan<- *Result) {
+// 	if debugToken == "" {
+// 		GB403Logger.Error().Msgf("Debug token is empty")
+// 		return
+// 	}
 
-	GB403Logger.Debug().Msgf("Decoding debug token...")
-	tokenData, err := payload.DecodeDebugToken(debugToken)
-	if err != nil {
-		GB403Logger.Error().Msgf("Failed to decode debug token: %s\n", err)
-		return
-	}
+// 	GB403Logger.Debug().Msgf("Decoding debug token...")
+// 	tokenData, err := payload.DecodeDebugToken(debugToken)
+// 	if err != nil {
+// 		GB403Logger.Error().Msgf("Failed to decode debug token: %s\n", err)
+// 		return
+// 	}
 
-	var bypassModule string
-	if tokenData.BypassModule == "" {
-		bypassModule = "DebugRequest"
-	} else {
-		bypassModule = tokenData.BypassModule
-	}
+// 	var bypassModule string
+// 	if tokenData.BypassModule == "" {
+// 		bypassModule = "DebugRequest"
+// 	} else {
+// 		bypassModule = tokenData.BypassModule
+// 	}
 
-	GB403Logger.Debug().Msgf("Creating job with bypass module: %s\n", bypassModule)
+// 	GB403Logger.Debug().Msgf("Creating job with bypass module: %s\n", bypassModule)
 
-	// Create a single job for the resend request
-	job := payload.PayloadJob{
-		FullURL:      tokenData.FullURL,
-		Headers:      tokenData.Headers,
-		BypassModule: bypassModule,
-	}
+// 	// Create a single job for the resend request
+// 	job := payload.PayloadJob{
+// 		FullURL:      tokenData.FullURL,
+// 		Headers:      tokenData.Headers,
+// 		BypassModule: bypassModule,
+// 	}
 
-	GB403Logger.Debug().Msgf("Sending request directly...")
-	s.ResendRequestDirectly(job, results)
-	GB403Logger.Debug().Msgf("Request sent")
-}
+// 	GB403Logger.Debug().Msgf("Sending request directly...")
+// 	s.ResendRequestDirectly(job, results)
+// 	GB403Logger.Debug().Msgf("Request sent")
+// }
 
 // Close the scanner instance
 func (s *Scanner) Close() {

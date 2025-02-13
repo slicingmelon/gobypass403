@@ -30,6 +30,7 @@ type CliOptions struct {
 	Delay                    int
 	MaxRetries               int
 	RetryDelay               int // in milliseconds
+	RequestDelay             int // in milliseconds
 	MaxConsecutiveFailedReqs int
 	ResponseBodyPreviewSize  int // in bytes, we don't need too much, Response Headers and a small body preview is enough
 
@@ -53,6 +54,7 @@ type CliOptions struct {
 
 	// ResendRequest
 	ResendRequest string
+	ResendCount   int
 
 	//UpdatePayloads
 	UpdatePayloads bool

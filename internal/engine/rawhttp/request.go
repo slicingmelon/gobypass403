@@ -374,7 +374,7 @@ func BuildRawHTTPRequest(httpclient *HTTPClient, req *fasthttp.Request, job payl
 		return fmt.Errorf("failed to parse raw request: %v", err)
 	}
 
-	GB403Logger.Debug().Msgf("Raw request:\n%s", buf.String())
+	GB403Logger.Warning().Msgf("Raw request:\n%s", buf.String())
 
 	// Disable all normalizing and encodings !! AFTER parsing the raw request into fasthttp req
 	req.URI().DisablePathNormalizing = true
@@ -388,6 +388,7 @@ func BuildRawHTTPRequest(httpclient *HTTPClient, req *fasthttp.Request, job payl
 	req.URI().SetScheme(job.Scheme) // "https" or "http"
 	req.URI().SetHost(job.Host)     // e.g., "example.com"
 
+	GB403Logger.Debug().Msgf("Raw request After back into fasthttp req :\n%s", req.String())
 	return nil
 }
 
