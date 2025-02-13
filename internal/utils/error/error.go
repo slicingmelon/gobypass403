@@ -68,6 +68,7 @@ type ErrorCache struct {
 	LastSeen      time.Time        `json:"last_seen"`
 	BypassModules map[string]int64 `json:"bypass_modules,omitempty"`
 	ErrorSources  map[string]int64 `json:"error_sources"`
+	DebugTokens   []string         `json:"debug_tokens,omitempty"`
 }
 
 // NewErrorHandler creates a new ErrorHandler instance
@@ -172,6 +173,7 @@ func (e *ErrorHandler) HandleError(err error, ctx ErrorContext) error {
 			FirstSeen:     time.Now(),
 			BypassModules: make(map[string]int64),
 			ErrorSources:  make(map[string]int64),
+			DebugTokens:   []string{}, // Initialize empty debug tokens array
 		}
 	}
 
@@ -182,6 +184,11 @@ func (e *ErrorHandler) HandleError(err error, ctx ErrorContext) error {
 
 	if len(ctx.BypassModule) > 0 {
 		errorStats.BypassModules[string(ctx.BypassModule)]++
+	}
+
+	// Add debug token if present
+	if len(ctx.DebugToken) > 0 {
+		errorStats.DebugTokens = append(errorStats.DebugTokens, string(ctx.DebugToken))
 	}
 
 	// Store updated stats
@@ -256,6 +263,12 @@ func (e *ErrorHandler) PrintErrorStats() {
 								if module != "" {
 									fmt.Fprintf(&buf, "    - Module %s: %d times\n", module, count)
 								}
+							}
+						}
+						if len(errorStats.DebugTokens) > 0 {
+							fmt.Fprintln(&buf, "Debug Tokens:")
+							for _, token := range errorStats.DebugTokens {
+								fmt.Fprintf(&buf, "  - %s\n", token)
 							}
 						}
 					}

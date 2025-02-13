@@ -247,11 +247,17 @@ func (c *HTTPClient) DoRequest(req *fasthttp.Request, resp *fasthttp.Response) (
 			}
 		}
 
+		debugToken := req.Header.Peek("X-GB403-Token")
+		if debugToken == nil {
+			debugToken = []byte("")
+		}
+
 		// Handle the error first
 		handleErr := c.errorHandler.HandleError(err, GB403ErrorHandler.ErrorContext{
 			ErrorSource:  []byte("HTTPClient.DoRequest"),
 			Host:         append([]byte(nil), req.Host()...),
 			BypassModule: []byte(c.options.BypassModule),
+			DebugToken:   debugToken,
 		})
 
 		if handleErr != nil {

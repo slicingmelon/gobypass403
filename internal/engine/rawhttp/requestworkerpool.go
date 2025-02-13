@@ -169,21 +169,9 @@ func (wp *RequestWorkerPool) ProcessRequestResponseJob(job payload.PayloadJob) *
 	// Apply delays (throttling)
 	wp.applyDelays()
 
-	if err := BuildHTTPRequest(wp.httpClient, req, job); err != nil {
-		handleErr := wp.errorHandler.HandleError(err, GB403ErrorHandler.ErrorContext{
-			ErrorSource:  []byte("RequestWorkerPool.BuildRequestTask"),
-			Host:         []byte(job.Host),
-			BypassModule: []byte(job.BypassModule),
-		})
-		if handleErr != nil {
-			return nil
-		}
-	}
-
-	// Change this line
-	// if err := BuildRawHTTPRequest(wp.httpClient, req, job); err != nil {
+	// if err := BuildHTTPRequest(wp.httpClient, req, job); err != nil {
 	// 	handleErr := wp.errorHandler.HandleError(err, GB403ErrorHandler.ErrorContext{
-	// 		ErrorSource:  []byte("RequestWorkerPool.BuildRawRequestTask"),
+	// 		ErrorSource:  []byte("RequestWorkerPool.BuildRequestTask"),
 	// 		Host:         []byte(job.Host),
 	// 		BypassModule: []byte(job.BypassModule),
 	// 	})
@@ -191,6 +179,17 @@ func (wp *RequestWorkerPool) ProcessRequestResponseJob(job payload.PayloadJob) *
 	// 		return nil
 	// 	}
 	// }
+
+	if err := BuildRawHTTPRequest(wp.httpClient, req, job); err != nil {
+		handleErr := wp.errorHandler.HandleError(err, GB403ErrorHandler.ErrorContext{
+			ErrorSource:  []byte("RequestWorkerPool.BuildRawRequestTask"),
+			Host:         []byte(job.Host),
+			BypassModule: []byte(job.BypassModule),
+		})
+		if handleErr != nil {
+			return nil
+		}
+	}
 
 	// DoRequest already handles error logging/handling
 	respTime, err := wp.httpClient.DoRequest(req, resp)
@@ -227,8 +226,8 @@ func (wp *RequestWorkerPool) applyDelays() {
 }
 
 // buildRequest constructs the HTTP request
-func (wp *RequestWorkerPool) BuildRequestTask(req *fasthttp.Request, job payload.PayloadJob) error {
-	return BuildHTTPRequest(wp.httpClient, req, job)
+func (wp *RequestWorkerPool) BuildRawRequestTask(req *fasthttp.Request, job payload.PayloadJob) error {
+	return BuildRawHTTPRequest(wp.httpClient, req, job)
 }
 
 // SendRequest sends the HTTP request
