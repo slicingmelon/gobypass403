@@ -125,6 +125,11 @@ func NewBypassWorker(bypassmodule string, targetURL string, scannerOpts *Scanner
 	httpClientOpts.RetryDelay = time.Duration(scannerOpts.RetryDelay) * time.Millisecond
 	httpClientOpts.MaxConsecutiveFailedReqs = scannerOpts.MaxConsecutiveFailedReqs
 
+	// Disable streaming of response body if disabled via cli options
+	if scannerOpts.DisableStreamResponseBody {
+		httpClientOpts.StreamResponseBody = false
+	}
+
 	return &BypassWorker{
 		bypassmodule: bypassmodule,
 		cancel:       make(chan struct{}),

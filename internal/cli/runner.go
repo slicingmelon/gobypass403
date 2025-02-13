@@ -55,13 +55,14 @@ func (r *Runner) Initialize() error {
 		Proxy:                    "",
 		EnableHTTP2:              r.RunnerOptions.EnableHTTP2,
 
-		SpoofHeader:             r.RunnerOptions.SpoofHeader,
-		SpoofIP:                 r.RunnerOptions.SpoofIP,
-		FollowRedirects:         r.RunnerOptions.FollowRedirects,
-		MatchStatusCodes:        r.RunnerOptions.MatchStatusCodes,
-		Debug:                   r.RunnerOptions.Debug,
-		Verbose:                 r.RunnerOptions.Verbose,
-		ResponseBodyPreviewSize: r.RunnerOptions.ResponseBodyPreviewSize,
+		SpoofHeader:               r.RunnerOptions.SpoofHeader,
+		SpoofIP:                   r.RunnerOptions.SpoofIP,
+		FollowRedirects:           r.RunnerOptions.FollowRedirects,
+		MatchStatusCodes:          r.RunnerOptions.MatchStatusCodes,
+		Debug:                     r.RunnerOptions.Debug,
+		Verbose:                   r.RunnerOptions.Verbose,
+		ResponseBodyPreviewSize:   r.RunnerOptions.ResponseBodyPreviewSize,
+		DisableStreamResponseBody: r.RunnerOptions.DisableStreamResponseBody,
 
 		ReconCache: r.UrlRecon.reconService.GetReconCache(),
 	}

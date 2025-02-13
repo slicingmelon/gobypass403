@@ -48,6 +48,9 @@ type CliOptions struct {
 	SpoofIP     string
 	SpoofHeader string
 
+	// StreamResponseBody
+	DisableStreamResponseBody bool
+
 	//UpdatePayloads
 	UpdatePayloads bool
 
