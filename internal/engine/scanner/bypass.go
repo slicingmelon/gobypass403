@@ -286,17 +286,25 @@ func (s *Scanner) RunBypassModule(bypassModule string, targetURL string, results
 }
 
 func (s *Scanner) ResendRequestDirectly(job payload.PayloadJob, results chan<- *Result) {
+	GB403Logger.Debug().Msgf("Creating bypass worker for module: %s\n", job.BypassModule)
+
 	// Create a bypass worker
 	worker := NewBypassWorker(job.BypassModule, job.FullURL, s.scannerOpts, s.errorHandler)
 	defer worker.Stop()
 
+	GB403Logger.Debug().Msgf("Processing request through worker pool...")
+
 	// Process the request
 	responses := worker.requestPool.ProcessRequests([]payload.PayloadJob{job})
 
+	GB403Logger.Debug().Msgf("Processing responses...")
 	for response := range responses {
 		if response == nil {
+			GB403Logger.Debug().Msgf("Received nil response")
 			continue
 		}
+
+		GB403Logger.Debug().Msgf("Received response with status code: %d\n", response.StatusCode)
 
 		// Create a result object
 		result := &Result{
@@ -316,12 +324,13 @@ func (s *Scanner) ResendRequestDirectly(job payload.PayloadJob, results chan<- *
 			DebugToken:      string(response.DebugToken),
 		}
 
-		// Send the result to the channel
+		GB403Logger.Debug().Msgf("Sending result to channel...")
 		results <- result
 
 		// Release response details
 		rawhttp.ReleaseResponseDetails(response)
 	}
+	GB403Logger.Debug().Msgf("Finished processing request")
 }
 
 // func (s *Scanner) ResendRequestWithDebugToken(debugToken string, results chan<- *Result) {

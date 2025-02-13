@@ -123,11 +123,11 @@ func (s *Scanner) scanURL(url string) error {
 
 func (s *Scanner) ResendRequestWithDebugToken(debugToken string, results chan<- *Result) {
 	if debugToken == "" {
-		GB403Logger.Error().Msgf("Debug token is empty\n")
+		GB403Logger.Error().Msgf("Debug token is empty")
 		return
 	}
 
-	// Decode the token
+	GB403Logger.Debug().Msgf("Decoding debug token...")
 	tokenData, err := payload.DecodeDebugToken(debugToken)
 	if err != nil {
 		GB403Logger.Error().Msgf("Failed to decode debug token: %s\n", err)
@@ -141,15 +141,18 @@ func (s *Scanner) ResendRequestWithDebugToken(debugToken string, results chan<- 
 		bypassModule = tokenData.BypassModule
 	}
 
+	GB403Logger.Debug().Msgf("Creating job with bypass module: %s\n", bypassModule)
+
 	// Create a single job for the resend request
 	job := payload.PayloadJob{
 		FullURL:      tokenData.FullURL,
 		Headers:      tokenData.Headers,
-		BypassModule: bypassModule, // Use the bypass module from scanner options
+		BypassModule: bypassModule,
 	}
 
-	// Resend the request directly
+	GB403Logger.Debug().Msgf("Sending request directly...")
 	s.ResendRequestDirectly(job, results)
+	GB403Logger.Debug().Msgf("Request sent")
 }
 
 // Close the scanner instance

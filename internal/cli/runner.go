@@ -3,7 +3,7 @@ package cli
 import (
 	"fmt"
 	"path/filepath"
-	"sort"
+	"sync"
 
 	"github.com/slicingmelon/go-bypass-403/internal/engine/payload"
 	"github.com/slicingmelon/go-bypass-403/internal/engine/scanner"
@@ -115,18 +115,23 @@ func (r *Runner) handleResendRequest() error {
 		fmt.Printf("  %s: %s\n", h.Header, h.Value)
 	}
 
+	// Set a default bypass module if empty
+	if data.BypassModule == "" {
+		data.BypassModule = "resend_request"
+	}
+
 	// Initialize the scanner if it's nil
 	if r.Scanner == nil {
 		scannerOpts := &scanner.ScannerOpts{
-			BypassModule:              r.RunnerOptions.Module,
+			BypassModule:              data.BypassModule, // Use the module from the token
 			OutDir:                    r.RunnerOptions.OutDir,
 			Timeout:                   r.RunnerOptions.Timeout,
-			Threads:                   r.RunnerOptions.Threads,
+			Threads:                   1, // Only need 1 thread for resend
 			Delay:                     r.RunnerOptions.Delay,
 			MaxRetries:                r.RunnerOptions.MaxRetries,
 			RetryDelay:                r.RunnerOptions.RetryDelay,
 			MaxConsecutiveFailedReqs:  r.RunnerOptions.MaxConsecutiveFailedReqs,
-			Proxy:                     "",
+			Proxy:                     r.RunnerOptions.Proxy,
 			EnableHTTP2:               r.RunnerOptions.EnableHTTP2,
 			SpoofHeader:               r.RunnerOptions.SpoofHeader,
 			SpoofIP:                   r.RunnerOptions.SpoofIP,
@@ -136,50 +141,64 @@ func (r *Runner) handleResendRequest() error {
 			Verbose:                   r.RunnerOptions.Verbose,
 			ResponseBodyPreviewSize:   r.RunnerOptions.ResponseBodyPreviewSize,
 			DisableStreamResponseBody: r.RunnerOptions.DisableStreamResponseBody,
-			ResendRequest:             r.RunnerOptions.ResendRequest,
 		}
 		r.Scanner = scanner.NewScanner(scannerOpts, []string{data.FullURL})
 	}
 
-	// Create results channel
+	// Create results channel with buffer
 	results := make(chan *scanner.Result, 1)
 
-	// Signal the scanner to resend the request
+	// Create a WaitGroup for both sending and collecting results
+	var wg sync.WaitGroup
+	wg.Add(2) // One for sending, one for collecting
+
+	// Slice to store findings with mutex for safe concurrent access
+	var allFindings []*scanner.Result
+	var findingsMutex sync.Mutex
+
+	GB403Logger.Info().Msgf("Resending request to: %s\n", data.FullURL)
+
+	// Start the results collector goroutine
 	go func() {
-		defer close(results) // Ensure the channel is closed after processing
-		r.Scanner.ResendRequestWithDebugToken(r.RunnerOptions.ResendRequest, results)
+		defer wg.Done()
+		for result := range results {
+			if result != nil {
+				findingsMutex.Lock()
+				allFindings = append(allFindings, result)
+				findingsMutex.Unlock()
+
+				// Print result immediately
+				scanner.PrintResultsTable(data.FullURL, []*scanner.Result{result})
+				GB403Logger.Debug().Msgf("Received result with status code: %d\n", result.StatusCode)
+			}
+		}
 	}()
 
-	// Process the result
-	var allFindings []*scanner.Result
-	for result := range results {
-		if result != nil {
-			allFindings = append(allFindings, result)
-		}
-	}
+	// Start the request sender goroutine
+	go func() {
+		defer wg.Done()
+		defer close(results) // Close results channel when done sending
+		GB403Logger.Debug().Msgf("Starting request...")
+		r.Scanner.ResendRequestWithDebugToken(r.RunnerOptions.ResendRequest, results)
+		GB403Logger.Debug().Msgf("Finished sending request")
+	}()
 
-	// If we have any findings, sort and save them
+	// Wait for both goroutines to complete
+	wg.Wait()
+	GB403Logger.Debug().Msgf("All goroutines completed")
+
+	// Process findings
+	findingsMutex.Lock()
+	defer findingsMutex.Unlock()
+
 	if len(allFindings) > 0 {
-		// Sort findings by status code and then by module
-		sort.Slice(allFindings, func(i, j int) bool {
-			if allFindings[i].StatusCode != allFindings[j].StatusCode {
-				return allFindings[i].StatusCode < allFindings[j].StatusCode
-			}
-			return allFindings[i].BypassModule < allFindings[j].BypassModule
-		})
-
-		// Save findings first
 		outputFile := filepath.Join(r.RunnerOptions.OutDir, "findings.json")
 		if err := scanner.AppendResultsToJSON(outputFile, data.FullURL, data.BypassModule, allFindings); err != nil {
 			GB403Logger.Error().Msgf("Failed to save findings for %s: %v\n", data.FullURL, err)
 		}
-
-		// Print results only once
-		fmt.Println()
-		scanner.PrintResultsTable(data.FullURL, allFindings)
-
-		fmt.Println()
-		GB403Logger.Success().Msgf("Results saved to %s\n\n", outputFile)
+		GB403Logger.Success().Msgf("Results saved to %s\n", outputFile)
+	} else {
+		GB403Logger.Warning().Msgf("No results received from request")
 	}
 
 	return nil
