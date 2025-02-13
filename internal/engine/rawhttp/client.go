@@ -180,7 +180,7 @@ func (c *HTTPClient) execFunc(req *fasthttp.Request, resp *fasthttp.Response) (i
 		if attempt > 0 {
 			// For retry attempts:
 			// 1. Sleep for retry delay
-			GB403Logger.Debug().Msgf("Sleeping for retry delay: %v\n", retryDelay)
+			//GB403Logger.Debug().Msgf("Sleeping for retry delay: %v\n", retryDelay)
 			time.Sleep(retryDelay)
 
 			// 2. Increase timeout based on attempt number
@@ -196,7 +196,7 @@ func (c *HTTPClient) execFunc(req *fasthttp.Request, resp *fasthttp.Response) (i
 		err := c.client.DoTimeout(reqCopy, resp, currentTimeout)
 		elapsed := time.Since(start)
 
-		GB403Logger.Debug().Msgf("Attempt %d completed in %v with error: %v\n", attempt, elapsed, err)
+		//GB403Logger.Debug().Msgf("Attempt %d completed in %v with error: %v\n", attempt, elapsed, err)
 		//lastErr = err
 
 		if err == nil {
@@ -247,17 +247,19 @@ func (c *HTTPClient) DoRequest(req *fasthttp.Request, resp *fasthttp.Response) (
 			}
 		}
 
-		debugToken := req.Header.Peek("X-GB403-Token")
+		debugToken := PeekRequestHeaderKeyCaseInsensitive(req, []byte("X-GB403-Token"))
 		if debugToken == nil {
 			debugToken = []byte("")
 		}
+
+		GB403Logger.Debug().Msgf("!!Debug Token: %s\n", string(debugToken))
 
 		// Handle the error first
 		handleErr := c.errorHandler.HandleError(err, GB403ErrorHandler.ErrorContext{
 			ErrorSource:  []byte("HTTPClient.DoRequest"),
 			Host:         append([]byte(nil), req.Host()...),
 			BypassModule: []byte(c.options.BypassModule),
-			DebugToken:   debugToken,
+			DebugToken:   []byte(debugToken),
 		})
 
 		if handleErr != nil {

@@ -404,7 +404,7 @@ func ProcessHTTPResponse(httpclient *HTTPClient, resp *fasthttp.Response, job pa
 
 	// Check for redirect early
 	if fasthttp.StatusCodeIsRedirect(statusCode) {
-		if location := PeekHeaderKeyCaseInsensitive(&resp.Header, strLocationHeader); len(location) > 0 {
+		if location := PeekResponseHeaderKeyCaseInsensitive(resp, strLocationHeader); len(location) > 0 {
 			result.RedirectURL = append(result.RedirectURL, location...)
 		}
 	}
@@ -551,15 +551,24 @@ func GetResponseHeaders(h *fasthttp.ResponseHeader, statusCode int, dest []byte)
 }
 
 // Helper function to peek a header key case insensitive
-func PeekHeaderKeyCaseInsensitive(h *fasthttp.ResponseHeader, key []byte) []byte {
-	// Try original
-	if v := h.PeekBytes(key); len(v) > 0 {
-		return v
-	}
+func PeekResponseHeaderKeyCaseInsensitive(h *fasthttp.Response, key []byte) []byte {
+	var result []byte
+	h.Header.VisitAll(func(k, v []byte) {
+		if result == nil && bytes.EqualFold(k, key) {
+			result = v
+		}
+	})
+	return result
+}
 
-	// Otherwise lowercase it
-	lowerKey := bytes.ToLower(key)
-	return h.PeekBytes(lowerKey)
+func PeekRequestHeaderKeyCaseInsensitive(h *fasthttp.Request, key []byte) []byte {
+	var result []byte
+	h.Header.VisitAll(func(k, v []byte) {
+		if result == nil && bytes.EqualFold(k, key) {
+			result = v
+		}
+	})
+	return result
 }
 
 // Helper function to extract title from HTML

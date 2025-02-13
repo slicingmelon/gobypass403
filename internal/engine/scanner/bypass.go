@@ -285,6 +285,62 @@ func (s *Scanner) RunBypassModule(bypassModule string, targetURL string, results
 	)
 }
 
+func (s *Scanner) ResendRequestWithDebugToken(debugToken string, results chan<- *Result) {
+	if debugToken == "" {
+		GB403Logger.Error().Msgf("Debug token is empty\n")
+		return
+	}
+
+	tokenData, err := payload.DecodeDebugToken(debugToken)
+	if err != nil {
+		GB403Logger.Error().Msgf("Failed to decode debug token: %s\n", err)
+		return
+	}
+
+	// Create a single job for the resend request
+	job := payload.PayloadJob{
+		FullURL: tokenData.FullURL,
+		Headers: tokenData.Headers,
+	}
+
+	// Create a bypass worker
+	worker := NewBypassWorker(tokenData.BypassModule, tokenData.FullURL, s.scannerOpts, s.errorHandler)
+	defer worker.Stop()
+
+	// Process the request
+	responses := worker.requestPool.ProcessRequests([]payload.PayloadJob{job})
+
+	for response := range responses {
+		if response == nil {
+			continue
+		}
+
+		// Create a result object
+		result := &Result{
+			TargetURL:       string(response.URL),
+			BypassModule:    tokenData.BypassModule,
+			StatusCode:      response.StatusCode,
+			ResponseHeaders: string(response.ResponseHeaders),
+			CurlPocCommand:  string(response.CurlCommand),
+			ResponsePreview: string(response.ResponsePreview),
+			ContentType:     string(response.ContentType),
+			ContentLength:   response.ContentLength,
+			ResponseBytes:   response.ResponseBytes,
+			Title:           string(response.Title),
+			ServerInfo:      string(response.ServerInfo),
+			RedirectURL:     string(response.RedirectURL),
+			ResponseTime:    response.ResponseTime,
+			DebugToken:      string(response.DebugToken),
+		}
+
+		// Send the result to the channel
+		results <- result
+
+		// Release response details
+		rawhttp.ReleaseResponseDetails(response)
+	}
+}
+
 // match HTTP status code in list
 // if codes is nil, match all status codes
 func matchStatusCodes(code int, codes []int) bool {

@@ -51,6 +51,9 @@ type CliOptions struct {
 	// StreamResponseBody
 	DisableStreamResponseBody bool
 
+	// ResendRequest
+	ResendRequest string
+
 	//UpdatePayloads
 	UpdatePayloads bool
 
@@ -154,8 +157,23 @@ func (o *CliOptions) validate() error {
 		return payload.UpdatePayloads()
 	}
 
+	if o.ResendRequest != "" {
+		data, err := payload.DecodeDebugToken(o.ResendRequest)
+		if err != nil {
+			return fmt.Errorf("invalid debug token: %v", err)
+		}
+		// Print the decoded information
+		fmt.Println("=== Debug Token Information ===")
+		fmt.Printf("Full URL: %s\n", data.FullURL)
+		fmt.Printf("Bypass Module: %s\n", data.BypassModule)
+		fmt.Println("Headers:")
+		for _, h := range data.Headers {
+			fmt.Printf("  %s: %s\n", h.Header, h.Value)
+		}
+	}
+
 	// Validate input parameters
-	if err := o.validateInputURLs(); err != nil {
+	if err := o.validateInputURLs(); err != nil && o.ResendRequest == "" {
 		return err
 	}
 

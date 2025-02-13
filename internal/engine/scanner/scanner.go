@@ -29,6 +29,7 @@ type ScannerOpts struct {
 	FollowRedirects           bool
 	ResponseBodyPreviewSize   int
 	DisableStreamResponseBody bool
+	ResendRequest             string
 	ReconCache                *recon.ReconCache
 }
 
@@ -55,6 +56,27 @@ func NewScanner(opts *ScannerOpts, urls []string) *Scanner {
 func (s *Scanner) Run() error {
 	defer s.Close()
 
+	// Handle resend request if specified
+	if s.scannerOpts.ResendRequest != "" {
+		results := make(chan *Result, 1)
+		defer close(results)
+
+		s.ResendRequestWithDebugToken(s.scannerOpts.ResendRequest, results)
+
+		// Process the result
+		for result := range results {
+			if result != nil {
+				PrintResultsTable(result.TargetURL, []*Result{result})
+			}
+		}
+
+		// Print error stats and exit
+		fmt.Println()
+		s.errorHandler.PrintErrorStats()
+		return nil
+	}
+
+	// Normal scanning mode
 	GB403Logger.Info().Msgf("Initializing scanner with %d URLs", len(s.urls))
 
 	for _, url := range s.urls {
