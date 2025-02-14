@@ -149,7 +149,7 @@ func (r *Runner) handleResendRequest() error {
 		if err := scanner.AppendResultsToJSON(outputFile, tokenData.FullURL, "resend_request", findings); err != nil {
 			GB403Logger.Error().Msgf("Failed to save findings: %v", err)
 		} else {
-			GB403Logger.Success().Msgf("Results saved to %s", outputFile)
+			GB403Logger.Success().Msgf("Results saved to %s\n", outputFile)
 		}
 	} else {
 		GB403Logger.Warning().Msgf("No results received from requests")

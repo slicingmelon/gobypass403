@@ -229,7 +229,7 @@ func AppendResultsToJSON(outputFile, url, mode string, findings []*Result) error
 	}
 	defer file.Close()
 
-	GB403Logger.Success().Msgf("\nResults saved to %s\n\n", outputFile)
+	GB403Logger.Success().Msgf("Results saved to %s\n\n", outputFile)
 
 	encoder := json.NewEncoder(file)
 	encoder.SetEscapeHTML(false)

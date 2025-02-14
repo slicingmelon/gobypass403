@@ -21,6 +21,8 @@ type RequestWorkerPool struct {
 	// Request rate tracking
 	requestStartTime atomic.Int64  // For elapsed time calculation
 	peakRequestRate  atomic.Uint64 // For tracking peak rate
+	maxWorkers       int
+	totalJobs        int
 }
 
 // NewWorkerPool initializes a new RequestWorkerPool instance
@@ -32,6 +34,7 @@ func NewRequestWorkerPool(opts *HTTPClientOptions, maxWorkers int) *RequestWorke
 		ctx:        ctx,
 		cancel:     cancel,
 		pool:       pond.NewPool(maxWorkers, pond.WithContext(ctx)),
+		maxWorkers: maxWorkers,
 	}
 
 	// Initialize start time

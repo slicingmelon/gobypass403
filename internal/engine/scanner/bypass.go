@@ -103,9 +103,11 @@ type BypassWorker struct {
 	once         sync.Once
 	opts         *ScannerOpts
 	requestPool  *rawhttp.RequestWorkerPool
+	totalJobs    int
+	progressBar  *ProgressBar
 }
 
-func NewBypassWorker(bypassmodule string, targetURL string, scannerOpts *ScannerOpts) *BypassWorker {
+func NewBypassWorker(bypassmodule string, targetURL string, scannerOpts *ScannerOpts, totalJobs int) *BypassWorker {
 	httpClientOpts := rawhttp.DefaultHTTPClientOptions()
 
 	// Override specific settings from user options
@@ -142,8 +144,8 @@ func NewBypassWorker(bypassmodule string, targetURL string, scannerOpts *Scanner
 		wg:           &sync.WaitGroup{},
 		once:         sync.Once{},
 		opts:         scannerOpts,
-
-		requestPool: rawhttp.NewRequestWorkerPool(httpClientOpts, scannerOpts.Threads),
+		totalJobs:    totalJobs,
+		requestPool:  rawhttp.NewRequestWorkerPool(httpClientOpts, scannerOpts.Threads),
 	}
 }
 
@@ -237,32 +239,34 @@ func (s *Scanner) RunBypassModule(bypassModule string, targetURL string, results
 		return
 	}
 
-	// Generate jobs
 	allJobs := moduleInstance.GenerateJobs(targetURL, bypassModule, s.scannerOpts)
 	if len(allJobs) == 0 {
 		GB403Logger.Warning().Msgf("No jobs generated for bypass module: %s\n", bypassModule)
 		return
 	}
 
-	worker := NewBypassWorker(bypassModule, targetURL, s.scannerOpts)
+	GB403Logger.Verbose().Msgf("[%s] Generated %d payloads for %s\n", bypassModule, len(allJobs), targetURL)
+
+	worker := NewBypassWorker(bypassModule, targetURL, s.scannerOpts, len(allJobs))
 	defer worker.Stop()
 
-	// Create progress bar
-	progressbar := NewProgressBar(bypassModule, len(allJobs), s.scannerOpts.Threads)
-	defer progressbar.Stop()
+	// Initialize progress bar with initial state
+	progressBar := NewProgressBar(bypassModule, len(allJobs), s.scannerOpts.Threads)
+	progressBar.Start()
+	defer progressBar.Stop()
 
-	progressbar.Start()
-
-	// Process requests and update progress
 	responses := worker.requestPool.ProcessRequests(allJobs)
 
+	// Process responses and update progress based on pool metrics
 	for response := range responses {
 		if response == nil {
 			continue
 		}
 
-		progressbar.Increment()
-		progressbar.UpdateSpinnerText(
+		// Update progress bar to match pool state
+		progressBar.Increment()
+
+		progressBar.UpdateSpinnerText(
 			bypassModule,
 			s.scannerOpts.Threads,
 			worker.requestPool.GetReqWPActiveWorkers(),
@@ -291,15 +295,14 @@ func (s *Scanner) RunBypassModule(bypassModule string, targetURL string, results
 			}
 		}
 
-		// release responsedetails buff
 		rawhttp.ReleaseResponseDetails(response)
 	}
 
-	// Final progress update
-	progressbar.SpinnerSuccess(
+	// Final success state
+	progressBar.SpinnerSuccess(
 		bypassModule,
 		s.scannerOpts.Threads,
-		worker.requestPool.GetReqWPActiveWorkers(),
+		0,
 		worker.requestPool.GetReqWPCompletedTasks(),
 		worker.requestPool.GetReqWPSubmittedTasks(),
 		worker.requestPool.GetRequestRate(),
@@ -309,6 +312,7 @@ func (s *Scanner) RunBypassModule(bypassModule string, targetURL string, results
 }
 
 func (s *Scanner) ScanDebugToken(debugToken string, resendCount int) ([]*Result, error) {
+
 	// Parse URL from token
 	tokenData, err := payload.DecodeDebugToken(debugToken)
 	if err != nil {
@@ -333,7 +337,7 @@ func (s *Scanner) ScanDebugToken(debugToken string, resendCount int) ([]*Result,
 	}
 
 	// Create worker
-	worker := NewBypassWorker("debugRequest", tokenData.FullURL, s.scannerOpts)
+	worker := NewBypassWorker("debugRequest", tokenData.FullURL, s.scannerOpts, resendCount)
 	defer worker.Stop()
 
 	// Create jobs array

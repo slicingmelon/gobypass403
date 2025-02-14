@@ -1,21 +1,18 @@
 package rawhttp
 
 import (
-	"crypto/rand"
-	"math"
-	"math/big"
+	"math/rand"
+	"sync"
 	"sync/atomic"
 	"time"
-
-	GB403Logger "github.com/slicingmelon/go-bypass-403/internal/utils/logger"
 )
 
 type ThrottleConfig struct {
-	BaseRequestDelay        time.Duration
-	MaxRequestDelay         time.Duration
-	ExponentialRequestDelay float64 // Exponential request delay
-	RequestDelayJitter      int     // For random delay, percentage of variation (0-100)
-	ThrottleOnStatusCodes   []int   // Status codes that trigger throttling
+	baseRequestDelay        time.Duration
+	maxRequestDelay         time.Duration
+	exponentialRequestDelay float64 // Exponential request delay
+	requestDelayJitter      int     // For random delay, percentage of variation (0-100)
+	throttleOnStatusCodes   []int   // Status codes that trigger throttling
 }
 
 // Throttler handles request rate limiting
@@ -24,16 +21,17 @@ type Throttler struct {
 	counter      atomic.Int32 // Counts consecutive throttled responses
 	lastDelay    atomic.Int64 // Last calculated delay in nanoseconds
 	isThrottling atomic.Bool  // Indicates if auto throttling is currently active
+	mu           sync.RWMutex
 }
 
 // DefaultThrottleConfig returns sensible defaults
 func DefaultThrottleConfig() *ThrottleConfig {
 	return &ThrottleConfig{
-		BaseRequestDelay:        200 * time.Millisecond,
-		MaxRequestDelay:         5000 * time.Millisecond,
-		RequestDelayJitter:      20,  // 20% of the base request delay
-		ExponentialRequestDelay: 2.0, // Each throttle doubles the delay
-		ThrottleOnStatusCodes:   []int{429, 503, 507},
+		baseRequestDelay:        200 * time.Millisecond,
+		maxRequestDelay:         5000 * time.Millisecond,
+		requestDelayJitter:      20,  // 20% of the base request delay
+		exponentialRequestDelay: 2.0, // Each throttle doubles the delay
+		throttleOnStatusCodes:   []int{429, 503, 507},
 	}
 }
 
@@ -54,7 +52,7 @@ func (t *Throttler) IsThrottableRespCode(statusCode int) bool {
 	}
 
 	config := t.config.Load()
-	if matchStatusCodes(statusCode, config.ThrottleOnStatusCodes) {
+	if matchStatusCodes(statusCode, config.throttleOnStatusCodes) {
 		t.counter.Add(1)
 		return true
 	}
@@ -63,40 +61,48 @@ func (t *Throttler) IsThrottableRespCode(statusCode int) bool {
 
 // GetCurrentThrottleRate calculates the next delay based on config and attempts
 func (t *Throttler) GetCurrentThrottleRate() time.Duration {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+
+	if t.config.Load() == nil || !t.isThrottling.Load() {
+		return 0
+	}
+
 	config := t.config.Load()
-	delay := config.BaseRequestDelay
+	baseDelay := config.baseRequestDelay
 
-	// Apply exponential delay if configured
-	if config.ExponentialRequestDelay > 0 {
-		attempts := t.counter.Load()
-		multiplier := math.Pow(config.ExponentialRequestDelay, float64(attempts))
-		delay = time.Duration(float64(config.BaseRequestDelay) * multiplier)
+	// Calculate jitter range (20% of base delay)
+	jitterNanos := int64(float64(baseDelay.Nanoseconds()) * 0.2)
+
+	// Ensure jitter range is positive
+	if jitterNanos <= 0 {
+		return baseDelay
 	}
 
-	// Apply jitter if configured
-	if config.RequestDelayJitter > 0 {
-		jitterRange := int64(float64(delay.Nanoseconds()) * float64(config.RequestDelayJitter) / 100.0)
-		if jitter, err := rand.Int(rand.Reader, big.NewInt(jitterRange)); err == nil {
-			delay += time.Duration(jitter.Int64())
-		}
+	// Use math/rand instead of crypto/rand for performance
+	jitter := time.Duration(rand.Int63n(jitterNanos))
+	if rand.Int63n(2) == 1 {
+		jitter = -jitter
 	}
 
-	// Ensure we don't exceed max delay
-	if delay > config.MaxRequestDelay {
-		delay = config.MaxRequestDelay
+	adjusted := baseDelay + jitter
+	if adjusted < 0 {
+		adjusted = 0
 	}
 
-	t.lastDelay.Store(int64(delay))
-	return delay
+	return adjusted
 }
 
 // ThrottleRequest throttles the request based on the current throttle rate
 func (t *Throttler) ThrottleRequest() {
-	// Apply throttler delay if active
-	if t != nil {
-		if delay := t.GetCurrentThrottleRate(); delay > 0 {
-			time.Sleep(delay)
-		}
+	if t == nil {
+		return
+	}
+
+	// Get delay under lock to ensure consistency
+	delay := t.GetCurrentThrottleRate()
+	if delay > 0 {
+		time.Sleep(delay)
 	}
 }
 
@@ -112,7 +118,6 @@ func (t *Throttler) EnableThrottler() {
 		return
 	}
 	t.isThrottling.Store(true)
-	GB403Logger.Info().Msgf("Auto throttling enabled")
 }
 
 // IsThrottlerActive returns true if the throttler is currently active
