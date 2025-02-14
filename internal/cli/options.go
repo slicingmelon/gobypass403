@@ -119,7 +119,7 @@ func (o *CliOptions) printUsage(flagName ...string) {
 // setDefaults sets default values for options
 func (o *CliOptions) setDefaults() {
 	// Core defaults
-	o.UpdatePayloads = false
+	//o.UpdatePayloads = false
 
 	if o.Module == "" {
 		o.Module = "all"
@@ -156,8 +156,13 @@ func (o *CliOptions) setDefaults() {
 
 // validate performs all validation checks
 func (o *CliOptions) validate() error {
+	// Check for update payloads first
 	if o.UpdatePayloads {
-		return payload.UpdatePayloads()
+		if err := payload.UpdatePayloads(); err != nil {
+			return fmt.Errorf("failed to update payloads: %v", err)
+		}
+		fmt.Println("Payloads updated successfully")
+		os.Exit(0)
 	}
 
 	if o.ResendRequest != "" {
@@ -205,6 +210,10 @@ func (o *CliOptions) validate() error {
 
 // validateInputs checks URL and file inputs
 func (o *CliOptions) validateInputURLs() error {
+	if o.UpdatePayloads {
+		return nil
+	}
+
 	if o.URL == "" && o.URLsFile == "" {
 		return fmt.Errorf("either URL (-u) or URLs file (-l) is required")
 	}

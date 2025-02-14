@@ -99,9 +99,14 @@ func InitializePayloadsDir() error {
 
 // UpdatePayloads forcefully updates all payload files
 func UpdatePayloads() error {
+	// First ensure the directories exist
 	payloadsDir, err := GetPayloadsDir()
 	if err != nil {
 		return fmt.Errorf("failed to get payloads directory: %w", err)
+	}
+
+	if err := os.MkdirAll(payloadsDir, 0755); err != nil {
+		return fmt.Errorf("failed to create payloads directory: %w", err)
 	}
 
 	// Force update all files
@@ -115,17 +120,21 @@ func UpdatePayloads() error {
 			continue
 		}
 
-		data, err := DefaultPayloadsDir.ReadFile(filepath.Join("payloads", entry.Name()))
+		// Use filepath.Join with "payloads" prefix for reading from embedded FS
+		srcPath := fmt.Sprintf("payloads/%s", entry.Name())
+		data, err := DefaultPayloadsDir.ReadFile(srcPath)
 		if err != nil {
-			return fmt.Errorf("failed to read embedded file %s: %w", entry.Name(), err)
+			return fmt.Errorf("failed to read embedded file %s: %w", srcPath, err)
 		}
 
 		dstPath := filepath.Join(payloadsDir, entry.Name())
 		if err := os.WriteFile(dstPath, data, 0644); err != nil {
 			return fmt.Errorf("failed to write file %s: %w", dstPath, err)
 		}
-		GB403Logger.Verbose().Msgf("Updated payload file: %s", dstPath)
+		GB403Logger.Info().Msgf("Updated payload file: %s", dstPath)
 	}
+
+	GB403Logger.Info().Msgf("All payloads updated successfully")
 	return nil
 }
 
