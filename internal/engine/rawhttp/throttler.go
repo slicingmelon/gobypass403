@@ -29,7 +29,7 @@ type Throttler struct {
 // DefaultThrottleConfig returns sensible defaults
 func DefaultThrottleConfig() *ThrottleConfig {
 	return &ThrottleConfig{
-		BaseRequestDelay:        100 * time.Millisecond,
+		BaseRequestDelay:        200 * time.Millisecond,
 		MaxRequestDelay:         5000 * time.Millisecond,
 		RequestDelayJitter:      20,  // 20% of the base request delay
 		ExponentialRequestDelay: 2.0, // Each throttle doubles the delay
@@ -47,22 +47,22 @@ func NewThrottler(config *ThrottleConfig) *Throttler {
 	return t
 }
 
-// ShouldThrottle checks if we should throttle based on status code
-func (t *Throttler) ShouldThrottleOnStatusCode(statusCode int) bool {
+// IsThrottableRespCode checks if we should throttle based on the resp status code
+func (t *Throttler) IsThrottableRespCode(statusCode int) bool {
+	if t == nil {
+		return false
+	}
+
 	config := t.config.Load()
 	if matchStatusCodes(statusCode, config.ThrottleOnStatusCodes) {
-		wasThrottling := t.isThrottling.Swap(true)
 		t.counter.Add(1)
-		if !wasThrottling {
-			GB403Logger.Warning().Msgf("Auto throttling enabled due to status code: %d", statusCode)
-		}
 		return true
 	}
 	return false
 }
 
-// GetDelay calculates the next delay based on config and attempts
-func (t *Throttler) GetDelay() time.Duration {
+// GetCurrentThrottleRate calculates the next delay based on config and attempts
+func (t *Throttler) GetCurrentThrottleRate() time.Duration {
 	config := t.config.Load()
 	delay := config.BaseRequestDelay
 
@@ -90,18 +90,49 @@ func (t *Throttler) GetDelay() time.Duration {
 	return delay
 }
 
+// ThrottleRequest throttles the request based on the current throttle rate
+func (t *Throttler) ThrottleRequest() {
+	// Apply throttler delay if active
+	if t != nil {
+		if delay := t.GetCurrentThrottleRate(); delay > 0 {
+			time.Sleep(delay)
+		}
+	}
+}
+
 // UpdateThrottleConfig safely updates throttle configuration
-func (t *Throttler) UpdateThrottleConfig(config *ThrottleConfig) {
+func (t *Throttler) UpdateThrottlerConfig(config *ThrottleConfig) {
 	t.config.Store(config)
 	t.counter.Store(0) // Reset attempts counter
 }
 
+// EnableThrottling enables the throttler
+func (t *Throttler) EnableThrottler() {
+	if t == nil {
+		return
+	}
+	t.isThrottling.Store(true)
+	GB403Logger.Info().Msgf("Auto throttling enabled")
+}
+
+// IsThrottlerActive returns true if the throttler is currently active
+func (t *Throttler) IsThrottlerActive() bool {
+	if t == nil {
+		return false
+	}
+	return t.isThrottling.Load()
+}
+
+// DisableThrottler disables the throttler, it does not reset the stats and rates though.
+func (t *Throttler) DisableThrottler() {
+	if t == nil {
+		return
+	}
+	t.isThrottling.Store(false)
+}
+
 // Reset resets the throttler state
-func (t *Throttler) Reset() {
-	wasThrottling := t.isThrottling.Swap(false)
+func (t *Throttler) ResetThrottler() {
 	t.counter.Store(0)
 	t.lastDelay.Store(0)
-	if wasThrottling {
-		GB403Logger.Info().Msgf("Auto throttling disabled - returning to normal request rate")
-	}
 }

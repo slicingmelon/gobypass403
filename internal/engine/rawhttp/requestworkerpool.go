@@ -18,7 +18,6 @@ type RequestWorkerPool struct {
 	ctx        context.Context
 	cancel     context.CancelFunc
 	pool       pond.Pool
-	throttler  *Throttler
 	// Request rate tracking
 	requestStartTime atomic.Int64  // For elapsed time calculation
 	peakRequestRate  atomic.Uint64 // For tracking peak rate
@@ -33,7 +32,6 @@ func NewRequestWorkerPool(opts *HTTPClientOptions, maxWorkers int) *RequestWorke
 		ctx:        ctx,
 		cancel:     cancel,
 		pool:       pond.NewPool(maxWorkers, pond.WithContext(ctx)),
-		throttler:  NewThrottler(nil),
 	}
 
 	// Initialize start time
@@ -153,7 +151,6 @@ func (wp *RequestWorkerPool) Close() {
 	wp.cancel()           // Cancel context if not already done
 	wp.pool.StopAndWait() // Ensure all workers are stopped
 	wp.ResetPeakRate()
-	wp.throttler.Reset()
 	wp.httpClient.Close()
 }
 
@@ -163,9 +160,6 @@ func (wp *RequestWorkerPool) ProcessRequestResponseJob(job payload.PayloadJob) *
 	resp := wp.httpClient.AcquireResponse()
 	defer wp.httpClient.ReleaseRequest(req)
 	defer wp.httpClient.ReleaseResponse(resp)
-
-	// Apply delays (throttling)
-	wp.applyDelays()
 
 	// if err := BuildHTTPRequest(wp.httpClient, req, job); err != nil {
 	// 	handleErr := wp.errorHandler.HandleError(err, GB403ErrorHandler.ErrorContext{
@@ -204,23 +198,7 @@ func (wp *RequestWorkerPool) ProcessRequestResponseJob(job payload.PayloadJob) *
 		result.ResponseTime = respTime
 	}
 
-	// Handle throttling based on response
-	if wp.throttler != nil && result != nil {
-		if wp.throttler.ShouldThrottleOnStatusCode(result.StatusCode) {
-			wp.throttler.GetDelay()
-		}
-	}
-
 	return result
-}
-
-func (wp *RequestWorkerPool) applyDelays() {
-	// Apply throttler delay if active
-	if wp.throttler != nil {
-		if delay := wp.throttler.GetDelay(); delay > 0 {
-			time.Sleep(delay)
-		}
-	}
 }
 
 // buildRequest constructs the HTTP request

@@ -685,7 +685,7 @@ func (pg *PayloadGenerator) GenerateHostHeaderJobs(targetURL string, bypassModul
 	}
 
 	// Get IP information from cache
-	probeCacheResult, err := reconCache.Get(parsedURL.Hostname())
+	probeCacheResult, err := reconCache.Get(parsedURL.Hostname)
 	if err != nil || probeCacheResult == nil {
 		GB403Logger.Error().Msgf("No cache result found for %s: %v", targetURL, err)
 		return allJobs
