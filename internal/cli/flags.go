@@ -42,8 +42,8 @@ func parseFlags() (*CliOptions, error) {
 		{name: "rbps,response-body-preview-size", usage: "Maximum number of bytes to retrieve from response body", value: &opts.ResponseBodyPreviewSize, defVal: 1024},
 		{name: "disable-response-body-streaming", usage: "Disables streaming of response body (default: False)", value: &opts.DisableStreamResponseBody, defVal: false},
 		{name: "update-payloads", usage: "Update payload files to latest version", value: &opts.UpdatePayloads},
-		{name: "resend,resend-request", usage: "Resend the exact request using the debug token", value: &opts.ResendRequest},
-		{name: "resend-count,resend-request-count", usage: "Number of times to resend the debugged request", value: &opts.ResendCount, defVal: 1},
+		{name: "resend,resend-request", usage: "Resend the exact request using the debug token (example: -resend xyzdebugtoken)", value: &opts.ResendRequest},
+		{name: "resend-count,resend-request-count", usage: "Number of times to resend the debugged request (Default: 1)", value: &opts.ResendCount, defVal: 1},
 		{name: "profile", usage: "Enable pprof profiler", value: &opts.Profile, defVal: false},
 	}
 

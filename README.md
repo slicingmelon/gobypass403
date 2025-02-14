@@ -69,9 +69,9 @@ Usage:
   -max-retries
         Maximum number of retries for failed requests (Default: 2)
   -retry-delay
-        Delay between retries (in milliseconds) (Default: 1000)
+        Delay between retries (in milliseconds) (Default: 500)
   -max-cfr, -max-consecutive-fails
-        Maximum number of consecutive failed requests before cancelling current bypass module (Default: 15)
+        Maximum number of consecutive failed requests before cancelling the current bypass module (Default: 15)
   -v, -verbose
         Verbose output (Default: false)
   -d, -debug
@@ -90,8 +90,14 @@ Usage:
         Follow HTTP redirects
   -rbps, -response-body-preview-size
         Maximum number of bytes to retrieve from response body (Default: 1024)
+  -disable-response-body-streaming
+        Disables streaming of response body (default: False) (Default: false)
   -update-payloads
         Update payload files to latest version
+  -resend, -resend-request
+        Resend the exact request using the debug token (-resend xyzdebugtoken)
+  -resend-count, -resend-request-count
+        Number of times to resend the debugged request (Default: 1)
   -profile
         Enable pprof profiler (Default: false)
 ```
