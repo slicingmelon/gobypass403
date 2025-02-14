@@ -252,6 +252,8 @@ func (c *HTTPClient) execFunc(req *fasthttp.Request, resp *fasthttp.Response) (i
 // DoRequest performs a HTTP request (raw)
 // Returns the HTTP response time (in ms) and error
 func (c *HTTPClient) DoRequest(req *fasthttp.Request, resp *fasthttp.Response) (int64, error) {
+	errHandler := GB403ErrorHandler.GetErrorHandler()
+
 	// Execute request with retry handling
 	respTime, err := c.execFunc(req, resp)
 
@@ -274,7 +276,7 @@ func (c *HTTPClient) DoRequest(req *fasthttp.Request, resp *fasthttp.Response) (
 		GB403Logger.Debug().Msgf("!!Debug Token: %s\n", string(debugToken))
 
 		// Handle the error first
-		handleErr := c.errorHandler.HandleError(err, GB403ErrorHandler.ErrorContext{
+		handleErr := errHandler.HandleError(err, GB403ErrorHandler.ErrorContext{
 			ErrorSource:  []byte("HTTPClient.DoRequest"),
 			Host:         append([]byte(nil), req.Host()...),
 			BypassModule: []byte(c.options.BypassModule),

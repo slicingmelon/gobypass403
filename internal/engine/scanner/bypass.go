@@ -306,7 +306,7 @@ func (s *Scanner) ScanDebugToken(debugToken string, resendCount int) ([]*Result,
 		Scheme:       parsedURL.Scheme,
 		RawURI:       parsedURL.Path,
 		Headers:      tokenData.Headers,
-		BypassModule: "debugRequest",
+		BypassModule: "resend_request",
 		PayloadToken: payload.GenerateDebugToken(payload.SeedData{FullURL: tokenData.FullURL}),
 	}
 
@@ -314,16 +314,10 @@ func (s *Scanner) ScanDebugToken(debugToken string, resendCount int) ([]*Result,
 	worker := NewBypassWorker("resend_request", tokenData.FullURL, s.scannerOpts, s.errorHandler)
 	defer worker.Stop()
 
-	// Create progress tracking
-	progressbar := NewProgressBar("resend_request", resendCount, s.scannerOpts.Threads)
-	defer progressbar.Stop()
-	progressbar.Start()
-
 	// Create jobs array
 	jobs := make([]payload.PayloadJob, resendCount)
 	for i := 0; i < resendCount; i++ {
 		jobs[i] = job
-		// Generate unique debug token for each request
 		jobs[i].PayloadToken = payload.GenerateDebugToken(payload.SeedData{FullURL: tokenData.FullURL})
 	}
 
@@ -336,18 +330,6 @@ func (s *Scanner) ScanDebugToken(debugToken string, resendCount int) ([]*Result,
 			continue
 		}
 
-		progressbar.Increment()
-		progressbar.UpdateSpinnerText(
-			"resend_request",
-			s.scannerOpts.Threads,
-			worker.requestPool.GetReqWPActiveWorkers(),
-			worker.requestPool.GetReqWPCompletedTasks(),
-			worker.requestPool.GetReqWPSubmittedTasks(),
-			worker.requestPool.GetRequestRate(),
-			worker.requestPool.GetAverageRequestRate(),
-		)
-
-		// Always collect results for resend requests
 		result := &Result{
 			TargetURL:       string(response.URL),
 			BypassModule:    "resend_request",
@@ -366,21 +348,8 @@ func (s *Scanner) ScanDebugToken(debugToken string, resendCount int) ([]*Result,
 		}
 
 		results = append(results, result)
-		PrintResultsTable(tokenData.FullURL, []*Result{result})
 		rawhttp.ReleaseResponseDetails(response)
 	}
-
-	// Final progress update
-	progressbar.SpinnerSuccess(
-		"resend_request",
-		s.scannerOpts.Threads,
-		worker.requestPool.GetReqWPActiveWorkers(),
-		worker.requestPool.GetReqWPCompletedTasks(),
-		worker.requestPool.GetReqWPSubmittedTasks(),
-		worker.requestPool.GetRequestRate(),
-		worker.requestPool.GetAverageRequestRate(),
-		worker.requestPool.GetPeakRequestRate(),
-	)
 
 	return results, nil
 }

@@ -22,6 +22,11 @@ const (
 )
 
 var (
+	instance *ErrorHandler
+	once     sync.Once
+)
+
+var (
 	ErrBodyTooLarge          = fasthttp.ErrBodyTooLarge // "body size exceeds the given limit"
 	ErrInvalidResponseHeader = errors.New("invalid header")
 	ErrConnForciblyClosedWin = errors.New("wsarecv: An existing connection was forcibly closed by the remote host")
@@ -87,6 +92,22 @@ func NewErrorHandler(cacheSizeMB int) *ErrorHandler {
 	)
 
 	return handler
+}
+
+func GetErrorHandler(cacheSizeMB ...int) *ErrorHandler {
+	once.Do(func() {
+		size := DefaultCacheSizeMB
+		if len(cacheSizeMB) > 0 {
+			size = cacheSizeMB[0]
+		}
+		instance = NewErrorHandler(size)
+	})
+	return instance
+}
+
+func ResetInstance() {
+	instance = nil
+	once = sync.Once{}
 }
 
 // AddWhitelistedErrors adds errors to the whitelist
