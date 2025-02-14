@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/slicingmelon/go-bypass-403/internal/engine/rawhttp"
-	GB403ErrorHandler "github.com/slicingmelon/go-bypass-403/internal/utils/error"
 	"github.com/valyala/fasthttp"
 )
 
@@ -17,8 +16,7 @@ func TestConsecutiveFailures(t *testing.T) {
 	opts.MaxConsecutiveFailedReqs = 5
 	opts.BypassModule = "test-mode"
 
-	errorHandler := GB403ErrorHandler.NewErrorHandler(32)
-	client := rawhttp.NewHTTPClient(opts, errorHandler)
+	client := rawhttp.NewHTTPClient(opts)
 
 	// Track stats
 	var totalRequests int

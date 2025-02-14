@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/slicingmelon/go-bypass-403/internal/engine/rawhttp"
-	GB403ErrorHandler "github.com/slicingmelon/go-bypass-403/internal/utils/error"
 	GB403Logger "github.com/slicingmelon/go-bypass-403/internal/utils/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/valyala/fasthttp"
@@ -76,8 +75,7 @@ func TestRetryOnEOF(t *testing.T) {
 	}
 
 	// Create client with error handler that logs errors
-	errorHandler := GB403ErrorHandler.NewErrorHandler(10)
-	client := rawhttp.NewHTTPClient(opts, errorHandler)
+	client := rawhttp.NewHTTPClient(opts)
 
 	// Prepare request
 	req := client.AcquireRequest()
@@ -101,8 +99,6 @@ func TestRetryOnEOF(t *testing.T) {
 	assert.Equal(t, "success", string(resp.Body()), "Expected success response")
 	assert.Equal(t, int32(3), connectionAttempts.Load(), "Expected exactly 3 connection attempts")
 	assert.Equal(t, int32(2), client.GetPerReqRetryAttempts(), "Expected 2 retry attempts")
-
-	errorHandler.PrintErrorStats()
 
 	client.Close()
 }
@@ -146,8 +142,7 @@ func TestRetryWithPayloads(t *testing.T) {
 	//opts.DisableKeepAlive = true
 	opts.MaxConnsPerHost = 100
 
-	errorHandler := GB403ErrorHandler.NewErrorHandler(10)
-	client := rawhttp.NewHTTPClient(opts, errorHandler)
+	client := rawhttp.NewHTTPClient(opts)
 	defer client.Close()
 
 	baseURL := "http://cms.uviu.com/test"
@@ -320,7 +315,6 @@ func TestRetryWithPayloads(t *testing.T) {
 	}
 
 	t.Log("All results collected")
-	errorHandler.PrintErrorStats()
 }
 
 var requestCount int32
@@ -373,8 +367,7 @@ func TestRetryWithLargeResponse(t *testing.T) {
 		return ln.Dial()
 	}
 
-	errorHandler := GB403ErrorHandler.NewErrorHandler(10)
-	client := rawhttp.NewHTTPClient(opts, errorHandler)
+	client := rawhttp.NewHTTPClient(opts)
 	defer client.Close()
 
 	// Test with a single request
@@ -442,8 +435,7 @@ func TestRetryWithConcurrentRequests(t *testing.T) {
 		return ln.Dial()
 	}
 
-	errorHandler := GB403ErrorHandler.NewErrorHandler(10)
-	client := rawhttp.NewHTTPClient(opts, errorHandler)
+	client := rawhttp.NewHTTPClient(opts)
 	defer client.Close()
 
 	// Start concurrent requests

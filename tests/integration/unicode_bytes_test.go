@@ -7,7 +7,6 @@ import (
 
 	"github.com/slicingmelon/go-bypass-403/internal/engine/payload"
 	"github.com/slicingmelon/go-bypass-403/internal/engine/rawhttp"
-	GB403ErrorHandler "github.com/slicingmelon/go-bypass-403/internal/utils/error"
 	"github.com/stretchr/testify/assert"
 	"github.com/valyala/fasthttp"
 	"github.com/valyala/fasthttp/fasthttputil"
@@ -86,7 +85,7 @@ func TestRawHTTPClientBuildAndSendRequest(t *testing.T) {
 	}()
 
 	// Create rawhttp.HTTPClient with default options
-	client := rawhttp.NewHTTPClient(rawhttp.DefaultHTTPClientOptions(), GB403ErrorHandler.NewErrorHandler(32))
+	client := rawhttp.NewHTTPClient(rawhttp.DefaultHTTPClientOptions())
 
 	// Create a PayloadJob with Unicode in the path and headers
 	job := payload.PayloadJob{
@@ -132,10 +131,10 @@ func TestRawHTTPClientBuildAndSendRequest(t *testing.T) {
 
 func TestRawHTTPClientBuildAndSendRequestDirectLocalhost(t *testing.T) {
 	// Create rawhttp.HTTPClient with default options
-	client := rawhttp.NewHTTPClient(rawhttp.DefaultHTTPClientOptions(), GB403ErrorHandler.NewErrorHandler(32))
+	client := rawhttp.NewHTTPClient(rawhttp.DefaultHTTPClientOptions())
 
 	opts := rawhttp.DefaultHTTPClientOptions()
-	opts.Dialer = rawhttp.CreateDialFunc(opts, GB403ErrorHandler.NewErrorHandler(32))
+	opts.Dialer = rawhttp.CreateDialFunc(opts)
 	client.SetHTTPClientOptions(opts)
 
 	// Create a PayloadJob with Unicode in the path and headers

@@ -43,7 +43,7 @@ func (wp *RequestWorkerPool) GetCurrentStats() (running int64, waiting uint64) {
 // NewWorkerPool initializes a new RequestWorkerPool instance
 func NewWorkerPool(opts *rawhttp.HTTPClientOptions, maxWorkers int, errorHandler *GB403ErrorHandler.ErrorHandler) *RequestWorkerPool {
 	return &RequestWorkerPool{
-		httpClient:   rawhttp.NewHTTPClient(opts, errorHandler),
+		httpClient:   rawhttp.NewHTTPClient(opts),
 		errorHandler: errorHandler,
 		pool:         pond.NewPool(maxWorkers), // Simple version without context
 	}

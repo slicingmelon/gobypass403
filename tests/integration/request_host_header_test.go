@@ -6,7 +6,6 @@ import (
 
 	"github.com/slicingmelon/go-bypass-403/internal/engine/payload"
 	"github.com/slicingmelon/go-bypass-403/internal/engine/rawhttp"
-	GB403ErrorHandler "github.com/slicingmelon/go-bypass-403/internal/utils/error"
 	"github.com/stretchr/testify/assert"
 	"github.com/valyala/fasthttp"
 	"github.com/valyala/fasthttp/fasthttputil"
@@ -48,7 +47,7 @@ func TestHostHeaderInjection(t *testing.T) {
 	}()
 
 	// Create client with mock listener
-	client := rawhttp.NewHTTPClient(rawhttp.DefaultHTTPClientOptions(), GB403ErrorHandler.NewErrorHandler(32))
+	client := rawhttp.NewHTTPClient(rawhttp.DefaultHTTPClientOptions())
 	client.GetHTTPClientOptions().Dialer = func(addr string) (net.Conn, error) {
 		return ln.Dial()
 	}
@@ -152,7 +151,7 @@ func TestHostHeaderInjection2(t *testing.T) {
 	}()
 
 	// Create client with mock listener
-	client := rawhttp.NewHTTPClient(rawhttp.DefaultHTTPClientOptions(), GB403ErrorHandler.NewErrorHandler(32))
+	client := rawhttp.NewHTTPClient(rawhttp.DefaultHTTPClientOptions())
 	//opts := client.GetHTTPClientOptions()
 	// opts.Dialer = func(addr string) (net.Conn, error) {
 	// 	return ln.Dial()
@@ -276,7 +275,7 @@ func TestManualHostHeaderInjection(t *testing.T) {
 	}()
 
 	// Create client with mock listener
-	client := rawhttp.NewHTTPClient(rawhttp.DefaultHTTPClientOptions(), GB403ErrorHandler.NewErrorHandler(32))
+	client := rawhttp.NewHTTPClient(rawhttp.DefaultHTTPClientOptions())
 	client.GetHTTPClientOptions().Dialer = func(addr string) (net.Conn, error) {
 		return ln.Dial()
 	}

@@ -130,6 +130,14 @@ Example Results 1
 
 # Changelog
 
+## 14 February 2025
+
+- Implemented retry attempts on failed requests, using linear backoff algorthm to increase the delay between retries.
+- Autothrottler, throttles the requests exponentially based on known status codes.
+- Option to resend the exact request at any time using the debug token.
+- Refactored most of the core engine/rawhttp modules to improve performance and reduce allocations.
+- Plus way more improvements...
+
 ## 09 January 2025
 
 - Refacted the entire codebase. Everything will be documented separately. 

@@ -12,7 +12,6 @@ import (
 	"github.com/slicingmelon/go-bypass-403/internal/engine/payload"
 	"github.com/slicingmelon/go-bypass-403/internal/engine/rawhttp"
 
-	GB403ErrorHandler "github.com/slicingmelon/go-bypass-403/internal/utils/error"
 	GB403Logger "github.com/slicingmelon/go-bypass-403/internal/utils/logger"
 	"github.com/valyala/fasthttp"
 	"github.com/valyala/fasthttp/fasthttputil"
@@ -75,7 +74,7 @@ func TestRequestBuilderViaEchoServer(t *testing.T) {
 	clientoptions.Dialer = func(addr string) (net.Conn, error) {
 		return ln.Dial()
 	}
-	client := rawhttp.NewHTTPClient(clientoptions, GB403ErrorHandler.NewErrorHandler(15))
+	client := rawhttp.NewHTTPClient(clientoptions)
 
 	// Test cases using real payload generators
 	testCases := []struct {
@@ -243,7 +242,7 @@ func TestRequestBuilderMidPathsPayloads(t *testing.T) {
 	clientoptions.Dialer = func(addr string) (net.Conn, error) {
 		return ln.Dial()
 	}
-	client := rawhttp.NewHTTPClient(clientoptions, GB403ErrorHandler.NewErrorHandler(15))
+	client := rawhttp.NewHTTPClient(clientoptions)
 
 	// Test cases using real payload generators
 	testCases := []struct {
@@ -315,7 +314,7 @@ func TestRequestBuilderHostHeaders(t *testing.T) {
 
 	clientOpts := rawhttp.DefaultHTTPClientOptions()
 
-	client := rawhttp.NewHTTPClient(clientOpts, GB403ErrorHandler.NewErrorHandler(15))
+	client := rawhttp.NewHTTPClient(clientOpts)
 	//rb := NewRequestBuilder(client, _logger)
 
 	testCases := []struct {
@@ -419,8 +418,7 @@ func TestResponseProcessingWithSpacedHeaders(t *testing.T) {
 		return ln.Dial()
 	}
 
-	errorHandler := GB403ErrorHandler.NewErrorHandler(15)
-	client := rawhttp.NewHTTPClient(clientoptions, errorHandler)
+	client := rawhttp.NewHTTPClient(clientoptions)
 
 	testCases := []struct {
 		name           string
@@ -509,8 +507,6 @@ func TestResponseProcessingWithSpacedHeaders(t *testing.T) {
 				}
 			}
 
-			// Print error stats at the end of each test case
-			errorHandler.PrintErrorStats()
 		})
 	}
 }

@@ -7,12 +7,11 @@ import (
 
 	"github.com/slicingmelon/go-bypass-403/internal/engine/payload"
 	"github.com/slicingmelon/go-bypass-403/internal/engine/rawhttp"
-	GB403ErrorHandler "github.com/slicingmelon/go-bypass-403/internal/utils/error"
 )
 
 // 4435408	       280.9 ns/op	       0 B/op	       0 allocs/op
 func BenchmarkBuildHTTPRequest(b *testing.B) {
-	client := rawhttp.NewHTTPClient(rawhttp.DefaultHTTPClientOptions(), nil)
+	client := rawhttp.NewHTTPClient(rawhttp.DefaultHTTPClientOptions())
 	job := payload.PayloadJob{
 		FullURL:      "http://example.com/test",
 		Method:       "GET",
@@ -53,7 +52,7 @@ func BenchmarkProcessHTTPResponseStreamed(b *testing.B) {
 	opts := rawhttp.DefaultHTTPClientOptions()
 	opts.ResponseBodyPreviewSize = 1024
 	opts.MaxResponseBodySize = 1024
-	client := rawhttp.NewHTTPClient(opts, nil)
+	client := rawhttp.NewHTTPClient(opts)
 
 	// Create test response with realistic data
 	resp := client.AcquireResponse()
@@ -122,7 +121,7 @@ func BenchmarkProcessHTTPResponsePerIterationNew(b *testing.B) {
 	opts := rawhttp.DefaultHTTPClientOptions()
 	opts.ResponseBodyPreviewSize = 1024
 	opts.MaxResponseBodySize = 1024
-	client := rawhttp.NewHTTPClient(opts, nil)
+	client := rawhttp.NewHTTPClient(opts)
 
 	// Setup response once
 	resp := client.AcquireResponse()
@@ -240,7 +239,7 @@ BenchmarkBuildRawHTTPRequest/ComplexPath-20               274714              43
 BenchmarkBuildRawHTTPRequest/LongHeaders-20               258748              4960 ns/op     5285 B/op           3 allocs/op
 */
 func BenchmarkBuildRawHTTPRequest(b *testing.B) {
-	client := rawhttp.NewHTTPClient(rawhttp.DefaultHTTPClientOptions(), GB403ErrorHandler.NewErrorHandler(5))
+	client := rawhttp.NewHTTPClient(rawhttp.DefaultHTTPClientOptions())
 
 	// Test cases with different path complexities
 	tests := []struct {

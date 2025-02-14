@@ -43,7 +43,7 @@ func TestClientResponseTimeSequential(t *testing.T) {
 	opts.RequestDelay = 0
 
 	// For testing, we pass nil for the error handler.
-	client := rawhttp.NewHTTPClient(opts, nil)
+	client := rawhttp.NewHTTPClient(opts)
 
 	// Acquire request and response instances from the client.
 	req := client.AcquireRequest()
@@ -105,7 +105,7 @@ func TestClientResponseTimeConcurrent(t *testing.T) {
 	opts.Dialer = dialer
 	opts.RequestDelay = 0
 
-	client := rawhttp.NewHTTPClient(opts, nil)
+	client := rawhttp.NewHTTPClient(opts)
 	const numRequests = 50
 
 	// Define result structure

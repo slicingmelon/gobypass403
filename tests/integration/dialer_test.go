@@ -11,7 +11,6 @@ import (
 
 	"github.com/slicingmelon/go-bypass-403/internal/engine/payload"
 	"github.com/slicingmelon/go-bypass-403/internal/engine/rawhttp"
-	GB403ErrorHandler "github.com/slicingmelon/go-bypass-403/internal/utils/error"
 	GB403Logger "github.com/slicingmelon/go-bypass-403/internal/utils/logger"
 	"github.com/valyala/fasthttp"
 	"github.com/valyala/fasthttp/fasthttputil"
@@ -44,7 +43,7 @@ func TestDialerInMemory(t *testing.T) {
 	}
 
 	// Create request pool
-	pool := rawhttp.NewRequestWorkerPool(clientOpts, 1, GB403ErrorHandler.NewErrorHandler(32))
+	pool := rawhttp.NewRequestWorkerPool(clientOpts, 1)
 
 	// Create test payload
 	jobs := []payload.PayloadJob{
@@ -112,7 +111,7 @@ func TestDialerWithProxy(t *testing.T) {
 	}
 
 	// Create request pool
-	pool := rawhttp.NewRequestWorkerPool(clientOpts, 1, GB403ErrorHandler.NewErrorHandler(32))
+	pool := rawhttp.NewRequestWorkerPool(clientOpts, 1)
 
 	// Create test payload
 	jobs := []payload.PayloadJob{

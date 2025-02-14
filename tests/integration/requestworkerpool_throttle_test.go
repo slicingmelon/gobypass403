@@ -7,7 +7,6 @@ import (
 
 	"github.com/slicingmelon/go-bypass-403/internal/engine/payload"
 	"github.com/slicingmelon/go-bypass-403/internal/engine/rawhttp"
-	GB403ErrorHandler "github.com/slicingmelon/go-bypass-403/internal/utils/error"
 	"github.com/stretchr/testify/assert"
 	"github.com/valyala/fasthttp"
 	"github.com/valyala/fasthttp/fasthttputil"
@@ -58,7 +57,7 @@ func TestRequestWorkerPoolThrottle(t *testing.T) {
 	}
 
 	// Create request pool with smaller worker count
-	pool := rawhttp.NewRequestWorkerPool(clientOpts, 2, GB403ErrorHandler.NewErrorHandler(32)) // Reduced workers
+	pool := rawhttp.NewRequestWorkerPool(clientOpts, 2) // Reduced workers
 	defer pool.Close()
 
 	// Log initial pool stats

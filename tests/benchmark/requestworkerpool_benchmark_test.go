@@ -12,7 +12,7 @@ import (
 
 func BenchmarkProcessRequests(b *testing.B) {
 	// Create pool with all dependencies properly initialized
-	pool := rawhttp.NewRequestWorkerPool(rawhttp.DefaultHTTPClientOptions(), 10, nil)
+	pool := rawhttp.NewRequestWorkerPool(rawhttp.DefaultHTTPClientOptions(), 10)
 
 	// Create test response
 	resp := fasthttp.AcquireResponse()
@@ -41,7 +41,7 @@ func BenchmarkProcessRequests(b *testing.B) {
 }
 
 func BenchmarkProcessRequests2(b *testing.B) {
-	pool := rawhttp.NewRequestWorkerPool(rawhttp.DefaultHTTPClientOptions(), 10, nil)
+	pool := rawhttp.NewRequestWorkerPool(rawhttp.DefaultHTTPClientOptions(), 10)
 
 	baseJob := payload.PayloadJob{
 		FullURL:      "http://example.com/test",
@@ -94,7 +94,7 @@ func BenchmarkProcessRequests3(b *testing.B) {
 		return ln.Dial()
 	}
 
-	pool := rawhttp.NewRequestWorkerPool(opts, 10, nil)
+	pool := rawhttp.NewRequestWorkerPool(opts, 10)
 	defer pool.Close()
 
 	baseJob := payload.PayloadJob{
