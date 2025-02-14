@@ -53,6 +53,7 @@ type HTTPClient struct {
 	client                *fasthttp.Client
 	options               *HTTPClientOptions
 	retryConfig           *RetryConfig
+	throttler             *Throttler
 	mu                    sync.RWMutex
 	lastResponseTime      atomic.Int64
 	consecutiveFailedReqs atomic.Int32
@@ -100,6 +101,7 @@ func NewHTTPClient(opts *HTTPClientOptions) *HTTPClient {
 	c := &HTTPClient{
 		options:     opts,
 		retryConfig: retryConfig,
+		throttler:   NewThrottler(DefaultThrottleConfig()),
 	}
 
 	// reset failed consecutive requests
@@ -173,13 +175,18 @@ func (c *HTTPClient) execFunc(req *fasthttp.Request, resp *fasthttp.Response) (i
 	retryDelay := c.retryConfig.RetryDelay
 	maxRetries := c.retryConfig.MaxRetries
 
-	// Apply the request delay to all requests (from cli opts)
-	if origOpts.RequestDelay > 0 {
-		time.Sleep(origOpts.RequestDelay)
-	}
-
 	var lastErr error
 	for attempt := 0; attempt <= maxRetries; attempt++ {
+		// Apply the request delay to all requests (from cli opts)
+		if origOpts.RequestDelay > 0 {
+			time.Sleep(origOpts.RequestDelay)
+		}
+
+		// Apply throttler delay if active
+		if c.throttler != nil && c.throttler.isThrottling.Load() {
+			c.throttler.ThrottleRequest()
+		}
+
 		// Calculate timeout for this attempt
 		currentTimeout := baseTimeout
 		if attempt > 0 {
@@ -214,6 +221,10 @@ func (c *HTTPClient) execFunc(req *fasthttp.Request, resp *fasthttp.Response) (i
 		//lastErr = err
 
 		if err == nil {
+			// Check if we should throttle based on the response status code
+			if c.throttler != nil {
+				c.throttler.IsThrottableRespCode(resp.StatusCode())
+			}
 			return elapsed.Milliseconds(), nil
 		}
 
@@ -315,6 +326,7 @@ func (c *HTTPClient) GetLastResponseTime() int64 {
 // Close releases all idle connections
 func (c *HTTPClient) Close() {
 	c.client.CloseIdleConnections()
+	c.throttler.Reset()
 }
 
 // AcquireRequest returns a new Request instance from pool

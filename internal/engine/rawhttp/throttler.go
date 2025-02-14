@@ -29,7 +29,7 @@ type Throttler struct {
 // DefaultThrottleConfig returns sensible defaults
 func DefaultThrottleConfig() *ThrottleConfig {
 	return &ThrottleConfig{
-		BaseRequestDelay:        100 * time.Millisecond,
+		BaseRequestDelay:        200 * time.Millisecond,
 		MaxRequestDelay:         5000 * time.Millisecond,
 		RequestDelayJitter:      20,  // 20% of the base request delay
 		ExponentialRequestDelay: 2.0, // Each throttle doubles the delay
@@ -47,8 +47,8 @@ func NewThrottler(config *ThrottleConfig) *Throttler {
 	return t
 }
 
-// ShouldThrottle checks if we should throttle based on status code
-func (t *Throttler) ShouldThrottleOnStatusCode(statusCode int) bool {
+// IsThrottableRespCode checks if we should throttle based on the resp status code
+func (t *Throttler) IsThrottableRespCode(statusCode int) bool {
 	config := t.config.Load()
 	if matchStatusCodes(statusCode, config.ThrottleOnStatusCodes) {
 		wasThrottling := t.isThrottling.Swap(true)
@@ -61,8 +61,8 @@ func (t *Throttler) ShouldThrottleOnStatusCode(statusCode int) bool {
 	return false
 }
 
-// GetDelay calculates the next delay based on config and attempts
-func (t *Throttler) GetDelay() time.Duration {
+// GetCurrentThrottleRate calculates the next delay based on config and attempts
+func (t *Throttler) GetCurrentThrottleRate() time.Duration {
 	config := t.config.Load()
 	delay := config.BaseRequestDelay
 
@@ -88,6 +88,16 @@ func (t *Throttler) GetDelay() time.Duration {
 
 	t.lastDelay.Store(int64(delay))
 	return delay
+}
+
+// ThrottleRequest throttles the request based on the current throttle rate
+func (t *Throttler) ThrottleRequest() {
+	// Apply throttler delay if active
+	if t != nil {
+		if delay := t.GetCurrentThrottleRate(); delay > 0 {
+			time.Sleep(delay)
+		}
+	}
 }
 
 // UpdateThrottleConfig safely updates throttle configuration
