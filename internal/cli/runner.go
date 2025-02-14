@@ -124,6 +124,8 @@ func (r *Runner) handleResendRequest() error {
 		Proxy:                     r.RunnerOptions.Proxy,
 		OutDir:                    r.RunnerOptions.OutDir,
 		RequestDelay:              r.RunnerOptions.RequestDelay,
+		MatchStatusCodes:          r.RunnerOptions.MatchStatusCodes,
+		EnableHTTP2:               r.RunnerOptions.EnableHTTP2,
 		DisableStreamResponseBody: r.RunnerOptions.DisableStreamResponseBody,
 	}
 
