@@ -182,8 +182,8 @@ func (c *HTTPClient) execFunc(req *fasthttp.Request, resp *fasthttp.Response) (i
 			time.Sleep(origOpts.RequestDelay)
 		}
 
-		// Apply throttler delay if active
-		if c.throttler != nil && c.throttler.isThrottling.Load() {
+		// Apply throttler delay if active (only on first attempt)
+		if attempt == 0 && c.throttler.IsThrottlerActive() {
 			c.throttler.ThrottleRequest()
 		}
 
@@ -222,8 +222,9 @@ func (c *HTTPClient) execFunc(req *fasthttp.Request, resp *fasthttp.Response) (i
 
 		if err == nil {
 			// Check if we should throttle based on the response status code
-			if c.throttler != nil {
-				c.throttler.IsThrottableRespCode(resp.StatusCode())
+			if c.throttler.IsThrottableRespCode(resp.StatusCode()) {
+				// Enable throttling for future requests
+				c.throttler.EnableThrottler()
 			}
 			return elapsed.Milliseconds(), nil
 		}
@@ -323,10 +324,20 @@ func (c *HTTPClient) GetLastResponseTime() int64 {
 	return c.lastResponseTime.Load()
 }
 
+// IsThrottlerActive returns true if the throttler is currently active
+func (c *HTTPClient) IsThrottlerActive() bool {
+	return c.throttler.IsThrottlerActive()
+}
+
+// DisableThrottler disables the throttler, it does not reset the stats and rates though.
+func (c *HTTPClient) DisableThrottler() {
+	c.throttler.DisableThrottler()
+}
+
 // Close releases all idle connections
 func (c *HTTPClient) Close() {
 	c.client.CloseIdleConnections()
-	c.throttler.Reset()
+	c.throttler.ResetThrottler()
 }
 
 // AcquireRequest returns a new Request instance from pool

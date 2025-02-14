@@ -49,13 +49,13 @@ func NewThrottler(config *ThrottleConfig) *Throttler {
 
 // IsThrottableRespCode checks if we should throttle based on the resp status code
 func (t *Throttler) IsThrottableRespCode(statusCode int) bool {
+	if t == nil {
+		return false
+	}
+
 	config := t.config.Load()
 	if matchStatusCodes(statusCode, config.ThrottleOnStatusCodes) {
-		wasThrottling := t.isThrottling.Swap(true)
 		t.counter.Add(1)
-		if !wasThrottling {
-			GB403Logger.Warning().Msgf("Auto throttling enabled due to status code: %d", statusCode)
-		}
 		return true
 	}
 	return false
@@ -101,17 +101,38 @@ func (t *Throttler) ThrottleRequest() {
 }
 
 // UpdateThrottleConfig safely updates throttle configuration
-func (t *Throttler) UpdateThrottleConfig(config *ThrottleConfig) {
+func (t *Throttler) UpdateThrottlerConfig(config *ThrottleConfig) {
 	t.config.Store(config)
 	t.counter.Store(0) // Reset attempts counter
 }
 
+// EnableThrottling enables the throttler
+func (t *Throttler) EnableThrottler() {
+	if t == nil {
+		return
+	}
+	t.isThrottling.Store(true)
+	GB403Logger.Info().Msgf("Auto throttling enabled")
+}
+
+// IsThrottlerActive returns true if the throttler is currently active
+func (t *Throttler) IsThrottlerActive() bool {
+	if t == nil {
+		return false
+	}
+	return t.isThrottling.Load()
+}
+
+// DisableThrottler disables the throttler, it does not reset the stats and rates though.
+func (t *Throttler) DisableThrottler() {
+	if t == nil {
+		return
+	}
+	t.isThrottling.Store(false)
+}
+
 // Reset resets the throttler state
-func (t *Throttler) Reset() {
-	wasThrottling := t.isThrottling.Swap(false)
+func (t *Throttler) ResetThrottler() {
 	t.counter.Store(0)
 	t.lastDelay.Store(0)
-	if wasThrottling {
-		GB403Logger.Info().Msgf("Auto throttling disabled - returning to normal request rate")
-	}
 }
