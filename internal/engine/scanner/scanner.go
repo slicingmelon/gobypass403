@@ -107,12 +107,22 @@ func (s *Scanner) scanURL(url string) error {
 			GB403Logger.Error().Msgf("Failed to save findings for %s: %v\n", url, err)
 		}
 
-		// Print results only once
-		fmt.Println()
-		PrintResultsTable(url, allFindings)
+		// 	// Print results only once
+		// 	fmt.Println()
+		// 	PrintResultsTable(url, allFindings)
 
+		// 	fmt.Println()
+		// 	GB403Logger.Success().Msgf("Results saved to %s\n\n", outputFile)
+		// }
+
+		// Load from JSON and print
 		fmt.Println()
-		GB403Logger.Success().Msgf("Results saved to %s\n\n", outputFile)
+		if err := PrintResultsFromJSON(outputFile, url, s.scannerOpts.BypassModule); err != nil {
+			GB403Logger.Error().Msgf("Failed to print results from JSON: %v", err)
+		} else {
+			fmt.Println()
+			GB403Logger.Success().Msgf("Results saved to %s\n\n", outputFile)
+		}
 	}
 
 	return nil

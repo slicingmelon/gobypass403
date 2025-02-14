@@ -232,3 +232,39 @@ func AppendResultsToJSON(outputFile, url, mode string, findings []*Result) error
 
 	return writer.Flush()
 }
+
+func PrintResultsFromJSON(jsonFile, targetURL, bypassModule string) error {
+	file, err := os.Open(jsonFile)
+	if err != nil {
+		return fmt.Errorf("failed to open JSON file: %v", err)
+	}
+	defer file.Close()
+
+	var data JSONData
+	decoder := json.NewDecoder(file)
+	if err := decoder.Decode(&data); err != nil {
+		return fmt.Errorf("failed to decode JSON: %v", err)
+	}
+
+	// Find matching scan results
+	var matchedResults []*Result
+	for _, scan := range data.Scans {
+		if scan.URL == targetURL && scan.BypassModes == bypassModule {
+			matchedResults = scan.Results
+			break
+		}
+	}
+
+	if len(matchedResults) == 0 {
+		return fmt.Errorf("no results found for %s with module %s", targetURL, bypassModule)
+	}
+
+	// Recreate the same table sorting as original
+	sort.Slice(matchedResults, func(i, j int) bool {
+		return matchedResults[i].StatusCode < matchedResults[j].StatusCode
+	})
+
+	// Print using existing table formatter
+	PrintResultsTable(targetURL, matchedResults)
+	return nil
+}
