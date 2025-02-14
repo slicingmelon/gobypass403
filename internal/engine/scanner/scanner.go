@@ -35,9 +35,8 @@ type ScannerOpts struct {
 
 // Scanner represents the main scanner structure, perhaps the highest level in the hierarchy of the tool
 type Scanner struct {
-	scannerOpts  *ScannerOpts
-	urls         []string
-	errorHandler *GB403ErrorHandler.ErrorHandler
+	scannerOpts *ScannerOpts
+	urls        []string
 }
 
 // NewScanner creates a new Scanner instance
@@ -46,9 +45,8 @@ func NewScanner(opts *ScannerOpts, urls []string) *Scanner {
 	InitializeBypassModules()
 
 	return &Scanner{
-		scannerOpts:  opts,
-		urls:         urls,
-		errorHandler: GB403ErrorHandler.NewErrorHandler(32),
+		scannerOpts: opts,
+		urls:        urls,
 	}
 }
 
@@ -62,7 +60,7 @@ func (s *Scanner) Run() error {
 	for _, url := range s.urls {
 		if err := s.scanURL(url); err != nil {
 			GB403Logger.Error().Msgf("Error scanning %s: %v", url, err)
-			if handleErr := s.errorHandler.HandleError(err, GB403ErrorHandler.ErrorContext{
+			if handleErr := GB403ErrorHandler.GetErrorHandler().HandleError(err, GB403ErrorHandler.ErrorContext{
 				TargetURL:    []byte(url),
 				ErrorSource:  []byte("Scanner.Run"),
 				BypassModule: []byte(s.scannerOpts.BypassModule),
@@ -75,7 +73,7 @@ func (s *Scanner) Run() error {
 
 	// print error stats
 	fmt.Println()
-	s.errorHandler.PrintErrorStats()
+	GB403ErrorHandler.GetErrorHandler().PrintErrorStats()
 
 	return nil
 }
@@ -123,7 +121,5 @@ func (s *Scanner) scanURL(url string) error {
 // Close the scanner instance
 func (s *Scanner) Close() {
 	// Close error handler
-	if s.errorHandler != nil {
-		s.errorHandler.Reset()
-	}
+	//
 }

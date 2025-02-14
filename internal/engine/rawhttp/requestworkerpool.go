@@ -14,28 +14,26 @@ import (
 
 // RequestWorkerPool manages concurrent HTTP request/response processing
 type RequestWorkerPool struct {
-	httpClient   *HTTPClient
-	errorHandler *GB403ErrorHandler.ErrorHandler
-	ctx          context.Context
-	cancel       context.CancelFunc
-	pool         pond.Pool
-	throttler    *Throttler
+	httpClient *HTTPClient
+	ctx        context.Context
+	cancel     context.CancelFunc
+	pool       pond.Pool
+	throttler  *Throttler
 	// Request rate tracking
 	requestStartTime atomic.Int64  // For elapsed time calculation
 	peakRequestRate  atomic.Uint64 // For tracking peak rate
 }
 
 // NewWorkerPool initializes a new RequestWorkerPool instance
-func NewRequestWorkerPool(opts *HTTPClientOptions, maxWorkers int, errorHandler *GB403ErrorHandler.ErrorHandler) *RequestWorkerPool {
+func NewRequestWorkerPool(opts *HTTPClientOptions, maxWorkers int) *RequestWorkerPool {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	wp := &RequestWorkerPool{
-		httpClient:   NewHTTPClient(opts, errorHandler),
-		errorHandler: errorHandler,
-		ctx:          ctx,
-		cancel:       cancel,
-		pool:         pond.NewPool(maxWorkers, pond.WithContext(ctx)),
-		throttler:    NewThrottler(nil),
+		httpClient: NewHTTPClient(opts),
+		ctx:        ctx,
+		cancel:     cancel,
+		pool:       pond.NewPool(maxWorkers, pond.WithContext(ctx)),
+		throttler:  NewThrottler(nil),
 	}
 
 	// Initialize start time
@@ -181,7 +179,7 @@ func (wp *RequestWorkerPool) ProcessRequestResponseJob(job payload.PayloadJob) *
 	// }
 
 	if err := BuildRawHTTPRequest(wp.httpClient, req, job); err != nil {
-		handleErr := wp.errorHandler.HandleError(err, GB403ErrorHandler.ErrorContext{
+		handleErr := GB403ErrorHandler.GetErrorHandler().HandleError(err, GB403ErrorHandler.ErrorContext{
 			ErrorSource:  []byte("RequestWorkerPool.BuildRawRequestTask"),
 			Host:         []byte(job.Host),
 			BypassModule: []byte(job.BypassModule),

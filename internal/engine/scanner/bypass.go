@@ -100,7 +100,7 @@ type BypassWorker struct {
 	requestPool  *rawhttp.RequestWorkerPool
 }
 
-func NewBypassWorker(bypassmodule string, targetURL string, scannerOpts *ScannerOpts, errorHandler *GB403ErrorHandler.ErrorHandler) *BypassWorker {
+func NewBypassWorker(bypassmodule string, targetURL string, scannerOpts *ScannerOpts) *BypassWorker {
 	httpClientOpts := rawhttp.DefaultHTTPClientOptions()
 
 	// Override specific settings from user options
@@ -138,7 +138,7 @@ func NewBypassWorker(bypassmodule string, targetURL string, scannerOpts *Scanner
 		once:         sync.Once{},
 		opts:         scannerOpts,
 
-		requestPool: rawhttp.NewRequestWorkerPool(httpClientOpts, scannerOpts.Threads, errorHandler),
+		requestPool: rawhttp.NewRequestWorkerPool(httpClientOpts, scannerOpts.Threads),
 	}
 }
 
@@ -164,7 +164,7 @@ func (s *Scanner) RunAllBypasses(targetURL string) chan *Result {
 
 	// Validate URL one more time, who knows
 	if _, err := rawurlparser.RawURLParse(targetURL); err != nil {
-		err = s.errorHandler.HandleError(err, GB403ErrorHandler.ErrorContext{
+		err = GB403ErrorHandler.GetErrorHandler().HandleError(err, GB403ErrorHandler.ErrorContext{
 			TargetURL:   []byte(targetURL),
 			ErrorSource: []byte("Scanner.RunAllBypasses"),
 		})
@@ -222,7 +222,7 @@ func (s *Scanner) RunBypassModule(bypassModule string, targetURL string, results
 		return
 	}
 
-	worker := NewBypassWorker(bypassModule, targetURL, s.scannerOpts, s.errorHandler)
+	worker := NewBypassWorker(bypassModule, targetURL, s.scannerOpts)
 	defer worker.Stop()
 
 	// Create progress bar
@@ -311,7 +311,7 @@ func (s *Scanner) ScanDebugToken(debugToken string, resendCount int) ([]*Result,
 	}
 
 	// Create worker
-	worker := NewBypassWorker("resend_request", tokenData.FullURL, s.scannerOpts, s.errorHandler)
+	worker := NewBypassWorker("resend_request", tokenData.FullURL, s.scannerOpts)
 	defer worker.Stop()
 
 	// Create jobs array

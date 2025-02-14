@@ -52,7 +52,6 @@ type HTTPClientOptions struct {
 type HTTPClient struct {
 	client                *fasthttp.Client
 	options               *HTTPClientOptions
-	errorHandler          *GB403ErrorHandler.ErrorHandler
 	retryConfig           *RetryConfig
 	mu                    sync.RWMutex
 	lastResponseTime      atomic.Int64
@@ -84,14 +83,14 @@ func DefaultHTTPClientOptions() *HTTPClientOptions {
 }
 
 // NewHTTPClient creates a new HTTP client instance
-func NewHTTPClient(opts *HTTPClientOptions, errorHandler *GB403ErrorHandler.ErrorHandler) *HTTPClient {
+func NewHTTPClient(opts *HTTPClientOptions) *HTTPClient {
 	if opts == nil {
 		opts = DefaultHTTPClientOptions()
 	}
 
 	// Set the default dialer if none is provided
 	if opts.Dialer == nil {
-		opts.Dialer = CreateDialFunc(opts, errorHandler)
+		opts.Dialer = CreateDialFunc(opts)
 	}
 
 	retryConfig := DefaultRetryConfig()
@@ -99,9 +98,8 @@ func NewHTTPClient(opts *HTTPClientOptions, errorHandler *GB403ErrorHandler.Erro
 	retryConfig.RetryDelay = opts.RetryDelay
 
 	c := &HTTPClient{
-		options:      opts,
-		errorHandler: errorHandler,
-		retryConfig:  retryConfig,
+		options:     opts,
+		retryConfig: retryConfig,
 	}
 
 	// reset failed consecutive requests

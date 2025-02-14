@@ -30,7 +30,7 @@ func (c *HTTPClient) SetDialer(dialer fasthttp.DialFunc) *HTTPClient {
 }
 
 // CreateDialFunc creates a dial function with the given options and error handler
-func CreateDialFunc(opts *HTTPClientOptions, errorHandler *GB403ErrorHandler.ErrorHandler) fasthttp.DialFunc {
+func CreateDialFunc(opts *HTTPClientOptions) fasthttp.DialFunc {
 	if opts.Dialer != nil {
 		return opts.Dialer
 	}
@@ -43,7 +43,7 @@ func CreateDialFunc(opts *HTTPClientOptions, errorHandler *GB403ErrorHandler.Err
 			proxyDialer := fasthttpproxy.FasthttpHTTPDialerTimeout(opts.ProxyURL, opts.DialTimeout)
 			conn, err := proxyDialer(addr)
 			if err != nil {
-				if handleErr := errorHandler.HandleError(err, GB403ErrorHandler.ErrorContext{
+				if handleErr := GB403ErrorHandler.GetErrorHandler().HandleError(err, GB403ErrorHandler.ErrorContext{
 					ErrorSource: []byte("Client.proxyDial"),
 					Host:        []byte(addr),
 				}); handleErr != nil {
@@ -67,7 +67,7 @@ func CreateDialFunc(opts *HTTPClientOptions, errorHandler *GB403ErrorHandler.Err
 		// aaa.com:8080
 		conn, err := dialer.DialDualStackTimeout(addr, opts.DialTimeout)
 		if err != nil {
-			if handleErr := errorHandler.HandleError(err, GB403ErrorHandler.ErrorContext{
+			if handleErr := GB403ErrorHandler.GetErrorHandler().HandleError(err, GB403ErrorHandler.ErrorContext{
 				ErrorSource: []byte("Client.directDial"),
 				Host:        []byte(addr),
 			}); handleErr != nil {
