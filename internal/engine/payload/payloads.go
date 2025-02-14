@@ -2,6 +2,8 @@ package payload
 
 import (
 	"fmt"
+	"net/url"
+	"slices"
 	"strings"
 
 	"github.com/slicingmelon/go-bypass-403/internal/engine/recon"
@@ -822,20 +824,86 @@ const normalizedMatches = new Set();
 
 normalizedMatches.forEach(match => console.log(match));
 */
+// func (pg *PayloadGenerator) GenerateUnicodePathNormalizationsJobs(targetURL string, bypassModule string) []PayloadJob {
+// 	var jobs []PayloadJob
+
+// 	// First generate midpath payloads as base
+// 	midpathJobs := pg.GenerateMidPathsJobs(targetURL, bypassModule)
+
+// 	// Read unicode normalization mappings
+// 	unicodeMappings, err := ReadPayloadsFromFile("unicode_path_chars.lst")
+// 	if err != nil {
+// 		GB403Logger.Error().Msgf("Failed to read unicode path chars: %v", err)
+// 		return jobs
+// 	}
+
+// 	// Create mapping of ASCII chars to their unicode equivalents
+// 	charMap := make(map[rune][]rune)
+// 	for _, mapping := range unicodeMappings {
+// 		parts := strings.Split(mapping, "=")
+// 		if len(parts) != 2 {
+// 			continue
+// 		}
+
+// 		// Get the unicode char and its ASCII equivalent
+// 		unicodeChar := []rune(strings.Split(parts[0], "(")[0])[0]
+// 		asciiChar := []rune(parts[1])[0]
+
+// 		// Add to mapping (one ASCII char can have multiple unicode equivalents)
+// 		charMap[asciiChar] = append(charMap[asciiChar], unicodeChar)
+// 	}
+
+// 	// For each midpath job, create unicode variations
+// 	for _, baseJob := range midpathJobs {
+// 		// Add the original midpath job
+// 		jobs = append(jobs, baseJob)
+
+// 		// Create unicode variations of the RawURI
+// 		path := []rune(baseJob.RawURI)
+// 		for i, char := range path {
+// 			// If we have unicode equivalents for this char
+// 			if unicodeChars, exists := charMap[char]; exists {
+// 				for _, unicodeChar := range unicodeChars {
+// 					// Create new path with unicode substitution
+// 					newPath := make([]rune, len(path))
+// 					copy(newPath, path)
+// 					newPath[i] = unicodeChar
+
+// 					// Create new job with unicode path
+// 					newRawURI := string(newPath)
+// 					newFullURL := fmt.Sprintf("%s://%s%s", baseJob.Scheme, baseJob.Host, newRawURI)
+
+// 					jobs = append(jobs, PayloadJob{
+// 						OriginalURL:  baseJob.OriginalURL,
+// 						Method:       "GET",
+// 						Scheme:       baseJob.Scheme,
+// 						Host:         baseJob.Host,
+// 						RawURI:       newRawURI,
+// 						FullURL:      newFullURL,
+// 						BypassModule: bypassModule,
+// 						PayloadToken: GenerateDebugToken(SeedData{FullURL: newFullURL}),
+// 					})
+// 				}
+// 			}
+// 		}
+// 	}
+
+// 	GB403Logger.Info().BypassModule(bypassModule).Msgf("Generated %d payloads for %s\n", len(jobs), targetURL)
+// 	return jobs
+// }
+
 func (pg *PayloadGenerator) GenerateUnicodePathNormalizationsJobs(targetURL string, bypassModule string) []PayloadJob {
 	var jobs []PayloadJob
 
-	// First generate midpath payloads as base
 	midpathJobs := pg.GenerateMidPathsJobs(targetURL, bypassModule)
+	pathChars := []rune{'/', '\\', '.'}
 
-	// Read unicode normalization mappings
 	unicodeMappings, err := ReadPayloadsFromFile("unicode_path_chars.lst")
 	if err != nil {
 		GB403Logger.Error().Msgf("Failed to read unicode path chars: %v", err)
 		return jobs
 	}
 
-	// Create mapping of ASCII chars to their unicode equivalents
 	charMap := make(map[rune][]rune)
 	for _, mapping := range unicodeMappings {
 		parts := strings.Split(mapping, "=")
@@ -843,44 +911,54 @@ func (pg *PayloadGenerator) GenerateUnicodePathNormalizationsJobs(targetURL stri
 			continue
 		}
 
-		// Get the unicode char and its ASCII equivalent
 		unicodeChar := []rune(strings.Split(parts[0], "(")[0])[0]
 		asciiChar := []rune(parts[1])[0]
 
-		// Add to mapping (one ASCII char can have multiple unicode equivalents)
-		charMap[asciiChar] = append(charMap[asciiChar], unicodeChar)
+		if slices.Contains(pathChars, asciiChar) {
+			charMap[asciiChar] = append(charMap[asciiChar], unicodeChar)
+		}
 	}
 
-	// For each midpath job, create unicode variations
 	for _, baseJob := range midpathJobs {
-		// Add the original midpath job
-		jobs = append(jobs, baseJob)
-
-		// Create unicode variations of the RawURI
 		path := []rune(baseJob.RawURI)
+
+		var positions []int
 		for i, char := range path {
-			// If we have unicode equivalents for this char
+			if slices.Contains(pathChars, char) {
+				positions = append(positions, i)
+			}
+		}
+
+		for _, pos := range positions {
+			char := path[pos]
 			if unicodeChars, exists := charMap[char]; exists {
 				for _, unicodeChar := range unicodeChars {
-					// Create new path with unicode substitution
-					newPath := make([]rune, len(path))
-					copy(newPath, path)
-					newPath[i] = unicodeChar
+					// Create paths for both raw unicode and URL-encoded unicode
+					variations := []string{
+						string(unicodeChar),                  // Raw unicode
+						url.QueryEscape(string(unicodeChar)), // URL-encoded unicode
+					}
 
-					// Create new job with unicode path
-					newRawURI := string(newPath)
-					newFullURL := fmt.Sprintf("%s://%s%s", baseJob.Scheme, baseJob.Host, newRawURI)
+					for _, variation := range variations {
+						newPath := make([]rune, len(path))
+						copy(newPath, path)
 
-					jobs = append(jobs, PayloadJob{
-						OriginalURL:  baseJob.OriginalURL,
-						Method:       "GET",
-						Scheme:       baseJob.Scheme,
-						Host:         baseJob.Host,
-						RawURI:       newRawURI,
-						FullURL:      newFullURL,
-						BypassModule: bypassModule,
-						PayloadToken: GenerateDebugToken(SeedData{FullURL: newFullURL}),
-					})
+						// Replace the character with either raw or encoded version
+						newPathStr := string(newPath[:pos]) + variation + string(newPath[pos+1:])
+
+						newFullURL := fmt.Sprintf("%s://%s%s", baseJob.Scheme, baseJob.Host, newPathStr)
+
+						jobs = append(jobs, PayloadJob{
+							OriginalURL:  baseJob.OriginalURL,
+							Method:       "GET",
+							Scheme:       baseJob.Scheme,
+							Host:         baseJob.Host,
+							RawURI:       newPathStr,
+							FullURL:      newFullURL,
+							BypassModule: bypassModule,
+							PayloadToken: GenerateDebugToken(SeedData{FullURL: newFullURL}),
+						})
+					}
 				}
 			}
 		}

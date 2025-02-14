@@ -194,6 +194,10 @@ For this to work, everything must be set in order, Raw Request line, headers, th
 then set req.UseHostHeader = true and then req.URI().SetScheme() and req.URI().SetHost()
 */
 func BuildRawHTTPRequest(httpclient *HTTPClient, req *fasthttp.Request, job payload.PayloadJob) error {
+	shouldCloseConn := len(job.Headers) > 0 ||
+		httpclient.GetHTTPClientOptions().DisableKeepAlive ||
+		httpclient.GetHTTPClientOptions().ProxyURL != ""
+
 	// Get raw request buffer from pool
 	buf := AcquireRawRequest()
 	defer ReleaseRawRequest(buf)
@@ -205,11 +209,6 @@ func BuildRawHTTPRequest(httpclient *HTTPClient, req *fasthttp.Request, job payl
 	buf.WriteString(" ")
 	buf.WriteString("HTTP/1.1\r\n")
 
-	// Custom headers
-	shouldCloseConn := len(job.Headers) > 0 ||
-		httpclient.GetHTTPClientOptions().DisableKeepAlive ||
-		httpclient.GetHTTPClientOptions().ProxyURL != ""
-
 	for _, h := range job.Headers {
 		if h.Header == "Host" {
 			shouldCloseConn = true // Force close if Host header is explicitly in Headers[]
@@ -219,6 +218,10 @@ func BuildRawHTTPRequest(httpclient *HTTPClient, req *fasthttp.Request, job payl
 		buf.WriteString(h.Value)
 		buf.WriteString("\r\n")
 	}
+
+	buf.WriteString("User-Agent: ")
+	buf.Write(CustomUserAgent)
+	buf.WriteString("\r\n")
 
 	// Debug token
 	if GB403Logger.IsDebugEnabled() {

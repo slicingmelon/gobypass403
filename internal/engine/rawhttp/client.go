@@ -199,11 +199,12 @@ func (c *HTTPClient) execFunc(req *fasthttp.Request, resp *fasthttp.Response) (i
 			currentTimeout = baseTimeout + time.Duration(attempt)*retryDelay
 
 			// 3. Disable keep-alive for retries
-			reqCopy.SetConnectionClose()
+			//reqCopy.Header.Del("Connection")
+			reqCopy.Header.Set("Connection", "close")
 		}
 
 		// For retries, re-apply all settings again
-		reqCopy.SetConnectionClose()
+		//eqCopy.SetConnectionClose()
 		reqCopy.URI().DisablePathNormalizing = true
 		reqCopy.Header.DisableNormalizing()
 		reqCopy.Header.SetNoDefaultContentType(true)
@@ -239,7 +240,8 @@ func (c *HTTPClient) execFunc(req *fasthttp.Request, resp *fasthttp.Response) (i
 		if attempt < maxRetries {
 			// Prepare req for next retry
 			// For retries, re-apply all settings again
-			reqCopy.SetConnectionClose()
+			reqCopy.Header.Del("Connection")
+
 			reqCopy.URI().DisablePathNormalizing = true
 			reqCopy.Header.DisableNormalizing()
 			reqCopy.Header.SetNoDefaultContentType(true)
@@ -252,6 +254,9 @@ func (c *HTTPClient) execFunc(req *fasthttp.Request, resp *fasthttp.Response) (i
 
 		// Signal max retries reached
 		if attempt == maxRetries {
+			if lastErr != nil {
+				return 0, fmt.Errorf("%w: %v", ErrReqFailedMaxRetries, lastErr)
+			}
 			return 0, ErrReqFailedMaxRetries
 		}
 	}
@@ -282,8 +287,6 @@ func (c *HTTPClient) DoRequest(req *fasthttp.Request, resp *fasthttp.Response) (
 		if debugToken == nil {
 			debugToken = []byte("")
 		}
-
-		GB403Logger.Debug().Msgf("!!Debug Token: %s\n", string(debugToken))
 
 		// Handle the error first
 		handleErr := errHandler.HandleError(err, GB403ErrorHandler.ErrorContext{
