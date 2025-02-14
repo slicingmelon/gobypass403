@@ -84,41 +84,18 @@ func (s *Scanner) scanURL(url string) error {
 	// Process results as they come in
 	for result := range resultsChannel {
 		if result != nil {
-			GB403Logger.Debug().Msgf("Processing results for bypass module: %s, status: %d\n", result.BypassModule, result.StatusCode)
+			//GB403Logger.Debug().Msgf("Processing results for bypass module: %s, status: %d\n", result.BypassModule, result.StatusCode)
 			allFindings = append(allFindings, result)
 		}
-
 	}
 
 	// If we have any findings, sort and save them
 	if len(allFindings) > 0 {
-		// Sort findings by status code and then by module
-		// sort.Slice(allFindings, func(i, j int) bool {
-		// 	if allFindings[i].StatusCode != allFindings[j].StatusCode {
-		// 		return allFindings[i].StatusCode < allFindings[j].StatusCode
-		// 	}
-		// 	return allFindings[i].BypassModule < allFindings[j].BypassModule
-		// })
-
-		// Save findings first
-		//outputFile := filepath.Join(s.scannerOpts.OutDir, "findings.json")
-		// if err := AppendResultsToJSON(outputFile, url, s.scannerOpts.BypassModule, allFindings); err != nil {
-		// 	GB403Logger.Error().Msgf("Failed to save findings for %s: %v\n", url, err)
-		// }
-
-		// 	// Print results only once
-		// 	fmt.Println()
-		// 	PrintResultsTable(url, allFindings)
-
-		// 	fmt.Println()
-		// 	GB403Logger.Success().Msgf("Results saved to %s\n\n", outputFile)
-		// }
-
 		// Load from JSON and print
 		outputFile := filepath.Join(s.scannerOpts.OutDir, "findings.json")
 		fmt.Println()
 		if err := PrintResultsFromJSON(outputFile, url, s.scannerOpts.BypassModule); err != nil {
-			GB403Logger.Error().Msgf("Failed to print results from JSON: %v", err)
+			GB403Logger.Error().Msgf("Failed to print results from JSON: %v\n", err)
 		} else {
 			fmt.Println()
 			GB403Logger.Success().Msgf("Results saved to %s\n\n", outputFile)
