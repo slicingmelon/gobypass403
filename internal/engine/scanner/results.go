@@ -1,7 +1,6 @@
 package scanner
 
 import (
-	"encoding/json"
 	"fmt"
 	"html"
 	"os"
@@ -12,9 +11,12 @@ import (
 	"sync"
 	"time"
 
+	"github.com/bytedance/sonic"
 	"github.com/pterm/pterm"
-	GB403Logger "github.com/slicingmelon/go-bypass-403/internal/utils/logger"
 )
+
+// Make fileLock package level
+var fileLock sync.Mutex
 
 type Result struct {
 	TargetURL       string `json:"target_url"`
@@ -171,21 +173,21 @@ func FormatBytesH(bytes int64) string {
 
 // AppendResultsToJSON appends scan results to JSON file
 func AppendResultsToJSON(outputFile, url, mode string, findings []*Result) error {
-	fileLock := &sync.Mutex{}
 	fileLock.Lock()
 	defer fileLock.Unlock()
 
 	var data JSONData
 
-	// Read existing file
+	// Read existing data if file exists
 	fileData, err := os.ReadFile(outputFile)
 	if err == nil {
-		if err := json.Unmarshal(fileData, &data); err != nil {
+		// Use Sonic's fastest config since we control the input
+		if err := sonic.ConfigFastest.Unmarshal(fileData, &data); err != nil {
 			return fmt.Errorf("failed to parse existing JSON: %v", err)
 		}
 	}
 
-	// Find existing scan for this URL
+	// Find or create scan result
 	var scan *ScanResult
 	for i := range data.Scans {
 		if data.Scans[i].URL == url {
@@ -194,25 +196,25 @@ func AppendResultsToJSON(outputFile, url, mode string, findings []*Result) error
 		}
 	}
 
-	// Create new scan if none exists
 	if scan == nil {
 		data.Scans = append(data.Scans, ScanResult{
 			URL:         url,
 			BypassModes: mode,
 			ResultsPath: filepath.Dir(outputFile),
-			Results:     []*Result{},
+			Results:     make([]*Result, 0, len(findings)),
 		})
 		scan = &data.Scans[len(data.Scans)-1]
 	}
 
-	// Merge results
-	cleanFindings := make([]*Result, len(findings))
-	for i, result := range findings {
-		cleanResult := *result
-		cleanResult.ResponsePreview = html.UnescapeString(cleanResult.ResponsePreview)
-		cleanFindings[i] = &cleanResult
+	// Clean findings before append
+	for _, result := range findings {
+		if result != nil {
+			// Create clean copy
+			cleanResult := *result
+			cleanResult.ResponsePreview = html.UnescapeString(result.ResponsePreview)
+			scan.Results = append(scan.Results, &cleanResult)
+		}
 	}
-	scan.Results = append(scan.Results, cleanFindings...)
 
 	// Update bypass modes
 	if !strings.Contains(scan.BypassModes, mode) {
@@ -222,31 +224,27 @@ func AppendResultsToJSON(outputFile, url, mode string, findings []*Result) error
 		scan.BypassModes += mode
 	}
 
-	// Write updated data
+	// Use Sonic's fastest config with pre-allocated buffer
 	file, err := os.Create(outputFile)
 	if err != nil {
 		return fmt.Errorf("failed to create JSON file: %v", err)
 	}
 	defer file.Close()
 
-	GB403Logger.Success().Msgf("Results saved to %s\n\n", outputFile)
-
-	encoder := json.NewEncoder(file)
-	encoder.SetEscapeHTML(false)
+	// Configure encoder for best performance
+	encoder := sonic.ConfigFastest.NewEncoder(file)
 	encoder.SetIndent("", "  ")
 	return encoder.Encode(data)
 }
 
 func PrintResultsFromJSON(jsonFile, targetURL, bypassModule string) error {
-	file, err := os.Open(jsonFile)
+	fileData, err := os.ReadFile(jsonFile)
 	if err != nil {
 		return fmt.Errorf("failed to open JSON file: %v", err)
 	}
-	defer file.Close()
 
 	var data JSONData
-	decoder := json.NewDecoder(file)
-	if err := decoder.Decode(&data); err != nil {
+	if err := sonic.ConfigFastest.Unmarshal(fileData, &data); err != nil {
 		return fmt.Errorf("failed to decode JSON: %v", err)
 	}
 
@@ -255,19 +253,17 @@ func PrintResultsFromJSON(jsonFile, targetURL, bypassModule string) error {
 
 	for _, scan := range data.Scans {
 		if scan.URL == targetURL {
+			// Special case for "all" module
 			if bypassModule == "all" {
 				matchedResults = append(matchedResults, scan.Results...)
 				continue
 			}
 
-			// Otherwise check specific modules
-			storedModules := strings.Split(scan.BypassModes, ",")
+			// Match specific modules
 			for _, qm := range queryModules {
-				for _, sm := range storedModules {
-					if strings.TrimSpace(qm) == strings.TrimSpace(sm) {
-						matchedResults = append(matchedResults, scan.Results...)
-						break
-					}
+				if strings.Contains(scan.BypassModes, strings.TrimSpace(qm)) {
+					matchedResults = append(matchedResults, scan.Results...)
+					break
 				}
 			}
 		}
@@ -285,7 +281,6 @@ func PrintResultsFromJSON(jsonFile, targetURL, bypassModule string) error {
 		return matchedResults[i].BypassModule < matchedResults[j].BypassModule
 	})
 
-	time.Sleep(500 * time.Millisecond)
 	PrintResultsTable(targetURL, matchedResults)
 	return nil
 }

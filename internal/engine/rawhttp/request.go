@@ -271,7 +271,7 @@ func ProcessHTTPResponse(httpclient *HTTPClient, resp *fasthttp.Response, job pa
 	httpClientOpts := httpclient.GetHTTPClientOptions()
 
 	// Set basic response details
-	result.URL = append(result.URL, job.FullURL...)
+	result.URL = append(result.URL, job.OriginalURL...)
 	result.BypassModule = append(result.BypassModule, job.BypassModule...)
 	result.StatusCode = statusCode
 	result.ContentLength = int64(contentLength)
