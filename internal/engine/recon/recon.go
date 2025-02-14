@@ -319,8 +319,8 @@ func (r *ReconService) ResolveDomain(host string) ([]net.IP, error) {
 func (r *ReconService) ProbePort(ip string, port string) (string, bool) {
 	addr := net.JoinHostPort(ip, port)
 
-	// First attempt HTTPS
-	conn, err := r.dialer.DialDualStackTimeout(addr, 2*time.Second)
+	// Try HTTPS first
+	conn, err := r.dialer.DialDualStackTimeout(addr, 3*time.Second)
 	if err == nil {
 		tlsConn := tls.Client(conn, &tls.Config{
 			InsecureSkipVerify: true,
@@ -334,7 +334,7 @@ func (r *ReconService) ProbePort(ip string, port string) (string, bool) {
 		conn.Close()
 	}
 
-	// Then check HTTP
+	// Try HTTP
 	conn2, err := net.DialTimeout("tcp", addr, 3*time.Second)
 	if err != nil {
 		return "", false
@@ -343,21 +343,21 @@ func (r *ReconService) ProbePort(ip string, port string) (string, bool) {
 
 	_, err = fmt.Fprintf(conn2, "HEAD / HTTP/1.1\r\nHost: %s\r\n\r\n", addr)
 	if err != nil {
-		return "tcp", true // At least the port is open
+		return "", false // Port is open but not HTTP/HTTPS
 	}
 
 	buf := make([]byte, 1024)
 	conn2.SetReadDeadline(time.Now().Add(3 * time.Second))
 	n, err := conn2.Read(buf)
 	if err != nil {
-		return "tcp", true
+		return "", false
 	}
 
 	if n > 0 && strings.HasPrefix(string(buf), "HTTP") {
 		return "http", true
 	}
 
-	return "tcp", true
+	return "", false // Not HTTP/HTTPS
 }
 
 func convertIPAddrs(ipAddrs []net.IPAddr) []net.IP {

@@ -72,16 +72,17 @@ type ModulesConfig struct {
 
 // AvailableModes defines all bypass modes and their status, true if enabled, false if disabled
 var AvailableModules = map[string]bool{
-	"all":                 true,
-	"mid_paths":           true,
-	"end_paths":           true,
-	"case_substitution":   true,
-	"char_encode":         true,
-	"http_headers_scheme": true,
-	"http_headers_ip":     true,
-	"http_headers_port":   true,
-	"http_headers_url":    true,
-	"http_host":           true,
+	"all":                        true,
+	"mid_paths":                  true,
+	"end_paths":                  true,
+	"case_substitution":          true,
+	"char_encode":                true,
+	"http_headers_scheme":        true,
+	"http_headers_ip":            true,
+	"http_headers_port":          true,
+	"http_headers_url":           true,
+	"http_host":                  true,
+	"unicode_path_normalization": true,
 }
 
 func (o *CliOptions) printUsage(flagName ...string) {
@@ -118,7 +119,7 @@ func (o *CliOptions) printUsage(flagName ...string) {
 // setDefaults sets default values for options
 func (o *CliOptions) setDefaults() {
 	// Core defaults
-	o.UpdatePayloads = false
+	//o.UpdatePayloads = false
 
 	if o.Module == "" {
 		o.Module = "all"
@@ -155,8 +156,13 @@ func (o *CliOptions) setDefaults() {
 
 // validate performs all validation checks
 func (o *CliOptions) validate() error {
+	// Check for update payloads first
 	if o.UpdatePayloads {
-		return payload.UpdatePayloads()
+		if err := payload.UpdatePayloads(); err != nil {
+			return fmt.Errorf("failed to update payloads: %v", err)
+		}
+		fmt.Println("Payloads updated successfully")
+		os.Exit(0)
 	}
 
 	if o.ResendRequest != "" {
@@ -204,6 +210,10 @@ func (o *CliOptions) validate() error {
 
 // validateInputs checks URL and file inputs
 func (o *CliOptions) validateInputURLs() error {
+	if o.UpdatePayloads {
+		return nil
+	}
+
 	if o.URL == "" && o.URLsFile == "" {
 		return fmt.Errorf("either URL (-u) or URLs file (-l) is required")
 	}
