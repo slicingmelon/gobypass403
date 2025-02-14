@@ -29,16 +29,17 @@ func NewBypassModule(name string) *BypassModule {
 
 // Registry of all bypass modules
 var bypassModules = map[string]*BypassModule{
-	"dumb_check":          NewBypassModule("dumb_check"),
-	"mid_paths":           NewBypassModule("mid_paths"),
-	"end_paths":           NewBypassModule("end_paths"),
-	"http_headers_ip":     NewBypassModule("http_headers_ip"),
-	"case_substitution":   NewBypassModule("case_substitution"),
-	"char_encode":         NewBypassModule("char_encode"),
-	"http_host":           NewBypassModule("http_host"),
-	"http_headers_scheme": NewBypassModule("http_headers_scheme"),
-	"http_headers_port":   NewBypassModule("http_headers_port"),
-	"http_headers_url":    NewBypassModule("http_headers_url"),
+	"dumb_check":                 NewBypassModule("dumb_check"),
+	"mid_paths":                  NewBypassModule("mid_paths"),
+	"end_paths":                  NewBypassModule("end_paths"),
+	"http_headers_ip":            NewBypassModule("http_headers_ip"),
+	"case_substitution":          NewBypassModule("case_substitution"),
+	"char_encode":                NewBypassModule("char_encode"),
+	"http_host":                  NewBypassModule("http_host"),
+	"http_headers_scheme":        NewBypassModule("http_headers_scheme"),
+	"http_headers_port":          NewBypassModule("http_headers_port"),
+	"http_headers_url":           NewBypassModule("http_headers_url"),
+	"unicode_path_normalization": NewBypassModule("unicode_path_normalization"),
 }
 
 // Registry of all bypass modules
@@ -86,6 +87,10 @@ func InitializeBypassModules() {
 		case "http_headers_url":
 			module.GenerateJobs = func(targetURL string, mode string, opts *ScannerOpts) []payload.PayloadJob {
 				return module.payloadGen.GenerateHeaderURLJobs(targetURL, mode)
+			}
+		case "unicode_path_normalization":
+			module.GenerateJobs = func(targetURL string, mode string, opts *ScannerOpts) []payload.PayloadJob {
+				return module.payloadGen.GenerateUnicodePathNormalizationsJobs(targetURL, mode)
 			}
 		}
 	}

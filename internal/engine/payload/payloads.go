@@ -793,3 +793,99 @@ func (pg *PayloadGenerator) GenerateHostHeaderJobs(targetURL string, bypassModul
 	GB403Logger.Info().BypassModule(bypassModule).Msgf("Generated %d payloads for %s\n", len(allJobs), targetURL)
 	return allJobs
 }
+
+/*
+JS code used to fuzz unicode path chars
+
+const charsToCheck = ["\\", "/", ".", ":", "%", "~", "*", "<", ">", "|", "@", "!", "#", "+", "{", "}", "[", "]", ";", ",", "'", "\""];
+const normalizationForms = ["NFKC", "NFC", "NFD", "NFKD"];
+
+const normalizedMatches = new Set();
+
+// Loop through all code points (from 0x7f upwards)
+
+	for (let i = 0x7f; i <= 0x10FFFF; i++) {
+	    const char = String.fromCodePoint(i);
+
+	    if (i > 0x7f) {
+	        normalizationForms.forEach(form => {
+	            const normalized = char.normalize(form);
+
+	            for (let charToCheck of charsToCheck) {
+	                if (charToCheck === normalized) {
+	                    normalizedMatches.add(`${char}(${form})=${charToCheck}`);
+	                }
+	            }
+	        });
+	    }
+	}
+
+normalizedMatches.forEach(match => console.log(match));
+*/
+func (pg *PayloadGenerator) GenerateUnicodePathNormalizationsJobs(targetURL string, bypassModule string) []PayloadJob {
+	var jobs []PayloadJob
+
+	// First generate midpath payloads as base
+	midpathJobs := pg.GenerateMidPathsJobs(targetURL, bypassModule)
+
+	// Read unicode normalization mappings
+	unicodeMappings, err := ReadPayloadsFromFile("unicode_path_chars.lst")
+	if err != nil {
+		GB403Logger.Error().Msgf("Failed to read unicode path chars: %v", err)
+		return jobs
+	}
+
+	// Create mapping of ASCII chars to their unicode equivalents
+	charMap := make(map[rune][]rune)
+	for _, mapping := range unicodeMappings {
+		parts := strings.Split(mapping, "=")
+		if len(parts) != 2 {
+			continue
+		}
+
+		// Get the unicode char and its ASCII equivalent
+		unicodeChar := []rune(strings.Split(parts[0], "(")[0])[0]
+		asciiChar := []rune(parts[1])[0]
+
+		// Add to mapping (one ASCII char can have multiple unicode equivalents)
+		charMap[asciiChar] = append(charMap[asciiChar], unicodeChar)
+	}
+
+	// For each midpath job, create unicode variations
+	for _, baseJob := range midpathJobs {
+		// Add the original midpath job
+		jobs = append(jobs, baseJob)
+
+		// Create unicode variations of the RawURI
+		path := []rune(baseJob.RawURI)
+		for i, char := range path {
+			// If we have unicode equivalents for this char
+			if unicodeChars, exists := charMap[char]; exists {
+				for _, unicodeChar := range unicodeChars {
+					// Create new path with unicode substitution
+					newPath := make([]rune, len(path))
+					copy(newPath, path)
+					newPath[i] = unicodeChar
+
+					// Create new job with unicode path
+					newRawURI := string(newPath)
+					newFullURL := fmt.Sprintf("%s://%s%s", baseJob.Scheme, baseJob.Host, newRawURI)
+
+					jobs = append(jobs, PayloadJob{
+						OriginalURL:  baseJob.OriginalURL,
+						Method:       "GET",
+						Scheme:       baseJob.Scheme,
+						Host:         baseJob.Host,
+						RawURI:       newRawURI,
+						FullURL:      newFullURL,
+						BypassModule: bypassModule,
+						PayloadToken: GenerateDebugToken(SeedData{FullURL: newFullURL}),
+					})
+				}
+			}
+		}
+	}
+
+	GB403Logger.Info().BypassModule(bypassModule).Msgf("Generated %d payloads for %s\n", len(jobs), targetURL)
+	return jobs
+}
