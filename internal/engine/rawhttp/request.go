@@ -297,7 +297,11 @@ func ProcessHTTPResponse(httpclient *HTTPClient, resp *fasthttp.Response, job pa
 			if stream := resp.BodyStream(); stream != nil {
 				result.ResponsePreview = ReadLimitedResponseBodyStream(stream, httpClientOpts.ResponseBodyPreviewSize, result.ResponsePreview)
 				resp.CloseBodyStream()
-				result.ResponseBytes = int(contentLength)
+				if contentLength > 0 {
+					result.ResponseBytes = int(contentLength)
+				} else {
+					result.ResponseBytes = len(result.ResponsePreview)
+				}
 			}
 		} else {
 			if body := resp.Body(); len(body) > 0 {

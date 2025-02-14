@@ -254,11 +254,9 @@ func (c *HTTPClient) execFunc(req *fasthttp.Request, resp *fasthttp.Response) (i
 
 		// Signal max retries reached
 		if attempt == maxRetries {
-			if lastErr != nil {
-				return 0, fmt.Errorf("%w: %v", ErrReqFailedMaxRetries, lastErr)
-			}
-			return 0, ErrReqFailedMaxRetries
+			return 0, fmt.Errorf("%w: %v", ErrReqFailedMaxRetries, lastErr)
 		}
+
 	}
 
 	return 0, lastErr

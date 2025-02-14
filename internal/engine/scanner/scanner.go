@@ -3,7 +3,6 @@ package scanner
 import (
 	"fmt"
 	"path/filepath"
-	"sort"
 
 	"github.com/slicingmelon/go-bypass-403/internal/engine/recon"
 	GB403ErrorHandler "github.com/slicingmelon/go-bypass-403/internal/utils/error"
@@ -94,18 +93,18 @@ func (s *Scanner) scanURL(url string) error {
 	// If we have any findings, sort and save them
 	if len(allFindings) > 0 {
 		// Sort findings by status code and then by module
-		sort.Slice(allFindings, func(i, j int) bool {
-			if allFindings[i].StatusCode != allFindings[j].StatusCode {
-				return allFindings[i].StatusCode < allFindings[j].StatusCode
-			}
-			return allFindings[i].BypassModule < allFindings[j].BypassModule
-		})
+		// sort.Slice(allFindings, func(i, j int) bool {
+		// 	if allFindings[i].StatusCode != allFindings[j].StatusCode {
+		// 		return allFindings[i].StatusCode < allFindings[j].StatusCode
+		// 	}
+		// 	return allFindings[i].BypassModule < allFindings[j].BypassModule
+		// })
 
 		// Save findings first
-		outputFile := filepath.Join(s.scannerOpts.OutDir, "findings.json")
-		if err := AppendResultsToJSON(outputFile, url, s.scannerOpts.BypassModule, allFindings); err != nil {
-			GB403Logger.Error().Msgf("Failed to save findings for %s: %v\n", url, err)
-		}
+		//outputFile := filepath.Join(s.scannerOpts.OutDir, "findings.json")
+		// if err := AppendResultsToJSON(outputFile, url, s.scannerOpts.BypassModule, allFindings); err != nil {
+		// 	GB403Logger.Error().Msgf("Failed to save findings for %s: %v\n", url, err)
+		// }
 
 		// 	// Print results only once
 		// 	fmt.Println()
@@ -116,6 +115,7 @@ func (s *Scanner) scanURL(url string) error {
 		// }
 
 		// Load from JSON and print
+		outputFile := filepath.Join(s.scannerOpts.OutDir, "findings.json")
 		fmt.Println()
 		if err := PrintResultsFromJSON(outputFile, url, s.scannerOpts.BypassModule); err != nil {
 			GB403Logger.Error().Msgf("Failed to print results from JSON: %v", err)

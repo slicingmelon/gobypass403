@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"encoding/json"
 	"flag"
 	"fmt"
 	"net/url"
@@ -291,24 +290,6 @@ func (o *CliOptions) setupOutputDir() error {
 	if err := os.MkdirAll(o.OutDir, 0755); err != nil {
 		return fmt.Errorf("failed to create output directory: %v", err)
 	}
-
-	// Initialize findings.json file
-	outputFile := filepath.Join(o.OutDir, "findings.json")
-	initialJSON := struct {
-		Scans []interface{} `json:"scans"`
-	}{
-		Scans: make([]interface{}, 0),
-	}
-
-	jsonData, err := json.MarshalIndent(initialJSON, "", "  ")
-	if err != nil {
-		return fmt.Errorf("failed to create initial JSON structure: %v", err)
-	}
-
-	if err := os.WriteFile(outputFile, jsonData, 0644); err != nil {
-		return fmt.Errorf("failed to initialize findings.json: %v", err)
-	}
-
 	return nil
 }
 

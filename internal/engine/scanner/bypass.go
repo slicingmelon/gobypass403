@@ -2,13 +2,13 @@ package scanner
 
 import (
 	"fmt"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/slicingmelon/go-bypass-403/internal/engine/payload"
 	"github.com/slicingmelon/go-bypass-403/internal/engine/rawhttp"
-	GB403ErrorHandler "github.com/slicingmelon/go-bypass-403/internal/utils/error"
 	GB403Logger "github.com/slicingmelon/go-bypass-403/internal/utils/logger"
 	"github.com/slicingmelon/go-rawurlparser"
 )
@@ -164,49 +164,64 @@ func (w *BypassWorker) Stop() {
 }
 
 // Core Function
+
 func (s *Scanner) RunAllBypasses(targetURL string) chan *Result {
 	results := make(chan *Result)
 
-	// Validate URL one more time, who knows
-	if _, err := rawurlparser.RawURLParse(targetURL); err != nil {
-		err = GB403ErrorHandler.GetErrorHandler().HandleError(err, GB403ErrorHandler.ErrorContext{
-			TargetURL:   []byte(targetURL),
-			ErrorSource: []byte("Scanner.RunAllBypasses"),
-		})
-		if err != nil {
-			GB403Logger.Error().Msgf("Failed to parse URL: %s\n", targetURL)
-			close(results)
-			return results
-		}
-	}
+	outputFile := filepath.Join(s.scannerOpts.OutDir, "findings.json")
 
 	go func() {
 		defer close(results)
 
-		// Run dumb check once at the start
-		s.RunBypassModule("dumb_check", targetURL, results)
+		// Create temporary storage for each module's results
+		moduleResults := make(map[string][]*Result)
 
+		// Run dumb check first
+		dumbResults := make(chan *Result)
+		go s.RunBypassModule("dumb_check", targetURL, dumbResults)
+		for res := range dumbResults {
+			results <- res
+			moduleResults["dumb_check"] = append(moduleResults["dumb_check"], res)
+		}
+		AppendResultsToJSON(outputFile, targetURL, "dumb_check", moduleResults["dumb_check"])
+
+		// Process other modules
 		bpModules := strings.Split(s.scannerOpts.BypassModule, ",")
 		for _, module := range bpModules {
 			module = strings.TrimSpace(module)
+			if module == "" {
+				continue
+			}
 
 			if module == "all" {
-				// Run all registered modules except dumb_check
+				// Handle all modules
 				for bpModuleName := range bypassModules {
 					if bpModuleName != "dumb_check" {
-						s.RunBypassModule(bpModuleName, targetURL, results)
+						modResults := make(chan *Result)
+						go s.RunBypassModule(bpModuleName, targetURL, modResults)
+						var collected []*Result
+						for res := range modResults {
+							results <- res
+							collected = append(collected, res)
+						}
+						AppendResultsToJSON(outputFile, targetURL, bpModuleName, collected)
 					}
 				}
 				continue
 			}
 
-			// Check if module exists in registry
 			if _, exists := bypassModules[module]; exists && module != "dumb_check" {
-				s.RunBypassModule(module, targetURL, results)
+				modResults := make(chan *Result)
+				go s.RunBypassModule(module, targetURL, modResults)
+				var collected []*Result
+				for res := range modResults {
+					results <- res
+					collected = append(collected, res)
+				}
+				AppendResultsToJSON(outputFile, targetURL, module, collected)
 			} else {
-				GB403Logger.Error().Msgf("Unknown bypass module: %s\n", module)
+				GB403Logger.Warning().Msgf("Skipping invalid module: %s", module)
 			}
-
 		}
 	}()
 
@@ -215,6 +230,8 @@ func (s *Scanner) RunAllBypasses(targetURL string) chan *Result {
 
 // Run a specific Bypass Module
 func (s *Scanner) RunBypassModule(bypassModule string, targetURL string, results chan<- *Result) {
+	defer close(results)
+
 	moduleInstance, exists := bypassModules[bypassModule]
 	if !exists {
 		return

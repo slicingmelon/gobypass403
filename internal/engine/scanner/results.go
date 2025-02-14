@@ -1,7 +1,6 @@
 package scanner
 
 import (
-	"bufio"
 	"encoding/json"
 	"fmt"
 	"html"
@@ -178,59 +177,64 @@ func AppendResultsToJSON(outputFile, url, mode string, findings []*Result) error
 
 	var data JSONData
 
-	// Try to read existing file
+	// Read existing file
 	fileData, err := os.ReadFile(outputFile)
-	if err != nil {
-		if !os.IsNotExist(err) {
-			return fmt.Errorf("failed to read JSON file: %v", err)
-		}
-		data = JSONData{
-			Scans: make([]ScanResult, 0),
-		}
-		GB403Logger.Verbose().Msgf("[AppendResultsToJSON] Initializing new JSON file\n")
-	} else {
+	if err == nil {
 		if err := json.Unmarshal(fileData, &data); err != nil {
 			return fmt.Errorf("failed to parse existing JSON: %v", err)
 		}
-		GB403Logger.Verbose().Msgf("[AppendResultsToJSON] Read existing JSON file with %d scans\n", len(data.Scans))
 	}
 
-	// Clean up findings
+	// Find existing scan for this URL
+	var scan *ScanResult
+	for i := range data.Scans {
+		if data.Scans[i].URL == url {
+			scan = &data.Scans[i]
+			break
+		}
+	}
+
+	// Create new scan if none exists
+	if scan == nil {
+		data.Scans = append(data.Scans, ScanResult{
+			URL:         url,
+			BypassModes: mode,
+			ResultsPath: filepath.Dir(outputFile),
+			Results:     []*Result{},
+		})
+		scan = &data.Scans[len(data.Scans)-1]
+	}
+
+	// Merge results
 	cleanFindings := make([]*Result, len(findings))
 	for i, result := range findings {
 		cleanResult := *result
 		cleanResult.ResponsePreview = html.UnescapeString(cleanResult.ResponsePreview)
 		cleanFindings[i] = &cleanResult
 	}
+	scan.Results = append(scan.Results, cleanFindings...)
 
-	// Add new scan results
-	scan := ScanResult{
-		URL:         url,
-		BypassModes: mode,
-		ResultsPath: filepath.Dir(outputFile),
-		Results:     cleanFindings,
+	// Update bypass modes
+	if !strings.Contains(scan.BypassModes, mode) {
+		if scan.BypassModes != "" {
+			scan.BypassModes += ","
+		}
+		scan.BypassModes += mode
 	}
 
-	data.Scans = append(data.Scans, scan)
-	GB403Logger.Verbose().Msgf("[JSON] Updated JSON now has %d scans\n", len(data.Scans))
-
-	// Create a buffered writer
-	file, err := os.OpenFile(outputFile, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
+	// Write updated data
+	file, err := os.Create(outputFile)
 	if err != nil {
-		return fmt.Errorf("failed to open JSON file: %v", err)
+		return fmt.Errorf("failed to create JSON file: %v", err)
 	}
 	defer file.Close()
 
-	writer := bufio.NewWriter(file)
-	encoder := json.NewEncoder(writer)
+	GB403Logger.Success().Msgf("\nResults saved to %s\n\n", outputFile)
+
+	encoder := json.NewEncoder(file)
 	encoder.SetEscapeHTML(false)
 	encoder.SetIndent("", "  ")
-
-	if err := encoder.Encode(data); err != nil {
-		return fmt.Errorf("failed to encode JSON: %v", err)
-	}
-
-	return writer.Flush()
+	return encoder.Encode(data)
 }
 
 func PrintResultsFromJSON(jsonFile, targetURL, bypassModule string) error {
@@ -246,12 +250,22 @@ func PrintResultsFromJSON(jsonFile, targetURL, bypassModule string) error {
 		return fmt.Errorf("failed to decode JSON: %v", err)
 	}
 
-	// Find matching scan results
 	var matchedResults []*Result
+	queryModules := strings.Split(bypassModule, ",")
+
 	for _, scan := range data.Scans {
-		if scan.URL == targetURL && scan.BypassModes == bypassModule {
-			matchedResults = scan.Results
-			break
+		if scan.URL == targetURL {
+			storedModules := strings.Split(scan.BypassModes, ",")
+
+			// Check if any query module exists in stored modules
+			for _, qm := range queryModules {
+				for _, sm := range storedModules {
+					if strings.TrimSpace(qm) == strings.TrimSpace(sm) {
+						matchedResults = append(matchedResults, scan.Results...)
+						break
+					}
+				}
+			}
 		}
 	}
 
@@ -259,12 +273,14 @@ func PrintResultsFromJSON(jsonFile, targetURL, bypassModule string) error {
 		return fmt.Errorf("no results found for %s with module %s", targetURL, bypassModule)
 	}
 
-	// Recreate the same table sorting as original
+	// Original sorting logic
 	sort.Slice(matchedResults, func(i, j int) bool {
-		return matchedResults[i].StatusCode < matchedResults[j].StatusCode
+		if matchedResults[i].StatusCode != matchedResults[j].StatusCode {
+			return matchedResults[i].StatusCode < matchedResults[j].StatusCode
+		}
+		return matchedResults[i].BypassModule < matchedResults[j].BypassModule
 	})
 
-	// Print using existing table formatter
 	PrintResultsTable(targetURL, matchedResults)
 	return nil
 }
