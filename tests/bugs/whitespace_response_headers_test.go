@@ -36,7 +36,7 @@ func TestWhitespaceResponseHeaders(t *testing.T) {
 	req.Header.SetNoDefaultContentType(true)
 
 	// Set request URL with special character
-	req.SetRequestURI("https://thumbs-cdn.redtube.com/videos/202401/26/447187221/720P_4000K_447187221.mp4%26/")
+	req.SetRequestURI("https://examplffsdf221.mp4%26/")
 
 	// Make the request
 	err := client.Do(req, resp)

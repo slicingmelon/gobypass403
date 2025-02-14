@@ -122,12 +122,11 @@ func TestHostHeaderInjection2(t *testing.T) {
 		t.Logf("RequestURI: %s", ctx.RequestURI())
 		t.Logf("Full Headers:\n%s", ctx.Request.Header.String())
 
-		// Simulate pornhub.com behavior:
-		if host != "pornhub.com" {
+		if host != "example.com" {
 			ctx.Response.Reset() // Clear any default headers
 			ctx.Response.Header.Set("Server", "openresty")
 			ctx.Response.Header.Set("Content-Type", "text/html")
-			ctx.Response.Header.Set("Location", "https://www.pornhub.com/")
+			ctx.Response.Header.Set("Location", "https://www.example.com/")
 			ctx.SetStatusCode(fasthttp.StatusMovedPermanently) // 301
 			ctx.SetBodyString("<html>\n<head><title>301 Moved Permanently</title></head>\n<body>\n<center><h1>301 Moved Permanently</h1></center>\n<hr><center>openresty</center>\n</body>\n</html>")
 			return
@@ -135,7 +134,7 @@ func TestHostHeaderInjection2(t *testing.T) {
 
 		// Normal response for matching host
 		ctx.Response.Reset() // Clear any default headers
-		ctx.Response.Header.Set("Location", "https://www.pornhub.com/")
+		ctx.Response.Header.Set("Location", "https://www.example.com/")
 		ctx.Response.Header.Set("Strict-Transport-Security", "max-age=63072000; includeSubDomains; preload")
 		ctx.SetStatusCode(fasthttp.StatusMovedPermanently)
 		ctx.SetBodyString("")
@@ -168,18 +167,18 @@ func TestHostHeaderInjection2(t *testing.T) {
 	}{
 		{
 			name:             "Normal request with matching host",
-			targetURL:        "https://brazzerstoys.com/",
+			targetURL:        "https://example.com/",
 			hostHeader:       "www.google.com",
 			expectedCode:     301,
-			expectedLocation: "https://www.pornhub.com/",
+			expectedLocation: "https://www.example.com/",
 			expectedServer:   "",
 		},
 		{
 			name:             "Request with different host header",
-			targetURL:        "https://brazzerstoys.com/",
+			targetURL:        "https://example.com/",
 			hostHeader:       "google.com",
 			expectedCode:     301,
-			expectedLocation: "https://brazzerstoys.com/",
+			expectedLocation: "https://example.com/",
 			expectedServer:   "openresty",
 		},
 	}
