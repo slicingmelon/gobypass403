@@ -12,7 +12,6 @@ require (
 	github.com/golang/snappy v0.0.4
 	github.com/jedib0t/go-pretty/v6 v6.6.5
 	github.com/klauspost/compress v1.17.11
-	github.com/panjf2000/ants/v2 v2.11.1
 	github.com/phuslu/fastdns v0.12.1
 	github.com/pierrec/lz4/v4 v4.1.22
 	github.com/pterm/pterm v0.12.80
@@ -46,7 +45,6 @@ require (
 	github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e // indirect
 	golang.org/x/crypto v0.32.0 // indirect
 	golang.org/x/net v0.34.0 // indirect
-	golang.org/x/sync v0.11.0 // indirect
 	golang.org/x/sys v0.29.0 // indirect
 	golang.org/x/term v0.28.0 // indirect
 	golang.org/x/text v0.21.0 // indirect

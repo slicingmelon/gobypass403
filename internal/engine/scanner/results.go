@@ -255,9 +255,13 @@ func PrintResultsFromJSON(jsonFile, targetURL, bypassModule string) error {
 
 	for _, scan := range data.Scans {
 		if scan.URL == targetURL {
-			storedModules := strings.Split(scan.BypassModes, ",")
+			if bypassModule == "all" {
+				matchedResults = append(matchedResults, scan.Results...)
+				continue
+			}
 
-			// Check if any query module exists in stored modules
+			// Otherwise check specific modules
+			storedModules := strings.Split(scan.BypassModes, ",")
 			for _, qm := range queryModules {
 				for _, sm := range storedModules {
 					if strings.TrimSpace(qm) == strings.TrimSpace(sm) {
@@ -273,7 +277,7 @@ func PrintResultsFromJSON(jsonFile, targetURL, bypassModule string) error {
 		return fmt.Errorf("no results found for %s with module %s", targetURL, bypassModule)
 	}
 
-	// Original sorting logic
+	// Sort results
 	sort.Slice(matchedResults, func(i, j int) bool {
 		if matchedResults[i].StatusCode != matchedResults[j].StatusCode {
 			return matchedResults[i].StatusCode < matchedResults[j].StatusCode
@@ -281,6 +285,7 @@ func PrintResultsFromJSON(jsonFile, targetURL, bypassModule string) error {
 		return matchedResults[i].BypassModule < matchedResults[j].BypassModule
 	})
 
+	time.Sleep(500 * time.Millisecond)
 	PrintResultsTable(targetURL, matchedResults)
 	return nil
 }
