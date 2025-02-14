@@ -1,55 +1,65 @@
 package rawhttp
 
 import (
+	"errors"
+	"io"
+	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/valyala/fasthttp"
 )
 
 type RetryConfig struct {
-	// InitialInterval is the initial time interval for backoff algorithm.
-	InitialDelay time.Duration
-
-	// MaxBackoffTime is the maximum time duration for backoff algorithm. It limits
-	// the maximum sleep time.
-	MaxBackoffTime time.Duration
-
-	// Multiplier is a multiplier number of the backoff algorithm.
-	Multiplier float64
-
-	// MaxRetryCount is the maximum number of retry count.
-	MaxRetryCount int
-
-	// currentInterval tracks the current sleep time.
-	currentInterval time.Duration
+	PerReqRetriedAttempts atomic.Int32
+	MaxRetries            int
+	RetryDelay            time.Duration
+	mu                    sync.RWMutex
 }
 
-type RetryManager struct {
-	RetryConfig *RetryConfig
-	ShouldRetry atomic.Bool
+func DefaultRetryConfig() *RetryConfig {
+	return &RetryConfig{
+		MaxRetries: 2,
+		RetryDelay: 500 * time.Millisecond,
+	}
 }
 
 // GetRetryConfig returns the current retry configuration
-func (c *HTTPClient) GetRetryConfig() *RetryConfig {
-	c.mu.RLock()
-
-	defer c.mu.RUnlock()
-	return c.retryConfig
+func (rc *RetryConfig) GetRetryConfig() *RetryConfig {
+	rc.mu.RLock()
+	defer rc.mu.RUnlock()
+	return rc
 }
 
 // SetRetryConfig updates the retry configuration
-func (c *HTTPClient) SetRetryConfig(cfg *RetryConfig) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	c.retryConfig = cfg
+func (rc *RetryConfig) SetRetryConfig(config *RetryConfig) {
+	rc.mu.Lock()
+	defer rc.mu.Unlock()
+	rc.MaxRetries = config.MaxRetries
+	rc.RetryDelay = config.RetryDelay
 }
 
-// DefaultRetryConfig returns the default retry configuration
-func DefaultRetryConfig() *RetryConfig {
-	return &RetryConfig{
-		InitialDelay:    1 * time.Second,
-		MaxBackoffTime:  32 * time.Second,
-		Multiplier:      2.0,
-		MaxRetryCount:   3,
-		currentInterval: 1 * time.Second,
+func (rc *RetryConfig) GetPerReqRetriedAttempts() int32 {
+	return rc.PerReqRetriedAttempts.Load()
+}
+
+func (rc *RetryConfig) ResetPerReqAttempts() {
+	rc.mu.Lock()
+	defer rc.mu.Unlock()
+	rc.PerReqRetriedAttempts.Store(0)
+}
+
+func IsRetryableError(err error) bool {
+	if err == nil {
+		return false
 	}
+
+	// Check for specific error types
+	if err == io.EOF || errors.Is(err, fasthttp.ErrConnectionClosed) || errors.Is(err, fasthttp.ErrTimeout) ||
+		strings.Contains(err.Error(), "timeout") || strings.Contains(err.Error(), "existing connection was forcibly closed") {
+		return true
+	}
+
+	return false
 }

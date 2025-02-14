@@ -63,9 +63,15 @@ Usage:
   -t, -threads
         Number of concurrent threads (Default: 15)
   -T, -timeout
-        Timeout in seconds (Default: 20)
+        Total timeout (in milliseconds) (Default: 20000)
   -delay
-        Delay between requests in milliseconds (Default: 0)
+        Delay between requests (in milliseconds) (Default: 0)
+  -max-retries
+        Maximum number of retries for failed requests (Default: 2)
+  -retry-delay
+        Delay between retries (in milliseconds) (Default: 500)
+  -max-cfr, -max-consecutive-fails
+        Maximum number of consecutive failed requests before cancelling the current bypass module (Default: 15)
   -v, -verbose
         Verbose output (Default: false)
   -d, -debug
@@ -84,8 +90,14 @@ Usage:
         Follow HTTP redirects
   -rbps, -response-body-preview-size
         Maximum number of bytes to retrieve from response body (Default: 1024)
+  -disable-response-body-streaming
+        Disables streaming of response body (default: False) (Default: false)
   -update-payloads
         Update payload files to latest version
+  -resend, -resend-request
+        Resend the exact request using the debug token (-resend xyzdebugtoken)
+  -resend-count, -resend-request-count
+        Number of times to resend the debugged request (Default: 1)
   -profile
         Enable pprof profiler (Default: false)
 ```
@@ -117,6 +129,14 @@ Example Results 1
 
 
 # Changelog
+
+## 14 February 2025
+
+- Implemented retry attempts on failed requests, using linear backoff algorthm to increase the delay between retries.
+- Autothrottler, throttles the requests exponentially based on known status codes.
+- Option to resend the exact request at any time using the debug token.
+- Refactored most of the core engine/rawhttp modules to improve performance and reduce allocations.
+- Plus way more improvements...
 
 ## 09 January 2025
 

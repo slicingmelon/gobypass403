@@ -22,13 +22,17 @@ type CliOptions struct {
 	SubstituteHostsFile string
 
 	// Scan configuration
-	Module                  string
-	MatchStatusCodesStr     string
-	MatchStatusCodes        []int
-	Threads                 int
-	Timeout                 int
-	Delay                   int
-	ResponseBodyPreviewSize int // in bytes, we don't need too much, Response Headers and a small body preview is enough
+	Module                   string
+	MatchStatusCodesStr      string
+	MatchStatusCodes         []int
+	Threads                  int
+	Timeout                  int
+	Delay                    int
+	MaxRetries               int
+	RetryDelay               int // in milliseconds
+	RequestDelay             int // in milliseconds
+	MaxConsecutiveFailedReqs int
+	ResponseBodyPreviewSize  int // in bytes, we don't need too much, Response Headers and a small body preview is enough
 
 	// Output options
 	OutDir  string
@@ -44,6 +48,13 @@ type CliOptions struct {
 	// Spoofing options
 	SpoofIP     string
 	SpoofHeader string
+
+	// StreamResponseBody
+	DisableStreamResponseBody bool
+
+	// ResendRequest
+	ResendRequest string
+	ResendCount   int
 
 	//UpdatePayloads
 	UpdatePayloads bool
@@ -116,10 +127,14 @@ func (o *CliOptions) setDefaults() {
 		o.Threads = 15
 	}
 	if o.Timeout == 0 {
-		o.Timeout = 20
+		o.Timeout = 20000
 	}
 	if o.Delay <= 0 {
 		o.Delay = 0
+	}
+
+	if o.RetryDelay == 0 {
+		o.RetryDelay = 500
 	}
 
 	// Status codes default - accept all codes
@@ -144,8 +159,23 @@ func (o *CliOptions) validate() error {
 		return payload.UpdatePayloads()
 	}
 
+	if o.ResendRequest != "" {
+		data, err := payload.DecodeDebugToken(o.ResendRequest)
+		if err != nil {
+			return fmt.Errorf("invalid debug token: %v", err)
+		}
+		// Print the decoded information
+		fmt.Println("=== Debug Token Information ===")
+		fmt.Printf("Full URL: %s\n", data.FullURL)
+		fmt.Printf("Bypass Module: %s\n", data.BypassModule)
+		fmt.Println("Headers:")
+		for _, h := range data.Headers {
+			fmt.Printf("  %s: %s\n", h.Header, h.Value)
+		}
+	}
+
 	// Validate input parameters
-	if err := o.validateInputURLs(); err != nil {
+	if err := o.validateInputURLs(); err != nil && o.ResendRequest == "" {
 		return err
 	}
 

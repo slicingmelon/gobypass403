@@ -11,28 +11,32 @@ import (
 )
 
 type ScannerOpts struct {
-	Timeout                 int
-	Threads                 int
-	MatchStatusCodes        []int
-	Debug                   bool
-	Verbose                 bool
-	BypassModule            string
-	OutDir                  string
-	Delay                   int
-	Proxy                   string
-	EnableHTTP2             bool
-	SpoofHeader             string
-	SpoofIP                 string
-	FollowRedirects         bool
-	ResponseBodyPreviewSize int
-	ReconCache              *recon.ReconCache
+	Timeout                   int
+	Threads                   int
+	MatchStatusCodes          []int
+	Debug                     bool
+	Verbose                   bool
+	BypassModule              string
+	OutDir                    string
+	RequestDelay              int
+	MaxRetries                int
+	RetryDelay                int
+	MaxConsecutiveFailedReqs  int
+	Proxy                     string
+	EnableHTTP2               bool
+	SpoofHeader               string
+	SpoofIP                   string
+	FollowRedirects           bool
+	ResponseBodyPreviewSize   int
+	DisableStreamResponseBody bool
+	ResendRequest             string
+	ReconCache                *recon.ReconCache
 }
 
 // Scanner represents the main scanner structure, perhaps the highest level in the hierarchy of the tool
 type Scanner struct {
-	scannerOpts  *ScannerOpts
-	urls         []string
-	errorHandler *GB403ErrorHandler.ErrorHandler
+	scannerOpts *ScannerOpts
+	urls        []string
 }
 
 // NewScanner creates a new Scanner instance
@@ -41,9 +45,8 @@ func NewScanner(opts *ScannerOpts, urls []string) *Scanner {
 	InitializeBypassModules()
 
 	return &Scanner{
-		scannerOpts:  opts,
-		urls:         urls,
-		errorHandler: GB403ErrorHandler.NewErrorHandler(32),
+		scannerOpts: opts,
+		urls:        urls,
 	}
 }
 
@@ -51,12 +54,13 @@ func NewScanner(opts *ScannerOpts, urls []string) *Scanner {
 func (s *Scanner) Run() error {
 	defer s.Close()
 
+	// Normal scanning mode
 	GB403Logger.Info().Msgf("Initializing scanner with %d URLs", len(s.urls))
 
 	for _, url := range s.urls {
 		if err := s.scanURL(url); err != nil {
 			GB403Logger.Error().Msgf("Error scanning %s: %v", url, err)
-			if handleErr := s.errorHandler.HandleError(err, GB403ErrorHandler.ErrorContext{
+			if handleErr := GB403ErrorHandler.GetErrorHandler().HandleError(err, GB403ErrorHandler.ErrorContext{
 				TargetURL:    []byte(url),
 				ErrorSource:  []byte("Scanner.Run"),
 				BypassModule: []byte(s.scannerOpts.BypassModule),
@@ -69,7 +73,7 @@ func (s *Scanner) Run() error {
 
 	// print error stats
 	fmt.Println()
-	s.errorHandler.PrintErrorStats()
+	GB403ErrorHandler.GetErrorHandler().PrintErrorStats()
 
 	return nil
 }
@@ -81,7 +85,7 @@ func (s *Scanner) scanURL(url string) error {
 	// Process results as they come in
 	for result := range resultsChannel {
 		if result != nil {
-			GB403Logger.Debug().Msgf("Processing results for bypass module: %s, status: %d", result.BypassModule, result.StatusCode)
+			GB403Logger.Debug().Msgf("Processing results for bypass module: %s, status: %d\n", result.BypassModule, result.StatusCode)
 			allFindings = append(allFindings, result)
 		}
 
@@ -100,7 +104,7 @@ func (s *Scanner) scanURL(url string) error {
 		// Save findings first
 		outputFile := filepath.Join(s.scannerOpts.OutDir, "findings.json")
 		if err := AppendResultsToJSON(outputFile, url, s.scannerOpts.BypassModule, allFindings); err != nil {
-			GB403Logger.Error().Msgf("Failed to save findings for %s: %v", url, err)
+			GB403Logger.Error().Msgf("Failed to save findings for %s: %v\n", url, err)
 		}
 
 		// Print results only once
@@ -117,7 +121,5 @@ func (s *Scanner) scanURL(url string) error {
 // Close the scanner instance
 func (s *Scanner) Close() {
 	// Close error handler
-	if s.errorHandler != nil {
-		s.errorHandler.Reset()
-	}
+	//
 }

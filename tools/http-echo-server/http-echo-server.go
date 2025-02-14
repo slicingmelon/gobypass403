@@ -21,6 +21,9 @@ import (
 	"github.com/jedib0t/go-pretty/v6/text"
 )
 
+// To trigger timeout errors when testing: ./http-echo-server.exe -port 80 -tlsport 443 -v -template timeout -timeout 5000
+// To trigger server closed connection before returning first byte: ./http-echo-server.exe -port 80 -tlsport 443 -v -template timeout -timeout 200
+
 var verbose bool
 
 func generateTLSConfig() (*tls.Config, error) {
@@ -62,11 +65,12 @@ func main() {
 	log.SetFlags(log.Lshortfile)
 
 	// cli args
-	timeoutFlag := flag.Int("timeout", 200, "Timeout to close connection (ms)")
 	dumpFlag := flag.String("dump", "", "Dump incoming request to a file")
-	portFlag := flag.String("port", "8888", "Listening port")
-	tlsFlag := flag.Bool("tls", false, "Use TLS encryption")
+	portFlag := flag.String("port", "", "HTTP listening port")
+	tlsPortFlag := flag.String("tlsport", "", "HTTPS/TLS listening port")
 	verboseFlag := flag.Bool("v", false, "Display request with special characters")
+	templateFlag := flag.String("template", "echo", "Response template (echo, timeout)")
+	timeoutFlag := flag.Int("timeout", 200, "Timeout to close connection (ms)")
 	helpFlag := flag.Bool("h", false, "Show help")
 
 	// helper
@@ -76,9 +80,13 @@ func main() {
 		fmt.Fprintf(os.Stderr, "Flags:\n")
 		flag.PrintDefaults()
 		fmt.Fprintf(os.Stderr, "\nExamples:\n")
-		fmt.Fprintf(os.Stderr, "  Dump request to file:     http-echo-server -d request.txt\n")
-		fmt.Fprintf(os.Stderr, "  Run with TLS:            http-echo-server --tls\n")
-		fmt.Fprintf(os.Stderr, "  Show special characters: http-echo-server -v\n")
+		fmt.Fprintf(os.Stderr, "  HTTP only:              http-echo-server -port 8888\n")
+		fmt.Fprintf(os.Stderr, "  HTTPS only:             http-echo-server -tlsport 8443\n")
+		fmt.Fprintf(os.Stderr, "  Both HTTP and HTTPS:    http-echo-server -port 8888 -tlsport 8443\n")
+		fmt.Fprintf(os.Stderr, "  Dump request to file:   http-echo-server -port 8888 -d request.txt\n")
+		fmt.Fprintf(os.Stderr, "  Show special chars:     http-echo-server -port 8888 -v\n")
+		fmt.Fprintf(os.Stderr, "  Timeout template:       http-echo-server -port 8888 -template timeout\n")
+		fmt.Fprintf(os.Stderr, "  Timeout template:       http-echo-server -port 8888 -template timeout -timeout 5000\n")
 	}
 
 	flag.Parse()
@@ -88,80 +96,91 @@ func main() {
 		os.Exit(0)
 	}
 
+	if *templateFlag != "echo" && *templateFlag != "timeout" {
+		log.Fatal("Template must be either 'echo' or 'timeout'")
+	}
+
+	if *portFlag == "" && *tlsPortFlag == "" {
+		log.Fatal("At least one of -port or -tlsport must be specified")
+	}
+
 	verbose = *verboseFlag
 
-	// Setup listener
-	port := fmt.Sprintf(":%s", *portFlag)
-	var ln net.Listener
-	var err error
+	var wg sync.WaitGroup
 
-	if *tlsFlag {
-		tlsConfig, err := generateTLSConfig()
-		if err != nil {
-			log.Fatalf("Failed to generate TLS config: %v", err)
-		}
-		ln, err = tls.Listen("tcp", port, tlsConfig)
-	} else {
-		ln, err = net.Listen("tcp", port)
+	if *portFlag != "" {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			httpPort := fmt.Sprintf(":%s", *portFlag)
+			ln, err := net.Listen("tcp", httpPort)
+			if err != nil {
+				log.Fatalf("Failed to start HTTP listener: %v", err)
+			}
+			defer ln.Close()
+			log.Printf("HTTP Server listening on %s", httpPort)
+
+			for {
+				conn, err := ln.Accept()
+				if err != nil {
+					log.Printf("Failed to accept HTTP connection: %v", err)
+					continue
+				}
+				conn.SetDeadline(time.Now().Add(time.Duration(*timeoutFlag) * time.Millisecond))
+				go handleConnection(conn, *dumpFlag, *timeoutFlag, *templateFlag)
+			}
+		}()
 	}
 
-	if err != nil {
-		log.Fatalf("Failed to start listener: %v", err)
-	}
-	defer ln.Close()
+	// Start HTTPS server if tlsport specified
+	if *tlsPortFlag != "" {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			tlsPort := fmt.Sprintf(":%s", *tlsPortFlag)
 
-	log.Printf("Server listening on %s (TLS: %v)", port, *tlsFlag)
+			tlsConfig, err := generateTLSConfig()
+			if err != nil {
+				log.Fatalf("Failed to generate TLS config: %v", err)
+			}
 
-	for {
-		conn, err := ln.Accept()
-		if err != nil {
-			log.Printf("Failed to accept connection: %v", err)
-			continue
-		}
-		conn.SetDeadline(time.Now().Add(time.Duration(*timeoutFlag) * time.Millisecond))
-		go handleConnection(conn, *dumpFlag, *timeoutFlag)
+			ln, err := tls.Listen("tcp", tlsPort, tlsConfig)
+			if err != nil {
+				log.Fatalf("Failed to start HTTPS listener: %v", err)
+			}
+			defer ln.Close()
+			log.Printf("HTTPS Server listening on %s", tlsPort)
+
+			for {
+				conn, err := ln.Accept()
+				if err != nil {
+					log.Printf("Failed to accept HTTPS connection: %v", err)
+					continue
+				}
+				conn.SetDeadline(time.Now().Add(time.Duration(*timeoutFlag) * time.Millisecond))
+				go handleConnection(conn, *dumpFlag, *timeoutFlag, *templateFlag)
+			}
+		}()
 	}
+
+	wg.Wait()
 }
 
-func handleConnection(conn net.Conn, dump string, timeout int) {
+func handleConnection(conn net.Conn, dump string, timeout int, template string) {
+	// Set a deadline for the entire connection
+	if timeout > 0 {
+		conn.SetDeadline(time.Now().Add(time.Duration(timeout) * time.Millisecond))
+	}
 	defer conn.Close()
 
-	var mu sync.Mutex
+	// Determine if connection is TLS
+	_, isTLS := conn.(*tls.Conn)
+
+	// Read the request first
+	reader := bufio.NewReader(conn)
 	var request strings.Builder
 
-	// Send HTTP 200 OK response immediately
-	if _, err := conn.Write([]byte("HTTP/1.1 200 OK\r\n\r\n")); err != nil {
-		log.Printf("Failed to write response: %v", err)
-		return
-	}
-
-	// Create buffered reader
-	reader := bufio.NewReader(conn)
-
-	// Channel to signal completion
-	done := make(chan bool)
-	defer close(done)
-
-	// Handle incomplete requests
-	go func() {
-		select {
-		case <-done:
-			return
-		case <-time.After(time.Duration(timeout) * time.Millisecond):
-			mu.Lock()
-			if reader.Buffered() > 0 {
-				if data, err := reader.Peek(reader.Buffered()); err == nil {
-					request.Write(data)
-					printRequest(string(data), verbose)
-				}
-			}
-			mu.Unlock()
-			conn.Close()
-		}
-	}()
-
-	// Read request line by line
-	var currentRequest strings.Builder
+	// Read headers
 	for {
 		line, err := reader.ReadString('\n')
 		if err != nil {
@@ -170,36 +189,52 @@ func handleConnection(conn net.Conn, dump string, timeout int) {
 				!strings.Contains(err.Error(), "closed network connection") {
 				log.Printf("Read error: %v", err)
 			}
+			return
+		}
+		request.WriteString(line)
+		if line == "\r\n" || line == "\n" {
 			break
 		}
-
-		mu.Lock()
-		currentRequest.WriteString(line)
-
-		// If we have a complete request (empty line), print it
-		if line == "\r\n" || line == "\n" {
-			requestStr := currentRequest.String()
-			printRequest(requestStr, verbose)
-			request.WriteString(requestStr)
-			currentRequest.Reset()
-
-			// Echo back the complete request
-			if _, err := conn.Write([]byte(requestStr)); err != nil {
-				mu.Unlock()
-				log.Printf("Write error: %v", err)
-				break
-			}
-		}
-		mu.Unlock()
 	}
 
-	// Dump final request if needed
-	if dump != "" {
-		mu.Lock()
-		finalRequest := request.String()
-		mu.Unlock()
+	requestStr := request.String()
 
-		if err := os.WriteFile(dump, []byte(finalRequest), 0644); err != nil {
+	// Print the request with proper formatting
+	if requestStr != "" {
+		printRequest(requestStr, verbose, isTLS)
+	}
+
+	// Handle different templates
+	switch template {
+	case "timeout":
+		fmt.Printf("Sleeping for 1 seconds...\n")
+		time.Sleep(1 * time.Second)
+		fmt.Printf("Sleep done, sending response\n")
+
+		response := fmt.Sprintf("HTTP/1.1 200 OK\r\n"+
+			"Content-Type: text/plain\r\n"+
+			"Content-Length: %d\r\n"+
+			"Connection: close\r\n"+
+			"\r\n%s",
+			len(requestStr), requestStr)
+
+		conn.Write([]byte(response))
+
+	case "echo":
+		// Immediately send complete response
+		response := fmt.Sprintf("HTTP/1.1 200 OK\r\n"+
+			"Content-Type: text/plain\r\n"+
+			"Content-Length: %d\r\n"+
+			"Connection: close\r\n"+
+			"\r\n%s",
+			len(requestStr), requestStr)
+
+		conn.Write([]byte(response))
+	}
+
+	// Handle request dumping if enabled
+	if dump != "" && requestStr != "" {
+		if err := os.WriteFile(dump, []byte(requestStr), 0644); err != nil {
 			log.Printf("Failed to dump request: %v", err)
 		} else {
 			log.Printf("\nRequest dumped to: %s\n", dump)
@@ -208,13 +243,29 @@ func handleConnection(conn net.Conn, dump string, timeout int) {
 }
 
 // Helper function to print requests
-func printRequest(req string, verbose bool) {
+
+func printRequest(req string, verbose bool, isTLS bool) {
 	if verbose {
 		// Replace special characters with colored versions
-		req = strings.ReplaceAll(req, "\r", text.Colors{text.FgGreen}.Sprint("\\r"))
-		req = strings.ReplaceAll(req, "\n", text.Colors{text.FgGreen}.Sprint("\\n\n"))
-		fmt.Print(req)
+		specialChars := map[string]string{
+			"\r": "\\r",
+			"\n": "\\n\n", // Keep the extra newline for readability
+			"\t": "\\t",
+			"\v": "\\v", // Vertical tab
+			"\f": "\\f", // Form feed
+			"\b": "\\b", // Backspace
+			"\a": "\\a", // Alert/Bell
+		}
+
+		for char, replacement := range specialChars {
+			req = strings.ReplaceAll(req, char, text.Colors{text.FgGreen}.Sprint(replacement))
+		}
+	}
+
+	// Color the text terminal req
+	if isTLS {
+		fmt.Print(text.Colors{text.FgYellow}.Sprint(req))
 	} else {
-		fmt.Print(req)
+		fmt.Print(text.Colors{text.FgWhite}.Sprint(req))
 	}
 }

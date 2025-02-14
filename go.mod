@@ -12,6 +12,7 @@ require (
 	github.com/golang/snappy v0.0.4
 	github.com/jedib0t/go-pretty/v6 v6.6.5
 	github.com/klauspost/compress v1.17.11
+	github.com/phuslu/fastdns v0.12.1
 	github.com/pierrec/lz4/v4 v4.1.22
 	github.com/pterm/pterm v0.12.80
 	github.com/refraction-networking/utls v1.6.7

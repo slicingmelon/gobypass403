@@ -1,6 +1,7 @@
 package scanner
 
 import (
+	"fmt"
 	"strings"
 	"sync"
 	"time"
@@ -97,14 +98,14 @@ type BypassWorker struct {
 	once         sync.Once
 	opts         *ScannerOpts
 	requestPool  *rawhttp.RequestWorkerPool
-	workerCount  int32
 }
 
-func NewBypassWorker(bypassmodule string, total int, targetURL string, scannerOpts *ScannerOpts, errorHandler *GB403ErrorHandler.ErrorHandler) *BypassWorker {
+func NewBypassWorker(bypassmodule string, targetURL string, scannerOpts *ScannerOpts) *BypassWorker {
 	httpClientOpts := rawhttp.DefaultHTTPClientOptions()
 
 	// Override specific settings from user options
-	httpClientOpts.Timeout = time.Duration(scannerOpts.Timeout) * time.Second
+	httpClientOpts.BypassModule = bypassmodule
+	httpClientOpts.Timeout = time.Duration(scannerOpts.Timeout) * time.Millisecond
 	httpClientOpts.ResponseBodyPreviewSize = scannerOpts.ResponseBodyPreviewSize
 
 	// Ensure MaxConnsPerHost is at least equal to number of workers plus buffer
@@ -117,8 +118,17 @@ func NewBypassWorker(bypassmodule string, total int, targetURL string, scannerOp
 	httpClientOpts.ProxyURL = scannerOpts.Proxy
 
 	// Apply a delay between requests
-	if scannerOpts.Delay > 0 {
-		httpClientOpts.RequestDelay = time.Duration(scannerOpts.Delay) * time.Millisecond
+	if scannerOpts.RequestDelay > 0 {
+		httpClientOpts.RequestDelay = time.Duration(scannerOpts.RequestDelay) * time.Millisecond
+	}
+
+	httpClientOpts.MaxRetries = scannerOpts.MaxRetries
+	httpClientOpts.RetryDelay = time.Duration(scannerOpts.RetryDelay) * time.Millisecond
+	httpClientOpts.MaxConsecutiveFailedReqs = scannerOpts.MaxConsecutiveFailedReqs
+
+	// Disable streaming of response body if disabled via cli options
+	if scannerOpts.DisableStreamResponseBody {
+		httpClientOpts.StreamResponseBody = false
 	}
 
 	return &BypassWorker{
@@ -128,7 +138,7 @@ func NewBypassWorker(bypassmodule string, total int, targetURL string, scannerOp
 		once:         sync.Once{},
 		opts:         scannerOpts,
 
-		requestPool: rawhttp.NewRequestWorkerPool(httpClientOpts, scannerOpts.Threads, errorHandler),
+		requestPool: rawhttp.NewRequestWorkerPool(httpClientOpts, scannerOpts.Threads),
 	}
 }
 
@@ -154,12 +164,12 @@ func (s *Scanner) RunAllBypasses(targetURL string) chan *Result {
 
 	// Validate URL one more time, who knows
 	if _, err := rawurlparser.RawURLParse(targetURL); err != nil {
-		err = s.errorHandler.HandleError(err, GB403ErrorHandler.ErrorContext{
+		err = GB403ErrorHandler.GetErrorHandler().HandleError(err, GB403ErrorHandler.ErrorContext{
 			TargetURL:   []byte(targetURL),
 			ErrorSource: []byte("Scanner.RunAllBypasses"),
 		})
 		if err != nil {
-			GB403Logger.Error().Msgf("Failed to parse URL: %s", targetURL)
+			GB403Logger.Error().Msgf("Failed to parse URL: %s\n", targetURL)
 			close(results)
 			return results
 		}
@@ -171,26 +181,25 @@ func (s *Scanner) RunAllBypasses(targetURL string) chan *Result {
 		// Run dumb check once at the start
 		s.RunBypassModule("dumb_check", targetURL, results)
 
-		modes := strings.Split(s.scannerOpts.BypassModule, ",")
-		for _, mode := range modes {
-			mode = strings.TrimSpace(mode)
+		bpModules := strings.Split(s.scannerOpts.BypassModule, ",")
+		for _, module := range bpModules {
+			module = strings.TrimSpace(module)
 
-			if mode == "all" {
+			if module == "all" {
 				// Run all registered modules except dumb_check
-				for modeName := range bypassModules {
-					if modeName != "dumb_check" {
-						s.RunBypassModule(modeName, targetURL, results)
+				for bpModuleName := range bypassModules {
+					if bpModuleName != "dumb_check" {
+						s.RunBypassModule(bpModuleName, targetURL, results)
 					}
 				}
-
 				continue
 			}
 
 			// Check if module exists in registry
-			if _, exists := bypassModules[mode]; exists && mode != "dumb_check" {
-				s.RunBypassModule(mode, targetURL, results)
+			if _, exists := bypassModules[module]; exists && module != "dumb_check" {
+				s.RunBypassModule(module, targetURL, results)
 			} else {
-				GB403Logger.Error().Msgf("Unknown bypass mode: %s", mode)
+				GB403Logger.Error().Msgf("Unknown bypass module: %s\n", module)
 			}
 
 		}
@@ -199,7 +208,7 @@ func (s *Scanner) RunAllBypasses(targetURL string) chan *Result {
 	return results
 }
 
-// Run a specific bypass module
+// Run a specific Bypass Module
 func (s *Scanner) RunBypassModule(bypassModule string, targetURL string, results chan<- *Result) {
 	moduleInstance, exists := bypassModules[bypassModule]
 	if !exists {
@@ -209,82 +218,39 @@ func (s *Scanner) RunBypassModule(bypassModule string, targetURL string, results
 	// Generate jobs
 	allJobs := moduleInstance.GenerateJobs(targetURL, bypassModule, s.scannerOpts)
 	if len(allJobs) == 0 {
-		GB403Logger.Verbose().Msgf("No jobs generated for module: %s", bypassModule)
+		GB403Logger.Warning().Msgf("No jobs generated for bypass module: %s\n", bypassModule)
 		return
 	}
 
-	ctx := NewBypassWorker(bypassModule, len(allJobs), targetURL, s.scannerOpts, s.errorHandler)
+	worker := NewBypassWorker(bypassModule, targetURL, s.scannerOpts)
+	defer worker.Stop()
 
 	// Create progress bar
 	progressbar := NewProgressBar(bypassModule, len(allJobs), s.scannerOpts.Threads)
+	defer progressbar.Stop()
 
-	// Create a done channel to coordinate shutdown
-	updateCh := make(chan struct{})
-	doneCh := make(chan struct{})
-
-	//progressbar.Start()
-
-	go func() {
-		progressbar.Start()
-		for {
-			select {
-			case <-updateCh:
-				progressbar.UpdateSpinnerText(
-					bypassModule,
-					s.scannerOpts.Threads,
-					ctx.requestPool.GetReqWPActiveWorkers(),
-					ctx.requestPool.GetReqWPCompletedTasks(),
-					ctx.requestPool.GetReqWPSubmittedTasks(),
-					ctx.requestPool.GetRequestRate(),
-					ctx.requestPool.GetAverageRequestRate(),
-				)
-			case <-doneCh:
-				progressbar.SpinnerSuccess(
-					bypassModule,
-					s.scannerOpts.Threads,
-					ctx.requestPool.GetReqWPActiveWorkers(),
-					ctx.requestPool.GetReqWPCompletedTasks(),
-					ctx.requestPool.GetReqWPSubmittedTasks(),
-					ctx.requestPool.GetRequestRate(),
-					ctx.requestPool.GetAverageRequestRate(),
-					ctx.requestPool.GetPeakRequestRate(),
-				)
-				progressbar.Stop()
-				return
-			}
-		}
-	}()
-
-	defer func() {
-		progressbar.SpinnerSuccess(
-			bypassModule,
-			s.scannerOpts.Threads,
-			ctx.requestPool.GetReqWPActiveWorkers(),
-			ctx.requestPool.GetReqWPCompletedTasks(),
-			ctx.requestPool.GetReqWPSubmittedTasks(),
-			ctx.requestPool.GetRequestRate(),        // Current submission rate
-			ctx.requestPool.GetAverageRequestRate(), // Average completion rate
-
-			ctx.requestPool.GetPeakRequestRate(), // Peak submission rate
-		)
-		ctx.Stop()
-		progressbar.Stop()
-	}()
+	progressbar.Start()
 
 	// Process requests and update progress
-	responses := ctx.requestPool.ProcessRequests(allJobs)
+	responses := worker.requestPool.ProcessRequests(allJobs)
 
 	for response := range responses {
-		progressbar.Increment()
-		// Signal update instead of direct call
-		select {
-		case updateCh <- struct{}{}:
-		default:
-			// Skip update if previous one hasn't been processed
+		if response == nil {
+			continue
 		}
 
-		// Process matching responses
-		if response != nil && matchStatusCodes(response.StatusCode, s.scannerOpts.MatchStatusCodes) {
+		progressbar.Increment()
+		progressbar.UpdateSpinnerText(
+			bypassModule,
+			s.scannerOpts.Threads,
+			worker.requestPool.GetReqWPActiveWorkers(),
+			worker.requestPool.GetReqWPCompletedTasks(),
+			worker.requestPool.GetReqWPSubmittedTasks(),
+			worker.requestPool.GetRequestRate(),
+			worker.requestPool.GetAverageRequestRate(),
+		)
+
+		if matchStatusCodes(response.StatusCode, s.scannerOpts.MatchStatusCodes) {
 			results <- &Result{
 				TargetURL:       string(response.URL),
 				BypassModule:    bypassModule,
@@ -302,11 +268,123 @@ func (s *Scanner) RunBypassModule(bypassModule string, targetURL string, results
 				DebugToken:      string(response.DebugToken),
 			}
 		}
+
+		// release responsedetails buff
+		rawhttp.ReleaseResponseDetails(response)
 	}
 
-	// Signal completion and cleanup
-	close(doneCh)
-	ctx.Stop()
+	// Final progress update
+	progressbar.SpinnerSuccess(
+		bypassModule,
+		s.scannerOpts.Threads,
+		worker.requestPool.GetReqWPActiveWorkers(),
+		worker.requestPool.GetReqWPCompletedTasks(),
+		worker.requestPool.GetReqWPSubmittedTasks(),
+		worker.requestPool.GetRequestRate(),
+		worker.requestPool.GetAverageRequestRate(),
+		worker.requestPool.GetPeakRequestRate(),
+	)
+}
+
+func (s *Scanner) ScanDebugToken(debugToken string, resendCount int) ([]*Result, error) {
+	// Parse URL from token
+	tokenData, err := payload.DecodeDebugToken(debugToken)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode debug token: %w", err)
+	}
+
+	parsedURL, err := rawurlparser.RawURLParse(tokenData.FullURL)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse URL from token: %w", err)
+	}
+
+	// Create base job
+	job := payload.PayloadJob{
+		FullURL:      tokenData.FullURL,
+		Method:       "GET",
+		Host:         parsedURL.Host,
+		Scheme:       parsedURL.Scheme,
+		RawURI:       parsedURL.Path,
+		Headers:      tokenData.Headers,
+		BypassModule: "debugRequest",
+		PayloadToken: payload.GenerateDebugToken(payload.SeedData{FullURL: tokenData.FullURL}),
+	}
+
+	// Create worker
+	worker := NewBypassWorker("debugRequest", tokenData.FullURL, s.scannerOpts)
+	defer worker.Stop()
+
+	// Create jobs array
+	jobs := make([]payload.PayloadJob, resendCount)
+	for i := 0; i < resendCount; i++ {
+		jobs[i] = job
+		jobs[i].PayloadToken = payload.GenerateDebugToken(payload.SeedData{FullURL: tokenData.FullURL})
+	}
+
+	// Create progress bar
+	progressbar := NewProgressBar("debugRequest", len(jobs), s.scannerOpts.Threads)
+	defer progressbar.Stop()
+	progressbar.Start()
+
+	// Process all requests
+	var results []*Result
+	responses := worker.requestPool.ProcessRequests(jobs)
+
+	for response := range responses {
+		if response == nil {
+			continue
+		}
+
+		// Update progress
+		progressbar.Increment()
+		progressbar.UpdateSpinnerText(
+			"debugRequest",
+			s.scannerOpts.Threads,
+			worker.requestPool.GetReqWPActiveWorkers(),
+			worker.requestPool.GetReqWPCompletedTasks(),
+			worker.requestPool.GetReqWPSubmittedTasks(),
+			worker.requestPool.GetRequestRate(),
+			worker.requestPool.GetAverageRequestRate(),
+		)
+
+		// Only add to results if status code matches
+		if matchStatusCodes(response.StatusCode, s.scannerOpts.MatchStatusCodes) {
+			result := &Result{
+				TargetURL:       string(response.URL),
+				BypassModule:    "debugRequest",
+				StatusCode:      response.StatusCode,
+				ResponseHeaders: string(response.ResponseHeaders),
+				CurlPocCommand:  string(response.CurlCommand),
+				ResponsePreview: string(response.ResponsePreview),
+				ContentType:     string(response.ContentType),
+				ContentLength:   response.ContentLength,
+				ResponseBytes:   response.ResponseBytes,
+				Title:           string(response.Title),
+				ServerInfo:      string(response.ServerInfo),
+				RedirectURL:     string(response.RedirectURL),
+				ResponseTime:    response.ResponseTime,
+				DebugToken:      string(response.DebugToken),
+			}
+
+			results = append(results, result)
+		}
+
+		rawhttp.ReleaseResponseDetails(response)
+	}
+
+	// Final progress update
+	progressbar.SpinnerSuccess(
+		"debugRequest",
+		s.scannerOpts.Threads,
+		worker.requestPool.GetReqWPActiveWorkers(),
+		worker.requestPool.GetReqWPCompletedTasks(),
+		worker.requestPool.GetReqWPSubmittedTasks(),
+		worker.requestPool.GetRequestRate(),
+		worker.requestPool.GetAverageRequestRate(),
+		worker.requestPool.GetPeakRequestRate(),
+	)
+
+	return results, nil
 }
 
 // match HTTP status code in list

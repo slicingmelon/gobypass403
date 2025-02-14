@@ -22,10 +22,21 @@ const (
 )
 
 var (
+	instance *ErrorHandler
+	once     sync.Once
+)
+
+var (
 	ErrBodyTooLarge          = fasthttp.ErrBodyTooLarge // "body size exceeds the given limit"
 	ErrInvalidResponseHeader = errors.New("invalid header")
 	ErrConnForciblyClosedWin = errors.New("wsarecv: An existing connection was forcibly closed by the remote host")
 )
+
+var defaultWhitelistedErrors = []error{
+	ErrBodyTooLarge,
+	ErrInvalidResponseHeader,
+	//ErrConnForciblyClosedWin,
+}
 
 // ErrorContext holds metadata about where/when the error occurred
 type ErrorContext struct {
@@ -47,11 +58,13 @@ type ErrorStats struct {
 }
 
 type ErrorHandler struct {
-	cache             *fastcache.Cache
-	cacheLock         sync.RWMutex
-	whitelist         map[string]struct{}
-	whitelistLock     sync.RWMutex
-	stripErrorMsgLock sync.RWMutex
+	cache              *fastcache.Cache
+	cacheLock          sync.RWMutex
+	whitelist          map[string]struct{}
+	whitelistLock      sync.RWMutex
+	stripErrorMsgLock  sync.RWMutex
+	whitelistStats     map[string]int64
+	whitelistStatsLock sync.RWMutex
 }
 
 type ErrorCache struct {
@@ -60,14 +73,16 @@ type ErrorCache struct {
 	LastSeen      time.Time        `json:"last_seen"`
 	BypassModules map[string]int64 `json:"bypass_modules,omitempty"`
 	ErrorSources  map[string]int64 `json:"error_sources"`
+	DebugTokens   []string         `json:"debug_tokens,omitempty"`
 }
 
 // NewErrorHandler creates a new ErrorHandler instance
 // cacheSizeMB is the size of the cache in MB
 func NewErrorHandler(cacheSizeMB int) *ErrorHandler {
 	handler := &ErrorHandler{
-		cache:     fastcache.New(cacheSizeMB * 1024 * 1024),
-		whitelist: make(map[string]struct{}),
+		cache:          fastcache.New(cacheSizeMB * 1024 * 1024),
+		whitelist:      make(map[string]struct{}),
+		whitelistStats: make(map[string]int64),
 	}
 
 	// Initialize default whitelisted errors
@@ -77,6 +92,22 @@ func NewErrorHandler(cacheSizeMB int) *ErrorHandler {
 	)
 
 	return handler
+}
+
+func GetErrorHandler(cacheSizeMB ...int) *ErrorHandler {
+	once.Do(func() {
+		size := DefaultCacheSizeMB
+		if len(cacheSizeMB) > 0 {
+			size = cacheSizeMB[0]
+		}
+		instance = NewErrorHandler(size)
+	})
+	return instance
+}
+
+func ResetInstance() {
+	instance = nil
+	once = sync.Once{}
 }
 
 // AddWhitelistedErrors adds errors to the whitelist
@@ -95,10 +126,29 @@ func (e *ErrorHandler) IsWhitelisted(err error) bool {
 	e.whitelistLock.RLock()
 	defer e.whitelistLock.RUnlock()
 
-	// Check the error message itself
 	errMsg := err.Error()
 	for whitelisted := range e.whitelist {
 		if strings.Contains(errMsg, whitelisted) {
+			// Increment counter for this whitelisted error
+			e.whitelistStatsLock.Lock()
+			e.whitelistStats[whitelisted]++
+			e.whitelistStatsLock.Unlock()
+			return true
+		}
+	}
+	return false
+}
+
+// IsWhitelistedError checks if an error is in the default whitelist
+// global function, might be needed in other places
+func IsWhitelistedError(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	errMsg := err.Error()
+	for _, whitelisted := range defaultWhitelistedErrors {
+		if strings.Contains(errMsg, whitelisted.Error()) {
 			return true
 		}
 	}
@@ -144,6 +194,7 @@ func (e *ErrorHandler) HandleError(err error, ctx ErrorContext) error {
 			FirstSeen:     time.Now(),
 			BypassModules: make(map[string]int64),
 			ErrorSources:  make(map[string]int64),
+			DebugTokens:   []string{}, // Initialize empty debug tokens array
 		}
 	}
 
@@ -154,6 +205,11 @@ func (e *ErrorHandler) HandleError(err error, ctx ErrorContext) error {
 
 	if len(ctx.BypassModule) > 0 {
 		errorStats.BypassModules[string(ctx.BypassModule)]++
+	}
+
+	// Add debug token if present
+	if len(ctx.DebugToken) > 0 {
+		errorStats.DebugTokens = append(errorStats.DebugTokens, string(ctx.DebugToken))
 	}
 
 	// Store updated stats
@@ -182,6 +238,14 @@ func (e *ErrorHandler) PrintErrorStats() {
 	fmt.Fprintf(&buf, "Cache Get Calls: %d\n", stats.GetCalls)
 	fmt.Fprintf(&buf, "Cache Set Calls: %d\n", stats.SetCalls)
 	fmt.Fprintf(&buf, "Cache Misses: %d\n", stats.Misses)
+
+	fmt.Fprintln(&buf, "\n=== Whitelisted Error Statistics ===")
+	e.whitelistStatsLock.RLock()
+	for err, count := range e.whitelistStats {
+		fmt.Fprintf(&buf, "Whitelisted Error: %s\n", err)
+		fmt.Fprintf(&buf, "Count: %d occurrences\n", count)
+	}
+	e.whitelistStatsLock.RUnlock()
 
 	// Get all keys with prefix "h:"
 	// Since fastcache doesn't provide iteration, we need to maintain a separate index
@@ -222,6 +286,12 @@ func (e *ErrorHandler) PrintErrorStats() {
 								}
 							}
 						}
+						if len(errorStats.DebugTokens) > 0 {
+							fmt.Fprintln(&buf, "Debug Tokens:")
+							for _, token := range errorStats.DebugTokens {
+								fmt.Fprintf(&buf, "  - %s\n", token)
+							}
+						}
 					}
 				}
 			}
@@ -236,6 +306,11 @@ func (e *ErrorHandler) Reset() {
 	e.cacheLock.Lock()
 	defer e.cacheLock.Unlock()
 	e.cache.Reset()
+
+	// Also reset whitelisted error stats
+	e.whitelistStatsLock.Lock()
+	e.whitelistStats = make(map[string]int64)
+	e.whitelistStatsLock.Unlock()
 }
 
 // Helper method to maintain the host index

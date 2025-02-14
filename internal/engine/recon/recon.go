@@ -1,13 +1,12 @@
 package recon
 
 import (
-	"bufio"
 	"context"
 	"crypto/tls"
+	"encoding/json"
 	"fmt"
 	"net"
-	"os"
-	"runtime"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -18,8 +17,10 @@ import (
 )
 
 type ReconService struct {
-	cache  *ReconCache
-	dialer *fasthttp.TCPDialer
+	cache      *ReconCache
+	dialer     *fasthttp.TCPDialer
+	resolver   *net.Resolver
+	dnsServers []string
 }
 
 type ReconResult struct {
@@ -29,147 +30,108 @@ type ReconResult struct {
 	CNAMEs       []string
 }
 
-type IPAddrs struct {
-	IPv4   []string
-	IPv6   []string
-	CNAMEs []string
-}
-
-var (
-	DNS4Resolvers = []string{
+func NewReconService() *ReconService {
+	dnsServers := []string{
 		"8.8.8.8:53",        // Google
 		"1.1.1.1:53",        // Cloudflare
 		"9.9.9.9:53",        // Quad9
 		"208.67.222.222:53", // OpenDNS
-		"8.8.4.4:53",        // Google Secondary
-		"1.0.0.1:53",        // Cloudflare Secondary
 	}
-	DNS6Resolvers = []string{
-		"[2001:4860:4860::8888]:53", // Google IPv6
-		"[2606:4700:4700::1111]:53", // Cloudflare IPv6
-		"[2620:fe::fe]:53",          // Quad9 IPv6
-		"[2620:0:ccc::2]:53",        // OpenDNS IPv6
-	}
-)
 
-func (s *ReconService) ProcessHost(host string) error {
-	if net.ParseIP(host) != nil {
-		return s.handleIP(host)
-	} else {
-		return s.handleDomain(host)
-	}
-}
-
-func NewReconService() *ReconService {
 	dialer := &fasthttp.TCPDialer{
-		Concurrency:      1024,
-		DNSCacheDuration: 15 * time.Minute,
+		Concurrency:      2000,
+		DNSCacheDuration: 60 * time.Minute,
 		Resolver: &net.Resolver{
 			PreferGo: true,
 			Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
-				GB403Logger.Debug().Msgf("Resolver Dial called with network: %s, address: %s", network, address)
-
-				d := net.Dialer{
-					Timeout: 5 * time.Second,
-				}
-
-				// Extract host from address (removes port)
-				host, _, err := net.SplitHostPort(address)
-				if err != nil {
-					GB403Logger.Error().Msgf("failed to split host and port from %s: %v", address, err)
-					return nil, err
-				}
-
-				// Try local resolution first
-				if ip := ResolveThroughSystemHostsFile(host); ip != "" {
-					GB403Logger.Debug().
-						Metadata("resolveFromHosts()", "success").
-						Msgf("Resolved %s to %s from hosts file", host, ip)
-					return d.DialContext(ctx, network, ip+":53")
-				}
-
-				// List of DNS resolvers to try
-				resolvers := []string{
-					"8.8.8.8:53",        // Google
-					"1.1.1.1:53",        // Cloudflare
-					"9.9.9.9:53",        // Quad9
-					"208.67.222.222:53", // OpenDNS
-				}
-
-				GB403Logger.Verbose().Msgf("Trying external resolvers for %s", host)
-
-				// Try each resolver until one works
-				for _, resolver := range resolvers {
-					GB403Logger.Verbose().Msgf("Attempting resolver %s", resolver)
-					if conn, err := d.DialContext(ctx, network, resolver); err == nil {
-						GB403Logger.Verbose().Msgf("Successfully connected to resolver %s", resolver)
-						return conn, nil
-					}
-					GB403Logger.Verbose().Msgf("Failed to connect to resolver %s: %v", resolver, err)
-				}
-
-				GB403Logger.Verbose().Msgf("All resolvers failed, falling back to system resolver for %s", host)
-				return d.DialContext(ctx, network, address)
+				d := net.Dialer{Timeout: 2 * time.Second}
+				return d.DialContext(ctx, "udp", dnsServers[0]) // First server as primary
 			},
 		},
 	}
 
 	return &ReconService{
-		cache:  NewReconCache(),
-		dialer: dialer,
+		dialer:     dialer,
+		cache:      NewReconCache(),
+		dnsServers: dnsServers,
 	}
 }
 
-// Simple hosts file parser
-func ResolveThroughSystemHostsFile(host string) string {
-	// Handle localhost explicitly
-	if host == "localhost" {
-		return "127.0.0.1"
-	}
-
-	// Read /etc/hosts file
-	hostsFile := "/etc/hosts"
-	if runtime.GOOS == "windows" {
-		hostsFile = `C:\Windows\System32\drivers\etc\hosts`
-	}
-
-	file, err := os.Open(hostsFile)
+// ProcessHost handles both domains and IPs
+func (r *ReconService) ProcessHost(input string) (*ReconResult, error) {
+	// Extract host and port
+	host, customPort, err := extractHostAndPort(input)
 	if err != nil {
-		return ""
+		return nil, err
 	}
-	defer file.Close()
 
-	scanner := bufio.NewScanner(file)
-	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
-		if line == "" || strings.HasPrefix(line, "#") {
-			continue
+	// Check cache first
+	if cached, err := r.cache.Get(host); err == nil && cached != nil {
+		return cached, nil
+	}
+
+	result := &ReconResult{
+		Hostname:     host,
+		IPv4Services: make(map[string]map[string][]string),
+		IPv6Services: make(map[string]map[string][]string),
+	}
+
+	var ips []net.IP
+	if ip := net.ParseIP(host); ip != nil {
+		ips = []net.IP{ip}
+	} else {
+		ips, err = r.ResolveDomain(host)
+		if err != nil {
+			return nil, fmt.Errorf("DNS resolution failed: %v", err)
+		}
+	}
+
+	// Print successful DNS resolution
+	ipStrings := make([]string, 0, len(ips))
+	for _, ip := range ips {
+		ipStrings = append(ipStrings, ip.String())
+	}
+	GB403Logger.Verbose().Msgf("Resolved %s -> [%s]", host, strings.Join(ipStrings, ", "))
+
+	// Ports to probe
+	ports := []string{"80", "443"}
+	if customPort != "" && !slices.Contains(ports, customPort) {
+		ports = append(ports, customPort)
+	}
+
+	// Single probing pass
+	for _, ip := range ips {
+		ipStr := ip.String()
+		services := result.IPv4Services
+		if ip.To4() == nil {
+			services = result.IPv6Services
 		}
 
-		fields := strings.Fields(line)
-		if len(fields) < 2 {
-			continue
-		}
-
-		ip := fields[0]
-		for _, h := range fields[1:] {
-			if h == host {
-				return ip
+		for _, port := range ports {
+			protocol, ok := r.ProbePort(ipStr, port)
+			if !ok {
+				continue
 			}
+
+			// Print successful probe
+			GB403Logger.Verbose().Msgf("%s://%s:%s [%s]", protocol, host, port, ipStr)
+
+			if services[protocol] == nil {
+				services[protocol] = make(map[string][]string)
+			}
+			services[protocol][ipStr] = append(services[protocol][ipStr], port)
 		}
 	}
 
-	if err := scanner.Err(); err != nil {
-		GB403Logger.Error().
-			Metadata("ResolveThroughSystemHostsFile()", "failed").
-			Msgf("Error reading hosts file: %v", err)
-		return ""
+	// Cache result
+	if err := r.cache.Set(host, result); err != nil {
+		GB403Logger.Error().Msgf("Failed to cache result: %v\n", err)
 	}
 
-	return ""
+	return result, nil
 }
 
-func (s *ReconService) Run(urls []string) error {
+func (r *ReconService) Run(urls []string) error {
 	maxWorkers := 50
 	jobs := make(chan string, len(urls))
 	results := make(chan error, len(urls))
@@ -189,11 +151,18 @@ func (s *ReconService) Run(urls []string) error {
 		go func() {
 			defer wg.Done()
 			for host := range jobs {
-				if err := s.ProcessHost(host); err != nil {
+				result, err := r.ProcessHost(host)
+				if err != nil {
 					select {
 					case results <- fmt.Errorf("host %s: %v", host, err):
 					default:
 					}
+					continue
+				}
+
+				// Cache the result after successful processing
+				if err := r.cache.Set(host, result); err != nil {
+					GB403Logger.Error().Msgf("Failed to cache %s: %v\n", host, err)
 				}
 			}
 		}()
@@ -213,217 +182,203 @@ func (s *ReconService) Run(urls []string) error {
 
 	for err := range results {
 		if err != nil {
-			GB403Logger.Error().Msgf("%v", err)
+			GB403Logger.Error().Msgf("%v\n", err)
 		}
 	}
 
 	return nil
 }
 
-func (s *ReconService) handleIP(ip string) error {
-	result := &ReconResult{
-		Hostname:     ip,
-		IPv4Services: make(map[string]map[string][]string),
-		IPv6Services: make(map[string]map[string][]string),
-	}
-
-	// Determine service map based on IP version
-	services := result.IPv4Services
-	if strings.Contains(ip, ":") {
-		services = result.IPv6Services
-		GB403Logger.Verbose().Msgf("Handling IPv6: %s", ip)
-	} else {
-		GB403Logger.Verbose().Msgf("Handling IPv4: %s", ip)
-	}
-
-	// Check both ports and store all available schemes
-	foundService := false
-	for _, port := range []string{"80", "443"} {
-		GB403Logger.Verbose().Msgf("Probing %s:%s", ip, port)
-		if scheme := s.ProbeScheme(ip, port); scheme != "" {
-			foundService = true
-			GB403Logger.Verbose().Msgf("Found open port %s:%s -> %s", ip, port, scheme)
-			if services[scheme] == nil {
-				services[scheme] = make(map[string][]string)
-			}
-			services[scheme][ip] = append(services[scheme][ip], port)
-		}
-	}
-
-	if !foundService {
-		return fmt.Errorf("no services found for IP %s", ip)
-	}
-
-	GB403Logger.Verbose().Msgf("Caching result for %s: IPv4=%v, IPv6=%v",
-		ip, result.IPv4Services, result.IPv6Services)
-
-	if err := s.cache.Set(ip, result); err != nil {
-		return fmt.Errorf("failed to cache result for IP %s: %v", ip, err)
-	}
-
-	return nil
-}
-
-func (s *ReconService) handleDomain(host string) error {
-	ips, err := s.ResolveHost(host)
-	if err != nil {
-		GB403Logger.Error().Msgf("Failed to resolve host %s: %v", host, err)
-		return err
-	}
-
-	result := &ReconResult{
-		Hostname:     host,
-		IPv4Services: make(map[string]map[string][]string),
-		IPv6Services: make(map[string]map[string][]string),
-		CNAMEs:       ips.CNAMEs,
-	}
-
-	// Store IPs for later use but probe the domain
-	// Try both HTTP and HTTPS regardless of original scheme
-	if scheme := s.ProbeScheme(host, "443"); scheme != "" {
-		// Store all resolved IPs under this scheme
-		for _, ip := range ips.IPv4 {
-			if result.IPv4Services[scheme] == nil {
-				result.IPv4Services[scheme] = make(map[string][]string)
-			}
-			result.IPv4Services[scheme][ip] = append(result.IPv4Services[scheme][ip], "443")
-		}
-		for _, ip := range ips.IPv6 {
-			if result.IPv6Services[scheme] == nil {
-				result.IPv6Services[scheme] = make(map[string][]string)
-			}
-			result.IPv6Services[scheme][ip] = append(result.IPv6Services[scheme][ip], "443")
-		}
-	}
-
-	if scheme := s.ProbeScheme(host, "80"); scheme != "" {
-		// Store all resolved IPs under this scheme
-		for _, ip := range ips.IPv4 {
-			if result.IPv4Services[scheme] == nil {
-				result.IPv4Services[scheme] = make(map[string][]string)
-			}
-			result.IPv4Services[scheme][ip] = append(result.IPv4Services[scheme][ip], "80")
-		}
-		for _, ip := range ips.IPv6 {
-			if result.IPv6Services[scheme] == nil {
-				result.IPv6Services[scheme] = make(map[string][]string)
-			}
-			result.IPv6Services[scheme][ip] = append(result.IPv6Services[scheme][ip], "80")
-		}
-	}
-
-	s.cache.Set(host, result)
-
-	return nil
-}
-
-func (s *ReconService) ResolveHost(hostname string) (*IPAddrs, error) {
-	result := &IPAddrs{}
-
-	// Check hosts file first
-	if ip := ResolveThroughSystemHostsFile(hostname); ip != "" {
-		GB403Logger.Debug().Msgf("Resolved %s locally to %s", hostname, ip)
-		if strings.Contains(ip, ":") {
-			result.IPv6 = append(result.IPv6, ip)
-		} else {
-			result.IPv4 = append(result.IPv4, ip)
-		}
-		return result, nil
-	}
-
-	// Try system resolver first
-	GB403Logger.Verbose().Msgf("Trying system resolver for %s", hostname)
-	ips, err := net.LookupHost(hostname)
-	if err == nil {
-		GB403Logger.Verbose().Msgf("System resolver succeeded for %s: %v", hostname, ips)
-		for _, ip := range ips {
-			if ip4 := net.ParseIP(ip).To4(); ip4 != nil {
-				result.IPv4 = append(result.IPv4, ip4.String())
-			} else {
-				result.IPv6 = append(result.IPv6, ip)
-			}
-		}
-		return result, nil
-	}
-	GB403Logger.Debug().Msgf("System resolver failed for %s: %v", hostname, err)
-
-	// Fall back to custom resolver
-	GB403Logger.Debug().Msgf("Trying custom resolvers for %s", hostname)
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+func (r *ReconService) ResolveDomain(host string) ([]net.IP, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	customIPs, err := s.dialer.Resolver.LookupIPAddr(ctx, hostname)
-	if err != nil {
-		GB403Logger.Error().Msgf("All resolvers failed for %s: %v", hostname, err)
-		return nil, err
-	}
+	// Create channels for all resolution methods
+	resultChan := make(chan []net.IP, len(r.dnsServers)+2)
+	errChan := make(chan error, len(r.dnsServers)+2)
+	doneChan := make(chan struct{})
 
-	for _, ip := range customIPs {
-		if ip4 := ip.IP.To4(); ip4 != nil {
-			result.IPv4 = append(result.IPv4, ip4.String())
-		} else {
-			result.IPv6 = append(result.IPv6, ip.IP.String())
+	// Track results
+	var ips []net.IP
+	seen := make(map[string]struct{})
+	responses := 0
+	expectedResponses := len(r.dnsServers) + 2 // DNS servers + system resolver + DoH
+
+	// Start result collector goroutine
+	go func() {
+		for {
+			select {
+			case resolvedIPs := <-resultChan:
+				responses++
+				// Add any new IPs to our result set
+				for _, ip := range resolvedIPs {
+					key := ip.String()
+					if _, exists := seen[key]; !exists {
+						seen[key] = struct{}{}
+						ips = append(ips, ip)
+					}
+				}
+			case <-errChan:
+				responses++
+			case <-ctx.Done():
+				doneChan <- struct{}{}
+				return
+			}
+
+			// Signal completion if we have IPs or all resolvers responded
+			if len(ips) > 0 || responses >= expectedResponses {
+				doneChan <- struct{}{}
+				return
+			}
 		}
+	}()
+
+	// 1. Launch system resolver
+	go func() {
+		if ips, err := net.DefaultResolver.LookupIPAddr(ctx, host); err == nil {
+			resultChan <- convertIPAddrs(ips)
+		} else {
+			errChan <- err
+		}
+	}()
+
+	// 2. Launch all DNS servers
+	for _, server := range r.dnsServers {
+		go func(server string) {
+			resolver := &net.Resolver{
+				PreferGo: true,
+				Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
+					d := net.Dialer{Timeout: 2 * time.Second}
+					return d.DialContext(ctx, "udp", server)
+				},
+			}
+
+			if ips, err := resolver.LookupIPAddr(ctx, host); err == nil {
+				resultChan <- convertIPAddrs(ips)
+			} else {
+				errChan <- err
+			}
+		}(server)
 	}
 
-	// Get CNAMEs
-	if cname, err := net.LookupCNAME(hostname); err == nil && cname != "" {
-		result.CNAMEs = append(result.CNAMEs, cname)
-	}
+	// 3. Launch DoH resolver
+	go func() {
+		req := fasthttp.AcquireRequest()
+		resp := fasthttp.AcquireResponse()
+		defer func() {
+			fasthttp.ReleaseRequest(req)
+			fasthttp.ReleaseResponse(resp)
+		}()
 
-	return result, nil
+		req.SetRequestURI(fmt.Sprintf("https://cloudflare-dns.com/dns-query?name=%s&type=A,AAAA", host))
+		req.Header.Set("Accept", "application/dns-json")
+
+		client := &fasthttp.Client{
+			TLSConfig:   &tls.Config{InsecureSkipVerify: true},
+			ReadTimeout: 5 * time.Second,
+			Dial:        r.dialer.Dial,
+		}
+
+		if err := client.DoTimeout(req, resp, 5*time.Second); err == nil {
+			var dohResponse struct {
+				Answer []struct {
+					Type int    `json:"type"`
+					Data string `json:"data"`
+				} `json:"Answer"`
+			}
+
+			if json.Unmarshal(resp.Body(), &dohResponse) == nil {
+				var ips []net.IP
+				for _, answer := range dohResponse.Answer {
+					if ip := net.ParseIP(answer.Data); ip != nil && (answer.Type == 1 || answer.Type == 28) {
+						ips = append(ips, ip)
+					}
+				}
+				resultChan <- ips
+			} else {
+				errChan <- fmt.Errorf("DoH JSON unmarshal failed")
+			}
+		} else {
+			errChan <- err
+		}
+	}()
+
+	// Wait for completion or timeout
+	select {
+	case <-doneChan:
+		if len(ips) > 0 {
+			return ips, nil
+		}
+		return nil, fmt.Errorf("all DNS resolution attempts failed")
+	case <-ctx.Done():
+		return nil, fmt.Errorf("DNS resolution timeout")
+	}
 }
 
-func (s *ReconService) ProbeScheme(host, port string) string {
-	addr := net.JoinHostPort(host, port)
-	GB403Logger.Debug().Msgf("Probing %s", addr)
+// ProbePort checks if a specific port is open and what protocol it speaks
+func (r *ReconService) ProbePort(ip string, port string) (string, bool) {
+	addr := net.JoinHostPort(ip, port)
 
-	// Check if the port is open using a TCP connection
-	conn, err := net.DialTimeout("tcp", addr, 5*time.Second)
+	// First attempt HTTPS
+	conn, err := r.dialer.DialDualStackTimeout(addr, 2*time.Second)
+	if err == nil {
+		tlsConn := tls.Client(conn, &tls.Config{
+			InsecureSkipVerify: true,
+			ServerName:         ip,
+		})
+		tlsConn.SetDeadline(time.Now().Add(2 * time.Second))
+		if tlsConn.Handshake() == nil {
+			tlsConn.Close()
+			return "https", true
+		}
+		conn.Close()
+	}
+
+	// Then check HTTP
+	conn2, err := net.DialTimeout("tcp", addr, 3*time.Second)
 	if err != nil {
-		GB403Logger.Debug().Msgf("Port %s is closed: %v", addr, err)
-		return ""
+		return "", false
+	}
+	defer conn2.Close()
+
+	_, err = fmt.Fprintf(conn2, "HEAD / HTTP/1.1\r\nHost: %s\r\n\r\n", addr)
+	if err != nil {
+		return "tcp", true // At least the port is open
 	}
 
-	defer conn.Close()
-
-	// Attempt a TLS handshake to check for TLS support
-	tlsConfig := &tls.Config{
-		InsecureSkipVerify: true,
-		MinVersion:         tls.VersionTLS10,
-		MaxVersion:         tls.VersionTLS13,
-		Renegotiation:      tls.RenegotiateOnceAsClient,
-	}
-	tlsConn := tls.Client(conn, tlsConfig)
-	err = tlsConn.Handshake()
-	if err == nil {
-		// TLS handshake succeeded, indicating TLS support
-		GB403Logger.Verbose().Msgf("TLS supported on %s", addr)
-		return "https"
-	}
-	GB403Logger.Verbose().Msgf("TLS handshake failed on %s: %v", addr, err)
-
-	// If TLS fails, try a basic HTTP check (fasthttp client)
-	client := &fasthttp.Client{
-		NoDefaultUserAgentHeader:      true,
-		DisableHeaderNamesNormalizing: true,
-		DisablePathNormalizing:        true,
+	buf := make([]byte, 1024)
+	conn2.SetReadDeadline(time.Now().Add(3 * time.Second))
+	n, err := conn2.Read(buf)
+	if err != nil {
+		return "tcp", true
 	}
 
-	req := fasthttp.AcquireRequest()
-	resp := fasthttp.AcquireResponse()
-	defer fasthttp.ReleaseRequest(req)
-	defer fasthttp.ReleaseResponse(resp)
-
-	req.SetRequestURI(fmt.Sprintf("http://%s", addr))
-	err = client.Do(req, resp)
-	if err == nil {
-		// HTTP request succeeded, indicating HTTP support
-		GB403Logger.Verbose().Msgf("HTTP supported on %s", addr)
-		return "http"
+	if n > 0 && strings.HasPrefix(string(buf), "HTTP") {
+		return "http", true
 	}
-	GB403Logger.Verbose().Msgf("HTTP request failed on %s: %v", addr, err)
 
-	// If both checks fail, return an empty string
-	return ""
+	return "tcp", true
+}
+
+func convertIPAddrs(ipAddrs []net.IPAddr) []net.IP {
+	ips := make([]net.IP, len(ipAddrs))
+	for i, addr := range ipAddrs {
+		ips[i] = addr.IP
+	}
+	return ips
+}
+
+func extractHostAndPort(input string) (host string, port string, err error) {
+	input = strings.TrimSpace(strings.TrimPrefix(strings.TrimPrefix(input, "http://"), "https://"))
+	if input == "" {
+		return "", "", fmt.Errorf("empty hostname")
+	}
+
+	// Split host and port if exists
+	host, port, err = net.SplitHostPort(input)
+	if err != nil {
+		// No port specified, just return the host
+		return input, "", nil
+	}
+	return host, port, nil
 }

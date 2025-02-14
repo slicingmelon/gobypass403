@@ -1,10 +1,11 @@
 package rawhttp
 
 import (
+	"bufio"
 	"bytes"
-	"fmt"
 	"io"
 	"runtime"
+	"sync"
 	"unsafe"
 
 	"github.com/slicingmelon/go-bypass-403/internal/engine/payload"
@@ -45,7 +46,15 @@ var (
 	strTitle          = []byte("<title>")
 	strCloseTitle     = []byte("</title>")
 	strLocationHeader = []byte("Location")
+
+	strErrorReadingPreview = []byte("Error reading reponse preview")
 )
+
+var responseDetailsPool = sync.Pool{
+	New: func() any {
+		return &RawHTTPResponseDetails{}
+	},
+}
 
 type RawHTTPResponseDetails struct {
 	URL             []byte
@@ -64,6 +73,32 @@ type RawHTTPResponseDetails struct {
 	DebugToken      []byte
 }
 
+func AcquireResponseDetails() *RawHTTPResponseDetails {
+	return responseDetailsPool.Get().(*RawHTTPResponseDetails)
+}
+
+func ReleaseResponseDetails(rd *RawHTTPResponseDetails) {
+	// Clear all byte slices
+	rd.URL = rd.URL[:0]
+	rd.BypassModule = rd.BypassModule[:0]
+	rd.CurlCommand = rd.CurlCommand[:0]
+	rd.ResponsePreview = rd.ResponsePreview[:0]
+	rd.ResponseHeaders = rd.ResponseHeaders[:0]
+	rd.ContentType = rd.ContentType[:0]
+	rd.ServerInfo = rd.ServerInfo[:0]
+	rd.RedirectURL = rd.RedirectURL[:0]
+	rd.Title = rd.Title[:0]
+	rd.DebugToken = rd.DebugToken[:0]
+
+	// Reset numeric fields
+	rd.StatusCode = 0
+	rd.ContentLength = 0
+	rd.ResponseBytes = 0
+	rd.ResponseTime = 0
+
+	responseDetailsPool.Put(rd)
+}
+
 // Request must contain at least non-zero RequestURI with full url (including
 // scheme and host) or non-zero Host header + RequestURI.
 //
@@ -79,15 +114,16 @@ type RawHTTPResponseDetails struct {
 // to the requested host are busy.
 // BuildRequest creates and configures a HTTP request from a bypass job (payload job)
 func BuildHTTPRequest(httpclient *HTTPClient, req *fasthttp.Request, job payload.PayloadJob) error {
+	// Disable all normalizing to preserve raw paths
+	req.URI().DisablePathNormalizing = true
+	req.Header.DisableNormalizing()
+	req.Header.SetNoDefaultContentType(true)
+
 	req.UseHostHeader = false
 	req.Header.SetMethod(job.Method)
 
 	req.SetRequestURI(job.FullURL)
-
-	// Disable all normalizing for raw path testing
-	req.URI().DisablePathNormalizing = true
-	req.Header.DisableNormalizing()
-	req.Header.SetNoDefaultContentType(true)
+	req.URI().SetScheme(job.Scheme)
 
 	// !!Always close connection when custom headers are present
 	shouldCloseConn := len(job.Headers) > 0 ||
@@ -117,72 +153,287 @@ func BuildHTTPRequest(httpclient *HTTPClient, req *fasthttp.Request, job payload
 		//req.SetConnectionClose()
 	}
 
+	//GB403Logger.Debug().Msgf("[%s] - Request:\n%s\n", job.BypassModule, string(req.String()))
+
 	return nil
 }
 
-// ProcessHTTPResponse handles response processing
+var rawRequestPool = sync.Pool{
+	New: func() interface{} {
+		return bytes.NewBuffer(make([]byte, 0, 4096)) // Pre-allocate 4KB
+	},
+}
+
+// AcquireRawRequest gets a buffer from the pool
+func AcquireRawRequest() *bytes.Buffer {
+	return rawRequestPool.Get().(*bytes.Buffer)
+}
+
+// ReleaseRawRequest returns a buffer to the pool
+func ReleaseRawRequest(buf *bytes.Buffer) {
+	buf.Reset()
+	rawRequestPool.Put(buf)
+}
+
+/*
+Crucial information
+
+The detination/target URL is built based on req.URI, aka where the request will be sent to.
+
+Use req.URI().SetScheme("https") to set the scheme to https
+Use req.URI().SetHost("example.com") to set the target host -> this is where the request will be sent to
+Use req.SetRequestURI("/path") to set the path (e.g., / or /ssdaf).
+
+For spoofed/custom Host header!
+Set req.UseHostHeader = true to ensure the custom Host header is used instead of the URI host (fasthttp will extract it from the URI)
+Use req.Header.Set("Host", "evil.com") to set the spoofed Host header
+
+To set true raw request line, e.g. GET @evil.com HTTP/1.1, do not set req.SetRequestURI() and write the raw request line manually.
+*/
+// func BuildRawHTTPRequest(httpclient *HTTPClient, req *fasthttp.Request, job payload.PayloadJob) error {
+// 	// Get raw request buffer from pool
+// 	buf := AcquireRawRequest()
+// 	defer ReleaseRawRequest(buf)
+
+// 	// Build request line
+// 	buf.WriteString(job.Method)
+// 	buf.WriteString(" ")
+// 	buf.WriteString(job.RawURI) // e.g., "/path?query=1"
+// 	buf.WriteString(" ")
+// 	buf.WriteString("HTTP/1.1\r\n")
+
+// 	// Custom headers
+// 	shouldCloseConn := len(job.Headers) > 0 ||
+// 		httpclient.GetHTTPClientOptions().DisableKeepAlive ||
+// 		httpclient.GetHTTPClientOptions().ProxyURL != ""
+
+// 	for _, h := range job.Headers {
+// 		if h.Header == "Host" {
+// 			shouldCloseConn = true // Force close if Host header is explicitly in Headers[]
+// 		}
+// 		buf.WriteString(h.Header)
+// 		buf.WriteString(": ")
+// 		buf.WriteString(h.Value)
+// 		buf.WriteString("\r\n")
+// 	}
+
+// 	// Debug token
+// 	if GB403Logger.IsDebugEnabled() {
+// 		buf.WriteString("X-GB403-Token: ")
+// 		buf.WriteString(job.PayloadToken)
+// 		buf.WriteString("\r\n")
+// 	}
+
+// 	// Connection handling
+// 	if shouldCloseConn {
+// 		buf.WriteString("Connection: close\r\n")
+// 	} else {
+// 		buf.WriteString("Connection: keep-alive\r\n")
+// 	}
+
+// 	// End of headers
+// 	buf.WriteString("\r\n")
+
+// 	// Disable all normalizing and encodings
+// 	req.URI().DisablePathNormalizing = true
+// 	req.Header.DisableNormalizing()
+// 	req.Header.SetNoDefaultContentType(true)
+
+// 	// Always use custom Host header
+// 	req.UseHostHeader = true
+
+// 	// Set the target host in the URI
+// 	req.URI().SetScheme(job.Scheme) // "https" or "http"
+// 	req.URI().SetHost(job.Host)     // e.g., "example.com"
+
+// 	// Parse back into fasthttp.Request
+// 	br := bufio.NewReader(bytes.NewReader(buf.Bytes()))
+// 	if err := req.Read(br); err != nil {
+// 		return fmt.Errorf("failed to parse raw request: %v", err)
+// 	}
+
+// 	// Override the Host header after parsing the raw request
+// 	// if hostHeader := req.Header.Peek("Host"); len(hostHeader) > 0 {
+// 	// 	req.Header.SetHostBytes(hostHeader)
+// 	// }
+
+// 	return nil
+// }
+
+// func BuildRawHTTPRequest(httpclient *HTTPClient, req *fasthttp.Request, job payload.PayloadJob) error {
+// 	// Get raw request buffer from pool
+// 	buf := AcquireRawRequest()
+// 	defer ReleaseRawRequest(buf)
+
+// 	// Build request line
+// 	buf.WriteString(job.Method)
+// 	buf.WriteString(" ")
+// 	buf.WriteString(job.RawURI) // e.g., "/path?query=1"
+// 	buf.WriteString(" ")
+// 	buf.WriteString("HTTP/1.1\r\n")
+
+// 	// Custom headers
+// 	// shouldCloseConn := len(job.Headers) > 0 ||
+// 	// 	httpclient.GetHTTPClientOptions().DisableKeepAlive ||
+// 	// 	httpclient.GetHTTPClientOptions().ProxyURL != ""
+
+// 	for _, h := range job.Headers {
+// 		buf.WriteString(h.Header)
+// 		buf.WriteString(": ")
+// 		buf.WriteString(h.Value)
+// 		buf.WriteString("\r\n")
+// 	}
+
+// 	// Debug token
+// 	if GB403Logger.IsDebugEnabled() {
+// 		buf.WriteString("X-GB403-Token: ")
+// 		buf.WriteString(job.PayloadToken)
+// 		buf.WriteString("\r\n")
+// 	}
+
+// 	buf.WriteString("Connection: close\r\n")
+
+// 	// End of headers
+// 	buf.WriteString("\r\n")
+
+// 	// Disable all normalizing and encodings
+// 	req.URI().DisablePathNormalizing = true
+// 	req.Header.DisableNormalizing()
+// 	req.Header.SetNoDefaultContentType(true)
+
+// 	// Parse back into fasthttp.Request
+// 	br := bufio.NewReader(bytes.NewReader(buf.Bytes()))
+// 	if err := req.Read(br); err != nil {
+// 		return fmt.Errorf("failed to parse raw request: %v", err)
+// 	}
+
+// 	// Always use custom Host header
+// 	req.UseHostHeader = true
+
+// 	// Set the target host in the URI
+// 	req.URI().SetScheme(job.Scheme) // "https" or "http"
+// 	req.URI().SetHost(job.Host)     // e.g., "example.com"
+
+// 	// Override the Host header after parsing the raw request
+// 	// if hostHeader := req.Header.Peek("Host"); len(hostHeader) > 0 {
+// 	// 	req.Header.SetHostBytes(hostHeader)
+// 	// }
+
+// 	return nil
+// }
+
+func BuildRawHTTPRequest(httpclient *HTTPClient, req *fasthttp.Request, job payload.PayloadJob) error {
+	// Get raw request buffer from pool
+	buf := AcquireRawRequest()
+	defer ReleaseRawRequest(buf)
+
+	// Build request line
+	buf.WriteString(job.Method)
+	buf.WriteString(" ")
+	buf.WriteString(job.RawURI) // e.g., "/path?query=1"
+	buf.WriteString(" ")
+	buf.WriteString("HTTP/1.1\r\n")
+
+	// Custom headers
+	shouldCloseConn := len(job.Headers) > 0 ||
+		httpclient.GetHTTPClientOptions().DisableKeepAlive ||
+		httpclient.GetHTTPClientOptions().ProxyURL != ""
+
+	for _, h := range job.Headers {
+		if h.Header == "Host" {
+			shouldCloseConn = true // Force close if Host header is explicitly in Headers[]
+		}
+		buf.WriteString(h.Header)
+		buf.WriteString(": ")
+		buf.WriteString(h.Value)
+		buf.WriteString("\r\n")
+	}
+
+	// Debug token
+	if GB403Logger.IsDebugEnabled() {
+		buf.WriteString("X-GB403-Token: ")
+		buf.WriteString(job.PayloadToken)
+		buf.WriteString("\r\n")
+	}
+
+	// Connection handling
+	if shouldCloseConn {
+		buf.WriteString("Connection: close\r\n")
+	} else {
+		buf.WriteString("Connection: keep-alive\r\n")
+	}
+
+	// End of headers
+	buf.WriteString("\r\n")
+
+	// Parse back into fasthttp.Request
+	br := bufio.NewReader(bytes.NewReader(buf.Bytes()))
+	if err := req.Read(br); err != nil {
+		GB403Logger.Error().Msgf("Failed to parse raw request: %v\n", err)
+		return err
+	}
+
+	// Disable all normalizing and encodings !! AFTER parsing the raw request into fasthttp req
+	req.URI().DisablePathNormalizing = true
+	req.Header.DisableNormalizing()
+	req.Header.SetNoDefaultContentType(true)
+
+	// Always use custom Host header
+	req.UseHostHeader = true
+
+	// Set the target host in the URI after parsing the raw request
+	req.URI().SetScheme(job.Scheme) // "https" or "http"
+	req.URI().SetHost(job.Host)     // e.g., "example.com"
+
+	//GB403Logger.Debug().Msgf("Raw request After back into fasthttp req :\n%s", req.String())
+	return nil
+}
+
 func ProcessHTTPResponse(httpclient *HTTPClient, resp *fasthttp.Response, job payload.PayloadJob) *RawHTTPResponseDetails {
-	responseTime := httpclient.GetLastResponseTime()
+	result := AcquireResponseDetails() // Allocate new result each time
 
 	statusCode := resp.StatusCode()
 	contentLength := resp.Header.ContentLength()
-
 	httpClientOpts := httpclient.GetHTTPClientOptions()
 
-	result := &RawHTTPResponseDetails{
-		URL:           append([]byte(nil), job.FullURL...),
-		BypassModule:  append([]byte(nil), job.BypassModule...),
-		StatusCode:    statusCode,
-		ContentLength: int64(contentLength),
-		DebugToken:    append([]byte(nil), job.PayloadToken...),
-	}
+	// Set basic response details
+	result.URL = append(result.URL, job.FullURL...)
+	result.BypassModule = append(result.BypassModule, job.BypassModule...)
+	result.StatusCode = statusCode
+	result.ContentLength = int64(contentLength)
+	result.DebugToken = append(result.DebugToken, job.PayloadToken...)
 
 	// Check for redirect early
 	if fasthttp.StatusCodeIsRedirect(statusCode) {
-		if location := PeekHeaderKeyCaseInsensitive(&resp.Header, strLocationHeader); len(location) > 0 {
-			result.RedirectURL = append([]byte(nil), location...)
+		if location := PeekResponseHeaderKeyCaseInsensitive(resp, strLocationHeader); len(location) > 0 {
+			result.RedirectURL = append(result.RedirectURL, location...)
 		}
 	}
 
 	// Get all HTTP response headers
-	result.ResponseHeaders = GetResponseHeaders(&resp.Header, statusCode)
+	result.ResponseHeaders = GetResponseHeaders(&resp.Header, statusCode, result.ResponseHeaders)
 
 	// Store the rest of the processed data
-	result.ContentType = append([]byte(nil), resp.Header.ContentType()...)
-	result.ServerInfo = append([]byte(nil), resp.Header.Server()...)
+	result.ContentType = append(result.ContentType, resp.Header.ContentType()...)
+	result.ServerInfo = append(result.ServerInfo, resp.Header.Server()...)
 
 	// Handle body preview
 	if httpClientOpts.MaxResponseBodySize > 0 && httpClientOpts.ResponseBodyPreviewSize > 0 {
 		if httpClientOpts.StreamResponseBody {
 			if stream := resp.BodyStream(); stream != nil {
-				// Create a buffer for preview
-				previewBuf := bytes.NewBuffer(make([]byte, 0, httpClientOpts.ResponseBodyPreviewSize))
-
-				// Read limited amount of data
-				if _, err := io.CopyN(previewBuf, stream, int64(httpClientOpts.ResponseBodyPreviewSize)); err != nil && err != io.EOF {
-					// Only set error message if it's not EOF
-					result.ResponsePreview = []byte(fmt.Sprintf("Error reading preview: %v", err))
-				} else {
-					// Successfully read the preview
-					result.ResponsePreview = append([]byte(nil), previewBuf.Bytes()...)
-				}
-
+				result.ResponsePreview = ReadLimitedResponseBodyStream(stream, httpClientOpts.ResponseBodyPreviewSize, result.ResponsePreview)
 				resp.CloseBodyStream()
-
-				// For streaming, use content length from header
 				result.ResponseBytes = int(contentLength)
 			}
 		} else {
-			// Non-streaming case -> resp.Body()
 			if body := resp.Body(); len(body) > 0 {
 				previewSize := httpClientOpts.ResponseBodyPreviewSize
 				if len(body) > previewSize {
-					result.ResponsePreview = append([]byte(nil), body[:previewSize]...)
+					result.ResponsePreview = append(result.ResponsePreview, body[:previewSize]...)
 				} else {
-					result.ResponsePreview = append([]byte(nil), body...)
+					result.ResponsePreview = append(result.ResponsePreview, body...)
 				}
 
-				// For non-streaming, use content length if available, otherwise use body length
 				if contentLength > 0 {
 					result.ResponseBytes = int(contentLength)
 				} else {
@@ -194,16 +445,11 @@ func ProcessHTTPResponse(httpclient *HTTPClient, resp *fasthttp.Response, job pa
 
 	// Extract title if HTML response
 	if len(result.ResponsePreview) > 0 && bytes.Contains(result.ContentType, strHTML) {
-		if title := ExtractTitle(result.ResponsePreview); title != nil {
-			result.Title = append([]byte(nil), title...)
-		}
+		result.Title = ExtractTitle(result.ResponsePreview, result.Title)
 	}
 
 	// Generate curl command PoC
-	result.CurlCommand = BuildCurlCommandPoc(job)
-
-	// update response time
-	result.ResponseTime = responseTime
+	result.CurlCommand = BuildCurlCommandPoc(job, result.CurlCommand)
 
 	return result
 }
@@ -224,49 +470,62 @@ func Byte2String(b []byte) string {
 	return unsafe.String(unsafe.SliceData(b), len(b))
 }
 
-// BuildCurlCommandPoc generates a curl poc command to reproduce the findings
-func BuildCurlCommandPoc(job payload.PayloadJob) []byte {
-	// Get buffer from pool
-	bb := curlCmdPool.Get()
-	defer curlCmdPool.Put(bb)
-	bb.Reset()
+// ReadLimitedResponseBodyStream reads limited bytes from a response body stream
+// Appends the result to dest slice
+func ReadLimitedResponseBodyStream(stream io.Reader, previewSize int, dest []byte) []byte {
+	// Create a buffer for preview
+	previewBuf := bytes.NewBuffer(make([]byte, 0, previewSize))
 
-	// Build command
-	bb.Write(curlCmd)
-	bb.Write(strSpace)
-	bb.Write(curlFlags)
+	// Read limited amount of data
+	if _, err := io.CopyN(previewBuf, stream, int64(previewSize)); err != nil && err != io.EOF {
+		return append(dest[:0], strErrorReadingPreview...)
+	}
+
+	return append(dest[:0], previewBuf.Bytes()...)
+}
+
+// BuildCurlCommandPoc builds a curl command for the payload job
+// Appends the result to dest slice
+func BuildCurlCommandPoc(job payload.PayloadJob, dest []byte) []byte {
+	// Reset destination slice
+	dest = dest[:0]
+
+	// Build command directly into dest
+	dest = append(dest, curlCmd...)
+	dest = append(dest, strSpace...)
+	dest = append(dest, curlFlags...)
 
 	if job.Method != "GET" {
-		bb.Write(strSpace)
-		bb.Write(curlMethodX)
-		bb.Write(strSpace)
-		bb.Write(bytesutil.ToUnsafeBytes(job.Method))
+		dest = append(dest, strSpace...)
+		dest = append(dest, curlMethodX...)
+		dest = append(dest, strSpace...)
+		dest = append(dest, bytesutil.ToUnsafeBytes(job.Method)...)
 	}
 
 	// Headers
 	for _, h := range job.Headers {
-		bb.Write(strSpace)
-		bb.Write(curlHeaderH)
-		bb.Write(strSpace)
-		bb.Write(strSingleQuote)
-		bb.Write(bytesutil.ToUnsafeBytes(h.Header))
-		bb.Write(strColonSpace)
-		bb.Write(bytesutil.ToUnsafeBytes(h.Value))
-		bb.Write(strSingleQuote)
+		dest = append(dest, strSpace...)
+		dest = append(dest, curlHeaderH...)
+		dest = append(dest, strSpace...)
+		dest = append(dest, strSingleQuote...)
+		dest = append(dest, bytesutil.ToUnsafeBytes(h.Header)...)
+		dest = append(dest, strColonSpace...)
+		dest = append(dest, bytesutil.ToUnsafeBytes(h.Value)...)
+		dest = append(dest, strSingleQuote...)
 	}
 
 	// URL
-	bb.Write(strSpace)
-	bb.Write(strSingleQuote)
-	bb.Write(bytesutil.ToUnsafeBytes(job.FullURL))
-	bb.Write(strSingleQuote)
+	dest = append(dest, strSpace...)
+	dest = append(dest, strSingleQuote...)
+	dest = append(dest, bytesutil.ToUnsafeBytes(job.FullURL)...)
+	dest = append(dest, strSingleQuote...)
 
-	// Return a copy of the buffer's contents
-	return append([]byte(nil), bb.B...)
+	return dest
 }
 
 // GetResponseHeaders gets all HTTP headers including values from the response
-func GetResponseHeaders(h *fasthttp.ResponseHeader, statusCode int) []byte {
+// Appends them to dest slice
+func GetResponseHeaders(h *fasthttp.ResponseHeader, statusCode int, dest []byte) []byte {
 	headerBuf := headerBufPool.Get()
 	defer headerBufPool.Put(headerBuf)
 	headerBuf.Reset()
@@ -288,48 +547,59 @@ func GetResponseHeaders(h *fasthttp.ResponseHeader, statusCode int) []byte {
 	})
 	headerBuf.Write(strCRLF)
 
-	// Return copy of buffer contents
-	return append([]byte(nil), headerBuf.B...)
+	// Append to existing slice instead of creating new one
+	return append(dest[:0], headerBuf.B...)
 }
 
 // Helper function to peek a header key case insensitive
-func PeekHeaderKeyCaseInsensitive(h *fasthttp.ResponseHeader, key []byte) []byte {
-	// Try original
-	if v := h.PeekBytes(key); len(v) > 0 {
-		return v
-	}
+func PeekResponseHeaderKeyCaseInsensitive(h *fasthttp.Response, key []byte) []byte {
+	var result []byte
+	h.Header.VisitAll(func(k, v []byte) {
+		if result == nil && bytes.EqualFold(k, key) {
+			result = v
+		}
+	})
+	return result
+}
 
-	// Otherwise lowercase it
-	lowerKey := bytes.ToLower(key)
-	return h.PeekBytes(lowerKey)
+func PeekRequestHeaderKeyCaseInsensitive(h *fasthttp.Request, key []byte) []byte {
+	var result []byte
+	h.Header.VisitAll(func(k, v []byte) {
+		if result == nil && bytes.EqualFold(k, key) {
+			result = v
+		}
+	})
+	return result
 }
 
 // Helper function to extract title from HTML
-func ExtractTitle(body []byte) []byte {
+// Appends the result to dest slice
+func ExtractTitle(body []byte, dest []byte) []byte {
 	if len(body) == 0 {
-		return nil
+		return dest
 	}
 
 	// Find start of title tag
 	titleStart := bytes.Index(body, strTitle)
 	if titleStart == -1 {
-		return nil
+		return dest
 	}
 	titleStart += 7 // len("<title>")
 
 	// Find closing tag
 	titleEnd := bytes.Index(body[titleStart:], strCloseTitle)
 	if titleEnd == -1 {
-		return nil
+		return dest
 	}
 
 	// Extract title content
 	title := bytes.TrimSpace(body[titleStart : titleStart+titleEnd])
 	if len(title) == 0 {
-		return nil
+		return dest
 	}
 
-	return append([]byte(nil), title...)
+	// Append to existing buffer instead of allocating
+	return append(dest, title...)
 }
 
 // GetHTTPResponseTime returns the response time (in ms) of the HTTP response

@@ -1,9 +1,12 @@
 package helpers
 
 import (
+	"bufio"
 	"fmt"
 	"net"
+	"os"
 	"regexp"
+	"runtime"
 	"strings"
 
 	GB403Logger "github.com/slicingmelon/go-bypass-403/internal/utils/logger"
@@ -75,4 +78,53 @@ func IsDNSName(str string) bool {
 
 	GB403Logger.Verbose().Msgf("DNS regex match result: %v", rxDNSName.MatchString(host))
 	return !IsIP(host) && rxDNSName.MatchString(host)
+}
+
+// Simple hosts file parser
+func ResolveThroughSystemHostsFile(host string) string {
+	// Handle localhost explicitly
+	if host == "localhost" {
+		return "127.0.0.1"
+	}
+
+	// Read /etc/hosts file
+	hostsFile := "/etc/hosts"
+	if runtime.GOOS == "windows" {
+		hostsFile = `C:\Windows\System32\drivers\etc\hosts`
+	}
+
+	file, err := os.Open(hostsFile)
+	if err != nil {
+		return ""
+	}
+	defer file.Close()
+
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+
+		fields := strings.Fields(line)
+		if len(fields) < 2 {
+			continue
+		}
+
+		ip := fields[0]
+		for _, h := range fields[1:] {
+			if h == host {
+				return ip
+			}
+		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		GB403Logger.Error().
+			Metadata("ResolveThroughSystemHostsFile()", "failed").
+			Msgf("Error reading hosts file: %v\n", err)
+		return ""
+	}
+
+	return ""
 }

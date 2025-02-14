@@ -1,34 +1,39 @@
 package rawhttp
 
 import (
+	"context"
 	"sync/atomic"
 	"time"
 
 	"github.com/alitto/pond/v2"
 	"github.com/slicingmelon/go-bypass-403/internal/engine/payload"
 	GB403ErrorHandler "github.com/slicingmelon/go-bypass-403/internal/utils/error"
+	GB403Logger "github.com/slicingmelon/go-bypass-403/internal/utils/logger"
 	"github.com/valyala/fasthttp"
 )
 
 // RequestWorkerPool manages concurrent HTTP request/response processing
 type RequestWorkerPool struct {
-	httpClient   *HTTPClient
-	errorHandler *GB403ErrorHandler.ErrorHandler
-	pool         pond.Pool
-	throttler    *Throttler
-
+	httpClient *HTTPClient
+	ctx        context.Context
+	cancel     context.CancelFunc
+	pool       pond.Pool
+	throttler  *Throttler
 	// Request rate tracking
 	requestStartTime atomic.Int64  // For elapsed time calculation
 	peakRequestRate  atomic.Uint64 // For tracking peak rate
 }
 
 // NewWorkerPool initializes a new RequestWorkerPool instance
-func NewRequestWorkerPool(opts *HTTPClientOptions, maxWorkers int, errorHandler *GB403ErrorHandler.ErrorHandler) *RequestWorkerPool {
+func NewRequestWorkerPool(opts *HTTPClientOptions, maxWorkers int) *RequestWorkerPool {
+	ctx, cancel := context.WithCancel(context.Background())
+
 	wp := &RequestWorkerPool{
-		httpClient:   NewHTTPClient(opts, errorHandler),
-		errorHandler: errorHandler,
-		pool:         pond.NewPool(maxWorkers),
-		throttler:    NewThrottler(nil),
+		httpClient: NewHTTPClient(opts),
+		ctx:        ctx,
+		cancel:     cancel,
+		pool:       pond.NewPool(maxWorkers, pond.WithContext(ctx)),
+		throttler:  NewThrottler(nil),
 	}
 
 	// Initialize start time
@@ -113,29 +118,40 @@ func (wp *RequestWorkerPool) ResetPeakRate() {
 // ProcessRequests handles multiple payload jobs
 func (wp *RequestWorkerPool) ProcessRequests(jobs []payload.PayloadJob) <-chan *RawHTTPResponseDetails {
 	results := make(chan *RawHTTPResponseDetails)
-	group := wp.pool.NewGroup()
+	group := wp.pool.NewGroupContext(wp.ctx)
 
 	for _, job := range jobs {
 		job := job // Capture for closure
 		group.Submit(func() {
 			if resp := wp.ProcessRequestResponseJob(job); resp != nil {
-				results <- resp
+				select {
+				case <-wp.ctx.Done():
+					return
+				case results <- resp:
+				}
 			}
 		})
 	}
 
-	// Close results channel when all tasks complete
 	go func() {
-		group.Wait()
-		close(results)
+		defer close(results)
+		select {
+		case <-wp.ctx.Done():
+			// Context was cancelled (due to max consecutive failures)
+			GB403Logger.Warning().Msgf("Worker pool cancelled: max consecutive failures reached for module [%s]\n", wp.httpClient.options.BypassModule)
+			wp.pool.StopAndWait() // Ensure all workers are stopped
+			return
+		case <-group.Done():
+			// Normal completion
+		}
 	}()
 
 	return results
 }
 
-// Close gracefully shuts down the worker pool
 func (wp *RequestWorkerPool) Close() {
-	wp.pool.StopAndWait()
+	wp.cancel()           // Cancel context if not already done
+	wp.pool.StopAndWait() // Ensure all workers are stopped
 	wp.ResetPeakRate()
 	wp.throttler.Reset()
 	wp.httpClient.Close()
@@ -148,55 +164,68 @@ func (wp *RequestWorkerPool) ProcessRequestResponseJob(job payload.PayloadJob) *
 	defer wp.httpClient.ReleaseRequest(req)
 	defer wp.httpClient.ReleaseResponse(resp)
 
-	// Apply current delay if throttling is active
-	if wp.throttler != nil {
-		if delay := wp.throttler.GetDelay(); delay > 0 {
-			time.Sleep(delay)
-		}
-	}
+	// Apply delays (throttling)
+	wp.applyDelays()
 
-	// Build HTTP Request
-	if err := wp.BuildRequestTask(req, job); err != nil {
-		if err := wp.errorHandler.HandleError(err, GB403ErrorHandler.ErrorContext{
-			ErrorSource:  []byte("RequestWorkerPool.BuildRequestTask"),
+	// if err := BuildHTTPRequest(wp.httpClient, req, job); err != nil {
+	// 	handleErr := wp.errorHandler.HandleError(err, GB403ErrorHandler.ErrorContext{
+	// 		ErrorSource:  []byte("RequestWorkerPool.BuildRequestTask"),
+	// 		Host:         []byte(job.Host),
+	// 		BypassModule: []byte(job.BypassModule),
+	// 	})
+	// 	if handleErr != nil {
+	// 		return nil
+	// 	}
+	// }
+
+	if err := BuildRawHTTPRequest(wp.httpClient, req, job); err != nil {
+		handleErr := GB403ErrorHandler.GetErrorHandler().HandleError(err, GB403ErrorHandler.ErrorContext{
+			ErrorSource:  []byte("RequestWorkerPool.BuildRawRequestTask"),
 			Host:         []byte(job.Host),
 			BypassModule: []byte(job.BypassModule),
-		}); err != nil {
+		})
+		if handleErr != nil {
 			return nil
 		}
 	}
 
-	respTime, err := wp.SendRequestTask(req, resp)
+	// DoRequest already handles error logging/handling
+	respTime, err := wp.httpClient.DoRequest(req, resp)
 	if err != nil {
-		if err := wp.errorHandler.HandleError(err, GB403ErrorHandler.ErrorContext{
-			ErrorSource:  []byte("RequestWorkerPool.SendRequestTask"),
-			Host:         []byte(job.Host),
-			BypassModule: []byte(job.BypassModule),
-		}); err != nil {
-			return nil
+		if err == ErrReqFailedMaxConsecutiveFails {
+			wp.cancel()
 		}
+		return nil
 	}
 
-	// Process response
-	result := wp.ProcessResponseTask(resp, job)
+	// Let ProcessHTTPResponse handle its own resource lifecycle
+	result := ProcessHTTPResponse(wp.httpClient, resp, job)
 	if result != nil {
 		result.ResponseTime = respTime
 	}
 
 	// Handle throttling based on response
-	if wp.throttler != nil {
+	if wp.throttler != nil && result != nil {
 		if wp.throttler.ShouldThrottleOnStatusCode(result.StatusCode) {
-			wp.throttler.GetDelay() // This will update the delay based on attempts
-			//GB403Logger.Warning().Msgf("Throttling request due to status code: %d", result.StatusCode)
+			wp.throttler.GetDelay()
 		}
 	}
 
 	return result
 }
 
+func (wp *RequestWorkerPool) applyDelays() {
+	// Apply throttler delay if active
+	if wp.throttler != nil {
+		if delay := wp.throttler.GetDelay(); delay > 0 {
+			time.Sleep(delay)
+		}
+	}
+}
+
 // buildRequest constructs the HTTP request
-func (wp *RequestWorkerPool) BuildRequestTask(req *fasthttp.Request, job payload.PayloadJob) error {
-	return BuildHTTPRequest(wp.httpClient, req, job)
+func (wp *RequestWorkerPool) BuildRawRequestTask(req *fasthttp.Request, job payload.PayloadJob) error {
+	return BuildRawHTTPRequest(wp.httpClient, req, job)
 }
 
 // SendRequest sends the HTTP request

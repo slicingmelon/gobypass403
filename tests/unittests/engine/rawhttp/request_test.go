@@ -9,11 +9,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/VictoriaMetrics/VictoriaMetrics/lib/bytesutil"
 	"github.com/slicingmelon/go-bypass-403/internal/engine/payload"
 	"github.com/slicingmelon/go-bypass-403/internal/engine/rawhttp"
 
-	GB403ErrorHandler "github.com/slicingmelon/go-bypass-403/internal/utils/error"
 	GB403Logger "github.com/slicingmelon/go-bypass-403/internal/utils/logger"
 	"github.com/valyala/fasthttp"
 	"github.com/valyala/fasthttp/fasthttputil"
@@ -76,7 +74,7 @@ func TestRequestBuilderViaEchoServer(t *testing.T) {
 	clientoptions.Dialer = func(addr string) (net.Conn, error) {
 		return ln.Dial()
 	}
-	client := rawhttp.NewHTTPClient(clientoptions, GB403ErrorHandler.NewErrorHandler(15))
+	client := rawhttp.NewHTTPClient(clientoptions)
 
 	// Test cases using real payload generators
 	testCases := []struct {
@@ -244,7 +242,7 @@ func TestRequestBuilderMidPathsPayloads(t *testing.T) {
 	clientoptions.Dialer = func(addr string) (net.Conn, error) {
 		return ln.Dial()
 	}
-	client := rawhttp.NewHTTPClient(clientoptions, GB403ErrorHandler.NewErrorHandler(15))
+	client := rawhttp.NewHTTPClient(clientoptions)
 
 	// Test cases using real payload generators
 	testCases := []struct {
@@ -316,7 +314,7 @@ func TestRequestBuilderHostHeaders(t *testing.T) {
 
 	clientOpts := rawhttp.DefaultHTTPClientOptions()
 
-	client := rawhttp.NewHTTPClient(clientOpts, GB403ErrorHandler.NewErrorHandler(15))
+	client := rawhttp.NewHTTPClient(clientOpts)
 	//rb := NewRequestBuilder(client, _logger)
 
 	testCases := []struct {
@@ -398,6 +396,11 @@ func TestResponseProcessingWithSpacedHeaders(t *testing.T) {
 			ctx.Response.Header.Set("Content-Type", "text/html; charset=utf-8")
 			ctx.SetStatusCode(200)
 			ctx.SetBody([]byte("<html><head><title>Test Page</title></head><body>Test content with spaces and special chars: áéíóú</body></html>"))
+		case "malformed-response":
+			// Test case for malformed response
+			ctx.Response.SetBodyString("nction() {\n\treturn this.href")
+			ctx.Response.Header.SetContentType("text/html")
+			ctx.SetStatusCode(200)
 		}
 	}
 
@@ -414,13 +417,16 @@ func TestResponseProcessingWithSpacedHeaders(t *testing.T) {
 	clientoptions.Dialer = func(addr string) (net.Conn, error) {
 		return ln.Dial()
 	}
-	client := rawhttp.NewHTTPClient(clientoptions, GB403ErrorHandler.NewErrorHandler(15))
+
+	client := rawhttp.NewHTTPClient(clientoptions)
 
 	testCases := []struct {
-		name         string
-		testCaseID   string
-		expectedResp map[string]string
-		expectedBody string
+		name           string
+		testCaseID     string
+		expectedResp   map[string]string
+		expectedBody   string
+		expectError    bool
+		expectedStatus int
 	}{
 		{
 			name:       "Content-Disposition with spaces",
@@ -429,7 +435,9 @@ func TestResponseProcessingWithSpacedHeaders(t *testing.T) {
 				"Content-Disposition": "attachment; filename=\"test file.pdf\"",
 				"Content-Type":        "application/pdf",
 			},
-			expectedBody: "PDF content with special chars: áéíóú",
+			expectedBody:   "PDF content with special chars: áéíóú",
+			expectError:    false,
+			expectedStatus: 200,
 		},
 		{
 			name:       "CSP Header with spaces",
@@ -438,69 +446,67 @@ func TestResponseProcessingWithSpacedHeaders(t *testing.T) {
 				"Content-Security-Policy": "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://example.com",
 				"Content-Type":            "text/html; charset=utf-8",
 			},
-			expectedBody: "<html><head><title>Test Page</title></head><body>Test content with spaces and special chars: áéíóú</body></html>",
+			expectedBody:   "<html><head><title>Test Page</title></head><body>Test content with spaces and special chars: áéíóú</body></html>",
+			expectError:    false,
+			expectedStatus: 200,
+		},
+		{
+			name:           "Malformed Response",
+			testCaseID:     "malformed-response",
+			expectedResp:   map[string]string{},
+			expectedBody:   "nction() {\n\treturn this.href",
+			expectError:    true,
+			expectedStatus: 0, // Status code will be 0 for malformed responses
 		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			req := fasthttp.AcquireRequest()
-			resp := fasthttp.AcquireResponse()
-			defer fasthttp.ReleaseRequest(req)
-			defer fasthttp.ReleaseResponse(resp)
+			req := client.AcquireRequest()
+			resp := client.AcquireResponse()
+			defer client.ReleaseRequest(req)
+			defer client.ReleaseResponse(resp)
 
 			req.SetRequestURI("http://testserver/test")
 			req.Header.SetMethod("GET")
 			req.Header.Set("X-Test-Case", tc.testCaseID)
 
-			_, err := client.DoRequest(req, resp)
-			if err != nil {
-				t.Fatalf("Request failed: %v", err)
+			respTime, err := client.DoRequest(req, resp)
+			if err != nil && !tc.expectError {
+				t.Fatalf("Unexpected request error: %v", err)
 			}
 
-			// Process response headers
-			headerBuf := &bytesutil.ByteBuffer{}
+			// Get response headers
+			headers := rawhttp.GetResponseHeaders(&resp.Header, resp.StatusCode(), []byte{})
 
-			// Write status line
-			headerBuf.Write(resp.Header.Protocol())
-			headerBuf.B = append(headerBuf.B, ' ')
-			headerBuf.B = fasthttp.AppendUint(headerBuf.B, resp.StatusCode())
-			headerBuf.B = append(headerBuf.B, ' ')
-			headerBuf.Write(resp.Header.StatusMessage())
-			headerBuf.Write(bytesutil.ToUnsafeBytes("\r\n"))
+			// Log response details for debugging
+			GB403Logger.Info().Msgf("\n=== Response Details for %s ===\n", tc.name)
+			GB403Logger.Info().Msgf("Response Time: %dms", respTime)
+			GB403Logger.Info().Msgf("Status Code: %d", resp.StatusCode())
+			GB403Logger.Info().Msgf("Headers:\n%s", string(headers))
+			GB403Logger.Info().Msgf("Body:\n%s", string(resp.Body()))
+			GB403Logger.Info().Msgf("================\n")
 
-			// Process headers once
-			resp.Header.VisitAll(func(key, value []byte) {
-				headerBuf.Write(key)
-				headerBuf.Write(bytesutil.ToUnsafeBytes(": "))
-				headerBuf.Write(value)
-				headerBuf.Write(bytesutil.ToUnsafeBytes("\r\n"))
-			})
-			headerBuf.Write(bytesutil.ToUnsafeBytes("\r\n"))
+			if !tc.expectError {
+				// Verify headers
+				for header, expectedValue := range tc.expectedResp {
+					if !bytes.Contains(headers, []byte(header+": "+expectedValue)) {
+						t.Errorf("Header %s not found or incorrect\nExpected: %s\nGot: %s",
+							header, expectedValue, string(headers))
+					}
+				}
 
-			// Log response details
-			GB403Logger.Info().Msgf("\n=== Response Details for %s ===\nHeaders:\n%s\nBody:\n%s\n================\n",
-				tc.name,
-				bytesutil.ToUnsafeString(headerBuf.B),
-				string(resp.Body()))
+				// Verify body
+				if !bytes.Equal(resp.Body(), []byte(tc.expectedBody)) {
+					t.Errorf("Body mismatch\nExpected: %s\nGot: %s",
+						tc.expectedBody, string(resp.Body()))
+				}
 
-			// Verify headers
-			for header, expectedValue := range tc.expectedResp {
-				if !bytes.Contains(headerBuf.B, []byte(header+": "+expectedValue)) {
-					t.Errorf("Header %s not found or incorrect\nExpected: %s\nGot: %s",
-						header, expectedValue, bytesutil.ToUnsafeString(headerBuf.B))
+				if resp.StatusCode() != tc.expectedStatus {
+					t.Errorf("Expected status code %d, got %d", tc.expectedStatus, resp.StatusCode())
 				}
 			}
 
-			// Verify body
-			if !bytes.Equal(resp.Body(), []byte(tc.expectedBody)) {
-				t.Errorf("Body mismatch\nExpected: %s\nGot: %s",
-					tc.expectedBody, string(resp.Body()))
-			}
-
-			if resp.StatusCode() != 200 {
-				t.Errorf("Expected status code 200, got %d", resp.StatusCode())
-			}
 		})
 	}
 }

@@ -15,6 +15,7 @@ type PayloadGenerator struct {
 type PayloadJob struct {
 	OriginalURL  string    // might never be used
 	Method       string    // this gets updated
+	Scheme       string    // this gets updated
 	Host         string    // this gets updated
 	RawURI       string    // this gets updated, represents everything that goes into the first line of the request u
 	Headers      []Headers // all headers as result of various payload generators
@@ -40,6 +41,7 @@ func (pg *PayloadGenerator) GenerateDumbJob(targetURL string, bypassModule strin
 	allJobs = append(allJobs, PayloadJob{
 		OriginalURL:  targetURL,
 		Method:       "GET",
+		Scheme:       parsedURL.Scheme,
 		Host:         parsedURL.Host,
 		RawURI:       parsedURL.Path,
 		FullURL:      targetURL,
@@ -109,6 +111,7 @@ func (pg *PayloadGenerator) GenerateMidPathsJobs(targetURL string, bypassModule 
 		jobs = append(jobs, PayloadJob{
 			OriginalURL:  targetURL,
 			Method:       "GET",
+			Scheme:       parsedURL.Scheme,
 			Host:         parsedURL.Host,
 			RawURI:       rawURI,
 			FullURL:      fullURL,
@@ -176,6 +179,7 @@ func (pg *PayloadGenerator) GenerateEndPathsJobs(targetURL string, bypassModule 
 		jobs = append(jobs, PayloadJob{
 			OriginalURL:  targetURL,
 			Method:       "GET",
+			Scheme:       parsedURL.Scheme,
 			Host:         parsedURL.Host,
 			RawURI:       rawURI,
 			FullURL:      fullURL,
@@ -236,6 +240,7 @@ func (pg *PayloadGenerator) GenerateHeaderIPJobs(targetURL string, bypassModule 
 	allJobs = append(allJobs, PayloadJob{
 		OriginalURL: targetURL,
 		Method:      "GET",
+		Scheme:      parsedURL.Scheme,
 		Host:        parsedURL.Host,
 		RawURI:      parsedURL.Path,
 		Headers: []Headers{{
@@ -261,6 +266,7 @@ func (pg *PayloadGenerator) GenerateHeaderIPJobs(targetURL string, bypassModule 
 					allJobs = append(allJobs, PayloadJob{
 						OriginalURL: targetURL,
 						Method:      "GET",
+						Scheme:      parsedURL.Scheme,
 						Host:        parsedURL.Host,
 						RawURI:      parsedURL.Path,
 						Headers: []Headers{{
@@ -329,6 +335,7 @@ func (pg *PayloadGenerator) GenerateCaseSubstitutionJobs(targetURL string, bypas
 	for fullURL, rawURI := range urls {
 		allJobs = append(allJobs, PayloadJob{
 			OriginalURL:  targetURL,
+			Scheme:       parsedURL.Scheme,
 			Method:       "GET",
 			Host:         parsedURL.Host,
 			RawURI:       rawURI,
@@ -381,6 +388,7 @@ func (pg *PayloadGenerator) GenerateCharEncodeJobs(targetURL string, bypassModul
 	for fullURL, rawURI := range singleUrls {
 		allJobs = append(allJobs, PayloadJob{
 			OriginalURL:  targetURL,
+			Scheme:       parsedURL.Scheme,
 			Method:       "GET",
 			Host:         parsedURL.Host,
 			RawURI:       rawURI,
@@ -393,6 +401,7 @@ func (pg *PayloadGenerator) GenerateCharEncodeJobs(targetURL string, bypassModul
 	for fullURL, rawURI := range doubleUrls {
 		allJobs = append(allJobs, PayloadJob{
 			OriginalURL:  targetURL,
+			Scheme:       parsedURL.Scheme,
 			Method:       "GET",
 			Host:         parsedURL.Host,
 			RawURI:       rawURI,
@@ -405,6 +414,7 @@ func (pg *PayloadGenerator) GenerateCharEncodeJobs(targetURL string, bypassModul
 	for fullURL, rawURI := range tripleUrls {
 		allJobs = append(allJobs, PayloadJob{
 			OriginalURL:  targetURL,
+			Scheme:       parsedURL.Scheme,
 			Method:       "GET",
 			Host:         parsedURL.Host,
 			RawURI:       rawURI,
@@ -446,6 +456,7 @@ func (pg *PayloadGenerator) GenerateHeaderSchemeJobs(targetURL string, bypassMod
 			headerScheme == "X-Forwarded-SSL" {
 			allJobs = append(allJobs, PayloadJob{
 				OriginalURL: targetURL,
+				Scheme:      parsedURL.Scheme,
 				Method:      "GET",
 				Host:        parsedURL.Host,
 				RawURI:      parsedURL.Path,
@@ -526,6 +537,7 @@ func (pg *PayloadGenerator) GenerateHeaderURLJobs(targetURL string, bypassModule
 		allJobs = append(allJobs, PayloadJob{
 			OriginalURL: targetURL,
 			Method:      "GET",
+			Scheme:      parsedURL.Scheme,
 			Host:        parsedURL.Host,
 			RawURI:      "/",
 			FullURL:     baseURL + "/",
@@ -544,6 +556,7 @@ func (pg *PayloadGenerator) GenerateHeaderURLJobs(targetURL string, bypassModule
 			allJobs = append(allJobs, PayloadJob{
 				OriginalURL: targetURL,
 				Method:      "GET",
+				Scheme:      parsedURL.Scheme,
 				Host:        parsedURL.Host,
 				RawURI:      "/",
 				FullURL:     baseURL + "/",
@@ -568,6 +581,7 @@ func (pg *PayloadGenerator) GenerateHeaderURLJobs(targetURL string, bypassModule
 			allJobs = append(allJobs, PayloadJob{
 				OriginalURL: targetURL,
 				Method:      "GET",
+				Scheme:      parsedURL.Scheme,
 				Host:        parsedURL.Host,
 				RawURI:      parsedURL.Path,
 				FullURL:     targetURL,
@@ -637,6 +651,7 @@ func (pg *PayloadGenerator) GenerateHeaderPortJobs(targetURL string, bypassModul
 			allJobs = append(allJobs, PayloadJob{
 				OriginalURL: targetURL,
 				Method:      "GET",
+				Scheme:      parsedURL.Scheme,
 				Host:        parsedURL.Host,
 				RawURI:      parsedURL.Path,
 				Headers: []Headers{{
@@ -694,6 +709,7 @@ func (pg *PayloadGenerator) GenerateHostHeaderJobs(targetURL string, bypassModul
 				allJobs = append(allJobs, PayloadJob{
 					OriginalURL: targetURL,
 					Method:      "GET",
+					Scheme:      ipURL.Scheme,
 					Host:        ipURL.Host,
 					RawURI:      pathAndQuery,
 					Headers: []Headers{{
@@ -742,6 +758,7 @@ func (pg *PayloadGenerator) GenerateHostHeaderJobs(targetURL string, bypassModul
 				allJobs = append(allJobs, PayloadJob{
 					OriginalURL: targetURL,
 					Method:      "GET",
+					Scheme:      ipURL.Scheme,
 					Host:        ipURL.Host,
 					RawURI:      pathAndQuery,
 					Headers: []Headers{{
@@ -758,6 +775,7 @@ func (pg *PayloadGenerator) GenerateHostHeaderJobs(targetURL string, bypassModul
 				allJobs = append(allJobs, PayloadJob{
 					OriginalURL: targetURL,
 					Method:      "GET",
+					Scheme:      ipURL.Scheme,
 					Host:        parsedURL.Host,
 					RawURI:      pathAndQuery,
 					Headers: []Headers{{

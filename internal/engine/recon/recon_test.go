@@ -29,6 +29,7 @@ func TestReconService_Run(t *testing.T) {
 		"https://thisisnotarealdomainname123456789.com/",
 		"http://localhost:65536/",  // Invalid port number
 		"https://scanme.sh:12345/", // Non-standard port
+		"https://www.google.com",   // ip and ip6
 	}
 
 	// Test Run function
