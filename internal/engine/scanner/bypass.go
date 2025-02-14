@@ -306,12 +306,12 @@ func (s *Scanner) ScanDebugToken(debugToken string, resendCount int) ([]*Result,
 		Scheme:       parsedURL.Scheme,
 		RawURI:       parsedURL.Path,
 		Headers:      tokenData.Headers,
-		BypassModule: "resend_request",
+		BypassModule: "debugRequest",
 		PayloadToken: payload.GenerateDebugToken(payload.SeedData{FullURL: tokenData.FullURL}),
 	}
 
 	// Create worker
-	worker := NewBypassWorker("resend_request", tokenData.FullURL, s.scannerOpts)
+	worker := NewBypassWorker("debugRequest", tokenData.FullURL, s.scannerOpts)
 	defer worker.Stop()
 
 	// Create jobs array
@@ -320,6 +320,11 @@ func (s *Scanner) ScanDebugToken(debugToken string, resendCount int) ([]*Result,
 		jobs[i] = job
 		jobs[i].PayloadToken = payload.GenerateDebugToken(payload.SeedData{FullURL: tokenData.FullURL})
 	}
+
+	// Create progress bar
+	progressbar := NewProgressBar("debugRequest", len(jobs), s.scannerOpts.Threads)
+	defer progressbar.Stop()
+	progressbar.Start()
 
 	// Process all requests
 	var results []*Result
@@ -330,90 +335,57 @@ func (s *Scanner) ScanDebugToken(debugToken string, resendCount int) ([]*Result,
 			continue
 		}
 
-		result := &Result{
-			TargetURL:       string(response.URL),
-			BypassModule:    "resend_request",
-			StatusCode:      response.StatusCode,
-			ResponseHeaders: string(response.ResponseHeaders),
-			CurlPocCommand:  string(response.CurlCommand),
-			ResponsePreview: string(response.ResponsePreview),
-			ContentType:     string(response.ContentType),
-			ContentLength:   response.ContentLength,
-			ResponseBytes:   response.ResponseBytes,
-			Title:           string(response.Title),
-			ServerInfo:      string(response.ServerInfo),
-			RedirectURL:     string(response.RedirectURL),
-			ResponseTime:    response.ResponseTime,
-			DebugToken:      string(response.DebugToken),
+		// Update progress
+		progressbar.Increment()
+		progressbar.UpdateSpinnerText(
+			"debugRequest",
+			s.scannerOpts.Threads,
+			worker.requestPool.GetReqWPActiveWorkers(),
+			worker.requestPool.GetReqWPCompletedTasks(),
+			worker.requestPool.GetReqWPSubmittedTasks(),
+			worker.requestPool.GetRequestRate(),
+			worker.requestPool.GetAverageRequestRate(),
+		)
+
+		// Only add to results if status code matches
+		if matchStatusCodes(response.StatusCode, s.scannerOpts.MatchStatusCodes) {
+			result := &Result{
+				TargetURL:       string(response.URL),
+				BypassModule:    "debugRequest",
+				StatusCode:      response.StatusCode,
+				ResponseHeaders: string(response.ResponseHeaders),
+				CurlPocCommand:  string(response.CurlCommand),
+				ResponsePreview: string(response.ResponsePreview),
+				ContentType:     string(response.ContentType),
+				ContentLength:   response.ContentLength,
+				ResponseBytes:   response.ResponseBytes,
+				Title:           string(response.Title),
+				ServerInfo:      string(response.ServerInfo),
+				RedirectURL:     string(response.RedirectURL),
+				ResponseTime:    response.ResponseTime,
+				DebugToken:      string(response.DebugToken),
+			}
+
+			results = append(results, result)
 		}
 
-		results = append(results, result)
 		rawhttp.ReleaseResponseDetails(response)
 	}
 
+	// Final progress update
+	progressbar.SpinnerSuccess(
+		"debugRequest",
+		s.scannerOpts.Threads,
+		worker.requestPool.GetReqWPActiveWorkers(),
+		worker.requestPool.GetReqWPCompletedTasks(),
+		worker.requestPool.GetReqWPSubmittedTasks(),
+		worker.requestPool.GetRequestRate(),
+		worker.requestPool.GetAverageRequestRate(),
+		worker.requestPool.GetPeakRequestRate(),
+	)
+
 	return results, nil
 }
-
-// func (s *Scanner) ResendRequestDirectly(job payload.PayloadJob, results chan<- *Result) {
-// 	GB403Logger.Debug().Msgf("Creating bypass worker for module: %s", job.BypassModule)
-// 	GB403Logger.Debug().Msgf("URL: %s", job.FullURL)
-// 	GB403Logger.Debug().Msgf("Headers: %+v", job.Headers)
-
-// 	// Create a bypass worker
-// 	worker := NewBypassWorker(job.BypassModule, job.FullURL, s.scannerOpts, s.errorHandler)
-// 	defer worker.Stop()
-
-// 	GB403Logger.Debug().Msgf("Processing request through worker pool...")
-
-// 	// Process the request
-// 	responses := worker.requestPool.ProcessRequests([]payload.PayloadJob{job})
-
-// 	responseReceived := false
-// 	GB403Logger.Debug().Msgf("Processing responses...")
-
-// 	for response := range responses {
-// 		responseReceived = true
-// 		if response == nil {
-// 			GB403Logger.Debug().Msgf("Received nil response")
-// 			continue
-// 		}
-
-// 		GB403Logger.Debug().Msgf("Received response with status code: %d", response.StatusCode)
-// 		GB403Logger.Debug().Msgf("Response headers: %s", string(response.ResponseHeaders))
-// 		GB403Logger.Debug().Msgf("Response preview: %s", string(response.ResponsePreview))
-
-// 		// Always create and send the result for resend requests
-// 		result := &Result{
-// 			TargetURL:       string(response.URL),
-// 			BypassModule:    job.BypassModule,
-// 			StatusCode:      response.StatusCode,
-// 			ResponseHeaders: string(response.ResponseHeaders),
-// 			CurlPocCommand:  string(response.CurlCommand),
-// 			ResponsePreview: string(response.ResponsePreview),
-// 			ContentType:     string(response.ContentType),
-// 			ContentLength:   response.ContentLength,
-// 			ResponseBytes:   response.ResponseBytes,
-// 			Title:           string(response.Title),
-// 			ServerInfo:      string(response.ServerInfo),
-// 			RedirectURL:     string(response.RedirectURL),
-// 			ResponseTime:    response.ResponseTime,
-// 			DebugToken:      string(response.DebugToken),
-// 		}
-
-// 		GB403Logger.Debug().Msgf("Sending result to channel...")
-// 		results <- result
-// 		GB403Logger.Debug().Msgf("Result sent to channel")
-
-// 		// Release response details
-// 		rawhttp.ReleaseResponseDetails(response)
-// 	}
-
-// 	if !responseReceived {
-// 		GB403Logger.Warning().Msgf("No response was received from the request pool")
-// 	}
-
-// 	GB403Logger.Debug().Msgf("Finished processing request")
-// }
 
 // match HTTP status code in list
 // if codes is nil, match all status codes

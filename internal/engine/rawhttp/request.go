@@ -3,7 +3,6 @@ package rawhttp
 import (
 	"bufio"
 	"bytes"
-	"fmt"
 	"io"
 	"runtime"
 	"sync"
@@ -370,11 +369,9 @@ func BuildRawHTTPRequest(httpclient *HTTPClient, req *fasthttp.Request, job payl
 	// Parse back into fasthttp.Request
 	br := bufio.NewReader(bytes.NewReader(buf.Bytes()))
 	if err := req.Read(br); err != nil {
-		GB403Logger.Debug().Msgf("Failed to parse raw request: %v", err)
-		return fmt.Errorf("failed to parse raw request: %v", err)
+		GB403Logger.Error().Msgf("Failed to parse raw request: %v\n", err)
+		return err
 	}
-
-	GB403Logger.Warning().Msgf("Raw request:\n%s", buf.String())
 
 	// Disable all normalizing and encodings !! AFTER parsing the raw request into fasthttp req
 	req.URI().DisablePathNormalizing = true
@@ -388,7 +385,7 @@ func BuildRawHTTPRequest(httpclient *HTTPClient, req *fasthttp.Request, job payl
 	req.URI().SetScheme(job.Scheme) // "https" or "http"
 	req.URI().SetHost(job.Host)     // e.g., "example.com"
 
-	GB403Logger.Debug().Msgf("Raw request After back into fasthttp req :\n%s", req.String())
+	//GB403Logger.Debug().Msgf("Raw request After back into fasthttp req :\n%s", req.String())
 	return nil
 }
 
