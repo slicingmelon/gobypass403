@@ -64,7 +64,7 @@ func (s *Scanner) Run() error {
 				ErrorSource:  []byte("Scanner.Run"),
 				BypassModule: []byte(s.scannerOpts.BypassModule),
 			}); handleErr != nil {
-				GB403Logger.Error().Msgf("Error handling error: %v", handleErr)
+				GB403Logger.Error().Msgf("Error handling error: %v\n", handleErr)
 			}
 			continue
 		}
@@ -94,7 +94,7 @@ func (s *Scanner) scanURL(url string) error {
 		// Load from JSON and print
 		outputFile := filepath.Join(s.scannerOpts.OutDir, "findings.json")
 		fmt.Println()
-		if err := PrintResultsFromJSON(outputFile, url, s.scannerOpts.BypassModule); err != nil {
+		if err := PrintResultsTableFromJson(outputFile, url, s.scannerOpts.BypassModule); err != nil {
 			GB403Logger.Error().Msgf("Failed to print results from JSON: %v\n", err)
 		} else {
 			fmt.Println()

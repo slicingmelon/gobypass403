@@ -185,7 +185,7 @@ func (s *Scanner) RunAllBypasses(targetURL string) chan *Result {
 			results <- res
 			moduleResults["dumb_check"] = append(moduleResults["dumb_check"], res)
 		}
-		AppendResultsToJSON(outputFile, targetURL, "dumb_check", moduleResults["dumb_check"])
+		AppendResultsToJson(outputFile, targetURL, "dumb_check", moduleResults["dumb_check"])
 
 		// Process other modules
 		bpModules := strings.Split(s.scannerOpts.BypassModule, ",")
@@ -206,7 +206,7 @@ func (s *Scanner) RunAllBypasses(targetURL string) chan *Result {
 							results <- res
 							collected = append(collected, res)
 						}
-						AppendResultsToJSON(outputFile, targetURL, bpModuleName, collected)
+						AppendResultsToJson(outputFile, targetURL, bpModuleName, collected)
 					}
 				}
 				continue
@@ -220,7 +220,7 @@ func (s *Scanner) RunAllBypasses(targetURL string) chan *Result {
 					results <- res
 					collected = append(collected, res)
 				}
-				AppendResultsToJSON(outputFile, targetURL, module, collected)
+				AppendResultsToJson(outputFile, targetURL, module, collected)
 			} else {
 				GB403Logger.Warning().Msgf("Skipping invalid module: %s", module)
 			}
@@ -311,7 +311,7 @@ func (s *Scanner) RunBypassModule(bypassModule string, targetURL string, results
 	)
 }
 
-func (s *Scanner) ScanDebugToken(debugToken string, resendCount int) ([]*Result, error) {
+func (s *Scanner) ResendRequestWithToken(debugToken string, resendCount int) ([]*Result, error) {
 
 	// Parse URL from token
 	tokenData, err := payload.DecodeDebugToken(debugToken)

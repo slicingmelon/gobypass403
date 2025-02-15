@@ -107,6 +107,7 @@ func NewErrorHandler(cacheSizeMB int) *ErrorHandler {
 	return handler
 }
 
+// GetErrorHandler returns the singleton instance of the ErrorHandler
 func GetErrorHandler(cacheSizeMB ...int) *ErrorHandler {
 	once.Do(func() {
 		size := DefaultCacheSizeMB

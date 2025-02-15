@@ -22,7 +22,6 @@ type RequestWorkerPool struct {
 	requestStartTime atomic.Int64  // For elapsed time calculation
 	peakRequestRate  atomic.Uint64 // For tracking peak rate
 	maxWorkers       int
-	totalJobs        int
 }
 
 // NewWorkerPool initializes a new RequestWorkerPool instance
@@ -163,17 +162,6 @@ func (wp *RequestWorkerPool) ProcessRequestResponseJob(job payload.PayloadJob) *
 	resp := wp.httpClient.AcquireResponse()
 	defer wp.httpClient.ReleaseRequest(req)
 	defer wp.httpClient.ReleaseResponse(resp)
-
-	// if err := BuildHTTPRequest(wp.httpClient, req, job); err != nil {
-	// 	handleErr := wp.errorHandler.HandleError(err, GB403ErrorHandler.ErrorContext{
-	// 		ErrorSource:  []byte("RequestWorkerPool.BuildRequestTask"),
-	// 		Host:         []byte(job.Host),
-	// 		BypassModule: []byte(job.BypassModule),
-	// 	})
-	// 	if handleErr != nil {
-	// 		return nil
-	// 	}
-	// }
 
 	if err := BuildRawHTTPRequest(wp.httpClient, req, job); err != nil {
 		handleErr := GB403ErrorHandler.GetErrorHandler().HandleError(err, GB403ErrorHandler.ErrorContext{

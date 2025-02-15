@@ -3,7 +3,6 @@ package scanner
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
@@ -17,6 +16,14 @@ import (
 
 // Make fileLock package level
 var fileLock sync.Mutex
+
+type JSONData map[string]map[string][]*Result // url -> bypassMode -> results
+
+var jsonAPI = sonic.Config{
+	UseNumber:   true,
+	EscapeHTML:  false, // This is key - prevents HTML escaping
+	SortMapKeys: false,
+}.Froze()
 
 type Result struct {
 	TargetURL           string `json:"TargetURL"`
@@ -41,11 +48,6 @@ type ScanResult struct {
 	BypassModes string    `json:"bypass_modes"`
 	ResultsPath string    `json:"results_path"`
 	Results     []*Result `json:"results"`
-}
-
-// JSONData represents the complete scan results
-type JSONData struct {
-	Scans []ScanResult `json:"scans"`
 }
 
 // getTableHeader returns the header row for the results table
@@ -93,7 +95,7 @@ func getTableRows(results []*Result) [][]string {
 			string(result.BypassModule),
 			string(result.CurlCMD),
 			strconv.Itoa(result.StatusCode),
-			FormatBytes(int64(result.ResponseBodyBytes)),
+			formatBytes(int64(result.ResponseBodyBytes)),
 			formatContentType(string(result.ContentType)),
 			formatValue(string(result.Title)),
 			formatValue(string(result.ServerInfo)),
@@ -133,6 +135,95 @@ func PrintResultsTable(targetURL string, results []*Result) {
 	fmt.Println(output)
 }
 
+func PrintResultsTableFromJson(jsonFile, targetURL, bypassModule string) error {
+	GB403Logger.Warning().Msgf("Reading results from JSON for %s", jsonFile)
+
+	fileData, err := os.ReadFile(jsonFile)
+	if err != nil {
+		return fmt.Errorf("failed to read JSON file: %v", err)
+	}
+
+	var data JSONData
+	if err := jsonAPI.Unmarshal(fileData, &data); err != nil {
+		return fmt.Errorf("failed to decode JSON: %v", err)
+	}
+
+	urlData, exists := data[targetURL]
+	if !exists {
+		return fmt.Errorf("no results found for %s", targetURL)
+	}
+
+	var matchedResults []*Result
+	queryModules := strings.Split(bypassModule, ",")
+
+	if bypassModule == "all" {
+		// Collect all results for the URL
+		for _, results := range urlData {
+			matchedResults = append(matchedResults, results...)
+		}
+	} else {
+		// Collect specific modules
+		for _, qm := range queryModules {
+			qm = strings.TrimSpace(qm)
+			if results, exists := urlData[qm]; exists {
+				matchedResults = append(matchedResults, results...)
+			}
+		}
+	}
+
+	if len(matchedResults) == 0 {
+		return fmt.Errorf("no matching results for %s with module %s", targetURL, bypassModule)
+	}
+
+	// Sort results (existing sorting logic)
+	sort.Slice(matchedResults, func(i, j int) bool {
+		if matchedResults[i].StatusCode != matchedResults[j].StatusCode {
+			return matchedResults[i].StatusCode < matchedResults[j].StatusCode
+		}
+		return matchedResults[i].BypassModule < matchedResults[j].BypassModule
+	})
+
+	PrintResultsTable(targetURL, matchedResults)
+	return nil
+}
+
+func AppendResultsToJson(outputFile, url, mode string, findings []*Result) error {
+	if len(findings) == 0 && mode != "dumb_check" {
+		GB403Logger.Debug().Msgf("Skipping JSON write for %s - no findings", url)
+		return nil
+	}
+
+	fileLock.Lock()
+	defer fileLock.Unlock()
+
+	// Load existing data
+	var data JSONData
+	fileData, err := os.ReadFile(outputFile)
+	if err == nil {
+		if err := jsonAPI.Unmarshal(fileData, &data); err != nil {
+			return fmt.Errorf("failed to parse JSON: %v", err)
+		}
+	} else {
+		data = make(JSONData)
+	}
+
+	// Initialize URL entry if needed
+	if _, exists := data[url]; !exists {
+		data[url] = make(map[string][]*Result)
+	}
+
+	// Append results under the bypass mode
+	data[url][mode] = append(data[url][mode], findings...)
+
+	// Write back to file
+	encoded, err := jsonAPI.MarshalIndent(data, "", "  ")
+	if err != nil {
+		return fmt.Errorf("failed to encode JSON: %v", err)
+	}
+
+	return os.WriteFile(outputFile, encoded, 0644)
+}
+
 // Helper functions
 func formatValue(val string) string {
 	if val == "" {
@@ -151,7 +242,7 @@ func formatContentType(contentType string) string {
 	return contentType
 }
 
-func FormatBytes(bytes int64) string {
+func formatBytes(bytes int64) string {
 	if bytes <= 0 {
 		return "[-]"
 	}
@@ -174,141 +265,4 @@ func FormatBytesH(bytes int64) string {
 		exp++
 	}
 	return fmt.Sprintf("%.1f%cB", float64(bytes)/float64(div), "KMGTPE"[exp])
-}
-
-// var jsonAPI = sonic.ConfigStd
-
-var jsonAPI = sonic.Config{
-	UseNumber:   true,
-	EscapeHTML:  false, // This is key - prevents HTML escaping
-	SortMapKeys: false,
-}.Froze()
-
-func PrintResultsFromJSON(jsonFile, targetURL, bypassModule string) error {
-	GB403Logger.Warning().
-		Msgf("Reading results from JSON for %s", jsonFile)
-
-	fileData, err := os.ReadFile(jsonFile)
-	if err != nil {
-		return fmt.Errorf("failed to open JSON file: %v", err)
-	}
-
-	var data JSONData
-	if err := sonic.ConfigFastest.Unmarshal(fileData, &data); err != nil {
-		return fmt.Errorf("failed to decode JSON: %v", err)
-	}
-
-	// Add debug logging for scans found
-	for _, scan := range data.Scans {
-		GB403Logger.Warning().
-			Msgf("Found scan in JSON for %s", scan.URL)
-	}
-
-	var matchedResults []*Result
-	queryModules := strings.Split(bypassModule, ",")
-
-	for _, scan := range data.Scans {
-		if scan.URL == targetURL {
-			// Special case for "all" module
-			if bypassModule == "all" {
-				matchedResults = append(matchedResults, scan.Results...)
-				continue
-			}
-
-			// Match specific modules
-			for _, qm := range queryModules {
-				if strings.Contains(scan.BypassModes, strings.TrimSpace(qm)) {
-					matchedResults = append(matchedResults, scan.Results...)
-					break
-				}
-			}
-		}
-	}
-
-	if len(matchedResults) == 0 {
-		return fmt.Errorf("no results found for %s with module %s", targetURL, bypassModule)
-	}
-
-	// Sort results
-	sort.Slice(matchedResults, func(i, j int) bool {
-		if matchedResults[i].StatusCode != matchedResults[j].StatusCode {
-			return matchedResults[i].StatusCode < matchedResults[j].StatusCode
-		}
-		return string(matchedResults[i].BypassModule) < string(matchedResults[j].BypassModule)
-	})
-
-	PrintResultsTable(targetURL, matchedResults)
-	return nil
-}
-
-func AppendResultsToJSON(outputFile, url, mode string, findings []*Result) error {
-	// Skip if no findings, but only for non-dumb_check modules
-	if len(findings) == 0 && mode != "dumb_check" {
-		GB403Logger.Warning().
-			Msgf("Skipping JSON write for %s - no findings to write", url)
-		return nil
-	}
-
-	fileLock.Lock()
-	defer fileLock.Unlock()
-
-	var data JSONData
-	fileData, err := os.ReadFile(outputFile)
-	if err == nil {
-		if err := jsonAPI.Unmarshal(fileData, &data); err != nil {
-			return fmt.Errorf("failed to parse existing JSON: %v", err)
-		}
-	}
-
-	// Find or create scan result
-	var scan *ScanResult
-	for i := range data.Scans {
-		if data.Scans[i].URL == url {
-			scan = &data.Scans[i]
-			break
-		}
-	}
-
-	if scan == nil {
-		data.Scans = append(data.Scans, ScanResult{
-			URL:         url,
-			BypassModes: mode,
-			ResultsPath: filepath.Dir(outputFile),
-			Results:     make([]*Result, 0, len(findings)),
-		})
-		scan = &data.Scans[len(data.Scans)-1]
-	}
-
-	// Append findings
-	for _, result := range findings {
-		if result != nil {
-			cleanResult := *result
-			// ResponsePreview is already in raw form, no need to unescape
-			scan.Results = append(scan.Results, &cleanResult)
-		}
-	}
-
-	// Update bypass modes
-	if !strings.Contains(scan.BypassModes, mode) {
-		if scan.BypassModes != "" {
-			scan.BypassModes += ","
-		}
-		scan.BypassModes += mode
-	}
-
-	// Use Sonic's fastest config with pre-allocated buffer
-	file, err := os.Create(outputFile)
-	if err != nil {
-		return fmt.Errorf("failed to create JSON file: %v", err)
-	}
-	defer file.Close()
-
-	// Use MarshalIndent with 4 spaces indentation
-	encoded, err := jsonAPI.MarshalIndent(data, "", "  ")
-	if err != nil {
-		return fmt.Errorf("failed to encode JSON: %v", err)
-	}
-
-	_, err = file.Write(encoded)
-	return err
 }
