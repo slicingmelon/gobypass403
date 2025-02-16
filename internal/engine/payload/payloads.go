@@ -2,8 +2,6 @@ package payload
 
 import (
 	"fmt"
-	"net/url"
-	"slices"
 	"strings"
 
 	"github.com/slicingmelon/go-bypass-403/internal/engine/recon"
@@ -895,75 +893,104 @@ normalizedMatches.forEach(match => console.log(match));
 func (pg *PayloadGenerator) GenerateUnicodePathNormalizationsJobs(targetURL string, bypassModule string) []PayloadJob {
 	var jobs []PayloadJob
 
-	midpathJobs := pg.GenerateMidPathsJobs(targetURL, bypassModule)
-	pathChars := []rune{'/', '\\', '.'}
+	// Parse URL to get path
+	parsedURL, err := rawurlparser.RawURLParse(targetURL)
+	if err != nil {
+		GB403Logger.Error().Msgf("Failed to parse URL: %v", err)
+		return jobs
+	}
 
+	path := parsedURL.Path
+	if path == "" {
+		path = "/"
+	}
+
+	// Read Unicode mappings
 	unicodeMappings, err := ReadPayloadsFromFile("unicode_path_chars.lst")
 	if err != nil {
 		GB403Logger.Error().Msgf("Failed to read unicode path chars: %v", err)
 		return jobs
 	}
 
-	charMap := make(map[rune][]rune)
+	// Build character mapping - only for '.' and '/'
+	targetChars := map[rune]bool{'.': true, '/': true}
+	charMap := make(map[rune][]string)
+
 	for _, mapping := range unicodeMappings {
 		parts := strings.Split(mapping, "=")
 		if len(parts) != 2 {
 			continue
 		}
-
-		unicodeChar := []rune(strings.Split(parts[0], "(")[0])[0]
 		asciiChar := []rune(parts[1])[0]
+		// Only process if it's a '.' or '/'
+		if !targetChars[asciiChar] {
+			continue
+		}
+		unicodeChar := []rune(strings.Split(parts[0], "(")[0])[0]
+		charMap[asciiChar] = append(charMap[asciiChar], string(unicodeChar))
+	}
 
-		if slices.Contains(pathChars, asciiChar) {
-			charMap[asciiChar] = append(charMap[asciiChar], unicodeChar)
+	// Find all positions of '.' and '/'
+	type CharPosition struct {
+		char     rune
+		position int
+	}
+	var positions []CharPosition
+	for i, char := range path {
+		if targetChars[char] {
+			positions = append(positions, CharPosition{char: char, position: i})
 		}
 	}
 
-	for _, baseJob := range midpathJobs {
-		path := []rune(baseJob.RawURI)
+	// Generate base job
+	baseJob := PayloadJob{
+		OriginalURL:  targetURL,
+		Method:       "GET",
+		Scheme:       parsedURL.Scheme,
+		Host:         parsedURL.Host,
+		RawURI:       path,
+		FullURL:      targetURL,
+		BypassModule: bypassModule,
+	}
 
-		var positions []int
-		for i, char := range path {
-			if slices.Contains(pathChars, char) {
-				positions = append(positions, i)
-			}
-		}
+	// Helper function to create job with modified path
+	createJob := func(newPath string) PayloadJob {
+		job := baseJob
+		job.RawURI = newPath
+		job.FullURL = fmt.Sprintf("%s://%s%s", job.Scheme, job.Host, newPath)
+		job.PayloadToken = GenerateDebugToken(SeedData{FullURL: job.FullURL})
+		return job
+	}
 
-		for _, pos := range positions {
-			char := path[pos]
-			if unicodeChars, exists := charMap[char]; exists {
-				for _, unicodeChar := range unicodeChars {
-					// Create paths for both raw unicode and URL-encoded unicode
-					variations := []string{
-						string(unicodeChar),                  // Raw unicode
-						url.QueryEscape(string(unicodeChar)), // URL-encoded unicode
-					}
-
-					for _, variation := range variations {
-						newPath := make([]rune, len(path))
-						copy(newPath, path)
-
-						// Replace the character with either raw or encoded version
-						newPathStr := string(newPath[:pos]) + variation + string(newPath[pos+1:])
-
-						newFullURL := fmt.Sprintf("%s://%s%s", baseJob.Scheme, baseJob.Host, newPathStr)
-
-						jobs = append(jobs, PayloadJob{
-							OriginalURL:  baseJob.OriginalURL,
-							Method:       "GET",
-							Scheme:       baseJob.Scheme,
-							Host:         baseJob.Host,
-							RawURI:       newPathStr,
-							FullURL:      newFullURL,
-							BypassModule: bypassModule,
-							PayloadToken: GenerateDebugToken(SeedData{FullURL: newFullURL}),
-						})
-					}
-				}
-			}
+	// 1. Replace each occurrence individually
+	for _, pos := range positions {
+		unicodeChars := charMap[pos.char]
+		for _, unicodeChar := range unicodeChars {
+			pathRunes := []rune(path)
+			pathRunes[pos.position] = []rune(unicodeChar)[0]
+			newPath := string(pathRunes)
+			jobs = append(jobs, createJob(newPath))
 		}
 	}
 
-	GB403Logger.Debug().BypassModule(bypassModule).Msgf("Generated %d payloads for %s\n", len(jobs), targetURL)
+	// 2. Replace all occurrences of the same character together
+	charGroups := make(map[rune][]int)
+	for _, pos := range positions {
+		charGroups[pos.char] = append(charGroups[pos.char], pos.position)
+	}
+
+	for char, positions := range charGroups {
+		unicodeChars := charMap[char]
+		for _, unicodeChar := range unicodeChars {
+			pathRunes := []rune(path)
+			for _, pos := range positions {
+				pathRunes[pos] = []rune(unicodeChar)[0]
+			}
+			newPath := string(pathRunes)
+			jobs = append(jobs, createJob(newPath))
+		}
+	}
+
+	GB403Logger.Debug().BypassModule(bypassModule).Msgf("Generated %d unicode normalization payloads for %s\n", len(jobs), targetURL)
 	return jobs
 }
