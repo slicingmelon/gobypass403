@@ -248,48 +248,6 @@ func CloseJsonArray(outputFile string) error {
 	return nil
 }
 
-func WritePrettyJsonL(inputFile, outputFile string) error {
-	// Read input file
-	data, err := os.ReadFile(inputFile)
-	if err != nil {
-		return fmt.Errorf("failed to read input file: %v", err)
-	}
-
-	// Create/truncate output file
-	prettyFile, err := os.Create(outputFile)
-	if err != nil {
-		return fmt.Errorf("failed to create pretty file: %v", err)
-	}
-	defer prettyFile.Close()
-
-	writer := bufio.NewWriter(prettyFile)
-	defer writer.Flush()
-
-	// Process each line
-	jsonObjects := bytes.Split(data, []byte("\n"))
-	for _, jsonObj := range jsonObjects {
-		if len(bytes.TrimSpace(jsonObj)) == 0 {
-			continue
-		}
-
-		var result Result
-		if err := jsonAPI.Unmarshal(jsonObj, &result); err != nil {
-			continue
-		}
-
-		prettyJson, err := jsonAPI.MarshalIndent(&result, "", "  ")
-		if err != nil {
-			continue
-		}
-
-		// Write pretty JSON with single newline separator
-		writer.Write(prettyJson)
-		writer.Write([]byte("\n")) // Changed from \n\n to \n
-	}
-
-	return nil
-}
-
 // Helper functions
 func formatValue(val string) string {
 	if val == "" {
