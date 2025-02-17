@@ -46,6 +46,8 @@ var (
 	strTitle          = []byte("<title>")
 	strCloseTitle     = []byte("</title>")
 	strLocationHeader = []byte("Location")
+	strSchemeDelim    = []byte("://")
+	strUserAgent      = []byte("User-Agent")
 
 	strErrorReadingPreview = []byte("Error reading reponse preview")
 )
@@ -99,84 +101,46 @@ func ReleaseResponseDetails(rd *RawHTTPResponseDetails) {
 	responseDetailsPool.Put(rd)
 }
 
-// Request must contain at least non-zero RequestURI with full url (including
-// scheme and host) or non-zero Host header + RequestURI.
-//
-// Client determines the server to be requested in the following order:
-//
-//   - from RequestURI if it contains full url with scheme and host;
-//   - from Host header otherwise.
-//
-// The function doesn't follow redirects. Use Get* for following redirects.
-// Response is ignored if resp is nil.
-//
-// ErrNoFreeConns is returned if all DefaultMaxConnsPerHost connections
-// to the requested host are busy.
-// BuildRequest creates and configures a HTTP request from a bypass job (payload job)
-func BuildHTTPRequest(httpclient *HTTPClient, req *fasthttp.Request, job payload.PayloadJob) error {
-	// Disable all normalizing to preserve raw paths
-	req.URI().DisablePathNormalizing = true
-	req.Header.DisableNormalizing()
-	req.Header.SetNoDefaultContentType(true)
+// var rawRequestPool = sync.Pool{
+// 	New: func() interface{} {
+// 		return bytes.NewBuffer(make([]byte, 0, 4096)) // Pre-allocate 4KB
+// 	},
+// }
 
-	req.UseHostHeader = false
-	req.Header.SetMethod(job.Method)
-
-	req.SetRequestURI(job.FullURL)
-	req.URI().SetScheme(job.Scheme)
-
-	// !!Always close connection when custom headers are present
-	shouldCloseConn := len(job.Headers) > 0 ||
-		httpclient.GetHTTPClientOptions().DisableKeepAlive ||
-		httpclient.GetHTTPClientOptions().ProxyURL != ""
-
-	// Set headers directly
-	for _, h := range job.Headers {
-		if h.Header == "Host" {
-			req.UseHostHeader = true
-			shouldCloseConn = true
-		}
-		req.Header.Set(h.Header, h.Value)
+var (
+	rawRequestBuffPool = sync.Pool{
+		New: func() interface{} {
+			return bytes.NewBuffer(make([]byte, 0, 4096))
+		},
 	}
-
-	req.Header.SetUserAgentBytes(CustomUserAgent)
-
-	if GB403Logger.IsDebugEnabled() {
-		req.Header.Set("X-GB403-Token", job.PayloadToken)
+	rawRequestBuffReaderPool = sync.Pool{
+		New: func() interface{} {
+			return bufio.NewReader(nil)
+		},
 	}
-
-	// Handle connection settings
-	if shouldCloseConn {
-		req.SetConnectionClose()
-	} else {
-		req.Header.Set("Connection", "keep-alive")
-		//req.SetConnectionClose()
-	}
-
-	//GB403Logger.Debug().Msgf("[%s] - Request:\n%s\n", job.BypassModule, string(req.String()))
-
-	return nil
-}
-
-var rawRequestPool = sync.Pool{
-	New: func() interface{} {
-		return bytes.NewBuffer(make([]byte, 0, 4096)) // Pre-allocate 4KB
-	},
-}
+)
 
 // AcquireRawRequest gets a buffer from the pool
 func AcquireRawRequest() *bytes.Buffer {
-	return rawRequestPool.Get().(*bytes.Buffer)
+	return rawRequestBuffPool.Get().(*bytes.Buffer)
 }
 
 // ReleaseRawRequest returns a buffer to the pool
 func ReleaseRawRequest(buf *bytes.Buffer) {
 	buf.Reset()
-	rawRequestPool.Put(buf)
+	rawRequestBuffPool.Put(buf)
 }
 
 /*
 Crucial information
+
+Client determines the server to be requested in the following order:
+
+  - from RequestURI if it contains full url with scheme and host;
+  - from Host header otherwise.
+
+The function doesn't follow redirects. Use Get* for following redirects.
+Response is ignored if resp is nil.
 
 The detination/target URL is built based on req.URI, aka where the request will be sent to.
 
@@ -219,7 +183,8 @@ func BuildRawHTTPRequest(httpclient *HTTPClient, req *fasthttp.Request, job payl
 		buf.WriteString("\r\n")
 	}
 
-	buf.WriteString("User-Agent: ")
+	buf.Write(strUserAgent)
+	buf.Write(strColon)
 	buf.Write(CustomUserAgent)
 	buf.WriteString("\r\n")
 
@@ -241,8 +206,11 @@ func BuildRawHTTPRequest(httpclient *HTTPClient, req *fasthttp.Request, job payl
 	buf.WriteString("\r\n")
 
 	// Parse back into fasthttp.Request
-	br := bufio.NewReader(bytes.NewReader(buf.Bytes()))
-	if err := req.Read(br); err != nil {
+	br := rawRequestBuffReaderPool.Get().(*bufio.Reader)
+	br.Reset(bytes.NewReader(buf.Bytes()))
+	defer rawRequestBuffReaderPool.Put(br)
+
+	if err := req.ReadLimitBody(br, 0); err != nil {
 		GB403Logger.Error().Msgf("Failed to parse raw request: %v\n", err)
 		return err
 	}
@@ -271,7 +239,7 @@ func ProcessHTTPResponse(httpclient *HTTPClient, resp *fasthttp.Response, job pa
 	httpClientOpts := httpclient.GetHTTPClientOptions()
 
 	// Set basic response details
-	result.URL = append(result.URL, job.FullURL...)
+	result.URL = append(result.URL, job.OriginalURL...)
 	result.BypassModule = append(result.BypassModule, job.BypassModule...)
 	result.StatusCode = statusCode
 	result.ContentLength = int64(contentLength)
@@ -297,7 +265,11 @@ func ProcessHTTPResponse(httpclient *HTTPClient, resp *fasthttp.Response, job pa
 			if stream := resp.BodyStream(); stream != nil {
 				result.ResponsePreview = ReadLimitedResponseBodyStream(stream, httpClientOpts.ResponseBodyPreviewSize, result.ResponsePreview)
 				resp.CloseBodyStream()
-				result.ResponseBytes = int(contentLength)
+				if contentLength > 0 {
+					result.ResponseBytes = int(contentLength)
+				} else {
+					result.ResponseBytes = len(result.ResponsePreview)
+				}
 			}
 		} else {
 			if body := resp.Body(); len(body) > 0 {
@@ -388,10 +360,20 @@ func BuildCurlCommandPoc(job payload.PayloadJob, dest []byte) []byte {
 		dest = append(dest, strSingleQuote...)
 	}
 
-	// URL
+	// URL construction
 	dest = append(dest, strSpace...)
 	dest = append(dest, strSingleQuote...)
-	dest = append(dest, bytesutil.ToUnsafeBytes(job.FullURL)...)
+
+	// Scheme
+	dest = append(dest, bytesutil.ToUnsafeBytes(job.Scheme)...)
+	dest = append(dest, strSchemeDelim...)
+
+	// Host
+	dest = append(dest, bytesutil.ToUnsafeBytes(job.Host)...)
+
+	// RawURI
+	dest = append(dest, bytesutil.ToUnsafeBytes(job.RawURI)...)
+
 	dest = append(dest, strSingleQuote...)
 
 	return dest

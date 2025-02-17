@@ -1,38 +1,53 @@
 package scanner
 
 import (
-	"bufio"
-	"encoding/json"
+	"bytes"
 	"fmt"
-	"html"
+	"io"
 	"os"
-	"path/filepath"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
+	"github.com/bytedance/sonic"
 	"github.com/pterm/pterm"
 	GB403Logger "github.com/slicingmelon/go-bypass-403/internal/utils/logger"
 )
 
+// Make fileLock package level
+var (
+	fileLock    sync.RWMutex
+	resultsFile atomic.Value // Store the file path
+	jsonStarted atomic.Bool
+)
+
+type JSONData map[string]map[string][]*Result // url -> bypassMode -> results
+
+var jsonAPI = sonic.Config{
+	UseNumber:   true,
+	EscapeHTML:  false, // This is key - prevents HTML escaping
+	SortMapKeys: false,
+}.Froze()
+
 type Result struct {
-	TargetURL       string `json:"target_url"`
-	BypassModule    string `json:"bypass_module"`
-	CurlPocCommand  string `json:"curl_poc_command"`
-	ResponseHeaders string `json:"response_headers"`
-	ResponsePreview string `json:"response_preview"`
-	StatusCode      int    `json:"response_status_code"`
-	ContentType     string `json:"response_content_type"`
-	ContentLength   int64  `json:"response_content_length"`
-	ResponseBytes   int    `json:"response_bytes"`
-	Title           string `json:"response_title"`
-	ServerInfo      string `json:"response_server_info"`
-	RedirectURL     string `json:"response_redirect_url"`
-	HTMLFilename    string `json:"response_html_filename"`
-	ResponseTime    int64  `json:"response_time"`
-	DebugToken      string `json:"debug_token"`
+	TargetURL           string `json:"target_url"`
+	BypassModule        string `json:"bypass_module"`
+	CurlCMD             string `json:"curl_cmd"`
+	ResponseHeaders     string `json:"response_headers"`
+	ResponseBodyPreview string `json:"response_body_preview"`
+	StatusCode          int    `json:"status_code"`
+	ContentType         string `json:"content_type"`
+	ContentLength       int64  `json:"content_length"`
+	ResponseBodyBytes   int    `json:"response_body_bytes"`
+	Title               string `json:"title"`
+	ServerInfo          string `json:"server_info"`
+	RedirectURL         string `json:"redirect_url"`
+	ResponseTime        int64  `json:"response_time"`
+	DebugToken          string `json:"debug_token"`
 }
 
 // ScanResult represents results for a single URL scan
@@ -41,25 +56,6 @@ type ScanResult struct {
 	BypassModes string    `json:"bypass_modes"`
 	ResultsPath string    `json:"results_path"`
 	Results     []*Result `json:"results"`
-}
-
-// JSONData represents the complete scan results
-type JSONData struct {
-	Scans []ScanResult `json:"scans"`
-}
-
-type ResponseDetails struct {
-	StatusCode      int
-	ResponsePreview string
-	ResponseHeaders string
-	ContentType     string
-	ContentLength   int64
-	ServerInfo      string
-	RedirectURL     string
-	ResponseBytes   int
-	Title           string
-	ResponseTime    int64
-	DebugToken      string
 }
 
 // getTableHeader returns the header row for the results table
@@ -77,23 +73,43 @@ func getTableHeader() []string {
 
 // getTableRows converts results to table rows, sorted by status code
 func getTableRows(results []*Result) [][]string {
-	// Sort results by status code
-	sort.Slice(results, func(i, j int) bool {
-		return results[i].StatusCode < results[j].StatusCode
-	})
-
-	rows := make([][]string, len(results))
-	for i, result := range results {
-		rows[i] = []string{
-			result.BypassModule,
-			result.CurlPocCommand,
-			strconv.Itoa(result.StatusCode),
-			FormatBytes(int64(result.ResponseBytes)),
-			formatContentType(result.ContentType),
-			formatValue(result.Title),
-			formatValue(result.ServerInfo),
+	// Create a copy of results to avoid races during sorting
+	resultsCopy := make([]*Result, len(results))
+	for i, r := range results {
+		// Deep copy each result's fields
+		resultsCopy[i] = &Result{
+			BypassModule:      r.BypassModule,
+			CurlCMD:           r.CurlCMD,
+			StatusCode:        r.StatusCode,
+			ResponseBodyBytes: r.ResponseBodyBytes,
+			ContentType:       r.ContentType,
+			Title:             r.Title,
+			ServerInfo:        r.ServerInfo,
 		}
 	}
+
+	// Sort the copy
+	sort.Slice(resultsCopy, func(i, j int) bool {
+		if resultsCopy[i].StatusCode != resultsCopy[j].StatusCode {
+			return resultsCopy[i].StatusCode < resultsCopy[j].StatusCode
+		}
+		return string(resultsCopy[i].BypassModule) < string(resultsCopy[j].BypassModule)
+	})
+
+	// Convert to table rows using the copied data
+	rows := make([][]string, len(resultsCopy))
+	for i, result := range resultsCopy {
+		rows[i] = []string{
+			string(result.BypassModule),
+			string(result.CurlCMD),
+			strconv.Itoa(result.StatusCode),
+			formatBytes(int64(result.ResponseBodyBytes)),
+			formatContentType(string(result.ContentType)),
+			formatValue(string(result.Title)),
+			formatValue(string(result.ServerInfo)),
+		}
+	}
+
 	return rows
 }
 
@@ -127,6 +143,107 @@ func PrintResultsTable(targetURL string, results []*Result) {
 	fmt.Println(output)
 }
 
+// PrintResultsTableFromJsonL prints the results table from findings.json instead of directly from the memory
+func PrintResultsTableFromJsonL(jsonFile, targetURL, bypassModule string) error {
+	GB403Logger.Verbose().Msgf("Parsing results from: %s\n", jsonFile)
+
+	data, err := os.ReadFile(jsonFile)
+	if err != nil {
+		return fmt.Errorf("file read error: %v", err)
+	}
+
+	// Add closing bracket if missing (in case of crash)
+	if !bytes.HasSuffix(data, []byte("]")) {
+		data = append(data, []byte("\n]")...)
+	}
+
+	var results []*Result
+	if err := jsonAPI.Unmarshal(data, &results); err != nil {
+		return fmt.Errorf("failed to parse JSON: %v", err)
+	}
+
+	var matchedResults []*Result
+	queryModules := strings.Split(bypassModule, ",")
+
+	// Filter results by URL and modules
+	for _, result := range results {
+		if result.TargetURL == targetURL && slices.Contains(queryModules, result.BypassModule) {
+			matchedResults = append(matchedResults, result)
+		}
+	}
+
+	if len(matchedResults) == 0 {
+		return fmt.Errorf("no results found for %s (modules: %s)", targetURL, bypassModule)
+	}
+
+	// Stable sort: status code asc -> module name asc
+	sort.SliceStable(matchedResults, func(i, j int) bool {
+		if matchedResults[i].StatusCode == matchedResults[j].StatusCode {
+			return matchedResults[i].BypassModule < matchedResults[j].BypassModule
+		}
+		return matchedResults[i].StatusCode < matchedResults[j].StatusCode
+	})
+
+	PrintResultsTable(targetURL, matchedResults)
+	return nil
+}
+
+func AppendResultsToJsonL(outputFile string, findings []*Result) error {
+	if len(findings) == 0 {
+		return nil
+	}
+
+	fileLock.Lock()
+	defer fileLock.Unlock()
+
+	fileInfo, err := os.Stat(outputFile)
+	fileExists := !os.IsNotExist(err)
+	isEmpty := !fileExists || fileInfo.Size() == 0
+
+	file, err := os.OpenFile(outputFile, os.O_RDWR|os.O_CREATE, 0644)
+	if err != nil {
+		return fmt.Errorf("failed to open JSON file: %v", err)
+	}
+	defer file.Close()
+
+	if isEmpty {
+		file.WriteString("[")
+	} else {
+		if err := removeClosingBracket(file); err != nil {
+			return fmt.Errorf("failed to prepare file: %v", err)
+		}
+		file.WriteString(",")
+	}
+
+	// Write new results
+	for i, result := range findings {
+		if i > 0 {
+			file.WriteString(",")
+		}
+
+		data, err := jsonAPI.MarshalIndent(result, "  ", "  ")
+		if err != nil {
+			return fmt.Errorf("failed to marshal result: %v", err)
+		}
+
+		file.WriteString("\n  ")
+		file.Write(data)
+	}
+
+	file.WriteString("\n]")
+	return nil
+}
+
+func removeClosingBracket(file *os.File) error {
+	// Seek to end minus 2 bytes (]\n)
+	if _, err := file.Seek(-2, io.SeekEnd); err != nil {
+		return err
+	}
+
+	pos, _ := file.Seek(0, io.SeekCurrent)
+	return file.Truncate(pos)
+}
+
 // Helper functions
 func formatValue(val string) string {
 	if val == "" {
@@ -145,7 +262,7 @@ func formatContentType(contentType string) string {
 	return contentType
 }
 
-func FormatBytes(bytes int64) string {
+func formatBytes(bytes int64) string {
 	if bytes <= 0 {
 		return "[-]"
 	}
@@ -168,103 +285,4 @@ func FormatBytesH(bytes int64) string {
 		exp++
 	}
 	return fmt.Sprintf("%.1f%cB", float64(bytes)/float64(div), "KMGTPE"[exp])
-}
-
-// AppendResultsToJSON appends scan results to JSON file
-func AppendResultsToJSON(outputFile, url, mode string, findings []*Result) error {
-	fileLock := &sync.Mutex{}
-	fileLock.Lock()
-	defer fileLock.Unlock()
-
-	var data JSONData
-
-	// Try to read existing file
-	fileData, err := os.ReadFile(outputFile)
-	if err != nil {
-		if !os.IsNotExist(err) {
-			return fmt.Errorf("failed to read JSON file: %v", err)
-		}
-		data = JSONData{
-			Scans: make([]ScanResult, 0),
-		}
-		GB403Logger.Verbose().Msgf("[AppendResultsToJSON] Initializing new JSON file\n")
-	} else {
-		if err := json.Unmarshal(fileData, &data); err != nil {
-			return fmt.Errorf("failed to parse existing JSON: %v", err)
-		}
-		GB403Logger.Verbose().Msgf("[AppendResultsToJSON] Read existing JSON file with %d scans\n", len(data.Scans))
-	}
-
-	// Clean up findings
-	cleanFindings := make([]*Result, len(findings))
-	for i, result := range findings {
-		cleanResult := *result
-		cleanResult.ResponsePreview = html.UnescapeString(cleanResult.ResponsePreview)
-		cleanFindings[i] = &cleanResult
-	}
-
-	// Add new scan results
-	scan := ScanResult{
-		URL:         url,
-		BypassModes: mode,
-		ResultsPath: filepath.Dir(outputFile),
-		Results:     cleanFindings,
-	}
-
-	data.Scans = append(data.Scans, scan)
-	GB403Logger.Verbose().Msgf("[JSON] Updated JSON now has %d scans\n", len(data.Scans))
-
-	// Create a buffered writer
-	file, err := os.OpenFile(outputFile, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
-	if err != nil {
-		return fmt.Errorf("failed to open JSON file: %v", err)
-	}
-	defer file.Close()
-
-	writer := bufio.NewWriter(file)
-	encoder := json.NewEncoder(writer)
-	encoder.SetEscapeHTML(false)
-	encoder.SetIndent("", "  ")
-
-	if err := encoder.Encode(data); err != nil {
-		return fmt.Errorf("failed to encode JSON: %v", err)
-	}
-
-	return writer.Flush()
-}
-
-func PrintResultsFromJSON(jsonFile, targetURL, bypassModule string) error {
-	file, err := os.Open(jsonFile)
-	if err != nil {
-		return fmt.Errorf("failed to open JSON file: %v", err)
-	}
-	defer file.Close()
-
-	var data JSONData
-	decoder := json.NewDecoder(file)
-	if err := decoder.Decode(&data); err != nil {
-		return fmt.Errorf("failed to decode JSON: %v", err)
-	}
-
-	// Find matching scan results
-	var matchedResults []*Result
-	for _, scan := range data.Scans {
-		if scan.URL == targetURL && scan.BypassModes == bypassModule {
-			matchedResults = scan.Results
-			break
-		}
-	}
-
-	if len(matchedResults) == 0 {
-		return fmt.Errorf("no results found for %s with module %s", targetURL, bypassModule)
-	}
-
-	// Recreate the same table sorting as original
-	sort.Slice(matchedResults, func(i, j int) bool {
-		return matchedResults[i].StatusCode < matchedResults[j].StatusCode
-	})
-
-	// Print using existing table formatter
-	PrintResultsTable(targetURL, matchedResults)
-	return nil
 }

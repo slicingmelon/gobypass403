@@ -79,7 +79,7 @@ func (wp *RequestWorkerPool) processJob(job payload.PayloadJob) *RawHTTPResponse
 	defer wp.httpClient.ReleaseRequest(req)
 	defer wp.httpClient.ReleaseResponse(resp)
 
-	fmt.Printf("Processing request for URL: %s\n", job.FullURL)
+	fmt.Printf("Processing request for URL: %s\n", payload.BypassPayloadToFullURL(job))
 
 	// Build request
 	if err := wp.buildRequest(req, job); err != nil {
@@ -113,7 +113,7 @@ func (wp *RequestWorkerPool) processJob(job payload.PayloadJob) *RawHTTPResponse
 func (wp *RequestWorkerPool) buildRequest(req *fasthttp.Request, job payload.PayloadJob) error {
 	req.UseHostHeader = false
 	req.Header.SetMethod(job.Method)
-	req.SetRequestURI(job.FullURL)
+	req.SetRequestURI(job.Scheme + "://" + job.Host + job.RawURI)
 
 	// Disable all normalizing for raw path testing
 	req.URI().DisablePathNormalizing = true
@@ -158,7 +158,7 @@ func (wp *RequestWorkerPool) processResponse(resp *fasthttp.Response, job payloa
 	}
 
 	result := &RawHTTPResponseDetails{
-		URL:           []byte(job.FullURL),
+		URL:           []byte(payload.BypassPayloadToFullURL(job)),
 		StatusCode:    statusCode,
 		ContentLength: int64(resp.Header.ContentLength()),
 		ResponseBytes: len(body),
@@ -195,13 +195,13 @@ func main() {
 	defer pool.Close()
 
 	// Generate test URLs
-	baseURL := "https://localhost/test/"
 	var jobs []payload.PayloadJob
 	for i := 1; i <= 200; i++ {
 		jobs = append(jobs, payload.PayloadJob{
+			Scheme:       "https",
 			Host:         "localhost",
 			Method:       "GET",
-			FullURL:      fmt.Sprintf("%s%d", baseURL, i),
+			RawURI:       fmt.Sprintf("%d", i),
 			PayloadToken: strconv.Itoa(i),
 			Headers: []payload.Headers{
 				{Header: "User-Agent", Value: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"},

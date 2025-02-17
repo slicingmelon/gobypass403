@@ -48,7 +48,9 @@ func TestDialerInMemory(t *testing.T) {
 	// Create test payload
 	jobs := []payload.PayloadJob{
 		{
-			FullURL:      "http://example.com/test",
+			Scheme:       "http",
+			Host:         "example.com",
+			RawURI:       "/test",
 			Method:       "GET",
 			BypassModule: "test-dialer",
 			Headers:      []payload.Headers{},
@@ -116,7 +118,9 @@ func TestDialerWithProxy(t *testing.T) {
 	// Create test payload
 	jobs := []payload.PayloadJob{
 		{
-			FullURL:      "http://example.com/test",
+			Scheme:       "http",
+			Host:         "example.com",
+			RawURI:       "/test",
 			Method:       "GET",
 			BypassModule: "test-proxy",
 			Headers:      []payload.Headers{},

@@ -1,6 +1,7 @@
 package scanner
 
 import (
+	"bytes"
 	"fmt"
 	"strings"
 	"sync"
@@ -8,9 +9,7 @@ import (
 
 	"github.com/slicingmelon/go-bypass-403/internal/engine/payload"
 	"github.com/slicingmelon/go-bypass-403/internal/engine/rawhttp"
-	GB403ErrorHandler "github.com/slicingmelon/go-bypass-403/internal/utils/error"
 	GB403Logger "github.com/slicingmelon/go-bypass-403/internal/utils/logger"
-	"github.com/slicingmelon/go-rawurlparser"
 )
 
 // BypassModule defines the interface for all bypass modules
@@ -103,9 +102,11 @@ type BypassWorker struct {
 	once         sync.Once
 	opts         *ScannerOpts
 	requestPool  *rawhttp.RequestWorkerPool
+	totalJobs    int
+	progressBar  *ProgressBar
 }
 
-func NewBypassWorker(bypassmodule string, targetURL string, scannerOpts *ScannerOpts) *BypassWorker {
+func NewBypassWorker(bypassmodule string, targetURL string, scannerOpts *ScannerOpts, totalJobs int) *BypassWorker {
 	httpClientOpts := rawhttp.DefaultHTTPClientOptions()
 
 	// Override specific settings from user options
@@ -142,8 +143,8 @@ func NewBypassWorker(bypassmodule string, targetURL string, scannerOpts *Scanner
 		wg:           &sync.WaitGroup{},
 		once:         sync.Once{},
 		opts:         scannerOpts,
-
-		requestPool: rawhttp.NewRequestWorkerPool(httpClientOpts, scannerOpts.Threads),
+		totalJobs:    totalJobs,
+		requestPool:  rawhttp.NewRequestWorkerPool(httpClientOpts, scannerOpts.Threads),
 	}
 }
 
@@ -167,85 +168,79 @@ func (w *BypassWorker) Stop() {
 func (s *Scanner) RunAllBypasses(targetURL string) chan *Result {
 	results := make(chan *Result)
 
-	// Validate URL one more time, who knows
-	if _, err := rawurlparser.RawURLParse(targetURL); err != nil {
-		err = GB403ErrorHandler.GetErrorHandler().HandleError(err, GB403ErrorHandler.ErrorContext{
-			TargetURL:   []byte(targetURL),
-			ErrorSource: []byte("Scanner.RunAllBypasses"),
-		})
-		if err != nil {
-			GB403Logger.Error().Msgf("Failed to parse URL: %s\n", targetURL)
-			close(results)
-			return results
-		}
-	}
-
 	go func() {
 		defer close(results)
 
-		// Run dumb check once at the start
-		s.RunBypassModule("dumb_check", targetURL, results)
-
-		bpModules := strings.Split(s.scannerOpts.BypassModule, ",")
-		for _, module := range bpModules {
+		modules := strings.Split(s.scannerOpts.BypassModule, ",")
+		for _, module := range modules {
 			module = strings.TrimSpace(module)
-
-			if module == "all" {
-				// Run all registered modules except dumb_check
-				for bpModuleName := range bypassModules {
-					if bpModuleName != "dumb_check" {
-						s.RunBypassModule(bpModuleName, targetURL, results)
-					}
-				}
+			if module == "" {
 				continue
 			}
 
-			// Check if module exists in registry
-			if _, exists := bypassModules[module]; exists && module != "dumb_check" {
-				s.RunBypassModule(module, targetURL, results)
-			} else {
-				GB403Logger.Error().Msgf("Unknown bypass module: %s\n", module)
-			}
+			modResults := make(chan *Result)
+			go s.RunBypassModule(module, targetURL, modResults)
 
+			// Just forward results for progress tracking
+			for res := range modResults {
+				if res != nil {
+					results <- res
+				}
+			}
 		}
 	}()
 
 	return results
 }
 
+var resultsBufferPool = sync.Pool{
+	New: func() interface{} {
+		return new(bytes.Buffer)
+	},
+}
+
 // Run a specific Bypass Module
 func (s *Scanner) RunBypassModule(bypassModule string, targetURL string, results chan<- *Result) {
+	defer close(results)
+
 	moduleInstance, exists := bypassModules[bypassModule]
 	if !exists {
 		return
 	}
 
-	// Generate jobs
 	allJobs := moduleInstance.GenerateJobs(targetURL, bypassModule, s.scannerOpts)
 	if len(allJobs) == 0 {
 		GB403Logger.Warning().Msgf("No jobs generated for bypass module: %s\n", bypassModule)
 		return
 	}
 
-	worker := NewBypassWorker(bypassModule, targetURL, s.scannerOpts)
+	GB403Logger.Verbose().Msgf("[%s] Generated %d payloads for %s\n", bypassModule, len(allJobs), targetURL)
+
+	worker := NewBypassWorker(bypassModule, targetURL, s.scannerOpts, len(allJobs))
 	defer worker.Stop()
 
-	// Create progress bar
-	progressbar := NewProgressBar(bypassModule, len(allJobs), s.scannerOpts.Threads)
-	defer progressbar.Stop()
+	// Initialize progress bar with initial state
+	progressBar := NewProgressBar(bypassModule, len(allJobs), s.scannerOpts.Threads)
+	progressBar.Start()
+	defer progressBar.Stop()
 
-	progressbar.Start()
-
-	// Process requests and update progress
 	responses := worker.requestPool.ProcessRequests(allJobs)
 
+	// Process responses and update progress based on pool metrics
 	for response := range responses {
 		if response == nil {
 			continue
 		}
 
-		progressbar.Increment()
-		progressbar.UpdateSpinnerText(
+		// Ensure release happens even if processing panics
+		defer func(resp *rawhttp.RawHTTPResponseDetails) {
+			rawhttp.ReleaseResponseDetails(resp)
+		}(response)
+
+		// Update progress bar to match pool state
+		progressBar.Increment()
+
+		progressBar.UpdateSpinnerText(
 			bypassModule,
 			s.scannerOpts.Threads,
 			worker.requestPool.GetReqWPActiveWorkers(),
@@ -256,33 +251,41 @@ func (s *Scanner) RunBypassModule(bypassModule string, targetURL string, results
 		)
 
 		if matchStatusCodes(response.StatusCode, s.scannerOpts.MatchStatusCodes) {
-			results <- &Result{
-				TargetURL:       string(response.URL),
-				BypassModule:    bypassModule,
-				StatusCode:      response.StatusCode,
-				ResponseHeaders: string(response.ResponseHeaders),
-				CurlPocCommand:  string(response.CurlCommand),
-				ResponsePreview: string(response.ResponsePreview),
-				ContentType:     string(response.ContentType),
-				ContentLength:   response.ContentLength,
-				ResponseBytes:   response.ResponseBytes,
-				Title:           string(response.Title),
-				ServerInfo:      string(response.ServerInfo),
-				RedirectURL:     string(response.RedirectURL),
-				ResponseTime:    response.ResponseTime,
-				DebugToken:      string(response.DebugToken),
-			}
-		}
+			buf := resultsBufferPool.Get().(*bytes.Buffer)
+			buf.Reset()
 
-		// release responsedetails buff
-		rawhttp.ReleaseResponseDetails(response)
+			result := &Result{
+				TargetURL:           string(response.URL),
+				BypassModule:        string(response.BypassModule),
+				StatusCode:          response.StatusCode,
+				ResponseHeaders:     string(response.ResponseHeaders),
+				CurlCMD:             string(response.CurlCommand),
+				ResponseBodyPreview: string(response.ResponsePreview),
+				ContentType:         string(response.ContentType),
+				ContentLength:       response.ContentLength,
+				ResponseBodyBytes:   response.ResponseBytes,
+				Title:               string(response.Title),
+				ServerInfo:          string(response.ServerInfo),
+				RedirectURL:         string(response.RedirectURL),
+				ResponseTime:        response.ResponseTime,
+				DebugToken:          string(response.DebugToken),
+			}
+
+			// Write to file immediately
+			if err := AppendResultsToJsonL(GetResultsFile(), []*Result{result}); err != nil {
+				GB403Logger.Error().Msgf("Failed to write result: %v\n", err)
+			}
+
+			results <- result
+			resultsBufferPool.Put(buf)
+		}
 	}
 
-	// Final progress update
-	progressbar.SpinnerSuccess(
+	// Final success state
+	progressBar.SpinnerSuccess(
 		bypassModule,
 		s.scannerOpts.Threads,
-		worker.requestPool.GetReqWPActiveWorkers(),
+		0,
 		worker.requestPool.GetReqWPCompletedTasks(),
 		worker.requestPool.GetReqWPSubmittedTasks(),
 		worker.requestPool.GetRequestRate(),
@@ -291,54 +294,60 @@ func (s *Scanner) RunBypassModule(bypassModule string, targetURL string, results
 	)
 }
 
-func (s *Scanner) ScanDebugToken(debugToken string, resendCount int) ([]*Result, error) {
+func (s *Scanner) ResendRequestWithToken(debugToken string, resendCount int) ([]*Result, error) {
 	// Parse URL from token
 	tokenData, err := payload.DecodeDebugToken(debugToken)
 	if err != nil {
 		return nil, fmt.Errorf("failed to decode debug token: %w", err)
 	}
 
-	parsedURL, err := rawurlparser.RawURLParse(tokenData.FullURL)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse URL from token: %w", err)
-	}
-
 	// Create base job
 	job := payload.PayloadJob{
-		FullURL:      tokenData.FullURL,
-		Method:       "GET",
-		Host:         parsedURL.Host,
-		Scheme:       parsedURL.Scheme,
-		RawURI:       parsedURL.Path,
+		OriginalURL:  tokenData.OriginalURL, // kept for compatibility
+		Method:       tokenData.Method,
+		Scheme:       tokenData.Scheme,
+		Host:         tokenData.Host,
+		RawURI:       tokenData.RawURI,
 		Headers:      tokenData.Headers,
 		BypassModule: "debugRequest",
-		PayloadToken: payload.GenerateDebugToken(payload.SeedData{FullURL: tokenData.FullURL}),
 	}
 
-	// Create worker
-	worker := NewBypassWorker("debugRequest", tokenData.FullURL, s.scannerOpts)
+	// Construct display URL for logging/display purposes only
+	displayURL := fmt.Sprintf("%s://%s%s", tokenData.Scheme, tokenData.Host, tokenData.RawURI)
+
+	worker := NewBypassWorker("debugRequest", displayURL, s.scannerOpts, resendCount)
 	defer worker.Stop()
 
-	// Create jobs array
-	jobs := make([]payload.PayloadJob, resendCount)
+	// Create jobs array with pre-allocated capacity
+	jobs := make([]payload.PayloadJob, 0, resendCount)
 	for i := 0; i < resendCount; i++ {
-		jobs[i] = job
-		jobs[i].PayloadToken = payload.GenerateDebugToken(payload.SeedData{FullURL: tokenData.FullURL})
+		jobCopy := job // Create a copy to avoid sharing the same job reference
+		jobCopy.PayloadToken = payload.GenerateDebugToken(payload.SeedData{
+			Method:  tokenData.Method,
+			Scheme:  tokenData.Scheme,
+			Host:    tokenData.Host,
+			RawURI:  tokenData.RawURI,
+			Headers: tokenData.Headers,
+		})
+		jobs = append(jobs, jobCopy)
 	}
 
-	// Create progress bar
 	progressbar := NewProgressBar("debugRequest", len(jobs), s.scannerOpts.Threads)
-	defer progressbar.Stop()
 	progressbar.Start()
+	defer progressbar.Stop()
 
-	// Process all requests
-	var results []*Result
 	responses := worker.requestPool.ProcessRequests(jobs)
+	var results []*Result
 
 	for response := range responses {
 		if response == nil {
 			continue
 		}
+
+		// Ensure release happens even if processing panics
+		defer func(resp *rawhttp.RawHTTPResponseDetails) {
+			rawhttp.ReleaseResponseDetails(resp)
+		}(response)
 
 		// Update progress
 		progressbar.Increment()
@@ -355,26 +364,29 @@ func (s *Scanner) ScanDebugToken(debugToken string, resendCount int) ([]*Result,
 		// Only add to results if status code matches
 		if matchStatusCodes(response.StatusCode, s.scannerOpts.MatchStatusCodes) {
 			result := &Result{
-				TargetURL:       string(response.URL),
-				BypassModule:    "debugRequest",
-				StatusCode:      response.StatusCode,
-				ResponseHeaders: string(response.ResponseHeaders),
-				CurlPocCommand:  string(response.CurlCommand),
-				ResponsePreview: string(response.ResponsePreview),
-				ContentType:     string(response.ContentType),
-				ContentLength:   response.ContentLength,
-				ResponseBytes:   response.ResponseBytes,
-				Title:           string(response.Title),
-				ServerInfo:      string(response.ServerInfo),
-				RedirectURL:     string(response.RedirectURL),
-				ResponseTime:    response.ResponseTime,
-				DebugToken:      string(response.DebugToken),
+				TargetURL:           displayURL, // Using displayURL for consistent logging
+				BypassModule:        string(response.BypassModule),
+				StatusCode:          response.StatusCode,
+				ResponseHeaders:     string(response.ResponseHeaders),
+				CurlCMD:             string(response.CurlCommand),
+				ResponseBodyPreview: string(response.ResponsePreview),
+				ContentType:         string(response.ContentType),
+				ContentLength:       response.ContentLength,
+				ResponseBodyBytes:   response.ResponseBytes,
+				Title:               string(response.Title),
+				ServerInfo:          string(response.ServerInfo),
+				RedirectURL:         string(response.RedirectURL),
+				ResponseTime:        response.ResponseTime,
+				DebugToken:          string(response.DebugToken),
+			}
+
+			// Write to file immediately like in RunBypassModule
+			if err := AppendResultsToJsonL(GetResultsFile(), []*Result{result}); err != nil {
+				GB403Logger.Error().Msgf("Failed to write result: %v\n", err)
 			}
 
 			results = append(results, result)
 		}
-
-		rawhttp.ReleaseResponseDetails(response)
 	}
 
 	// Final progress update

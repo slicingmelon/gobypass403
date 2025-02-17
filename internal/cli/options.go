@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"encoding/json"
 	"flag"
 	"fmt"
 	"net/url"
@@ -63,16 +62,9 @@ type CliOptions struct {
 	Profile bool
 }
 
-// ModesConfig -- all bypass modes and their status
-type ModulesConfig struct {
-	Name        string
-	Enabled     bool
-	Description string
-}
-
 // AvailableModes defines all bypass modes and their status, true if enabled, false if disabled
 var AvailableModules = map[string]bool{
-	"all":                        true,
+	"dumb_check":                 true,
 	"mid_paths":                  true,
 	"end_paths":                  true,
 	"case_substitution":          true,
@@ -171,8 +163,9 @@ func (o *CliOptions) validate() error {
 			return fmt.Errorf("invalid debug token: %v", err)
 		}
 		// Print the decoded information
+		targetURL := fmt.Sprintf("%s://%s%s", data.Scheme, data.Host, data.RawURI)
 		fmt.Println("=== Debug Token Information ===")
-		fmt.Printf("Full URL: %s\n", data.FullURL)
+		fmt.Printf("Full URL: %s\n", targetURL)
 		fmt.Printf("Bypass Module: %s\n", data.BypassModule)
 		fmt.Println("Headers:")
 		for _, h := range data.Headers {
@@ -268,21 +261,55 @@ func (o *CliOptions) processStatusCodes() error {
 // validateModule checks if the specified module is valid
 func (o *CliOptions) validateModule() error {
 	if o.Module == "" {
+		o.printUsage("module")
 		return fmt.Errorf("bypass module cannot be empty")
 	}
 
-	// Split and validate each module
+	// Always process as comma-separated list
 	modules := strings.Split(o.Module, ",")
+	finalModules := make([]string, 0, len(modules))
+
+	// Check for "all" first
 	for _, m := range modules {
-		m = strings.TrimSpace(m)
-		if m == "all" {
-			return nil // basically "all"
-		}
-		if enabled, exists := AvailableModules[m]; !exists || !enabled {
-			return fmt.Errorf("invalid module: %s", m)
+		if strings.TrimSpace(m) == "all" {
+			// Expand to all available modules except "dumb_check"
+			for moduleName := range AvailableModules {
+				if moduleName != "dumb_check" {
+					finalModules = append(finalModules, moduleName)
+				}
+			}
+			break
 		}
 	}
 
+	// If not "all", validate individual modules
+	if len(finalModules) == 0 {
+		for _, m := range modules {
+			m = strings.TrimSpace(m)
+			if m == "" {
+				continue
+			}
+			if enabled, exists := AvailableModules[m]; !exists || !enabled {
+				return fmt.Errorf("invalid module: %s", m)
+			}
+			finalModules = append(finalModules, m)
+		}
+	}
+
+	// Always prepend dumb_check unless explicitly excluded
+	hasDumbCheck := false
+	for _, m := range finalModules {
+		if m == "dumb_check" {
+			hasDumbCheck = true
+			break
+		}
+	}
+	if !hasDumbCheck {
+		finalModules = append([]string{"dumb_check"}, finalModules...)
+	}
+
+	// Join back to comma-separated string
+	o.Module = strings.Join(finalModules, ",")
 	return nil
 }
 
@@ -291,24 +318,6 @@ func (o *CliOptions) setupOutputDir() error {
 	if err := os.MkdirAll(o.OutDir, 0755); err != nil {
 		return fmt.Errorf("failed to create output directory: %v", err)
 	}
-
-	// Initialize findings.json file
-	outputFile := filepath.Join(o.OutDir, "findings.json")
-	initialJSON := struct {
-		Scans []interface{} `json:"scans"`
-	}{
-		Scans: make([]interface{}, 0),
-	}
-
-	jsonData, err := json.MarshalIndent(initialJSON, "", "  ")
-	if err != nil {
-		return fmt.Errorf("failed to create initial JSON structure: %v", err)
-	}
-
-	if err := os.WriteFile(outputFile, jsonData, 0644); err != nil {
-		return fmt.Errorf("failed to initialize findings.json: %v", err)
-	}
-
 	return nil
 }
 

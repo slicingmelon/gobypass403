@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	GB403Logger "github.com/slicingmelon/go-bypass-403/internal/utils/logger"
+	"github.com/slicingmelon/go-rawurlparser"
 )
 
 var (
@@ -34,6 +35,8 @@ var (
 
 		return table
 	}()
+
+	hexChars = []byte("0123456789ABCDEF")
 )
 
 //go:embed payloads/*.lst
@@ -249,11 +252,6 @@ func isLetter(c byte) bool {
 	return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')
 }
 
-type Headers struct {
-	Header string
-	Value  string
-}
-
 // Helper function to convert a slice of Header structs to a map
 func HeadersToMap(headers []Headers) map[string]string {
 	m := make(map[string]string)
@@ -261,4 +259,45 @@ func HeadersToMap(headers []Headers) map[string]string {
 		m[h.Header] = h.Value
 	}
 	return m
+}
+
+// URLEncodeAll encodes each character in the input string to its percent-encoded representation
+// It handles UTF-8 characters by encoding each byte of their UTF-8 representation
+func URLEncodeAll(s string) string {
+	// Pre-allocate buffer (3 bytes per character: %XX)
+	buf := make([]byte, 0, len(s)*3)
+
+	// Convert to bytes to properly handle UTF-8
+	for _, b := range []byte(s) {
+		buf = append(buf, '%')
+		buf = append(buf, hexChars[b>>4])
+		buf = append(buf, hexChars[b&15])
+	}
+
+	return string(buf)
+}
+
+// BypassPayloadToFullURL converts a bypass payload to a full URL (utility function for unit tests)
+func BypassPayloadToFullURL(job PayloadJob) string {
+	// Ensure RawURI starts with / if not empty and not already starting with /
+	rawURI := job.RawURI
+
+	return fmt.Sprintf("%s://%s%s", job.Scheme, job.Host, rawURI)
+}
+
+// FullURLToBypassPayload converts a full URL to a bypass payload (utility function for unit tests)
+func FullURLToBypassPayload(fullURL string, method string, headers []Headers) (PayloadJob, error) {
+	parsedURL, err := rawurlparser.RawURLParse(fullURL)
+	if err != nil {
+		return PayloadJob{}, fmt.Errorf("failed to parse URL: %w", err)
+	}
+
+	return PayloadJob{
+		OriginalURL: fullURL, // Keep original URL for reference
+		Method:      method,
+		Scheme:      parsedURL.Scheme,
+		Host:        parsedURL.Host,
+		RawURI:      parsedURL.Path,
+		Headers:     headers,
+	}, nil
 }

@@ -83,8 +83,10 @@ func TestHostHeaderInjection(t *testing.T) {
 
 			// Setup payload job
 			job := payload.PayloadJob{
-				FullURL: tc.targetURL,
-				Method:  "GET",
+				Scheme: "https",
+				Host:   tc.targetURL,
+				RawURI: "/path",
+				Method: "GET",
 				Headers: []payload.Headers{
 					{
 						Header: "Host",
@@ -94,7 +96,7 @@ func TestHostHeaderInjection(t *testing.T) {
 			}
 
 			// Build and send request
-			err := rawhttp.BuildHTTPRequest(client, req, job)
+			err := rawhttp.BuildRawHTTPRequest(client, req, job)
 			//req.UseHostHeader = true
 			assert.NoError(t, err)
 
@@ -193,8 +195,10 @@ func TestHostHeaderInjection2(t *testing.T) {
 
 			// Setup payload job
 			job := payload.PayloadJob{
-				FullURL: tc.targetURL,
-				Method:  "GET",
+				Scheme: "https",
+				Host:   tc.targetURL,
+				RawURI: "/",
+				Method: "GET",
 				Headers: []payload.Headers{
 					{
 						Header: "Host",
@@ -207,7 +211,7 @@ func TestHostHeaderInjection2(t *testing.T) {
 			// err := rawhttp.BuildHTTPRequest(client, req, job)
 			// assert.NoError(t, err)
 
-			req.SetRequestURI(job.FullURL)
+			req.SetRequestURI(job.Scheme + "://" + job.Host + job.RawURI)
 
 			req.UseHostHeader = true
 			req.URI().SetScheme("https")
