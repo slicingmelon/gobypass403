@@ -233,9 +233,9 @@ func (s *Scanner) RunBypassModule(bypassModule string, targetURL string, results
 		}
 
 		// Ensure release happens even if processing panics
-		defer func(resp *rawhttp.RawHTTPResponseDetails) {
-			rawhttp.ReleaseResponseDetails(resp)
-		}(response)
+		// defer func(resp *rawhttp.RawHTTPResponseDetails) {
+		// 	rawhttp.ReleaseResponseDetails(resp)
+		// }(response)
 
 		// Update progress bar to match pool state
 		progressBar.Increment()

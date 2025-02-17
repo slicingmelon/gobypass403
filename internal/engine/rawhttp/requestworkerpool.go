@@ -2,6 +2,7 @@ package rawhttp
 
 import (
 	"context"
+	"runtime"
 	"sync/atomic"
 	"time"
 
@@ -160,10 +161,12 @@ func (wp *RequestWorkerPool) Close() {
 func (wp *RequestWorkerPool) ProcessRequestResponseJob(job payload.PayloadJob) *RawHTTPResponseDetails {
 	req := wp.httpClient.AcquireRequest()
 	resp := wp.httpClient.AcquireResponse()
+
+	// Release request early since we don't need it after DoRequest
 	defer wp.httpClient.ReleaseRequest(req)
-	defer wp.httpClient.ReleaseResponse(resp)
 
 	if err := BuildRawHTTPRequest(wp.httpClient, req, job); err != nil {
+		wp.httpClient.ReleaseResponse(resp) // Release on error
 		handleErr := GB403ErrorHandler.GetErrorHandler().HandleError(err, GB403ErrorHandler.ErrorContext{
 			ErrorSource:  []byte("RequestWorkerPool.BuildRawRequestTask"),
 			Host:         []byte(job.Host),
@@ -174,20 +177,27 @@ func (wp *RequestWorkerPool) ProcessRequestResponseJob(job payload.PayloadJob) *
 		}
 	}
 
-	// DoRequest already handles error logging/handling
 	respTime, err := wp.httpClient.DoRequest(req, resp, job)
 	if err != nil {
+		wp.httpClient.ReleaseResponse(resp) // Release on error
 		if err == ErrReqFailedMaxConsecutiveFails {
 			GB403Logger.Warning().Msgf("Cancelling current bypass module due to max consecutive failures reached for module [%s]\n", wp.httpClient.options.BypassModule)
 			wp.Close()
 			return nil
 		}
+		return nil
 	}
 
-	// Let ProcessHTTPResponse handle its own resource lifecycle
+	// Process response before releasing
 	result := ProcessHTTPResponse(wp.httpClient, resp, job)
+	wp.httpClient.ReleaseResponse(resp)
+
 	if result != nil {
 		result.ResponseTime = respTime
+		// Add deferred release of response details
+		runtime.SetFinalizer(result, func(r *RawHTTPResponseDetails) {
+			ReleaseResponseDetails(r)
+		})
 	}
 
 	return result
