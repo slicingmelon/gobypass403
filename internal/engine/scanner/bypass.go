@@ -2,7 +2,6 @@ package scanner
 
 import (
 	"fmt"
-	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -168,16 +167,12 @@ func (w *BypassWorker) Stop() {
 // Core Function
 func (s *Scanner) RunAllBypasses(targetURL string) chan *Result {
 	results := make(chan *Result)
-	outputFile := filepath.Join(s.scannerOpts.OutDir, "findings.json")
 
 	go func() {
 		defer close(results)
 
 		// Split validated module list from options
 		modules := strings.Split(s.scannerOpts.BypassModule, ",")
-
-		// Create results collector
-		var allResults []*Result
 
 		for _, module := range modules {
 			module = strings.TrimSpace(module)
@@ -190,13 +185,7 @@ func (s *Scanner) RunAllBypasses(targetURL string) chan *Result {
 
 			for res := range modResults {
 				results <- res
-				allResults = append(allResults, res)
 			}
-		}
-
-		// Batch write all results to JSONL
-		if err := AppendResultsToJsonL(outputFile, allResults); err != nil {
-			GB403Logger.Error().Msgf("Failed to write results: %v\n", err)
 		}
 	}()
 

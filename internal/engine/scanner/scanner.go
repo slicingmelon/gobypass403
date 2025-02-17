@@ -78,6 +78,7 @@ func (s *Scanner) Run() error {
 }
 
 func (s *Scanner) scanURL(url string) error {
+	// Get results channel
 	resultsChannel := s.RunAllBypasses(url)
 
 	// Collect all results first
@@ -99,14 +100,11 @@ func (s *Scanner) scanURL(url string) error {
 			GB403Logger.Error().Msgf("Failed to write results: %v\n", err)
 		}
 
-		// Print results table
+		// Print results table directly from collected results
 		fmt.Println()
-		if err := PrintResultsTableFromJsonL(outputFile, url, s.scannerOpts.BypassModule); err != nil {
-			GB403Logger.Error().Msgf("Failed to display results: %v\n", err)
-		} else {
-			fmt.Println()
-			GB403Logger.Success().Msgf("%d findings saved to %s\n\n", resultCount, outputFile)
-		}
+		PrintResultsTable(url, allResults)
+		fmt.Println()
+		GB403Logger.Success().Msgf("%d findings saved to %s\n\n", resultCount, outputFile)
 	}
 
 	return nil
