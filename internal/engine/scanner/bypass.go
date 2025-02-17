@@ -166,64 +166,31 @@ func (w *BypassWorker) Stop() {
 }
 
 // Core Function
-
 func (s *Scanner) RunAllBypasses(targetURL string) chan *Result {
 	results := make(chan *Result)
-
 	outputFile := filepath.Join(s.scannerOpts.OutDir, "findings.json")
 
 	go func() {
 		defer close(results)
 
-		// Create temporary storage for each module's results
-		moduleResults := make(map[string][]*Result)
+		// Split validated module list from options
+		modules := strings.Split(s.scannerOpts.BypassModule, ",")
 
-		// Run dumb check first
-		dumbResults := make(chan *Result)
-		go s.RunBypassModule("dumb_check", targetURL, dumbResults)
-		for res := range dumbResults {
-			results <- res
-			moduleResults["dumb_check"] = append(moduleResults["dumb_check"], res)
-		}
-		AppendResultsToJson(outputFile, targetURL, "dumb_check", moduleResults["dumb_check"])
-
-		// Process other modules
-		bpModules := strings.Split(s.scannerOpts.BypassModule, ",")
-		for _, module := range bpModules {
+		for _, module := range modules {
 			module = strings.TrimSpace(module)
 			if module == "" {
 				continue
 			}
 
-			if module == "all" {
-				// Handle all modules
-				for bpModuleName := range bypassModules {
-					if bpModuleName != "dumb_check" {
-						modResults := make(chan *Result)
-						go s.RunBypassModule(bpModuleName, targetURL, modResults)
-						var collected []*Result
-						for res := range modResults {
-							results <- res
-							collected = append(collected, res)
-						}
-						AppendResultsToJson(outputFile, targetURL, bpModuleName, collected)
-					}
-				}
-				continue
-			}
+			modResults := make(chan *Result)
+			go s.RunBypassModule(module, targetURL, modResults)
 
-			if _, exists := bypassModules[module]; exists && module != "dumb_check" {
-				modResults := make(chan *Result)
-				go s.RunBypassModule(module, targetURL, modResults)
-				var collected []*Result
-				for res := range modResults {
-					results <- res
-					collected = append(collected, res)
-				}
-				AppendResultsToJson(outputFile, targetURL, module, collected)
-			} else {
-				GB403Logger.Warning().Msgf("Skipping invalid module: %s", module)
+			var collected []*Result
+			for res := range modResults {
+				results <- res
+				collected = append(collected, res)
 			}
+			AppendResultsToJson(outputFile, targetURL, module, collected)
 		}
 	}()
 

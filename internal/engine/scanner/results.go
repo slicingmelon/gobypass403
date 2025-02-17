@@ -26,20 +26,20 @@ var jsonAPI = sonic.Config{
 }.Froze()
 
 type Result struct {
-	TargetURL           string `json:"TargetURL"`
-	BypassModule        string `json:"BypassModule"`
-	CurlCMD             string `json:"CurlCMD"`
-	ResponseHeaders     string `json:"ResponseHeaders"`
-	ResponseBodyPreview string `json:"ResponseBodyPreview"`
-	StatusCode          int    `json:"StatusCode"`
-	ContentType         string `json:"ContentType"`
-	ContentLength       int64  `json:"ContentLength"`
-	ResponseBodyBytes   int    `json:"ResponseBodyBytes"`
-	Title               string `json:"Title"`
-	ServerInfo          string `json:"ServerInfo"`
-	RedirectURL         string `json:"RedirectURL"`
-	ResponseTime        int64  `json:"ResponseTime"`
-	DebugToken          string `json:"DebugToken"`
+	TargetURL           string `json:"target_url"`
+	BypassModule        string `json:"bypass_module"`
+	CurlCMD             string `json:"curl_cmd"`
+	ResponseHeaders     string `json:"response_headers"`
+	ResponseBodyPreview string `json:"response_body_preview"`
+	StatusCode          int    `json:"status_code"`
+	ContentType         string `json:"content_type"`
+	ContentLength       int64  `json:"content_length"`
+	ResponseBodyBytes   int    `json:"response_body_bytes"`
+	Title               string `json:"title"`
+	ServerInfo          string `json:"server_info"`
+	RedirectURL         string `json:"redirect_url"`
+	ResponseTime        int64  `json:"response_time"`
+	DebugToken          string `json:"debug_token"`
 }
 
 // ScanResult represents results for a single URL scan
