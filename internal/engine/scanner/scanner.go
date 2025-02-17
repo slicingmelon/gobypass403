@@ -80,17 +80,26 @@ func (s *Scanner) Run() error {
 func (s *Scanner) scanURL(url string) error {
 	resultsChannel := s.RunAllBypasses(url)
 
-	// Process results as they come in
+	// Collect all results first
+	var allResults []*Result
 	var resultCount int
 	for result := range resultsChannel {
 		if result != nil {
+			allResults = append(allResults, result)
 			resultCount++
 		}
 	}
 
-	// Load and display results from JSONL
-	outputFile := filepath.Join(s.scannerOpts.OutDir, "findings.json")
+	// If we have results, write them to file and display
 	if resultCount > 0 {
+		outputFile := filepath.Join(s.scannerOpts.OutDir, "findings.json")
+
+		// Write all results to file
+		if err := AppendResultsToJsonL(outputFile, allResults); err != nil {
+			GB403Logger.Error().Msgf("Failed to write results: %v\n", err)
+		}
+
+		// Print results table
 		fmt.Println()
 		if err := PrintResultsTableFromJsonL(outputFile, url, s.scannerOpts.BypassModule); err != nil {
 			GB403Logger.Error().Msgf("Failed to display results: %v\n", err)

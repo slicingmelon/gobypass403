@@ -142,41 +142,31 @@ func PrintResultsTable(targetURL string, results []*Result) {
 func PrintResultsTableFromJsonL(jsonFile, targetURL, bypassModule string) error {
 	GB403Logger.Verbose().Msgf("Parsing results from: %s\n", jsonFile)
 
-	file, err := os.Open(jsonFile)
+	data, err := os.ReadFile(jsonFile)
 	if err != nil {
-		return fmt.Errorf("file open error: %v", err)
+		return fmt.Errorf("file read error: %v", err)
 	}
-	defer file.Close()
 
 	var matchedResults []*Result
 	queryModules := strings.Split(bypassModule, ",")
-	scanner := bufio.NewScanner(file)
 
-	// Increase scanner buffer size for large lines
-	const maxCapacity = 1024 * 1024 // 1MB
-	buf := make([]byte, maxCapacity)
-	scanner.Buffer(buf, maxCapacity)
+	// Split by single newlines since each JSON object ends with one
+	jsonObjects := bytes.Split(data, []byte("\n"))
 
-	for scanner.Scan() {
-		line := scanner.Bytes()
-		if len(bytes.TrimSpace(line)) == 0 {
-			continue // Skip empty lines
-		}
-
-		var result Result
-		if err := jsonAPI.Unmarshal(line, &result); err != nil {
-			GB403Logger.Debug().Msgf("Invalid JSON line: %v\n", err)
+	for _, jsonObj := range jsonObjects {
+		if len(bytes.TrimSpace(jsonObj)) == 0 {
 			continue
 		}
 
-		// Strict matching criteria
+		var result Result
+		if err := jsonAPI.Unmarshal(jsonObj, &result); err != nil {
+			GB403Logger.Debug().Msgf("Invalid JSON object: %v\n", err)
+			continue
+		}
+
 		if result.TargetURL == targetURL && slices.Contains(queryModules, result.BypassModule) {
 			matchedResults = append(matchedResults, &result)
 		}
-	}
-
-	if err := scanner.Err(); err != nil {
-		return fmt.Errorf("file read error: %v", err)
 	}
 
 	if len(matchedResults) == 0 {
