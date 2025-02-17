@@ -957,8 +957,13 @@ func (pg *PayloadGenerator) GenerateUnicodePathNormalizationsJobs(targetURL stri
 	createJob := func(newPath string) PayloadJob {
 		job := baseJob
 		job.RawURI = newPath
-		job.FullURL = fmt.Sprintf("%s://%s%s", job.Scheme, job.Host, newPath)
-		job.PayloadToken = GenerateDebugToken(SeedData{FullURL: job.FullURL})
+		job.PayloadToken = GenerateDebugToken(SeedData{
+			Method:  job.Method,
+			Scheme:  job.Scheme,
+			Host:    job.Host,
+			RawURI:  newPath,
+			Headers: job.Headers,
+		})
 		return job
 	}
 

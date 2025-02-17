@@ -10,7 +10,6 @@ import (
 	"github.com/slicingmelon/go-bypass-403/internal/engine/payload"
 	"github.com/slicingmelon/go-bypass-403/internal/engine/rawhttp"
 	GB403Logger "github.com/slicingmelon/go-bypass-403/internal/utils/logger"
-	"github.com/slicingmelon/go-rawurlparser"
 )
 
 // BypassModule defines the interface for all bypass modules
@@ -233,6 +232,11 @@ func (s *Scanner) RunBypassModule(bypassModule string, targetURL string, results
 			continue
 		}
 
+		// Ensure release happens even if processing panics
+		defer func(resp *rawhttp.RawHTTPResponseDetails) {
+			rawhttp.ReleaseResponseDetails(resp)
+		}(response)
+
 		// Update progress bar to match pool state
 		progressBar.Increment()
 
@@ -275,8 +279,6 @@ func (s *Scanner) RunBypassModule(bypassModule string, targetURL string, results
 			results <- result
 			resultsBufferPool.Put(buf)
 		}
-
-		rawhttp.ReleaseResponseDetails(response)
 	}
 
 	// Final success state
@@ -293,54 +295,53 @@ func (s *Scanner) RunBypassModule(bypassModule string, targetURL string, results
 }
 
 func (s *Scanner) ResendRequestWithToken(debugToken string, resendCount int) ([]*Result, error) {
-
 	// Parse URL from token
 	tokenData, err := payload.DecodeDebugToken(debugToken)
 	if err != nil {
 		return nil, fmt.Errorf("failed to decode debug token: %w", err)
 	}
 
-	parsedURL, err := rawurlparser.RawURLParse(tokenData.FullURL)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse URL from token: %w", err)
-	}
-
 	// Create base job
 	job := payload.PayloadJob{
-		FullURL:      tokenData.FullURL,
-		Method:       "GET",
-		Host:         parsedURL.Host,
-		Scheme:       parsedURL.Scheme,
-		RawURI:       parsedURL.Path,
+		OriginalURL:  tokenData.OriginalURL,
+		Method:       tokenData.Method,
+		Scheme:       tokenData.Scheme,
+		Host:         tokenData.Host,
+		RawURI:       tokenData.RawURI,
 		Headers:      tokenData.Headers,
 		BypassModule: "debugRequest",
-		PayloadToken: payload.GenerateDebugToken(payload.SeedData{FullURL: tokenData.FullURL}),
 	}
 
-	// Create worker
-	worker := NewBypassWorker("debugRequest", tokenData.FullURL, s.scannerOpts, resendCount)
+	// Construct display URL for worker
+	displayURL := fmt.Sprintf("%s://%s%s", tokenData.Scheme, tokenData.Host, tokenData.RawURI)
+
+	worker := NewBypassWorker("debugRequest", displayURL, s.scannerOpts, resendCount)
 	defer worker.Stop()
 
-	// Create jobs array
-	jobs := make([]payload.PayloadJob, resendCount)
+	// Create jobs array with pre-allocated capacity
+	jobs := make([]payload.PayloadJob, 0, resendCount)
 	for i := 0; i < resendCount; i++ {
-		jobs[i] = job
-		jobs[i].PayloadToken = payload.GenerateDebugToken(payload.SeedData{FullURL: tokenData.FullURL})
+		jobCopy := job // Create a copy to avoid sharing the same job reference
+		jobCopy.PayloadToken = payload.GenerateDebugToken(payload.SeedData{FullURL: tokenData.FullURL})
+		jobs = append(jobs, jobCopy)
 	}
 
-	// Create progress bar
 	progressbar := NewProgressBar("debugRequest", len(jobs), s.scannerOpts.Threads)
-	defer progressbar.Stop()
 	progressbar.Start()
+	defer progressbar.Stop()
 
-	// Process all requests
-	var results []*Result
 	responses := worker.requestPool.ProcessRequests(jobs)
+	var results []*Result
 
 	for response := range responses {
 		if response == nil {
 			continue
 		}
+
+		// Ensure release happens even if processing panics
+		defer func(resp *rawhttp.RawHTTPResponseDetails) {
+			rawhttp.ReleaseResponseDetails(resp)
+		}(response)
 
 		// Update progress
 		progressbar.Increment()
@@ -356,6 +357,9 @@ func (s *Scanner) ResendRequestWithToken(debugToken string, resendCount int) ([]
 
 		// Only add to results if status code matches
 		if matchStatusCodes(response.StatusCode, s.scannerOpts.MatchStatusCodes) {
+			buf := resultsBufferPool.Get().(*bytes.Buffer)
+			buf.Reset()
+
 			result := &Result{
 				TargetURL:           string(response.URL),
 				BypassModule:        string(response.BypassModule),
@@ -373,10 +377,14 @@ func (s *Scanner) ResendRequestWithToken(debugToken string, resendCount int) ([]
 				DebugToken:          string(response.DebugToken),
 			}
 
-			results = append(results, result)
-		}
+			// Write to file immediately like in RunBypassModule
+			if err := AppendResultsToJsonL(GetResultsFile(), []*Result{result}); err != nil {
+				GB403Logger.Error().Msgf("Failed to write result: %v\n", err)
+			}
 
-		rawhttp.ReleaseResponseDetails(response)
+			results = append(results, result)
+			resultsBufferPool.Put(buf)
+		}
 	}
 
 	// Final progress update
