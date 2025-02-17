@@ -150,7 +150,7 @@ func (c *HTTPClient) SetHTTPClientOptions(opts *HTTPClientOptions) {
 	c.options = &newOpts
 }
 
-func (c *HTTPClient) execFunc(req *fasthttp.Request, resp *fasthttp.Response) (int64, error) {
+func (c *HTTPClient) execFunc(req *fasthttp.Request, resp *fasthttp.Response, job payload.PayloadJob) (int64, error) {
 	c.retryConfig.ResetPerReqAttempts()
 	//var lastErr error
 
@@ -270,7 +270,7 @@ func (c *HTTPClient) DoRequest(req *fasthttp.Request, resp *fasthttp.Response, j
 	errHandler := GB403ErrorHandler.GetErrorHandler()
 
 	// Execute request with retry handling
-	respTime, err := c.execFunc(req, resp)
+	respTime, err := c.execFunc(req, resp, job)
 
 	if err != nil {
 		if err == ErrReqFailedMaxRetries {
@@ -280,7 +280,6 @@ func (c *HTTPClient) DoRequest(req *fasthttp.Request, resp *fasthttp.Response, j
 			}
 		}
 
-		// Create error context with nil-safe values
 		// Create error context with fallback values
 		errorContext := GB403ErrorHandler.ErrorContext{
 			ErrorSource:  []byte("HTTPClient.DoRequest"),
