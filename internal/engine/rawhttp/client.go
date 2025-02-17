@@ -11,6 +11,7 @@ import (
 	"github.com/slicingmelon/go-bypass-403/internal/engine/payload"
 	GB403ErrorHandler "github.com/slicingmelon/go-bypass-403/internal/utils/error"
 	GB403Logger "github.com/slicingmelon/go-bypass-403/internal/utils/logger"
+	"github.com/tiendc/gofn"
 	"github.com/valyala/fasthttp"
 )
 
@@ -265,7 +266,7 @@ func (c *HTTPClient) execFunc(req *fasthttp.Request, resp *fasthttp.Response) (i
 
 // DoRequest performs a HTTP request (raw)
 // Returns the HTTP response time (in ms) and error
-func (c *HTTPClient) DoRequest(req *fasthttp.Request, resp *fasthttp.Response, job *payload.PayloadJob) (int64, error) {
+func (c *HTTPClient) DoRequest(req *fasthttp.Request, resp *fasthttp.Response, job payload.PayloadJob) (int64, error) {
 	errHandler := GB403ErrorHandler.GetErrorHandler()
 
 	// Execute request with retry handling
@@ -280,17 +281,12 @@ func (c *HTTPClient) DoRequest(req *fasthttp.Request, resp *fasthttp.Response, j
 		}
 
 		// Create error context with nil-safe values
+		// Create error context with fallback values
 		errorContext := GB403ErrorHandler.ErrorContext{
 			ErrorSource:  []byte("HTTPClient.DoRequest"),
-			Host:         append([]byte(nil), req.Host()...), // Fallback to request host
-			BypassModule: []byte(c.options.BypassModule),     // Fallback to client bypass module
-		}
-
-		// Only add debug token if job is provided
-		if job != nil {
-			errorContext.DebugToken = []byte(job.PayloadToken)
-			errorContext.Host = []byte(job.Host)
-			errorContext.BypassModule = []byte(job.BypassModule)
+			Host:         []byte(gofn.FirstNonEmpty(job.Host, string(req.Host()))),
+			BypassModule: []byte(gofn.FirstNonEmpty(job.BypassModule, c.options.BypassModule)),
+			DebugToken:   []byte(job.PayloadToken), // Optional, empty if not provided
 		}
 
 		handleErr := errHandler.HandleError(err, errorContext)

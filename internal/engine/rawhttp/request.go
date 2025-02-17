@@ -157,7 +157,7 @@ To set true raw request line, e.g. GET @evil.com HTTP/1.1, do not set req.SetReq
 For this to work, everything must be set in order, Raw Request line, headers, then appply settings,
 then set req.UseHostHeader = true and then req.URI().SetScheme() and req.URI().SetHost()
 */
-func BuildRawHTTPRequest(httpclient *HTTPClient, req *fasthttp.Request, job *payload.PayloadJob) error {
+func BuildRawHTTPRequest(httpclient *HTTPClient, req *fasthttp.Request, job payload.PayloadJob) error {
 	shouldCloseConn := len(job.Headers) > 0 ||
 		httpclient.GetHTTPClientOptions().DisableKeepAlive ||
 		httpclient.GetHTTPClientOptions().ProxyURL != ""
@@ -231,7 +231,7 @@ func BuildRawHTTPRequest(httpclient *HTTPClient, req *fasthttp.Request, job *pay
 	return nil
 }
 
-func ProcessHTTPResponse(httpclient *HTTPClient, resp *fasthttp.Response, job *payload.PayloadJob) *RawHTTPResponseDetails {
+func ProcessHTTPResponse(httpclient *HTTPClient, resp *fasthttp.Response, job payload.PayloadJob) *RawHTTPResponseDetails {
 	result := AcquireResponseDetails() // Allocate new result each time
 
 	statusCode := resp.StatusCode()
@@ -332,7 +332,7 @@ func ReadLimitedResponseBodyStream(stream io.Reader, previewSize int, dest []byt
 
 // BuildCurlCommandPoc builds a curl command for the payload job
 // Appends the result to dest slice
-func BuildCurlCommandPoc(job *payload.PayloadJob, dest []byte) []byte {
+func BuildCurlCommandPoc(job payload.PayloadJob, dest []byte) []byte {
 	// Reset destination slice
 	dest = dest[:0]
 
