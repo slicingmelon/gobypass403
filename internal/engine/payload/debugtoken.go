@@ -43,17 +43,9 @@ func GenerateDebugToken(data SeedData) string {
 	bb.B = append(bb.B, 8)
 	bb.Write(nonce)
 
-	// Write Method
-	if data.Method != "" {
-		bb.B = append(bb.B, 1) // field type for method
-		methodLen := len(data.Method)
-		bb.B = append(bb.B, byte(methodLen))
-		bb.Write(bytesutil.ToUnsafeBytes(data.Method))
-	}
-
 	// Write Scheme
 	if data.Scheme != "" {
-		bb.B = append(bb.B, 2) // field type for scheme
+		bb.B = append(bb.B, 1) // field type for scheme
 		schemeLen := len(data.Scheme)
 		bb.B = append(bb.B, byte(schemeLen))
 		bb.Write(bytesutil.ToUnsafeBytes(data.Scheme))
@@ -61,7 +53,7 @@ func GenerateDebugToken(data SeedData) string {
 
 	// Write Host
 	if data.Host != "" {
-		bb.B = append(bb.B, 3) // field type for host
+		bb.B = append(bb.B, 2) // field type for host
 		hostLen := len(data.Host)
 		bb.B = append(bb.B, byte(hostLen))
 		bb.Write(bytesutil.ToUnsafeBytes(data.Host))
@@ -69,10 +61,18 @@ func GenerateDebugToken(data SeedData) string {
 
 	// Write RawURI
 	if data.RawURI != "" {
-		bb.B = append(bb.B, 4) // field type for RawURI
+		bb.B = append(bb.B, 3) // field type for RawURI
 		uriLen := len(data.RawURI)
 		bb.B = append(bb.B, byte(uriLen))
 		bb.Write(bytesutil.ToUnsafeBytes(data.RawURI))
+	}
+
+	// Write Method
+	if data.Method != "" {
+		bb.B = append(bb.B, 4) // field type for method
+		methodLen := len(data.Method)
+		bb.B = append(bb.B, byte(methodLen))
+		bb.Write(bytesutil.ToUnsafeBytes(data.Method))
 	}
 
 	// Write Headers if present
@@ -140,17 +140,17 @@ func DecodeDebugToken(seed string) (SeedData, error) {
 		switch fieldType {
 		case 0xFF: // nonce - skip
 			pos += fieldLen
-		case 1: // Method
-			data.Method = string(bb[pos : pos+fieldLen])
-			pos += fieldLen
-		case 2: // Scheme
+		case 1: // Scheme
 			data.Scheme = string(bb[pos : pos+fieldLen])
 			pos += fieldLen
-		case 3: // Host
+		case 2: // Host
 			data.Host = string(bb[pos : pos+fieldLen])
 			pos += fieldLen
-		case 4: // RawURI
+		case 3: // RawURI
 			data.RawURI = string(bb[pos : pos+fieldLen])
+			pos += fieldLen
+		case 4: // Method
+			data.Method = string(bb[pos : pos+fieldLen])
 			pos += fieldLen
 		case 5: // Headers
 			headerCount := fieldLen
