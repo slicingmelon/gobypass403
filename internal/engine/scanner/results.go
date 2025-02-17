@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/bytedance/sonic"
@@ -18,7 +19,10 @@ import (
 )
 
 // Make fileLock package level
-var fileLock sync.Mutex
+var (
+	fileLock    sync.Mutex
+	resultsFile atomic.Value // Store the file path
+)
 
 type JSONData map[string]map[string][]*Result // url -> bypassMode -> results
 

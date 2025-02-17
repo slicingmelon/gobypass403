@@ -38,8 +38,18 @@ type Scanner struct {
 	urls        []string
 }
 
+func InitResultsFile(path string) {
+	resultsFile.Store(path)
+}
+
+func GetResultsFile() string {
+	return resultsFile.Load().(string)
+}
+
 // NewScanner creates a new Scanner instance
 func NewScanner(opts *ScannerOpts, urls []string) *Scanner {
+	InitResultsFile(filepath.Join(opts.OutDir, "findings.json"))
+
 	// Initialize bypass modules first
 	InitializeBypassModules()
 
@@ -56,7 +66,7 @@ func (s *Scanner) Run() error {
 	// Normal scanning mode
 	GB403Logger.Info().Msgf("Initializing scanner with %d URLs", len(s.urls))
 
-	outputFile := filepath.Join(s.scannerOpts.OutDir, "findings.json")
+	outputFile := GetResultsFile()
 
 	for _, url := range s.urls {
 		if err := s.scanURL(url); err != nil {
@@ -95,15 +105,15 @@ func (s *Scanner) scanURL(url string) error {
 	}
 
 	if resultCount > 0 {
-		outputFile := filepath.Join(s.scannerOpts.OutDir, "findings.json")
+		resultsFile := GetResultsFile()
 
 		fmt.Println()
-		if err := PrintResultsTableFromJsonL(outputFile, url, s.scannerOpts.BypassModule); err != nil {
+		if err := PrintResultsTableFromJsonL(resultsFile, url, s.scannerOpts.BypassModule); err != nil {
 			GB403Logger.Error().Msgf("Failed to display results: %v\n", err)
 		} else {
 			fmt.Println()
 			GB403Logger.Success().Msgf("%d findings saved to %s\n\n",
-				resultCount, outputFile)
+				resultCount, resultsFile)
 		}
 	}
 

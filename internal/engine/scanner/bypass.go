@@ -1,8 +1,8 @@
 package scanner
 
 import (
+	"bytes"
 	"fmt"
-	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -194,6 +194,12 @@ func (s *Scanner) RunAllBypasses(targetURL string) chan *Result {
 	return results
 }
 
+var resultsBufferPool = sync.Pool{
+	New: func() interface{} {
+		return new(bytes.Buffer)
+	},
+}
+
 // Run a specific Bypass Module
 func (s *Scanner) RunBypassModule(bypassModule string, targetURL string, results chan<- *Result) {
 	defer close(results)
@@ -221,8 +227,6 @@ func (s *Scanner) RunBypassModule(bypassModule string, targetURL string, results
 
 	responses := worker.requestPool.ProcessRequests(allJobs)
 
-	outputFile := filepath.Join(s.scannerOpts.OutDir, "findings.json")
-
 	// Process responses and update progress based on pool metrics
 	for response := range responses {
 		if response == nil {
@@ -243,6 +247,9 @@ func (s *Scanner) RunBypassModule(bypassModule string, targetURL string, results
 		)
 
 		if matchStatusCodes(response.StatusCode, s.scannerOpts.MatchStatusCodes) {
+			buf := resultsBufferPool.Get().(*bytes.Buffer)
+			buf.Reset()
+
 			result := &Result{
 				TargetURL:           string(response.URL),
 				BypassModule:        string(response.BypassModule),
@@ -261,12 +268,12 @@ func (s *Scanner) RunBypassModule(bypassModule string, targetURL string, results
 			}
 
 			// Write to file immediately
-			if err := AppendResultsToJsonL(outputFile, []*Result{result}); err != nil {
+			if err := AppendResultsToJsonL(GetResultsFile(), []*Result{result}); err != nil {
 				GB403Logger.Error().Msgf("Failed to write result: %v\n", err)
 			}
 
-			// Send to channel for progress tracking
 			results <- result
+			resultsBufferPool.Put(buf)
 		}
 
 		rawhttp.ReleaseResponseDetails(response)
