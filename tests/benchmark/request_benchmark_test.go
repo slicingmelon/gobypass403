@@ -10,7 +10,7 @@ import (
 )
 
 // 4435408	       280.9 ns/op	       0 B/op	       0 allocs/op
-func BenchmarkBuildHTTPRequest(b *testing.B) {
+func BenchmarkBuildRawHTTPRequest(b *testing.B) {
 	client := rawhttp.NewHTTPClient(rawhttp.DefaultHTTPClientOptions())
 	job := payload.PayloadJob{
 		Method:       "GET",
@@ -21,11 +21,12 @@ func BenchmarkBuildHTTPRequest(b *testing.B) {
 		BypassModule: "test-mode",
 	}
 
-	req := client.AcquireRequest()
-	defer client.ReleaseRequest(req)
-
 	b.ResetTimer()
 	b.RunParallel(func(pb *testing.PB) {
+		// Move request acquisition inside the parallel function
+		req := client.AcquireRequest()
+		defer client.ReleaseRequest(req)
+
 		for pb.Next() {
 			rawhttp.BuildRawHTTPRequest(client, req, job)
 		}
@@ -241,15 +242,17 @@ func BenchmarkExtractTitle(b *testing.B) {
 
 /*
 go test -race -bench=BenchmarkBuildRawHTTPRequest -benchmem
-goos: windows
-goarch: amd64
-pkg: github.com/slicingmelon/go-bypass-403/tests/benchmark
-cpu: 12th Gen Intel(R) Core(TM) i9-12900H
-BenchmarkBuildRawHTTPRequest/SimpleRequest-20             346256              4096 ns/op     5281 B/op           3 allocs/op
-BenchmarkBuildRawHTTPRequest/ComplexPath-20               274714              4348 ns/op     5274 B/op           3 allocs/op
-BenchmarkBuildRawHTTPRequest/LongHeaders-20               258748              4960 ns/op     5285 B/op           3 allocs/op
+
+6066975	       212.7 ns/op	      48 B/op	       1 allocs/op
+BenchmarkBuildRawHTTPRequestNew/ComplexPath
+BenchmarkBuildRawHTTPRequestNew/ComplexPath-20
+5377290	       218.8 ns/op	      48 B/op	       1 allocs/op
+BenchmarkBuildRawHTTPRequestNew/LongHeaders
+BenchmarkBuildRawHTTPRequestNew/LongHeaders-20
+5043183	       230.7 ns/op	      48 B/op	       1 allocs/op
+PASS
 */
-func BenchmarkBuildRawHTTPRequest(b *testing.B) {
+func BenchmarkBuildRawHTTPRequestNew(b *testing.B) {
 	client := rawhttp.NewHTTPClient(rawhttp.DefaultHTTPClientOptions())
 
 	// Test cases with different path complexities

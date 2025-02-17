@@ -66,7 +66,7 @@ func (s *Scanner) Run() error {
 	// Normal scanning mode
 	GB403Logger.Info().Msgf("Initializing scanner with %d URLs", len(s.urls))
 
-	outputFile := GetResultsFile()
+	//outputFile := GetResultsFile()
 
 	for _, url := range s.urls {
 		if err := s.scanURL(url); err != nil {
@@ -80,11 +80,6 @@ func (s *Scanner) Run() error {
 			}
 			continue
 		}
-	}
-
-	// Close the JSON array after all URLs are processed
-	if err := CloseJsonArray(outputFile); err != nil {
-		GB403Logger.Error().Msgf("Failed to close JSON array: %v\n", err)
 	}
 
 	// print error stats

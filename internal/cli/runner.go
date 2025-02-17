@@ -111,8 +111,10 @@ func (r *Runner) handleResendRequest() error {
 	}
 
 	// Construct display URL for logging purposes
-	displayURL := fmt.Sprintf("%s://%s%s", tokenData.Scheme, tokenData.Host, tokenData.RawURI)
-	GB403Logger.Info().Msgf("Resending request %d times to: %s\n", r.RunnerOptions.ResendCount, displayURL)
+	targetURL := fmt.Sprintf("%s://%s%s", tokenData.Scheme, tokenData.Host, tokenData.RawURI)
+	GB403Logger.Info().Msgf("Resending request %d times to: %s\n", r.RunnerOptions.ResendCount, targetURL)
+
+	outputFile := filepath.Join(r.RunnerOptions.OutDir, "findings.json")
 
 	// Create scanner with options
 	scannerOpts := &scanner.ScannerOpts{
@@ -131,7 +133,7 @@ func (r *Runner) handleResendRequest() error {
 	}
 
 	// Initialize scanner with display URL for logging
-	s := scanner.NewScanner(scannerOpts, []string{displayURL})
+	s := scanner.NewScanner(scannerOpts, []string{targetURL})
 	defer s.Close()
 
 	// Process the resend request
@@ -142,18 +144,17 @@ func (r *Runner) handleResendRequest() error {
 
 	// Print results
 	if len(findings) > 0 {
-		scanner.PrintResultsTable(displayURL, findings)
+		scanner.PrintResultsTable(targetURL, findings)
 		fmt.Println()
 
 		// Save findings
-		outputFile := filepath.Join(r.RunnerOptions.OutDir, "findings.json")
 		if err := scanner.AppendResultsToJsonL(outputFile, findings); err != nil {
 			GB403Logger.Error().Msgf("Failed to save findings: %v\n", err)
 		} else {
-			GB403Logger.Success().Msgf("Scan for %s completed. Results saved to %s\n", displayURL, outputFile)
+			GB403Logger.Success().Msgf("Scan for %s completed. Results saved to %s\n", targetURL, outputFile)
 		}
 	} else {
-		GB403Logger.Info().Msgf("No findings detected for %s\n", displayURL)
+		GB403Logger.Info().Msgf("No findings detected for %s\n", targetURL)
 	}
 
 	// Print error stats

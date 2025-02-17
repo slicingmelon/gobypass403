@@ -833,7 +833,7 @@ func (pg *PayloadGenerator) GenerateHostHeaderJobs(targetURL string, bypassModul
 		}
 	}
 
-	GB403Logger.Info().BypassModule(bypassModule).Msgf("Generated %d payloads for %s\n", len(allJobs), targetURL)
+	GB403Logger.Verbose().BypassModule(bypassModule).Msgf("Generated %d payloads for %s\n", len(allJobs), targetURL)
 	return allJobs
 }
 

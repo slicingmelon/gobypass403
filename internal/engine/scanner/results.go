@@ -1,9 +1,9 @@
 package scanner
 
 import (
-	"bufio"
 	"bytes"
 	"fmt"
+	"io"
 	"os"
 	"slices"
 	"sort"
@@ -20,8 +20,9 @@ import (
 
 // Make fileLock package level
 var (
-	fileLock    sync.Mutex
+	fileLock    sync.RWMutex
 	resultsFile atomic.Value // Store the file path
+	jsonStarted atomic.Bool
 )
 
 type JSONData map[string]map[string][]*Result // url -> bypassMode -> results
@@ -195,57 +196,52 @@ func AppendResultsToJsonL(outputFile string, findings []*Result) error {
 	fileLock.Lock()
 	defer fileLock.Unlock()
 
-	// Check if file exists
-	_, err := os.Stat(outputFile)
+	fileInfo, err := os.Stat(outputFile)
 	fileExists := !os.IsNotExist(err)
+	isEmpty := !fileExists || fileInfo.Size() == 0
 
-	file, err := os.OpenFile(outputFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	file, err := os.OpenFile(outputFile, os.O_RDWR|os.O_CREATE, 0644)
 	if err != nil {
 		return fmt.Errorf("failed to open JSON file: %v", err)
 	}
 	defer file.Close()
 
-	writer := bufio.NewWriter(file)
-	defer writer.Flush()
-
-	// If new file, start the array
-	if !fileExists {
-		writer.WriteString("[\n  ") // Added two spaces after newline
+	if isEmpty {
+		file.WriteString("[")
+	} else {
+		if err := removeClosingBracket(file); err != nil {
+			return fmt.Errorf("failed to prepare file: %v", err)
+		}
+		file.WriteString(",")
 	}
 
+	// Write new results
 	for i, result := range findings {
-		// Add comma and proper indentation
-		if fileExists || i > 0 {
-			writer.WriteString(",\n  ") // Added two spaces after newline
+		if i > 0 {
+			file.WriteString(",")
 		}
 
-		// Pretty print with adjusted indentation
-		line, err := jsonAPI.MarshalIndent(result, "  ", "  ")
+		data, err := jsonAPI.MarshalIndent(result, "  ", "  ")
 		if err != nil {
-			GB403Logger.Error().Msgf("Failed to marshal result: %v", err)
-			continue
+			return fmt.Errorf("failed to marshal result: %v", err)
 		}
-		writer.Write(line)
+
+		file.WriteString("\n  ")
+		file.Write(data)
 	}
 
+	file.WriteString("\n]")
 	return nil
 }
 
-func CloseJsonArray(outputFile string) error {
-	fileLock.Lock()
-	defer fileLock.Unlock()
-
-	file, err := os.OpenFile(outputFile, os.O_APPEND|os.O_WRONLY, 0644)
-	if err != nil {
-		return fmt.Errorf("failed to open JSON file: %v", err)
+func removeClosingBracket(file *os.File) error {
+	// Seek to end minus 2 bytes (]\n)
+	if _, err := file.Seek(-2, io.SeekEnd); err != nil {
+		return err
 	}
-	defer file.Close()
 
-	writer := bufio.NewWriter(file)
-	defer writer.Flush()
-
-	writer.WriteString("\n]")
-	return nil
+	pos, _ := file.Seek(0, io.SeekCurrent)
+	return file.Truncate(pos)
 }
 
 // Helper functions

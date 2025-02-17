@@ -47,6 +47,7 @@ var (
 	strCloseTitle     = []byte("</title>")
 	strLocationHeader = []byte("Location")
 	strSchemeDelim    = []byte("://")
+	strUserAgent      = []byte("User-Agent")
 
 	strErrorReadingPreview = []byte("Error reading reponse preview")
 )
@@ -100,21 +101,34 @@ func ReleaseResponseDetails(rd *RawHTTPResponseDetails) {
 	responseDetailsPool.Put(rd)
 }
 
-var rawRequestPool = sync.Pool{
-	New: func() interface{} {
-		return bytes.NewBuffer(make([]byte, 0, 4096)) // Pre-allocate 4KB
-	},
-}
+// var rawRequestPool = sync.Pool{
+// 	New: func() interface{} {
+// 		return bytes.NewBuffer(make([]byte, 0, 4096)) // Pre-allocate 4KB
+// 	},
+// }
+
+var (
+	rawRequestBuffPool = sync.Pool{
+		New: func() interface{} {
+			return bytes.NewBuffer(make([]byte, 0, 4096))
+		},
+	}
+	rawRequestBuffReaderPool = sync.Pool{
+		New: func() interface{} {
+			return bufio.NewReader(nil)
+		},
+	}
+)
 
 // AcquireRawRequest gets a buffer from the pool
 func AcquireRawRequest() *bytes.Buffer {
-	return rawRequestPool.Get().(*bytes.Buffer)
+	return rawRequestBuffPool.Get().(*bytes.Buffer)
 }
 
 // ReleaseRawRequest returns a buffer to the pool
 func ReleaseRawRequest(buf *bytes.Buffer) {
 	buf.Reset()
-	rawRequestPool.Put(buf)
+	rawRequestBuffPool.Put(buf)
 }
 
 /*
@@ -169,7 +183,8 @@ func BuildRawHTTPRequest(httpclient *HTTPClient, req *fasthttp.Request, job payl
 		buf.WriteString("\r\n")
 	}
 
-	buf.WriteString("User-Agent: ")
+	buf.Write(strUserAgent)
+	buf.Write(strColon)
 	buf.Write(CustomUserAgent)
 	buf.WriteString("\r\n")
 
@@ -191,8 +206,11 @@ func BuildRawHTTPRequest(httpclient *HTTPClient, req *fasthttp.Request, job payl
 	buf.WriteString("\r\n")
 
 	// Parse back into fasthttp.Request
-	br := bufio.NewReader(bytes.NewReader(buf.Bytes()))
-	if err := req.Read(br); err != nil {
+	br := rawRequestBuffReaderPool.Get().(*bufio.Reader)
+	br.Reset(bytes.NewReader(buf.Bytes()))
+	defer rawRequestBuffReaderPool.Put(br)
+
+	if err := req.ReadLimitBody(br, 0); err != nil {
 		GB403Logger.Error().Msgf("Failed to parse raw request: %v\n", err)
 		return err
 	}
