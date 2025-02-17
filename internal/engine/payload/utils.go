@@ -35,6 +35,8 @@ var (
 
 		return table
 	}()
+
+	hexChars = []byte("0123456789ABCDEF")
 )
 
 //go:embed payloads/*.lst
@@ -250,11 +252,6 @@ func isLetter(c byte) bool {
 	return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')
 }
 
-type Headers struct {
-	Header string
-	Value  string
-}
-
 // Helper function to convert a slice of Header structs to a map
 func HeadersToMap(headers []Headers) map[string]string {
 	m := make(map[string]string)
@@ -262,6 +259,22 @@ func HeadersToMap(headers []Headers) map[string]string {
 		m[h.Header] = h.Value
 	}
 	return m
+}
+
+// URLEncodeAll encodes each character in the input string to its percent-encoded representation
+// It handles UTF-8 characters by encoding each byte of their UTF-8 representation
+func URLEncodeAll(s string) string {
+	// Pre-allocate buffer (3 bytes per character: %XX)
+	buf := make([]byte, 0, len(s)*3)
+
+	// Convert to bytes to properly handle UTF-8
+	for _, b := range []byte(s) {
+		buf = append(buf, '%')
+		buf = append(buf, hexChars[b>>4])
+		buf = append(buf, hexChars[b&15])
+	}
+
+	return string(buf)
 }
 
 // BypassPayloadToFullURL converts a bypass payload to a full URL (utility function for unit tests)

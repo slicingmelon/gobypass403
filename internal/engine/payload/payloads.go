@@ -14,8 +14,8 @@ type PayloadGenerator struct {
 
 type PayloadJob struct {
 	OriginalURL  string    // store it as we might need it
-	Method       string    // this gets updated
 	Scheme       string    // this gets updated
+	Method       string    // this gets updated
 	Host         string    // this gets updated
 	RawURI       string    // this gets updated, represents everything that goes into the first line of the request u
 	Headers      []Headers // all headers as result of various payload generators
@@ -25,6 +25,11 @@ type PayloadJob struct {
 
 func NewPayloadGenerator() *PayloadGenerator {
 	return &PayloadGenerator{}
+}
+
+type Headers struct {
+	Header string
+	Value  string
 }
 
 func (pg *PayloadGenerator) GenerateDumbJob(targetURL string, bypassModule string) []PayloadJob {
@@ -865,81 +870,12 @@ const normalizedMatches = new Set();
 
 normalizedMatches.forEach(match => console.log(match));
 */
-// func (pg *PayloadGenerator) GenerateUnicodePathNormalizationsJobs(targetURL string, bypassModule string) []PayloadJob {
-// 	var jobs []PayloadJob
-
-// 	// First generate midpath payloads as base
-// 	midpathJobs := pg.GenerateMidPathsJobs(targetURL, bypassModule)
-
-// 	// Read unicode normalization mappings
-// 	unicodeMappings, err := ReadPayloadsFromFile("unicode_path_chars.lst")
-// 	if err != nil {
-// 		GB403Logger.Error().Msgf("Failed to read unicode path chars: %v", err)
-// 		return jobs
-// 	}
-
-// 	// Create mapping of ASCII chars to their unicode equivalents
-// 	charMap := make(map[rune][]rune)
-// 	for _, mapping := range unicodeMappings {
-// 		parts := strings.Split(mapping, "=")
-// 		if len(parts) != 2 {
-// 			continue
-// 		}
-
-// 		// Get the unicode char and its ASCII equivalent
-// 		unicodeChar := []rune(strings.Split(parts[0], "(")[0])[0]
-// 		asciiChar := []rune(parts[1])[0]
-
-// 		// Add to mapping (one ASCII char can have multiple unicode equivalents)
-// 		charMap[asciiChar] = append(charMap[asciiChar], unicodeChar)
-// 	}
-
-// 	// For each midpath job, create unicode variations
-// 	for _, baseJob := range midpathJobs {
-// 		// Add the original midpath job
-// 		jobs = append(jobs, baseJob)
-
-// 		// Create unicode variations of the RawURI
-// 		path := []rune(baseJob.RawURI)
-// 		for i, char := range path {
-// 			// If we have unicode equivalents for this char
-// 			if unicodeChars, exists := charMap[char]; exists {
-// 				for _, unicodeChar := range unicodeChars {
-// 					// Create new path with unicode substitution
-// 					newPath := make([]rune, len(path))
-// 					copy(newPath, path)
-// 					newPath[i] = unicodeChar
-
-// 					// Create new job with unicode path
-// 					newRawURI := string(newPath)
-// 					newFullURL := fmt.Sprintf("%s://%s%s", baseJob.Scheme, baseJob.Host, newRawURI)
-
-// 					jobs = append(jobs, PayloadJob{
-// 						OriginalURL:  baseJob.OriginalURL,
-// 						Method:       "GET",
-// 						Scheme:       baseJob.Scheme,
-// 						Host:         baseJob.Host,
-// 						RawURI:       newRawURI,
-// 						FullURL:      newFullURL,
-// 						BypassModule: bypassModule,
-// 						PayloadToken: GenerateDebugToken(SeedData{FullURL: newFullURL}),
-// 					})
-// 				}
-// 			}
-// 		}
-// 	}
-
-// 	GB403Logger.Debug().BypassModule(bypassModule).Msgf("Generated %d payloads for %s\n", len(jobs), targetURL)
-// 	return jobs
-// }
-
 func (pg *PayloadGenerator) GenerateUnicodePathNormalizationsJobs(targetURL string, bypassModule string) []PayloadJob {
 	var jobs []PayloadJob
 
-	// Parse URL to get path
 	parsedURL, err := rawurlparser.RawURLParse(targetURL)
 	if err != nil {
-		GB403Logger.Error().Msgf("Failed to parse URL: %v", err)
+		GB403Logger.Error().Msgf("Failed to parse URL: %v\n", err)
 		return jobs
 	}
 
@@ -951,11 +887,11 @@ func (pg *PayloadGenerator) GenerateUnicodePathNormalizationsJobs(targetURL stri
 	// Read Unicode mappings
 	unicodeMappings, err := ReadPayloadsFromFile("unicode_path_chars.lst")
 	if err != nil {
-		GB403Logger.Error().Msgf("Failed to read unicode path chars: %v", err)
+		GB403Logger.Error().Msgf("Failed to read unicode path chars: %v\n", err)
 		return jobs
 	}
 
-	// Build character mapping - only for '.' and '/'
+	// Build character mapping for '.' and '/'
 	targetChars := map[rune]bool{'.': true, '/': true}
 	charMap := make(map[rune][]string)
 
@@ -965,12 +901,37 @@ func (pg *PayloadGenerator) GenerateUnicodePathNormalizationsJobs(targetURL stri
 			continue
 		}
 		asciiChar := []rune(parts[1])[0]
-		// Only process if it's a '.' or '/'
 		if !targetChars[asciiChar] {
 			continue
 		}
-		unicodeChar := []rune(strings.Split(parts[0], "(")[0])[0]
-		charMap[asciiChar] = append(charMap[asciiChar], string(unicodeChar))
+		unicodeChar := strings.Split(parts[0], "(")[0]
+		charMap[asciiChar] = append(charMap[asciiChar], unicodeChar)
+	}
+
+	baseJob := PayloadJob{
+		OriginalURL:  targetURL,
+		Method:       "GET",
+		Scheme:       parsedURL.Scheme,
+		Host:         parsedURL.Host,
+		BypassModule: bypassModule,
+	}
+
+	uniquePaths := make(map[string]struct{})
+
+	// Helper to add both Unicode and URL-encoded versions
+	addPathVariants := func(path string) {
+		if _, exists := uniquePaths[path]; !exists {
+			uniquePaths[path] = struct{}{}
+			job := baseJob
+			job.RawURI = path
+			job.PayloadToken = GenerateDebugToken(SeedData{
+				Scheme: job.Scheme,
+				Method: job.Method,
+				Host:   job.Host,
+				RawURI: job.RawURI,
+			})
+			jobs = append(jobs, job)
+		}
 	}
 
 	// Find all positions of '.' and '/'
@@ -985,66 +946,53 @@ func (pg *PayloadGenerator) GenerateUnicodePathNormalizationsJobs(targetURL stri
 		}
 	}
 
-	// Base job template
-	baseJob := PayloadJob{
-		OriginalURL:  targetURL,
-		Method:       "GET",
-		Scheme:       parsedURL.Scheme,
-		Host:         parsedURL.Host,
-		BypassModule: bypassModule,
-	}
-
-	// Helper function to create job with modified path
-	createJob := func(newPath string) PayloadJob {
-		job := baseJob
-		job.RawURI = newPath
-		job.PayloadToken = GenerateDebugToken(SeedData{
-			Method: job.Method,
-			Scheme: job.Scheme,
-			Host:   job.Host,
-			RawURI: job.RawURI,
-		})
-		return job
-	}
-
-	// Track unique paths to avoid duplicates
-	uniquePaths := make(map[string]struct{})
-
-	// 1. Replace each occurrence individually
+	// 1. Single character replacements
 	for _, pos := range positions {
 		unicodeChars := charMap[pos.char]
 		for _, unicodeChar := range unicodeChars {
+			// Create Unicode version
 			pathRunes := []rune(path)
 			pathRunes[pos.position] = []rune(unicodeChar)[0]
-			newPath := string(pathRunes)
-			if _, exists := uniquePaths[newPath]; !exists {
-				uniquePaths[newPath] = struct{}{}
-				jobs = append(jobs, createJob(newPath))
+			unicodePath := string(pathRunes)
+			addPathVariants(unicodePath)
+
+			// Create URL-encoded version
+			encodedChar := URLEncodeAll(unicodeChar)
+			encodedPath := path[:pos.position] + encodedChar + path[pos.position+1:]
+			addPathVariants(encodedPath)
+		}
+	}
+
+	// 2. Replace all occurrences of each character
+	for char := range targetChars {
+		if unicodeChars, ok := charMap[char]; ok {
+			for _, unicodeChar := range unicodeChars {
+				// Replace all occurrences with Unicode
+				var unicodePath strings.Builder
+				var encodedPath strings.Builder
+				lastPos := 0
+
+				for i, c := range path {
+					if c == char {
+						unicodePath.WriteString(path[lastPos:i])
+						unicodePath.WriteString(unicodeChar)
+
+						encodedPath.WriteString(path[lastPos:i])
+						encodedPath.WriteString(URLEncodeAll(unicodeChar))
+
+						lastPos = i + 1
+					}
+				}
+				unicodePath.WriteString(path[lastPos:])
+				encodedPath.WriteString(path[lastPos:])
+
+				addPathVariants(unicodePath.String())
+				addPathVariants(encodedPath.String())
 			}
 		}
 	}
 
-	// 2. Replace all occurrences of the same character together
-	charGroups := make(map[rune][]int)
-	for _, pos := range positions {
-		charGroups[pos.char] = append(charGroups[pos.char], pos.position)
-	}
-
-	for char, positions := range charGroups {
-		unicodeChars := charMap[char]
-		for _, unicodeChar := range unicodeChars {
-			pathRunes := []rune(path)
-			for _, pos := range positions {
-				pathRunes[pos] = []rune(unicodeChar)[0]
-			}
-			newPath := string(pathRunes)
-			if _, exists := uniquePaths[newPath]; !exists {
-				uniquePaths[newPath] = struct{}{}
-				jobs = append(jobs, createJob(newPath))
-			}
-		}
-	}
-
-	GB403Logger.Debug().BypassModule(bypassModule).Msgf("Generated %d unicode normalization payloads for %s\n", len(jobs), targetURL)
+	GB403Logger.Debug().BypassModule(bypassModule).
+		Msgf("Generated %d unicode normalization payloads for %s\n", len(jobs), targetURL)
 	return jobs
 }
