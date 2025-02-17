@@ -176,6 +176,9 @@ func (s *Scanner) RunAllBypasses(targetURL string) chan *Result {
 		// Split validated module list from options
 		modules := strings.Split(s.scannerOpts.BypassModule, ",")
 
+		// Create results collector
+		var allResults []*Result
+
 		for _, module := range modules {
 			module = strings.TrimSpace(module)
 			if module == "" {
@@ -185,12 +188,15 @@ func (s *Scanner) RunAllBypasses(targetURL string) chan *Result {
 			modResults := make(chan *Result)
 			go s.RunBypassModule(module, targetURL, modResults)
 
-			var collected []*Result
 			for res := range modResults {
 				results <- res
-				collected = append(collected, res)
+				allResults = append(allResults, res)
 			}
-			AppendResultsToJson(outputFile, targetURL, module, collected)
+		}
+
+		// Batch write all results to JSONL
+		if err := AppendResultsToJsonL(outputFile, allResults); err != nil {
+			GB403Logger.Error().Msgf("Failed to write results: %v\n", err)
 		}
 	}()
 

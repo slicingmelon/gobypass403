@@ -1,8 +1,10 @@
 package scanner
 
 import (
+	"bufio"
 	"fmt"
 	"os"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -187,6 +189,52 @@ func PrintResultsTableFromJson(jsonFile, targetURL, bypassModule string) error {
 	return nil
 }
 
+func PrintResultsTableFromJsonL(jsonFile, targetURL, bypassModule string) error {
+	GB403Logger.Info().Msgf("Parsing results from: %s", jsonFile)
+
+	file, err := os.Open(jsonFile)
+	if err != nil {
+		return fmt.Errorf("file open error: %v", err)
+	}
+	defer file.Close()
+
+	var matchedResults []*Result
+	queryModules := strings.Split(bypassModule, ",")
+	scanner := bufio.NewScanner(file)
+
+	for scanner.Scan() {
+		var result Result
+		if err := jsonAPI.Unmarshal(scanner.Bytes(), &result); err != nil {
+			GB403Logger.Debug().Msgf("Invalid JSON line: %v", err)
+			continue
+		}
+
+		// Strict matching criteria
+		if result.TargetURL == targetURL && slices.Contains(queryModules, result.BypassModule) {
+			matchedResults = append(matchedResults, &result)
+		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		return fmt.Errorf("file read error: %v", err)
+	}
+
+	if len(matchedResults) == 0 {
+		return fmt.Errorf("no results found for %s (modules: %s)", targetURL, bypassModule)
+	}
+
+	// Stable sort: status code asc -> module name asc
+	sort.SliceStable(matchedResults, func(i, j int) bool {
+		if matchedResults[i].StatusCode == matchedResults[j].StatusCode {
+			return matchedResults[i].BypassModule < matchedResults[j].BypassModule
+		}
+		return matchedResults[i].StatusCode < matchedResults[j].StatusCode
+	})
+
+	PrintResultsTable(targetURL, matchedResults)
+	return nil
+}
+
 func AppendResultsToJson(outputFile, url, mode string, findings []*Result) error {
 	if len(findings) == 0 && mode != "dumb_check" {
 		GB403Logger.Debug().Msgf("Skipping JSON write for %s - no findings", url)
@@ -222,6 +270,34 @@ func AppendResultsToJson(outputFile, url, mode string, findings []*Result) error
 	}
 
 	return os.WriteFile(outputFile, encoded, 0644)
+}
+
+func AppendResultsToJsonL(outputFile string, findings []*Result) error {
+	if len(findings) == 0 {
+		return nil
+	}
+
+	fileLock.Lock()
+	defer fileLock.Unlock()
+
+	file, err := os.OpenFile(outputFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		return fmt.Errorf("failed to open JSONL file: %v", err)
+	}
+	defer file.Close()
+
+	for _, result := range findings {
+		line, err := jsonAPI.Marshal(result)
+		if err != nil {
+			GB403Logger.Error().Msgf("Failed to marshal result: %v\n", err)
+			continue
+		}
+		if _, err = file.Write(append(line, '\n')); err != nil {
+			GB403Logger.Error().Msgf("Failed to write JSONL entry: %v\n", err)
+		}
+	}
+
+	return nil
 }
 
 // Helper functions

@@ -79,26 +79,24 @@ func (s *Scanner) Run() error {
 
 func (s *Scanner) scanURL(url string) error {
 	resultsChannel := s.RunAllBypasses(url)
-	var allFindings []*Result
 
 	// Process results as they come in
+	var resultCount int
 	for result := range resultsChannel {
 		if result != nil {
-			//GB403Logger.Debug().Msgf("Processing results for bypass module: %s, status: %d\n", result.BypassModule, result.StatusCode)
-			allFindings = append(allFindings, result)
+			resultCount++
 		}
 	}
 
-	// If we have any findings, sort and save them
-	if len(allFindings) > 0 {
-		// Load from JSON and print
-		outputFile := filepath.Join(s.scannerOpts.OutDir, "findings.json")
+	// Load and display results from JSONL
+	outputFile := filepath.Join(s.scannerOpts.OutDir, "findings.json")
+	if resultCount > 0 {
 		fmt.Println()
-		if err := PrintResultsTableFromJson(outputFile, url, s.scannerOpts.BypassModule); err != nil {
-			GB403Logger.Error().Msgf("Failed to print results from JSON: %v\n", err)
+		if err := PrintResultsTableFromJsonL(outputFile, url, s.scannerOpts.BypassModule); err != nil {
+			GB403Logger.Error().Msgf("Failed to display results: %v\n", err)
 		} else {
 			fmt.Println()
-			GB403Logger.Success().Msgf("Results saved to %s\n\n", outputFile)
+			GB403Logger.Success().Msgf("%d findings saved to %s\n\n", resultCount, outputFile)
 		}
 	}
 
