@@ -2,6 +2,7 @@ package scanner
 
 import (
 	"bufio"
+	"bytes"
 	"fmt"
 	"os"
 	"slices"
@@ -137,60 +138,9 @@ func PrintResultsTable(targetURL string, results []*Result) {
 	fmt.Println(output)
 }
 
-func PrintResultsTableFromJson(jsonFile, targetURL, bypassModule string) error {
-	GB403Logger.Warning().Msgf("Reading results from JSON for %s", jsonFile)
-
-	fileData, err := os.ReadFile(jsonFile)
-	if err != nil {
-		return fmt.Errorf("failed to read JSON file: %v", err)
-	}
-
-	var data JSONData
-	if err := jsonAPI.Unmarshal(fileData, &data); err != nil {
-		return fmt.Errorf("failed to decode JSON: %v", err)
-	}
-
-	urlData, exists := data[targetURL]
-	if !exists {
-		return fmt.Errorf("no results found for %s", targetURL)
-	}
-
-	var matchedResults []*Result
-	queryModules := strings.Split(bypassModule, ",")
-
-	if bypassModule == "all" {
-		// Collect all results for the URL
-		for _, results := range urlData {
-			matchedResults = append(matchedResults, results...)
-		}
-	} else {
-		// Collect specific modules
-		for _, qm := range queryModules {
-			qm = strings.TrimSpace(qm)
-			if results, exists := urlData[qm]; exists {
-				matchedResults = append(matchedResults, results...)
-			}
-		}
-	}
-
-	if len(matchedResults) == 0 {
-		return fmt.Errorf("no matching results for %s with module %s", targetURL, bypassModule)
-	}
-
-	// Sort results (existing sorting logic)
-	sort.Slice(matchedResults, func(i, j int) bool {
-		if matchedResults[i].StatusCode != matchedResults[j].StatusCode {
-			return matchedResults[i].StatusCode < matchedResults[j].StatusCode
-		}
-		return matchedResults[i].BypassModule < matchedResults[j].BypassModule
-	})
-
-	PrintResultsTable(targetURL, matchedResults)
-	return nil
-}
-
+// PrintResultsTableFromJsonL prints the results table from findings.json instead of directly from the memory
 func PrintResultsTableFromJsonL(jsonFile, targetURL, bypassModule string) error {
-	GB403Logger.Info().Msgf("Parsing results from: %s", jsonFile)
+	GB403Logger.Verbose().Msgf("Parsing results from: %s\n", jsonFile)
 
 	file, err := os.Open(jsonFile)
 	if err != nil {
@@ -202,10 +152,20 @@ func PrintResultsTableFromJsonL(jsonFile, targetURL, bypassModule string) error 
 	queryModules := strings.Split(bypassModule, ",")
 	scanner := bufio.NewScanner(file)
 
+	// Increase scanner buffer size for large lines
+	const maxCapacity = 1024 * 1024 // 1MB
+	buf := make([]byte, maxCapacity)
+	scanner.Buffer(buf, maxCapacity)
+
 	for scanner.Scan() {
+		line := scanner.Bytes()
+		if len(bytes.TrimSpace(line)) == 0 {
+			continue // Skip empty lines
+		}
+
 		var result Result
-		if err := jsonAPI.Unmarshal(scanner.Bytes(), &result); err != nil {
-			GB403Logger.Debug().Msgf("Invalid JSON line: %v", err)
+		if err := jsonAPI.Unmarshal(line, &result); err != nil {
+			GB403Logger.Debug().Msgf("Invalid JSON line: %v\n", err)
 			continue
 		}
 
@@ -235,43 +195,7 @@ func PrintResultsTableFromJsonL(jsonFile, targetURL, bypassModule string) error 
 	return nil
 }
 
-func AppendResultsToJson(outputFile, url, mode string, findings []*Result) error {
-	if len(findings) == 0 && mode != "dumb_check" {
-		GB403Logger.Debug().Msgf("Skipping JSON write for %s - no findings", url)
-		return nil
-	}
-
-	fileLock.Lock()
-	defer fileLock.Unlock()
-
-	// Load existing data
-	var data JSONData
-	fileData, err := os.ReadFile(outputFile)
-	if err == nil {
-		if err := jsonAPI.Unmarshal(fileData, &data); err != nil {
-			return fmt.Errorf("failed to parse JSON: %v", err)
-		}
-	} else {
-		data = make(JSONData)
-	}
-
-	// Initialize URL entry if needed
-	if _, exists := data[url]; !exists {
-		data[url] = make(map[string][]*Result)
-	}
-
-	// Append results under the bypass mode
-	data[url][mode] = append(data[url][mode], findings...)
-
-	// Write back to file
-	encoded, err := jsonAPI.MarshalIndent(data, "", "  ")
-	if err != nil {
-		return fmt.Errorf("failed to encode JSON: %v", err)
-	}
-
-	return os.WriteFile(outputFile, encoded, 0644)
-}
-
+// AppendResultsToJsonL appends the results to findings.json file, in JSONL format to optimize memory usage
 func AppendResultsToJsonL(outputFile string, findings []*Result) error {
 	if len(findings) == 0 {
 		return nil
@@ -286,14 +210,24 @@ func AppendResultsToJsonL(outputFile string, findings []*Result) error {
 	}
 	defer file.Close()
 
+	writer := bufio.NewWriter(file)
+	defer writer.Flush()
+
 	for _, result := range findings {
-		line, err := jsonAPI.Marshal(result)
+		// Pretty print each JSON entry with 2-space indentation
+		line, err := jsonAPI.MarshalIndent(result, "", "  ")
 		if err != nil {
-			GB403Logger.Error().Msgf("Failed to marshal result: %v\n", err)
+			GB403Logger.Error().Msgf("Failed to marshal result: %v", err)
 			continue
 		}
-		if _, err = file.Write(append(line, '\n')); err != nil {
-			GB403Logger.Error().Msgf("Failed to write JSONL entry: %v\n", err)
+
+		// Write the pretty-printed JSON followed by a newline
+		if _, err = writer.Write(line); err != nil {
+			GB403Logger.Error().Msgf("Failed to write JSONL entry: %v", err)
+			continue
+		}
+		if _, err = writer.Write([]byte("\n")); err != nil {
+			GB403Logger.Error().Msgf("Failed to write newline: %v", err)
 		}
 	}
 

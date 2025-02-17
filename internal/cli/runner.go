@@ -144,7 +144,7 @@ func (r *Runner) handleResendRequest() error {
 
 		// Save findings
 		outputFile := filepath.Join(r.RunnerOptions.OutDir, "findings.json")
-		if err := scanner.AppendResultsToJson(outputFile, tokenData.FullURL, "resend_request", findings); err != nil {
+		if err := scanner.AppendResultsToJsonL(outputFile, findings); err != nil {
 			GB403Logger.Error().Msgf("Failed to save findings: %v\n", err)
 		} else {
 			GB403Logger.Success().Msgf("Scan for %s completed. Results saved to %s\n", tokenData.FullURL, outputFile)
