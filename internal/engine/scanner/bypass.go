@@ -303,7 +303,7 @@ func (s *Scanner) ResendRequestWithToken(debugToken string, resendCount int) ([]
 
 	// Create base job
 	job := payload.PayloadJob{
-		OriginalURL:  tokenData.OriginalURL,
+		OriginalURL:  tokenData.OriginalURL, // kept for compatibility
 		Method:       tokenData.Method,
 		Scheme:       tokenData.Scheme,
 		Host:         tokenData.Host,
@@ -312,7 +312,7 @@ func (s *Scanner) ResendRequestWithToken(debugToken string, resendCount int) ([]
 		BypassModule: "debugRequest",
 	}
 
-	// Construct display URL for worker
+	// Construct display URL for logging/display purposes only
 	displayURL := fmt.Sprintf("%s://%s%s", tokenData.Scheme, tokenData.Host, tokenData.RawURI)
 
 	worker := NewBypassWorker("debugRequest", displayURL, s.scannerOpts, resendCount)
@@ -322,7 +322,13 @@ func (s *Scanner) ResendRequestWithToken(debugToken string, resendCount int) ([]
 	jobs := make([]payload.PayloadJob, 0, resendCount)
 	for i := 0; i < resendCount; i++ {
 		jobCopy := job // Create a copy to avoid sharing the same job reference
-		jobCopy.PayloadToken = payload.GenerateDebugToken(payload.SeedData{FullURL: tokenData.FullURL})
+		jobCopy.PayloadToken = payload.GenerateDebugToken(payload.SeedData{
+			Method:  tokenData.Method,
+			Scheme:  tokenData.Scheme,
+			Host:    tokenData.Host,
+			RawURI:  tokenData.RawURI,
+			Headers: tokenData.Headers,
+		})
 		jobs = append(jobs, jobCopy)
 	}
 
@@ -357,11 +363,8 @@ func (s *Scanner) ResendRequestWithToken(debugToken string, resendCount int) ([]
 
 		// Only add to results if status code matches
 		if matchStatusCodes(response.StatusCode, s.scannerOpts.MatchStatusCodes) {
-			buf := resultsBufferPool.Get().(*bytes.Buffer)
-			buf.Reset()
-
 			result := &Result{
-				TargetURL:           string(response.URL),
+				TargetURL:           displayURL, // Using displayURL for consistent logging
 				BypassModule:        string(response.BypassModule),
 				StatusCode:          response.StatusCode,
 				ResponseHeaders:     string(response.ResponseHeaders),
@@ -383,7 +386,6 @@ func (s *Scanner) ResendRequestWithToken(debugToken string, resendCount int) ([]
 			}
 
 			results = append(results, result)
-			resultsBufferPool.Put(buf)
 		}
 	}
 

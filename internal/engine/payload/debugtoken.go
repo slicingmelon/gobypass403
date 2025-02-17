@@ -25,7 +25,6 @@ type SeedData struct {
 	RawURI       string // Add separate RawURI
 	Headers      []Headers
 	BypassModule string
-	FullURL      string // Keep for backward compatibility
 }
 
 // This function will generate a debug token that will act as a fingerprint of the request

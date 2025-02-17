@@ -110,7 +110,9 @@ func (r *Runner) handleResendRequest() error {
 		return fmt.Errorf("failed to decode debug token: %w", err)
 	}
 
-	GB403Logger.Info().Msgf("Resending request %d times to: %s", r.RunnerOptions.ResendCount, tokenData.FullURL)
+	// Construct display URL for logging purposes
+	displayURL := fmt.Sprintf("%s://%s%s", tokenData.Scheme, tokenData.Host, tokenData.RawURI)
+	GB403Logger.Info().Msgf("Resending request %d times to: %s\n", r.RunnerOptions.ResendCount, displayURL)
 
 	// Create scanner with options
 	scannerOpts := &scanner.ScannerOpts{
@@ -128,7 +130,8 @@ func (r *Runner) handleResendRequest() error {
 		DisableStreamResponseBody: r.RunnerOptions.DisableStreamResponseBody,
 	}
 
-	s := scanner.NewScanner(scannerOpts, []string{tokenData.FullURL})
+	// Initialize scanner with display URL for logging
+	s := scanner.NewScanner(scannerOpts, []string{displayURL})
 	defer s.Close()
 
 	// Process the resend request
@@ -139,7 +142,7 @@ func (r *Runner) handleResendRequest() error {
 
 	// Print results
 	if len(findings) > 0 {
-		scanner.PrintResultsTable(tokenData.FullURL, findings)
+		scanner.PrintResultsTable(displayURL, findings)
 		fmt.Println()
 
 		// Save findings
@@ -147,10 +150,10 @@ func (r *Runner) handleResendRequest() error {
 		if err := scanner.AppendResultsToJsonL(outputFile, findings); err != nil {
 			GB403Logger.Error().Msgf("Failed to save findings: %v\n", err)
 		} else {
-			GB403Logger.Success().Msgf("Scan for %s completed. Results saved to %s\n", tokenData.FullURL, outputFile)
+			GB403Logger.Success().Msgf("Scan for %s completed. Results saved to %s\n", displayURL, outputFile)
 		}
 	} else {
-		GB403Logger.Info().Msgf("No findings detected for %s", tokenData.FullURL)
+		GB403Logger.Info().Msgf("No findings detected for %s\n", displayURL)
 	}
 
 	// Print error stats

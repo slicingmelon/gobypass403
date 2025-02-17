@@ -46,6 +46,7 @@ var (
 	strTitle          = []byte("<title>")
 	strCloseTitle     = []byte("</title>")
 	strLocationHeader = []byte("Location")
+	strSchemeDelim    = []byte("://")
 
 	strErrorReadingPreview = []byte("Error reading reponse preview")
 )
@@ -99,65 +100,6 @@ func ReleaseResponseDetails(rd *RawHTTPResponseDetails) {
 	responseDetailsPool.Put(rd)
 }
 
-// Request must contain at least non-zero RequestURI with full url (including
-// scheme and host) or non-zero Host header + RequestURI.
-//
-// Client determines the server to be requested in the following order:
-//
-//   - from RequestURI if it contains full url with scheme and host;
-//   - from Host header otherwise.
-//
-// The function doesn't follow redirects. Use Get* for following redirects.
-// Response is ignored if resp is nil.
-//
-// ErrNoFreeConns is returned if all DefaultMaxConnsPerHost connections
-// to the requested host are busy.
-// BuildRequest creates and configures a HTTP request from a bypass job (payload job)
-func BuildHTTPRequest(httpclient *HTTPClient, req *fasthttp.Request, job payload.PayloadJob) error {
-	// Disable all normalizing to preserve raw paths
-	req.URI().DisablePathNormalizing = true
-	req.Header.DisableNormalizing()
-	req.Header.SetNoDefaultContentType(true)
-
-	req.UseHostHeader = false
-	req.Header.SetMethod(job.Method)
-
-	req.SetRequestURI(job.FullURL)
-	req.URI().SetScheme(job.Scheme)
-
-	// !!Always close connection when custom headers are present
-	shouldCloseConn := len(job.Headers) > 0 ||
-		httpclient.GetHTTPClientOptions().DisableKeepAlive ||
-		httpclient.GetHTTPClientOptions().ProxyURL != ""
-
-	// Set headers directly
-	for _, h := range job.Headers {
-		if h.Header == "Host" {
-			req.UseHostHeader = true
-			shouldCloseConn = true
-		}
-		req.Header.Set(h.Header, h.Value)
-	}
-
-	req.Header.SetUserAgentBytes(CustomUserAgent)
-
-	if GB403Logger.IsDebugEnabled() {
-		req.Header.Set("X-GB403-Token", job.PayloadToken)
-	}
-
-	// Handle connection settings
-	if shouldCloseConn {
-		req.SetConnectionClose()
-	} else {
-		req.Header.Set("Connection", "keep-alive")
-		//req.SetConnectionClose()
-	}
-
-	//GB403Logger.Debug().Msgf("[%s] - Request:\n%s\n", job.BypassModule, string(req.String()))
-
-	return nil
-}
-
 var rawRequestPool = sync.Pool{
 	New: func() interface{} {
 		return bytes.NewBuffer(make([]byte, 0, 4096)) // Pre-allocate 4KB
@@ -177,6 +119,14 @@ func ReleaseRawRequest(buf *bytes.Buffer) {
 
 /*
 Crucial information
+
+Client determines the server to be requested in the following order:
+
+  - from RequestURI if it contains full url with scheme and host;
+  - from Host header otherwise.
+
+The function doesn't follow redirects. Use Get* for following redirects.
+Response is ignored if resp is nil.
 
 The detination/target URL is built based on req.URI, aka where the request will be sent to.
 
@@ -392,10 +342,20 @@ func BuildCurlCommandPoc(job payload.PayloadJob, dest []byte) []byte {
 		dest = append(dest, strSingleQuote...)
 	}
 
-	// URL
+	// URL construction
 	dest = append(dest, strSpace...)
 	dest = append(dest, strSingleQuote...)
-	dest = append(dest, bytesutil.ToUnsafeBytes(job.FullURL)...)
+
+	// Scheme
+	dest = append(dest, bytesutil.ToUnsafeBytes(job.Scheme)...)
+	dest = append(dest, strSchemeDelim...)
+
+	// Host
+	dest = append(dest, bytesutil.ToUnsafeBytes(job.Host)...)
+
+	// RawURI
+	dest = append(dest, bytesutil.ToUnsafeBytes(job.RawURI)...)
+
 	dest = append(dest, strSingleQuote...)
 
 	return dest

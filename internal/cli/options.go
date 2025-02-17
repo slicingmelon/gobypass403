@@ -163,8 +163,9 @@ func (o *CliOptions) validate() error {
 			return fmt.Errorf("invalid debug token: %v", err)
 		}
 		// Print the decoded information
+		targetURL := fmt.Sprintf("%s://%s%s", data.Scheme, data.Host, data.RawURI)
 		fmt.Println("=== Debug Token Information ===")
-		fmt.Printf("Full URL: %s\n", data.FullURL)
+		fmt.Printf("Full URL: %s\n", targetURL)
 		fmt.Printf("Bypass Module: %s\n", data.BypassModule)
 		fmt.Println("Headers:")
 		for _, h := range data.Headers {
