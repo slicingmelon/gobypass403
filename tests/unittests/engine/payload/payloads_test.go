@@ -42,7 +42,7 @@ func TestGenerateHeaderIPJobs_RequestFormat(t *testing.T) {
 		t.Logf("  Host: %s", job.Host)
 		t.Logf("  RawURI: %s", job.RawURI)
 		t.Logf("  BypassModule: %s", job.BypassModule)
-		t.Logf("  FullURL: %s", job.FullURL)
+		t.Logf("  FullURL: %s", payload.BypassPayloadToFullURL(job))
 		t.Logf("  Headers:")
 		for _, h := range job.Headers {
 			t.Logf("    %s: %s", h.Header, h.Value)
@@ -101,7 +101,7 @@ func TestGenerateHeaderIPJobs_RequestFormatAllJobs(t *testing.T) {
 		t.Logf("  Host: %s", job.Host)
 		t.Logf("  RawURI: %s", job.RawURI)
 		t.Logf("  BypassModule: %s", job.BypassModule)
-		t.Logf("  FullURL: %s", job.FullURL)
+		t.Logf("  FullURL: %s", payload.BypassPayloadToFullURL(job))
 		t.Logf("  Headers:")
 		for _, h := range job.Headers {
 			t.Logf("    %s: %s", h.Header, h.Value)
@@ -140,7 +140,9 @@ func TestGenerateHeaderIPJobs_RequestFormatAllJobs(t *testing.T) {
 func TestPayloadSeedRoundTrip(t *testing.T) {
 	// Test case matching your HeaderIP job
 	original := payload.SeedData{
-		FullURL: "https://www.example.com/admin",
+		Scheme: "https",
+		Host:   "www.example.com",
+		RawURI: "/admin",
 		Headers: []payload.Headers{{
 			Header: "X-AppEngine-Trusted-IP-Request",
 			Value:  "1",
@@ -157,10 +159,10 @@ func TestPayloadSeedRoundTrip(t *testing.T) {
 		t.Fatalf("Failed to recover seed: %v", err)
 	}
 	// Compare
-	t.Logf("Original URL: %s, Recovered URL: %s", original.FullURL, recovered.FullURL)
+	t.Logf("Original URL: %s, Recovered URL: %s", original.Scheme+"://"+original.Host+original.RawURI, recovered.Scheme+"://"+recovered.Host+recovered.RawURI)
 	t.Logf("Original Headers: %+v", original.Headers)
 	t.Logf("Recovered Headers: %+v", recovered.Headers)
-	if original.FullURL != recovered.FullURL {
+	if original.Scheme+"://"+original.Host+original.RawURI != recovered.Scheme+"://"+recovered.Host+recovered.RawURI {
 		t.Errorf("URLs don't match")
 	}
 	if len(original.Headers) != len(recovered.Headers) {

@@ -139,7 +139,7 @@ func TestRequestBuilderViaEchoServer(t *testing.T) {
 				defer fasthttp.ReleaseRequest(req)
 				defer fasthttp.ReleaseResponse(resp)
 
-				rawhttp.BuildHTTPRequest(client, req, job)
+				rawhttp.BuildRawHTTPRequest(client, req, job)
 
 				// Build virtual request
 				GB403Logger.PrintYellow("[GB403Logger] Sending request :\n%s", req)
@@ -291,17 +291,17 @@ func TestRequestBuilderMidPathsPayloads(t *testing.T) {
 				defer fasthttp.ReleaseRequest(req)
 				defer fasthttp.ReleaseResponse(resp)
 
-				rawhttp.BuildHTTPRequest(client, req, job)
+				rawhttp.BuildRawHTTPRequest(client, req, job)
 
 				// Build virtual request
-				GB403Logger.PrintGreen("[GB403Logger][RequestBuilder] [X-GB403-Token: %s] Sending request: %s\n================>\n%s<================\n", job.PayloadToken, job.FullURL, req)
+				GB403Logger.PrintGreen("[GB403Logger][RequestBuilder] [X-GB403-Token: %s] Sending request: %s\n================>\n%s<================\n", job.PayloadToken, payload.BypassPayloadToFullURL(job), req)
 
 				// Send request and let server handle the comparison printing
 				if _, err := client.DoRequest(req, resp); err != nil {
 					t.Fatalf("Job %d failed: %v", i, err)
 				}
 
-				GB403Logger.PrintYellow("[GB403Logger] [X-GB403-Token: %s] Response received for: %s\n%s", job.PayloadToken, job.FullURL, resp.Body())
+				GB403Logger.PrintYellow("[GB403Logger] [X-GB403-Token: %s] Response received for: %s\n%s", job.PayloadToken, payload.BypassPayloadToFullURL(job), resp.Body())
 			}
 		})
 	}
@@ -340,16 +340,16 @@ func TestRequestBuilderHostHeaders(t *testing.T) {
 
 			// Create minimal payload job with just Method and FullURL
 			job := payload.PayloadJob{
-				Method:  "GET",
-				Host:    "google.com",
-				FullURL: tc.url,
+				Method: "GET",
+				Host:   "google.com",
+				RawURI: tc.url,
 				Headers: []payload.Headers{
 					{Header: "Host", Value: "yahoo.com"},
 				},
 			}
 			req.UseHostHeader = false
 			req.Header.SetMethod(job.Method)
-			req.SetRequestURI(job.FullURL)
+			req.SetRequestURI(payload.BypassPayloadToFullURL(job))
 			req.URI().DisablePathNormalizing = true
 			req.Header.DisableNormalizing()
 			req.Header.SetNoDefaultContentType(true)

@@ -68,19 +68,22 @@ func TestRequestWorkerPoolThrottle(t *testing.T) {
 	// Create test jobs
 	jobs := []payload.PayloadJob{
 		{
-			FullURL:      "http://example.com/test1",
-			BypassModule: "test-throttle",
+			Scheme:       "http",
 			Host:         "example.com",
+			RawURI:       "/test1",
+			BypassModule: "test-throttle",
 		},
 		{
-			FullURL:      "http://example.com/test2",
-			BypassModule: "test-throttle",
+			Scheme:       "http",
 			Host:         "example.com",
+			RawURI:       "/test2",
+			BypassModule: "test-throttle",
 		},
 		{
-			FullURL:      "http://example.com/test3",
-			BypassModule: "test-throttle",
+			Scheme:       "http",
 			Host:         "example.com",
+			RawURI:       "/test3",
+			BypassModule: "test-throttle",
 		},
 	}
 

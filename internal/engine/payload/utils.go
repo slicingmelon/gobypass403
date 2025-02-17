@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	GB403Logger "github.com/slicingmelon/go-bypass-403/internal/utils/logger"
+	"github.com/slicingmelon/go-rawurlparser"
 )
 
 var (
@@ -261,4 +262,29 @@ func HeadersToMap(headers []Headers) map[string]string {
 		m[h.Header] = h.Value
 	}
 	return m
+}
+
+// BypassPayloadToFullURL converts a bypass payload to a full URL (utility function for unit tests)
+func BypassPayloadToFullURL(job PayloadJob) string {
+	// Ensure RawURI starts with / if not empty and not already starting with /
+	rawURI := job.RawURI
+
+	return fmt.Sprintf("%s://%s%s", job.Scheme, job.Host, rawURI)
+}
+
+// FullURLToBypassPayload converts a full URL to a bypass payload (utility function for unit tests)
+func FullURLToBypassPayload(fullURL string, method string, headers []Headers) (PayloadJob, error) {
+	parsedURL, err := rawurlparser.RawURLParse(fullURL)
+	if err != nil {
+		return PayloadJob{}, fmt.Errorf("failed to parse URL: %w", err)
+	}
+
+	return PayloadJob{
+		OriginalURL: fullURL, // Keep original URL for reference
+		Method:      method,
+		Scheme:      parsedURL.Scheme,
+		Host:        parsedURL.Host,
+		RawURI:      parsedURL.Path,
+		Headers:     headers,
+	}, nil
 }

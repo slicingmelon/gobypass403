@@ -45,7 +45,9 @@ func TestClient301RedirectInmemory(t *testing.T) {
 	// Create test payload
 	jobs := []payload.PayloadJob{
 		{
-			FullURL:      "http://example.com/test",
+			Scheme:       "http",
+			Host:         "example.com",
+			RawURI:       "/test",
 			Method:       "GET",
 			BypassModule: "test-redirect",
 			Headers:      []payload.Headers{},
@@ -133,7 +135,9 @@ func TestClient302RedirectCaseInsensitive(t *testing.T) {
 	// Create test payload
 	jobs := []payload.PayloadJob{
 		{
-			FullURL:      "http://example.com/test",
+			Scheme:       "http",
+			Host:         "example.com",
+			RawURI:       "/test",
 			Method:       "GET",
 			BypassModule: "test-redirect",
 			Headers:      []payload.Headers{},
@@ -207,21 +211,27 @@ func TestRequestDelay(t *testing.T) {
 	// Create test payloads
 	jobs := []payload.PayloadJob{
 		{
-			FullURL:      "http://example.com/test1",
+			Scheme:       "http",
+			Host:         "example.com",
+			RawURI:       "/test1",
 			Method:       "GET",
 			BypassModule: "test-delay",
 			Headers:      []payload.Headers{},
 			PayloadToken: "test-token-1",
 		},
 		{
-			FullURL:      "http://example.com/test2",
+			Scheme:       "http",
+			Host:         "example.com",
+			RawURI:       "/test2",
 			Method:       "GET",
 			BypassModule: "test-delay",
 			Headers:      []payload.Headers{},
 			PayloadToken: "test-token-2",
 		},
 		{
-			FullURL:      "http://example.com/test3",
+			Scheme:       "http",
+			Host:         "example.com",
+			RawURI:       "/test3",
 			Method:       "GET",
 			BypassModule: "test-delay",
 			Headers:      []payload.Headers{},
@@ -308,12 +318,12 @@ func TestRequestDelayWithMultipleWorkers(t *testing.T) {
 
 	// Create 6 test jobs
 	jobs := []payload.PayloadJob{
-		{FullURL: "http://example.com/test1", Method: "GET"},
-		{FullURL: "http://example.com/test2", Method: "GET"},
-		{FullURL: "http://example.com/test3", Method: "GET"},
-		{FullURL: "http://example.com/test4", Method: "GET"},
-		{FullURL: "http://example.com/test5", Method: "GET"},
-		{FullURL: "http://example.com/test6", Method: "GET"},
+		{Scheme: "http", Host: "example.com", RawURI: "/test1", Method: "GET"},
+		{Scheme: "http", Host: "example.com", RawURI: "/test2", Method: "GET"},
+		{Scheme: "http", Host: "example.com", RawURI: "/test3", Method: "GET"},
+		{Scheme: "http", Host: "example.com", RawURI: "/test4", Method: "GET"},
+		{Scheme: "http", Host: "example.com", RawURI: "/test5", Method: "GET"},
+		{Scheme: "http", Host: "example.com", RawURI: "/test6", Method: "GET"},
 	}
 
 	// Process requests and collect results

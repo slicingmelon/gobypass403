@@ -13,8 +13,10 @@ import (
 func BenchmarkBuildHTTPRequest(b *testing.B) {
 	client := rawhttp.NewHTTPClient(rawhttp.DefaultHTTPClientOptions())
 	job := payload.PayloadJob{
-		FullURL:      "http://example.com/test",
 		Method:       "GET",
+		Scheme:       "http",
+		Host:         "example.com",
+		RawURI:       "/test",
 		Headers:      []payload.Headers{{Header: "X-Test", Value: "test-value"}},
 		BypassModule: "test-mode",
 	}
@@ -25,7 +27,7 @@ func BenchmarkBuildHTTPRequest(b *testing.B) {
 	b.ResetTimer()
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
-			rawhttp.BuildHTTPRequest(client, req, job)
+			rawhttp.BuildRawHTTPRequest(client, req, job)
 		}
 	})
 }
@@ -67,8 +69,10 @@ func BenchmarkProcessHTTPResponseStreamed(b *testing.B) {
 
 	// Setup test job
 	job := payload.PayloadJob{
-		FullURL:      "http://example.com/test",
 		Method:       "GET",
+		Scheme:       "http",
+		Host:         "example.com",
+		RawURI:       "/test",
 		Headers:      []payload.Headers{{Header: "Accept", Value: "*/*"}},
 		BypassModule: "test-mode",
 		PayloadToken: "test-token",
@@ -132,8 +136,10 @@ func BenchmarkProcessHTTPResponsePerIterationNew(b *testing.B) {
 	resp.SetBodyStream(bytes.NewReader([]byte(`<!DOCTYPE html><html><head><title>Test Page</title></head><body>test</body></html>`)), 1024)
 
 	job := payload.PayloadJob{
-		FullURL:      "http://example.com/test",
 		Method:       "GET",
+		Scheme:       "http",
+		Host:         "example.com",
+		RawURI:       "/test",
 		BypassModule: "test-mode",
 	}
 
@@ -170,9 +176,14 @@ func BenchmarkByte2StringConversion(b *testing.B) {
 // 167723862	         7.974 ns/op	       0 B/op	       0 allocs/op
 func BenchmarkBuildCurlCmd(b *testing.B) {
 	job := payload.PayloadJob{
-		FullURL:      "http://example.com/test",
-		Method:       "POST",
-		Headers:      []payload.Headers{{Header: "Content-Type", Value: "application/json"}, {Header: "Authorization", Value: "Bearer test-token"}},
+		Method: "POST",
+		Scheme: "http",
+		Host:   "example.com",
+		RawURI: "/test",
+		Headers: []payload.Headers{
+			{Header: "Content-Type", Value: "application/json"},
+			{Header: "Authorization", Value: "Bearer test-token"},
+		},
 		BypassModule: "test-mode",
 	}
 

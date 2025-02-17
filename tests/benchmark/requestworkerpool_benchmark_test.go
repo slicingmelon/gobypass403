@@ -26,7 +26,9 @@ func BenchmarkProcessRequests(b *testing.B) {
 
 	// Setup test job
 	job := payload.PayloadJob{
-		FullURL:      "http://example.com/test",
+		Scheme:       "http",
+		Host:         "example.com",
+		RawURI:       "/test",
 		Method:       "GET",
 		Headers:      []payload.Headers{{Header: "Accept", Value: "*/*"}},
 		BypassModule: "test-mode",
@@ -44,7 +46,9 @@ func BenchmarkProcessRequests2(b *testing.B) {
 	pool := rawhttp.NewRequestWorkerPool(rawhttp.DefaultHTTPClientOptions(), 10)
 
 	baseJob := payload.PayloadJob{
-		FullURL:      "http://example.com/test",
+		Scheme:       "http",
+		Host:         "example.com",
+		RawURI:       "/test",
 		Method:       "GET",
 		Headers:      []payload.Headers{{Header: "Accept", Value: "*/*"}},
 		BypassModule: "test-mode",
@@ -98,7 +102,9 @@ func BenchmarkProcessRequests3(b *testing.B) {
 	defer pool.Close()
 
 	baseJob := payload.PayloadJob{
-		FullURL:      "http://example.com/test",
+		Scheme:       "http",
+		Host:         "example.com",
+		RawURI:       "/test",
 		Method:       "GET",
 		Headers:      []payload.Headers{{Header: "Accept", Value: "*/*"}},
 		BypassModule: "test-mode",

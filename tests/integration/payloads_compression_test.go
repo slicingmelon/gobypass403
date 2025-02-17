@@ -21,7 +21,9 @@ import (
 func TestCompressionComparison(t *testing.T) {
 	// Test case with realistic data
 	original := payload.SeedData{
-		FullURL: "https://www.example.com/admin",
+		Scheme: "https",
+		Host:   "www.example.com",
+		RawURI: "/admin",
 		Headers: []payload.Headers{{
 			Header: "X-AppEngine-Trusted-IP-Request",
 			Value:  "1",
@@ -37,10 +39,10 @@ func TestCompressionComparison(t *testing.T) {
 	bb.B = append(bb.B, 8)    // nonce length
 	bb.Write(make([]byte, 8)) // dummy nonce
 
-	if original.FullURL != "" {
+	if original.Scheme != "" {
 		bb.B = append(bb.B, 1)
-		bb.B = append(bb.B, byte(len(original.FullURL)))
-		bb.Write(bytesutil.ToUnsafeBytes(original.FullURL))
+		bb.B = append(bb.B, byte(len(original.Scheme)))
+		bb.Write(bytesutil.ToUnsafeBytes(original.Scheme))
 	}
 
 	if len(original.Headers) > 0 {
@@ -98,7 +100,9 @@ func TestCompressionComparison(t *testing.T) {
 func TestCompressionComparisonLargePayload(t *testing.T) {
 	// Create a larger test case
 	original := payload.SeedData{
-		FullURL: "https://www.example.com/admin/dashboard/users/settings?param1=value1&param2=value2",
+		Scheme: "https",
+		Host:   "www.example.com",
+		RawURI: "/admin/dashboard/users/settings",
 		Headers: []payload.Headers{
 			{Header: "X-AppEngine-Trusted-IP-Request", Value: "1"},
 
@@ -117,10 +121,10 @@ func TestCompressionComparisonLargePayload(t *testing.T) {
 	bb.B = append(bb.B, 8)
 	bb.Write(make([]byte, 8))
 
-	if original.FullURL != "" {
+	if original.Scheme != "" {
 		bb.B = append(bb.B, 1)
-		bb.B = append(bb.B, byte(len(original.FullURL)))
-		bb.Write(bytesutil.ToUnsafeBytes(original.FullURL))
+		bb.B = append(bb.B, byte(len(original.Scheme)))
+		bb.Write(bytesutil.ToUnsafeBytes(original.Scheme))
 	}
 
 	if len(original.Headers) > 0 {
@@ -154,7 +158,9 @@ func TestCompressionComparisonLargePayload(t *testing.T) {
 
 func TestAdvancedCompressionComparison(t *testing.T) {
 	original := payload.SeedData{
-		FullURL: "https://www.example.com/admin/dashboard/users/settings?param1=value1&param2=value2&param3=value3",
+		Scheme: "https",
+		Host:   "www.example.com",
+		RawURI: "/admin/dashboard/users/settings",
 		Headers: []payload.Headers{
 			{Header: "X-AppEngine-Trusted-IP-Request", Value: "1"},
 
@@ -174,10 +180,10 @@ func TestAdvancedCompressionComparison(t *testing.T) {
 	bb.B = append(bb.B, 4) // reduced nonce size
 	bb.Write(make([]byte, 4))
 
-	if original.FullURL != "" {
+	if original.Scheme != "" {
 		bb.B = append(bb.B, 1)
-		bb.B = append(bb.B, byte(len(original.FullURL)))
-		bb.Write(bytesutil.ToUnsafeBytes(original.FullURL))
+		bb.B = append(bb.B, byte(len(original.Scheme)))
+		bb.Write(bytesutil.ToUnsafeBytes(original.Scheme))
 	}
 
 	if len(original.Headers) > 0 {
@@ -268,7 +274,9 @@ func TestAdvancedCompressionComparison(t *testing.T) {
 func TestMessagePackComparison(t *testing.T) {
 	// Test case
 	original := payload.SeedData{
-		FullURL: "https://www.example.com/admin",
+		Scheme: "https",
+		Host:   "www.example.com",
+		RawURI: "/admin",
 		Headers: []payload.Headers{{
 			Header: "X-AppEngine-Trusted-IP-Request",
 			Value:  "1",
@@ -282,10 +290,10 @@ func TestMessagePackComparison(t *testing.T) {
 	bb.B = append(bb.B, 4)
 	bb.Write(make([]byte, 4))
 
-	if original.FullURL != "" {
+	if original.Scheme != "" {
 		bb.B = append(bb.B, 1)
-		bb.B = append(bb.B, byte(len(original.FullURL)))
-		bb.Write(bytesutil.ToUnsafeBytes(original.FullURL))
+		bb.B = append(bb.B, byte(len(original.Scheme)))
+		bb.Write(bytesutil.ToUnsafeBytes(original.Scheme))
 	}
 
 	if len(original.Headers) > 0 {
@@ -327,7 +335,7 @@ func TestMessagePackComparison(t *testing.T) {
 		t.Fatalf("MessagePack unmarshal failed: %v", err)
 	}
 
-	if recovered.FullURL != original.FullURL {
+	if recovered.Scheme != original.Scheme {
 		t.Errorf("URLs don't match")
 	}
 	if len(recovered.Headers) != len(original.Headers) {
@@ -342,7 +350,8 @@ func TestMessagePackComparison(t *testing.T) {
 
 func TestPayloadSeedSimple(t *testing.T) {
 	urlOnly := payload.SeedData{
-		FullURL: "https://example.com",
+		Scheme: "https",
+		Host:   "example.com",
 	}
 	seed1 := payload.GenerateDebugToken(urlOnly)
 	recovered1, err := payload.DecodeDebugToken(seed1)
@@ -350,8 +359,8 @@ func TestPayloadSeedSimple(t *testing.T) {
 
 		t.Fatalf("Failed to recover URL-only seed: %v", err)
 	}
-	if recovered1.FullURL != urlOnly.FullURL {
-		t.Errorf("URL mismatch: got %s, want %s", recovered1.FullURL, urlOnly.FullURL)
+	if recovered1.Scheme != urlOnly.Scheme {
+		t.Errorf("URL mismatch: got %s, want %s", recovered1.Scheme, urlOnly.Scheme)
 	}
 	headerOnly := payload.SeedData{
 		Headers: []payload.Headers{{
@@ -375,6 +384,7 @@ func TestPayloadSeedSimple(t *testing.T) {
 
 type PayloadJobBytes struct {
 	OriginalURL  []byte
+	Scheme       []byte
 	Method       []byte
 	Host         []byte
 	RawURI       []byte
@@ -397,7 +407,7 @@ func TestStringVsBytes(t *testing.T) {
 		RawURI:       "/admin",
 		BypassModule: "header_ip",
 
-		FullURL: "https://www.example.com/admin",
+		Scheme: "https",
 		Headers: []payload.Headers{{
 			Header: "X-AppEngine-Trusted-IP-Request",
 			Value:  "1",
@@ -411,7 +421,7 @@ func TestStringVsBytes(t *testing.T) {
 		Host:         []byte("www.example.com"),
 		RawURI:       []byte("/admin"),
 		BypassModule: []byte("header_ip"),
-		FullURL:      []byte("https://www.example.com/admin"),
+		Scheme:       []byte("https"),
 		Headers: []HeaderBytes{{
 			Header: []byte("X-AppEngine-Trusted-IP-Request"),
 			Value:  []byte("1"),
@@ -422,8 +432,8 @@ func TestStringVsBytes(t *testing.T) {
 	bb1 := &bytesutil.ByteBuffer{}
 
 	bb1.B = append(bb1.B, 1) // version
-	bb1.B = append(bb1.B, byte(len(stringJob.FullURL)))
-	bb1.Write(bytesutil.ToUnsafeBytes(stringJob.FullURL))
+	bb1.B = append(bb1.B, byte(len(stringJob.Scheme)))
+	bb1.Write(bytesutil.ToUnsafeBytes(stringJob.Scheme))
 	bb1.B = append(bb1.B, byte(len(stringJob.Headers)))
 	for _, h := range stringJob.Headers {
 		bb1.B = append(bb1.B, byte(len(h.Header)))
