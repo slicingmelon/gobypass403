@@ -8,6 +8,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/slicingmelon/go-bypass-403/internal/engine/payload"
 	GB403ErrorHandler "github.com/slicingmelon/go-bypass-403/internal/utils/error"
 	GB403Logger "github.com/slicingmelon/go-bypass-403/internal/utils/logger"
 	"github.com/valyala/fasthttp"
@@ -264,7 +265,7 @@ func (c *HTTPClient) execFunc(req *fasthttp.Request, resp *fasthttp.Response) (i
 
 // DoRequest performs a HTTP request (raw)
 // Returns the HTTP response time (in ms) and error
-func (c *HTTPClient) DoRequest(req *fasthttp.Request, resp *fasthttp.Response) (int64, error) {
+func (c *HTTPClient) DoRequest(req *fasthttp.Request, resp *fasthttp.Response, job *payload.PayloadJob) (int64, error) {
 	errHandler := GB403ErrorHandler.GetErrorHandler()
 
 	// Execute request with retry handling
@@ -272,35 +273,32 @@ func (c *HTTPClient) DoRequest(req *fasthttp.Request, resp *fasthttp.Response) (
 
 	if err != nil {
 		if err == ErrReqFailedMaxRetries {
-			// Increment consecutive failures counter
 			newCount := c.consecutiveFailedReqs.Add(1)
-
-			// Check if we've hit max consecutive failures
 			if newCount >= int32(c.options.MaxConsecutiveFailedReqs) {
 				return respTime, ErrReqFailedMaxConsecutiveFails
 			}
 		}
 
-		debugToken := PeekRequestHeaderKeyCaseInsensitive(req, []byte("X-GB403-Token"))
-		if debugToken == nil {
-			debugToken = []byte("")
+		// Create error context with nil-safe values
+		errorContext := GB403ErrorHandler.ErrorContext{
+			ErrorSource:  []byte("HTTPClient.DoRequest"),
+			Host:         append([]byte(nil), req.Host()...), // Fallback to request host
+			BypassModule: []byte(c.options.BypassModule),     // Fallback to client bypass module
 		}
 
-		// Handle the error first
-		handleErr := errHandler.HandleError(err, GB403ErrorHandler.ErrorContext{
-			ErrorSource:  []byte("HTTPClient.DoRequest"),
-			Host:         append([]byte(nil), req.Host()...),
-			BypassModule: []byte(c.options.BypassModule),
-			DebugToken:   []byte(debugToken),
-		})
+		// Only add debug token if job is provided
+		if job != nil {
+			errorContext.DebugToken = []byte(job.PayloadToken)
+			errorContext.Host = []byte(job.Host)
+			errorContext.BypassModule = []byte(job.BypassModule)
+		}
 
+		handleErr := errHandler.HandleError(err, errorContext)
 		if handleErr != nil {
-			// If error handling itself failed, we should probably know about it
 			return respTime, fmt.Errorf("request failed after %d retries and error handling failed: %w (handler error: %v)",
 				c.retryConfig.GetPerReqRetriedAttempts(), err, handleErr)
 		}
 
-		// Return original error with retry context
 		return respTime, fmt.Errorf("request failed after %d retries: %w",
 			c.retryConfig.GetPerReqRetriedAttempts(), err)
 	}

@@ -163,7 +163,7 @@ func (wp *RequestWorkerPool) ProcessRequestResponseJob(job payload.PayloadJob) *
 	defer wp.httpClient.ReleaseRequest(req)
 	defer wp.httpClient.ReleaseResponse(resp)
 
-	if err := BuildRawHTTPRequest(wp.httpClient, req, job); err != nil {
+	if err := BuildRawHTTPRequest(wp.httpClient, req, &job); err != nil {
 		handleErr := GB403ErrorHandler.GetErrorHandler().HandleError(err, GB403ErrorHandler.ErrorContext{
 			ErrorSource:  []byte("RequestWorkerPool.BuildRawRequestTask"),
 			Host:         []byte(job.Host),
@@ -175,16 +175,17 @@ func (wp *RequestWorkerPool) ProcessRequestResponseJob(job payload.PayloadJob) *
 	}
 
 	// DoRequest already handles error logging/handling
-	respTime, err := wp.httpClient.DoRequest(req, resp)
+	respTime, err := wp.httpClient.DoRequest(req, resp, &job)
 	if err != nil {
 		if err == ErrReqFailedMaxConsecutiveFails {
-			wp.cancel()
+			GB403Logger.Warning().Msgf("Cancelling current bypass module due to max consecutive failures reached for module [%s]\n", wp.httpClient.options.BypassModule)
+			wp.Close()
+			return nil
 		}
-		return nil
 	}
 
 	// Let ProcessHTTPResponse handle its own resource lifecycle
-	result := ProcessHTTPResponse(wp.httpClient, resp, job)
+	result := ProcessHTTPResponse(wp.httpClient, resp, &job)
 	if result != nil {
 		result.ResponseTime = respTime
 	}
@@ -193,7 +194,7 @@ func (wp *RequestWorkerPool) ProcessRequestResponseJob(job payload.PayloadJob) *
 }
 
 // buildRequest constructs the HTTP request
-func (wp *RequestWorkerPool) BuildRawRequestTask(req *fasthttp.Request, job payload.PayloadJob) error {
+func (wp *RequestWorkerPool) BuildRawRequestTask(req *fasthttp.Request, job *payload.PayloadJob) error {
 	return BuildRawHTTPRequest(wp.httpClient, req, job)
 }
 
@@ -212,11 +213,11 @@ func (wp *RequestWorkerPool) BuildRawRequestTask(req *fasthttp.Request, job payl
 // 'Connection: close' response header before closing the connection
 // or add 'Connection: close' request header before sending requests
 // to broken server.
-func (wp *RequestWorkerPool) SendRequestTask(req *fasthttp.Request, resp *fasthttp.Response) (int64, error) {
-	return wp.httpClient.DoRequest(req, resp)
+func (wp *RequestWorkerPool) SendRequestTask(req *fasthttp.Request, resp *fasthttp.Response, job *payload.PayloadJob) (int64, error) {
+	return wp.httpClient.DoRequest(req, resp, job)
 }
 
 // processResponse processes the HTTP response and extracts details
-func (wp *RequestWorkerPool) ProcessResponseTask(resp *fasthttp.Response, job payload.PayloadJob) *RawHTTPResponseDetails {
+func (wp *RequestWorkerPool) ProcessResponseTask(resp *fasthttp.Response, job *payload.PayloadJob) *RawHTTPResponseDetails {
 	return ProcessHTTPResponse(wp.httpClient, resp, job)
 }
