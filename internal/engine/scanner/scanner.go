@@ -56,6 +56,8 @@ func (s *Scanner) Run() error {
 	// Normal scanning mode
 	GB403Logger.Info().Msgf("Initializing scanner with %d URLs", len(s.urls))
 
+	outputFile := filepath.Join(s.scannerOpts.OutDir, "findings.json")
+
 	for _, url := range s.urls {
 		if err := s.scanURL(url); err != nil {
 			GB403Logger.Error().Msgf("Error scanning %s: %v", url, err)
@@ -70,6 +72,11 @@ func (s *Scanner) Run() error {
 		}
 	}
 
+	// Close the JSON array after all URLs are processed
+	if err := CloseJsonArray(outputFile); err != nil {
+		GB403Logger.Error().Msgf("Failed to close JSON array: %v\n", err)
+	}
+
 	// print error stats
 	fmt.Println()
 	GB403ErrorHandler.GetErrorHandler().PrintErrorStats()
@@ -78,33 +85,26 @@ func (s *Scanner) Run() error {
 }
 
 func (s *Scanner) scanURL(url string) error {
-	// Get results channel
 	resultsChannel := s.RunAllBypasses(url)
 
-	// Collect all results first
-	var allResults []*Result
 	var resultCount int
 	for result := range resultsChannel {
 		if result != nil {
-			allResults = append(allResults, result)
 			resultCount++
 		}
 	}
 
-	// If we have results, write them to file and display
 	if resultCount > 0 {
 		outputFile := filepath.Join(s.scannerOpts.OutDir, "findings.json")
 
-		// Write all results to file
-		if err := AppendResultsToJsonL(outputFile, allResults); err != nil {
-			GB403Logger.Error().Msgf("Failed to write results: %v\n", err)
+		fmt.Println()
+		if err := PrintResultsTableFromJsonL(outputFile, url, s.scannerOpts.BypassModule); err != nil {
+			GB403Logger.Error().Msgf("Failed to display results: %v\n", err)
+		} else {
+			fmt.Println()
+			GB403Logger.Success().Msgf("%d findings saved to %s\n\n",
+				resultCount, outputFile)
 		}
-
-		// Print results table directly from collected results
-		fmt.Println()
-		PrintResultsTable(url, allResults)
-		fmt.Println()
-		GB403Logger.Success().Msgf("%d findings saved to %s\n\n", resultCount, outputFile)
 	}
 
 	return nil

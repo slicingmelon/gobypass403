@@ -147,25 +147,23 @@ func PrintResultsTableFromJsonL(jsonFile, targetURL, bypassModule string) error 
 		return fmt.Errorf("file read error: %v", err)
 	}
 
+	// Add closing bracket if missing (in case of crash)
+	if !bytes.HasSuffix(data, []byte("]")) {
+		data = append(data, []byte("\n]")...)
+	}
+
+	var results []*Result
+	if err := jsonAPI.Unmarshal(data, &results); err != nil {
+		return fmt.Errorf("failed to parse JSON: %v", err)
+	}
+
 	var matchedResults []*Result
 	queryModules := strings.Split(bypassModule, ",")
 
-	// Split by single newlines since each JSON object ends with one
-	jsonObjects := bytes.Split(data, []byte("\n"))
-
-	for _, jsonObj := range jsonObjects {
-		if len(bytes.TrimSpace(jsonObj)) == 0 {
-			continue
-		}
-
-		var result Result
-		if err := jsonAPI.Unmarshal(jsonObj, &result); err != nil {
-			GB403Logger.Debug().Msgf("Invalid JSON object: %v\n", err)
-			continue
-		}
-
+	// Filter results by URL and modules
+	for _, result := range results {
 		if result.TargetURL == targetURL && slices.Contains(queryModules, result.BypassModule) {
-			matchedResults = append(matchedResults, &result)
+			matchedResults = append(matchedResults, result)
 		}
 	}
 
@@ -185,7 +183,6 @@ func PrintResultsTableFromJsonL(jsonFile, targetURL, bypassModule string) error 
 	return nil
 }
 
-// AppendResultsToJsonL appends the results to findings.json file, in JSONL format to optimize memory usage
 func AppendResultsToJsonL(outputFile string, findings []*Result) error {
 	if len(findings) == 0 {
 		return nil
@@ -194,31 +191,96 @@ func AppendResultsToJsonL(outputFile string, findings []*Result) error {
 	fileLock.Lock()
 	defer fileLock.Unlock()
 
+	// Check if file exists
+	_, err := os.Stat(outputFile)
+	fileExists := !os.IsNotExist(err)
+
 	file, err := os.OpenFile(outputFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
-		return fmt.Errorf("failed to open JSONL file: %v", err)
+		return fmt.Errorf("failed to open JSON file: %v", err)
 	}
 	defer file.Close()
 
 	writer := bufio.NewWriter(file)
 	defer writer.Flush()
 
-	for _, result := range findings {
-		// Pretty print each JSON entry with 2-space indentation
-		line, err := jsonAPI.MarshalIndent(result, "", "  ")
+	// If new file, start the array
+	if !fileExists {
+		writer.WriteString("[\n  ") // Added two spaces after newline
+	}
+
+	for i, result := range findings {
+		// Add comma and proper indentation
+		if fileExists || i > 0 {
+			writer.WriteString(",\n  ") // Added two spaces after newline
+		}
+
+		// Pretty print with adjusted indentation
+		line, err := jsonAPI.MarshalIndent(result, "  ", "  ")
 		if err != nil {
 			GB403Logger.Error().Msgf("Failed to marshal result: %v", err)
 			continue
 		}
+		writer.Write(line)
+	}
 
-		// Write the pretty-printed JSON followed by a newline
-		if _, err = writer.Write(line); err != nil {
-			GB403Logger.Error().Msgf("Failed to write JSONL entry: %v", err)
+	return nil
+}
+
+func CloseJsonArray(outputFile string) error {
+	fileLock.Lock()
+	defer fileLock.Unlock()
+
+	file, err := os.OpenFile(outputFile, os.O_APPEND|os.O_WRONLY, 0644)
+	if err != nil {
+		return fmt.Errorf("failed to open JSON file: %v", err)
+	}
+	defer file.Close()
+
+	writer := bufio.NewWriter(file)
+	defer writer.Flush()
+
+	writer.WriteString("\n]")
+	return nil
+}
+
+func WritePrettyJsonL(inputFile, outputFile string) error {
+	// Read input file
+	data, err := os.ReadFile(inputFile)
+	if err != nil {
+		return fmt.Errorf("failed to read input file: %v", err)
+	}
+
+	// Create/truncate output file
+	prettyFile, err := os.Create(outputFile)
+	if err != nil {
+		return fmt.Errorf("failed to create pretty file: %v", err)
+	}
+	defer prettyFile.Close()
+
+	writer := bufio.NewWriter(prettyFile)
+	defer writer.Flush()
+
+	// Process each line
+	jsonObjects := bytes.Split(data, []byte("\n"))
+	for _, jsonObj := range jsonObjects {
+		if len(bytes.TrimSpace(jsonObj)) == 0 {
 			continue
 		}
-		if _, err = writer.Write([]byte("\n")); err != nil {
-			GB403Logger.Error().Msgf("Failed to write newline: %v", err)
+
+		var result Result
+		if err := jsonAPI.Unmarshal(jsonObj, &result); err != nil {
+			continue
 		}
+
+		prettyJson, err := jsonAPI.MarshalIndent(&result, "", "  ")
+		if err != nil {
+			continue
+		}
+
+		// Write pretty JSON with single newline separator
+		writer.Write(prettyJson)
+		writer.Write([]byte("\n")) // Changed from \n\n to \n
 	}
 
 	return nil

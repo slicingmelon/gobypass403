@@ -2,6 +2,7 @@ package scanner
 
 import (
 	"fmt"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -171,9 +172,7 @@ func (s *Scanner) RunAllBypasses(targetURL string) chan *Result {
 	go func() {
 		defer close(results)
 
-		// Split validated module list from options
 		modules := strings.Split(s.scannerOpts.BypassModule, ",")
-
 		for _, module := range modules {
 			module = strings.TrimSpace(module)
 			if module == "" {
@@ -183,8 +182,11 @@ func (s *Scanner) RunAllBypasses(targetURL string) chan *Result {
 			modResults := make(chan *Result)
 			go s.RunBypassModule(module, targetURL, modResults)
 
+			// Just forward results for progress tracking
 			for res := range modResults {
-				results <- res
+				if res != nil {
+					results <- res
+				}
 			}
 		}
 	}()
@@ -219,6 +221,8 @@ func (s *Scanner) RunBypassModule(bypassModule string, targetURL string, results
 
 	responses := worker.requestPool.ProcessRequests(allJobs)
 
+	outputFile := filepath.Join(s.scannerOpts.OutDir, "findings.json")
+
 	// Process responses and update progress based on pool metrics
 	for response := range responses {
 		if response == nil {
@@ -239,7 +243,7 @@ func (s *Scanner) RunBypassModule(bypassModule string, targetURL string, results
 		)
 
 		if matchStatusCodes(response.StatusCode, s.scannerOpts.MatchStatusCodes) {
-			results <- &Result{
+			result := &Result{
 				TargetURL:           string(response.URL),
 				BypassModule:        string(response.BypassModule),
 				StatusCode:          response.StatusCode,
@@ -255,6 +259,14 @@ func (s *Scanner) RunBypassModule(bypassModule string, targetURL string, results
 				ResponseTime:        response.ResponseTime,
 				DebugToken:          string(response.DebugToken),
 			}
+
+			// Write to file immediately
+			if err := AppendResultsToJsonL(outputFile, []*Result{result}); err != nil {
+				GB403Logger.Error().Msgf("Failed to write result: %v\n", err)
+			}
+
+			// Send to channel for progress tracking
+			results <- result
 		}
 
 		rawhttp.ReleaseResponseDetails(response)
