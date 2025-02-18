@@ -163,13 +163,15 @@ func BuildRawHTTPRequest(httpclient *HTTPClient, req *fasthttp.Request, job payl
 	// Build request line
 	buf.WriteString(job.Method)
 	buf.WriteString(" ")
-	buf.WriteString(job.RawURI) // e.g., "/path?query=1"
-	buf.WriteString(" ")
-	buf.WriteString("HTTP/1.1\r\n")
+	buf.WriteString(job.RawURI)
+	buf.WriteString(" HTTP/1.1") // Add HTTP version
+	buf.WriteString("\r\n")      // Important newline after request line
 
+	hasHostHeader := false
 	for _, h := range job.Headers {
 		if h.Header == "Host" {
-			shouldCloseConn = true // Force close if Host header is explicitly in Headers[]
+			hasHostHeader = true
+			shouldCloseConn = true
 		}
 		buf.WriteString(h.Header)
 		buf.WriteString(": ")
@@ -177,8 +179,14 @@ func BuildRawHTTPRequest(httpclient *HTTPClient, req *fasthttp.Request, job payl
 		buf.WriteString("\r\n")
 	}
 
-	buf.Write(strUserAgent)
-	buf.Write(strColon)
+	// Add Host header if not present in job.Headers
+	if !hasHostHeader {
+		buf.WriteString("Host: ")
+		buf.WriteString(job.Host)
+		buf.WriteString("\r\n")
+	}
+
+	buf.WriteString("User-Agent: ") // Note the space after colon
 	buf.Write(CustomUserAgent)
 	buf.WriteString("\r\n")
 
@@ -205,21 +213,18 @@ func BuildRawHTTPRequest(httpclient *HTTPClient, req *fasthttp.Request, job payl
 	defer rawRequestBuffReaderPool.Put(br)
 
 	if err := req.ReadLimitBody(br, 0); err != nil {
+		GB403Logger.Debug().Msgf("Raw request being parsed:\n%s", buf.String())
 		GB403Logger.Error().Msgf("Failed to parse raw request: %v\n", err)
 		return err
 	}
 
-	// Disable all normalizing and encodings !! AFTER parsing the raw request into fasthttp req
+	// Set URI components after successful parsing
 	req.URI().DisablePathNormalizing = true
 	req.Header.DisableNormalizing()
 	req.Header.SetNoDefaultContentType(true)
-
-	// Always use custom Host header
 	req.UseHostHeader = true
-
-	// Set the target host in the URI after parsing the raw request
-	req.URI().SetScheme(job.Scheme) // "https" or "http"
-	req.URI().SetHost(job.Host)     // e.g., "example.com"
+	req.URI().SetScheme(job.Scheme)
+	req.URI().SetHost(job.Host)
 
 	return nil
 }

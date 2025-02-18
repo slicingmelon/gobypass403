@@ -690,7 +690,7 @@ func TestFasthttpStreamingConcurrent3(t *testing.T) {
 					// Create error context
 					errorContext := GB403ErrorHandler.ErrorContext{
 						ErrorSource:  []byte("TestFasthttpStreamingConcurrent3"),
-						Host:         []byte(job.Scheme + "://" + job.Host),
+						Host:         []byte(payload.BypassPayloadToFullURL(job)),
 						BypassModule: []byte(job.BypassModule),
 						DebugToken:   []byte(job.PayloadToken),
 					}

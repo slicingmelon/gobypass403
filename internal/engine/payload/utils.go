@@ -11,6 +11,7 @@ import (
 
 	GB403Logger "github.com/slicingmelon/go-bypass-403/internal/utils/logger"
 	"github.com/slicingmelon/go-rawurlparser"
+	"golang.org/x/text/unicode/norm"
 )
 
 var (
@@ -286,18 +287,66 @@ func BypassPayloadToFullURL(job PayloadJob) string {
 }
 
 // FullURLToBypassPayload converts a full URL to a bypass payload (utility function for unit tests)
+func TryNormalizationForms(fullURL string) (string, error) {
+	// Basic validation first
+	if !strings.Contains(fullURL, "://") && !strings.Contains(fullURL, ":/") {
+		return "", fmt.Errorf("invalid URL format: missing scheme separator")
+	}
+
+	// Try different normalization forms in order of preference
+	normalizers := []struct {
+		form norm.Form
+		name string
+	}{
+		{norm.NFKC, "NFKC"},
+		{norm.NFKD, "NFKD"},
+		{norm.NFC, "NFC"},
+		{norm.NFD, "NFD"},
+	}
+
+	var lastErr error
+	for _, n := range normalizers {
+		normalized := n.form.String(fullURL)
+		if normalized != fullURL {
+			GB403Logger.Debug().Msgf("Trying normalization form %s: %s -> %s",
+				n.name, fullURL, normalized)
+		}
+
+		// Try parsing with this normalization
+		if parsedURL, err := rawurlparser.RawURLParse(normalized); err == nil {
+			// Additional validation
+			if parsedURL.Scheme == "" || parsedURL.Host == "" {
+				lastErr = fmt.Errorf("invalid URL: missing scheme or host")
+				continue
+			}
+			return normalized, nil
+		} else {
+			lastErr = err
+		}
+	}
+
+	// If all normalizations fail, return error
+	return "", fmt.Errorf("URL validation failed: %w", lastErr)
+}
+
+// FullURLToBypassPayload converts a full URL to a bypass payload
 func FullURLToBypassPayload(fullURL string, method string, headers []Headers) (PayloadJob, error) {
-	parsedURL, err := rawurlparser.RawURLParse(fullURL)
+	// Try different normalization forms
+	normalizedURL, err := TryNormalizationForms(fullURL)
+	if err != nil {
+		return PayloadJob{}, fmt.Errorf("invalid URL: %w", err)
+	}
+
+	parsedURL, err := rawurlparser.RawURLParse(normalizedURL)
 	if err != nil {
 		return PayloadJob{}, fmt.Errorf("failed to parse URL: %w", err)
 	}
 
 	return PayloadJob{
-		OriginalURL: fullURL, // Keep original URL for reference
-		Method:      method,
-		Scheme:      parsedURL.Scheme,
-		Host:        parsedURL.Host,
-		RawURI:      parsedURL.Path,
-		Headers:     headers,
+		Method:  method,
+		Scheme:  parsedURL.Scheme,
+		Host:    parsedURL.Host,
+		RawURI:  parsedURL.Path,
+		Headers: headers,
 	}, nil
 }
