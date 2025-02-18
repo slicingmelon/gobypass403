@@ -231,7 +231,7 @@ func TestMidPathsWorkerPool(t *testing.T) {
 	// Generate payloads
 
 	pg := payload.NewPayloadGenerator()
-	targetURL := "http://thumbs-cdn.redtube.com/videos/202401/26/447187221/720P_4000K_447187221.mp4"
+	targetURL := "http://thuxxxxxx1.mp4"
 	jobs := pg.GenerateMidPathsJobs(targetURL, "midpaths_test")
 
 	// Process jobs concurrently
@@ -291,7 +291,7 @@ func TestEndPathsWorkerPool(t *testing.T) {
 
 	// Generate payloads
 	pg := payload.NewPayloadGenerator()
-	targetURL := "https://thumbs-cdn.redtube.com/videos/202401/26/447187221/720P_4000K_447187221.mp4"
+	targetURL := "https://thsssssss221.mp4"
 	jobs := pg.GenerateEndPathsJobs(targetURL, "endpaths_test")
 
 	// Process jobs concurrently
@@ -356,7 +356,7 @@ func TestFasthttpStreamingConcurrent(t *testing.T) {
 
 	// Generate payloads
 	pg := payload.NewPayloadGenerator()
-	targetURL := "https://thumbs-cdn.redtube.com/videos/202401/26/447187221/720P_4000K_447187221.mp4"
+	targetURL := "https://thumbssdasd221.mp4"
 	jobs := pg.GenerateEndPathsJobs(targetURL, "endpaths_test")
 
 	var wg sync.WaitGroup
@@ -492,7 +492,7 @@ func TestFasthttpStreamingConcurrent2(t *testing.T) {
 
 	// Generate payloads
 	pg := payload.NewPayloadGenerator()
-	targetURL := "https://thumbs-cdn.redtube.com/videos/202401/26/447187221/720P_4000K_447187221.mp4"
+	targetURL := "https://thumbsfdsfsd221.mp4"
 	jobs := pg.GenerateEndPathsJobs(targetURL, "endpaths_test")
 
 	// Create job and result channels
@@ -658,7 +658,7 @@ func TestFasthttpStreamingConcurrent3(t *testing.T) {
 
 	// Generate payloads
 	pg := payload.NewPayloadGenerator()
-	targetURL := "https://thumbs-cdn.redtube.com/videos/202401/26/447187221/720P_4000K_447187221.mp4"
+	targetURL := "https://txxxxxxxx0Kssss7221.mp4"
 	jobs := pg.GenerateEndPathsJobs(targetURL, "endpaths_test")
 
 	jobsChan := make(chan payload.PayloadJob, len(jobs))
