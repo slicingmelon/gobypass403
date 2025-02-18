@@ -4,6 +4,7 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
+	"strconv"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -63,6 +64,13 @@ type HTTPClient struct {
 
 // DefaultHTTPClientOptions returns the default HTTP client options
 func DefaultHTTPClientOptions() *HTTPClientOptions {
+	const (
+		KB              = 1024
+		headerAllowance = 5 * KB  // 5120 bytes for headers (based on github.com.. huge list of headers)
+		maxBodySize     = 12 * KB // 12288 bytes for body
+		bufferSize      = 18 * KB // 18432 bytes (headers + body + some padding)
+	)
+
 	return &HTTPClientOptions{
 		BypassModule:             "",
 		Timeout:                  20000 * time.Millisecond,
@@ -71,9 +79,9 @@ func DefaultHTTPClientOptions() *HTTPClientOptions {
 		MaxIdleConnDuration:      1 * time.Minute, // Idle keep-alive connections are closed after this duration.
 		MaxConnWaitTimeout:       1 * time.Second, // Maximum duration for waiting for a free connection.
 		NoDefaultUserAgent:       true,
-		MaxResponseBodySize:      12188, // Hardlimit at 12KB
-		ReadBufferSize:           13212, // Hardlimit at 13KB
-		WriteBufferSize:          13212, // Hardlimit at 13KB
+		MaxResponseBodySize:      maxBodySize, // 12288 bytes - just body limit
+		ReadBufferSize:           bufferSize,  // 18432 bytes - total buffer
+		WriteBufferSize:          bufferSize,  // 18432 bytes - total buffer
 		StreamResponseBody:       true,
 		MaxRetries:               2,
 		RetryDelay:               500 * time.Millisecond,
@@ -154,19 +162,8 @@ func (c *HTTPClient) execFunc(req *fasthttp.Request, resp *fasthttp.Response, jo
 	c.retryConfig.ResetPerReqAttempts()
 	//var lastErr error
 
-	reqCopy := fasthttp.AcquireRequest()
+	reqCopy := ReqCopyToWithSettings(req)
 	defer fasthttp.ReleaseRequest(reqCopy)
-	req.CopyTo(reqCopy)
-
-	// Preserve special flags
-	reqCopy.URI().DisablePathNormalizing = true
-	reqCopy.Header.DisableNormalizing()
-	reqCopy.Header.SetNoDefaultContentType(true)
-	reqCopy.UseHostHeader = true
-
-	// Re-set scheme and host after copy to preserve raw path
-	reqCopy.URI().SetScheme(string(req.URI().Scheme()))
-	reqCopy.URI().SetHost(string(req.URI().Host()))
 
 	GB403Logger.Debug().Msgf("Request copy details: scheme=%s host=%s path=%s",
 		reqCopy.URI().Scheme(), reqCopy.URI().Host(), reqCopy.URI().Path())
@@ -221,9 +218,12 @@ func (c *HTTPClient) execFunc(req *fasthttp.Request, resp *fasthttp.Response, jo
 		elapsed := time.Since(start)
 
 		if err != nil {
+			jobURL := job.Scheme + "://" + job.Host
+			reqURL := string(reqCopy.URI().Scheme()) + "://" + string(reqCopy.URI().Host())
+
 			errorContext := GB403ErrorHandler.ErrorContext{
-				ErrorSource:  []byte(fmt.Sprintf("HTTPClient.execFunc/attempt=%d", attempt)),
-				Host:         []byte(gofn.FirstNonEmpty(job.Scheme, job.Host, string(reqCopy.URI().Scheme()), string(reqCopy.URI().Host()))),
+				ErrorSource:  []byte("HTTPClient.execFunc/attempt=" + strconv.Itoa(attempt)),
+				Host:         []byte(gofn.FirstNonEmpty(jobURL, reqURL)),
 				BypassModule: []byte(job.BypassModule),
 				DebugToken:   []byte(job.PayloadToken),
 			}
@@ -233,15 +233,21 @@ func (c *HTTPClient) execFunc(req *fasthttp.Request, resp *fasthttp.Response, jo
 
 			lastErr = err
 
-			if !IsRetryableError(err) {
+			retryDecision := IsRetryableError(err)
+			if !retryDecision.ShouldRetry {
 				GB403Logger.Debug().Msgf("Non-retryable error: %v\n", err)
 				return elapsed.Milliseconds(), err
 			}
 
 			if attempt < maxRetries {
-				// Reset connection for retry
-				reqCopy.Header.Del("Connection")
-				reqCopy.Header.Set("Connection", "close")
+				switch retryDecision.Action {
+				case RetryWithConnectionClose:
+					reqCopy.Header.Del("Connection")
+					reqCopy.Header.Set("Connection", "close")
+				case RetryWithoutResponseStreaming:
+					c.DisableStreamResponseBody()
+					defer c.EnableStreamResponseBody()
+				}
 				c.retryConfig.PerReqRetriedAttempts.Add(1)
 				resp.Reset()
 				continue
@@ -308,6 +314,18 @@ func (c *HTTPClient) DisableThrottler() {
 	c.throttler.DisableThrottler()
 }
 
+func (c *HTTPClient) DisableStreamResponseBody() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.client.StreamResponseBody = false
+}
+
+func (c *HTTPClient) EnableStreamResponseBody() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.client.StreamResponseBody = true
+}
+
 // Close releases all idle connections
 func (c *HTTPClient) Close() {
 	c.client.CloseIdleConnections()
@@ -332,4 +350,30 @@ func (c *HTTPClient) AcquireResponse() *fasthttp.Response {
 // ReleaseResponse returns response to pool
 func (c *HTTPClient) ReleaseResponse(resp *fasthttp.Response) {
 	fasthttp.ReleaseResponse(resp)
+}
+
+func applyReqCopyConfig(reqCopy *fasthttp.Request) {
+	reqCopy.URI().DisablePathNormalizing = true
+	reqCopy.Header.DisableNormalizing()
+	reqCopy.Header.SetNoDefaultContentType(true)
+	reqCopy.UseHostHeader = true
+}
+
+func ReqCopyToWithSettings(src *fasthttp.Request) *fasthttp.Request {
+	dst := fasthttp.AcquireRequest()
+
+	// Copy basic request data
+	src.CopyTo(dst)
+
+	// Apply all required settings
+	dst.URI().DisablePathNormalizing = true
+	dst.Header.DisableNormalizing()
+	dst.Header.SetNoDefaultContentType(true)
+	dst.UseHostHeader = true
+
+	// Ensure raw path preservation
+	dst.URI().SetScheme(string(src.URI().Scheme()))
+	dst.URI().SetHost(string(src.URI().Host()))
+
+	return dst
 }
