@@ -81,13 +81,13 @@ func TestRequestBuilderViaEchoServer(t *testing.T) {
 		name         string
 		targetURL    string
 		bypassModule string
-		generator    func(pg *payload.PayloadGenerator, url, module string) []payload.PayloadJob
+		generator    func(pg *payload.PayloadGenerator, url, module string) []payload.BypassPayload
 	}{
 		{
 			name:         "HeaderIP Payloads",
 			targetURL:    "http://example.com/test",
 			bypassModule: "http_headers_ip",
-			generator: func(pg *payload.PayloadGenerator, url, module string) []payload.PayloadJob {
+			generator: func(pg *payload.PayloadGenerator, url, module string) []payload.BypassPayload {
 				return pg.GenerateHeaderIPJobs(url, module, "", "")
 			},
 		},
@@ -95,7 +95,7 @@ func TestRequestBuilderViaEchoServer(t *testing.T) {
 			name:         "MidPaths Payloads",
 			targetURL:    "http://example.com/test/path",
 			bypassModule: "mid_paths",
-			generator: func(pg *payload.PayloadGenerator, url, module string) []payload.PayloadJob {
+			generator: func(pg *payload.PayloadGenerator, url, module string) []payload.BypassPayload {
 				return pg.GenerateMidPathsJobs(url, module)
 			},
 		},
@@ -103,7 +103,7 @@ func TestRequestBuilderViaEchoServer(t *testing.T) {
 			name:         "HeaderScheme Payloads",
 			targetURL:    "http://example.com/admin",
 			bypassModule: "header_scheme",
-			generator: func(pg *payload.PayloadGenerator, url, module string) []payload.PayloadJob {
+			generator: func(pg *payload.PayloadGenerator, url, module string) []payload.BypassPayload {
 				return pg.GenerateHeaderSchemeJobs(url, module)
 			},
 		},
@@ -145,7 +145,7 @@ func TestRequestBuilderViaEchoServer(t *testing.T) {
 				GB403Logger.PrintYellow("[GB403Logger] Sending request :\n%s", req)
 
 				// Send request and let server handle the comparison printing
-				_, err := client.DoRequest(req, resp, payload.PayloadJob{})
+				_, err := client.DoRequest(req, resp, payload.BypassPayload{})
 				if err != nil {
 					t.Fatalf("Job %d failed: %v", i, err)
 				}
@@ -249,13 +249,13 @@ func TestRequestBuilderMidPathsPayloads(t *testing.T) {
 		name         string
 		targetURL    string
 		bypassModule string
-		generator    func(pg *payload.PayloadGenerator, url, module string) []payload.PayloadJob
+		generator    func(pg *payload.PayloadGenerator, url, module string) []payload.BypassPayload
 	}{
 		{
 			name:         "MidPaths Payloads",
 			targetURL:    "http://example.com/admin",
 			bypassModule: "mid_paths",
-			generator: func(pg *payload.PayloadGenerator, url, module string) []payload.PayloadJob {
+			generator: func(pg *payload.PayloadGenerator, url, module string) []payload.BypassPayload {
 				return pg.GenerateMidPathsJobs(url, module)
 			},
 		},
@@ -339,7 +339,7 @@ func TestRequestBuilderHostHeaders(t *testing.T) {
 			defer client.ReleaseResponse(resp)
 
 			// Create minimal payload job with just Method and FullURL
-			job := payload.PayloadJob{
+			job := payload.BypassPayload{
 				Method: "GET",
 				Host:   "google.com",
 				RawURI: tc.url,
@@ -471,7 +471,7 @@ func TestResponseProcessingWithSpacedHeaders(t *testing.T) {
 			req.Header.SetMethod("GET")
 			req.Header.Set("X-Test-Case", tc.testCaseID)
 
-			respTime, err := client.DoRequest(req, resp, payload.PayloadJob{})
+			respTime, err := client.DoRequest(req, resp, payload.BypassPayload{})
 			if err != nil && !tc.expectError {
 				t.Fatalf("Unexpected request error: %v", err)
 			}

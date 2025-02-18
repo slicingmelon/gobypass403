@@ -88,7 +88,7 @@ func TestRawHTTPClientBuildAndSendRequest(t *testing.T) {
 	client := rawhttp.NewHTTPClient(rawhttp.DefaultHTTPClientOptions())
 
 	// Create a PayloadJob with Unicode in the path and headers
-	job := payload.PayloadJob{
+	job := payload.BypassPayload{
 		Method: "GET",
 		Scheme: "http",
 		Host:   "localhost:80",
@@ -117,7 +117,7 @@ func TestRawHTTPClientBuildAndSendRequest(t *testing.T) {
 	t.Logf("Request headers:\n%s", req.Header.String())
 
 	// Send request using the in-memory listener
-	_, err = client.DoRequest(req, resp, payload.PayloadJob{})
+	_, err = client.DoRequest(req, resp, payload.BypassPayload{})
 	assert.NoError(t, err, "Failed to send request")
 
 	// Verify response
@@ -138,7 +138,7 @@ func TestRawHTTPClientBuildAndSendRequestDirectLocalhost(t *testing.T) {
 	client.SetHTTPClientOptions(opts)
 
 	// Create a PayloadJob with Unicode in the path and headers
-	job := payload.PayloadJob{
+	job := payload.BypassPayload{
 		Method: "GET",
 		Scheme: "http",
 		Host:   "127.0.0.1",   // Target your test server here
@@ -167,7 +167,7 @@ func TestRawHTTPClientBuildAndSendRequestDirectLocalhost(t *testing.T) {
 	t.Logf("Request headers:\n%s", req.Header.String())
 
 	// Send request to the real server
-	_, err = client.DoRequest(req, resp, payload.PayloadJob{})
+	_, err = client.DoRequest(req, resp, payload.BypassPayload{})
 	assert.NoError(t, err, "Failed to send request")
 
 	// Verify response

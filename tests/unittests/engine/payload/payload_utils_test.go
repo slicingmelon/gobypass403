@@ -12,7 +12,7 @@ func TestURLConversions(t *testing.T) {
 		inputURL      string
 		method        string
 		headers       []payload.Headers
-		expectedJob   payload.PayloadJob
+		expectedJob   payload.BypassPayload
 		expectedError bool
 		roundTrip     bool // test if URL->Job->URL matches
 	}{
@@ -21,7 +21,7 @@ func TestURLConversions(t *testing.T) {
 			inputURL: "https://example.com/path/to/resource",
 			method:   "GET",
 			headers:  []payload.Headers{},
-			expectedJob: payload.PayloadJob{
+			expectedJob: payload.BypassPayload{
 				Method: "GET",
 				Scheme: "https",
 				Host:   "example.com",
@@ -34,7 +34,7 @@ func TestURLConversions(t *testing.T) {
 			inputURL: "https://example.com/path／to／resource",
 			method:   "GET",
 			headers:  []payload.Headers{},
-			expectedJob: payload.PayloadJob{
+			expectedJob: payload.BypassPayload{
 				Method: "GET",
 				Scheme: "https",
 				Host:   "example.com",
@@ -47,7 +47,7 @@ func TestURLConversions(t *testing.T) {
 			inputURL: "http://localhost:8080/api/v1",
 			method:   "POST",
 			headers:  []payload.Headers{},
-			expectedJob: payload.PayloadJob{
+			expectedJob: payload.BypassPayload{
 				Method: "POST",
 				Scheme: "http",
 				Host:   "localhost:8080",
@@ -60,7 +60,7 @@ func TestURLConversions(t *testing.T) {
 			inputURL: "https://api.example.com/search?q=test&page=1",
 			method:   "GET",
 			headers:  []payload.Headers{},
-			expectedJob: payload.PayloadJob{
+			expectedJob: payload.BypassPayload{
 				Method: "GET",
 				Scheme: "https",
 				Host:   "api.example.com",
@@ -73,7 +73,7 @@ func TestURLConversions(t *testing.T) {
 			inputURL: "https://example.com/path%20with%20spaces",
 			method:   "GET",
 			headers:  []payload.Headers{},
-			expectedJob: payload.PayloadJob{
+			expectedJob: payload.BypassPayload{
 				Method: "GET",
 				Scheme: "https",
 				Host:   "example.com",
@@ -93,7 +93,7 @@ func TestURLConversions(t *testing.T) {
 			inputURL: "https://example.com/café／test",
 			method:   "GET",
 			headers:  []payload.Headers{},
-			expectedJob: payload.PayloadJob{
+			expectedJob: payload.BypassPayload{
 				Method: "GET",
 				Scheme: "https",
 				Host:   "example.com",

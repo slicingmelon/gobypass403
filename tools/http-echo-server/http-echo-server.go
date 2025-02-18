@@ -17,12 +17,17 @@ import (
 	"strings"
 	"sync"
 	"time"
-
-	"github.com/jedib0t/go-pretty/v6/text"
 )
 
 // To trigger timeout errors when testing: ./http-echo-server.exe -port 80 -tlsport 443 -v -template timeout -timeout 5000
 // To trigger server closed connection before returning first byte: ./http-echo-server.exe -port 80 -tlsport 443 -v -template timeout -timeout 200
+
+const (
+	colorReset  = "\033[0m"
+	colorGreen  = "\033[32m"
+	colorYellow = "\033[33m"
+	colorWhite  = "\033[37m"
+)
 
 var verbose bool
 
@@ -248,24 +253,24 @@ func printRequest(req string, verbose bool, isTLS bool) {
 	if verbose {
 		// Replace special characters with colored versions
 		specialChars := map[string]string{
-			"\r": "\\r",
-			"\n": "\\n\n", // Keep the extra newline for readability
-			"\t": "\\t",
-			"\v": "\\v", // Vertical tab
-			"\f": "\\f", // Form feed
-			"\b": "\\b", // Backspace
-			"\a": "\\a", // Alert/Bell
+			"\r": colorGreen + "\\r" + colorReset,
+			"\n": colorGreen + "\\n\n" + colorReset, // Keep the extra newline for readability
+			"\t": colorGreen + "\\t" + colorReset,
+			"\v": colorGreen + "\\v" + colorReset, // Vertical tab
+			"\f": colorGreen + "\\f" + colorReset, // Form feed
+			"\b": colorGreen + "\\b" + colorReset, // Backspace
+			"\a": colorGreen + "\\a" + colorReset, // Alert/Bell
 		}
 
 		for char, replacement := range specialChars {
-			req = strings.ReplaceAll(req, char, text.Colors{text.FgGreen}.Sprint(replacement))
+			req = strings.ReplaceAll(req, char, replacement)
 		}
 	}
 
 	// Color the text terminal req
 	if isTLS {
-		fmt.Print(text.Colors{text.FgYellow}.Sprint(req))
+		fmt.Print(colorYellow + req + colorReset)
 	} else {
-		fmt.Print(text.Colors{text.FgWhite}.Sprint(req))
+		fmt.Print(colorWhite + req + colorReset)
 	}
 }
