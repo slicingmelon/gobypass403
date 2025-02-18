@@ -101,12 +101,6 @@ func ReleaseResponseDetails(rd *RawHTTPResponseDetails) {
 	responseDetailsPool.Put(rd)
 }
 
-// var rawRequestPool = sync.Pool{
-// 	New: func() interface{} {
-// 		return bytes.NewBuffer(make([]byte, 0, 4096)) // Pre-allocate 4KB
-// 	},
-// }
-
 var (
 	rawRequestBuffPool = sync.Pool{
 		New: func() interface{} {
@@ -227,7 +221,6 @@ func BuildRawHTTPRequest(httpclient *HTTPClient, req *fasthttp.Request, job payl
 	req.URI().SetScheme(job.Scheme) // "https" or "http"
 	req.URI().SetHost(job.Host)     // e.g., "example.com"
 
-	//GB403Logger.Debug().Msgf("Raw request After back into fasthttp req :\n%s", req.String())
 	return nil
 }
 

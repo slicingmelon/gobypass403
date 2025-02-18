@@ -28,6 +28,7 @@ type ScannerOpts struct {
 	FollowRedirects           bool
 	ResponseBodyPreviewSize   int
 	DisableStreamResponseBody bool
+	DisableProgressBar        bool
 	ResendRequest             string
 	ReconCache                *recon.ReconCache
 }

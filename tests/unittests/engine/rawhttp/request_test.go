@@ -145,7 +145,7 @@ func TestRequestBuilderViaEchoServer(t *testing.T) {
 				GB403Logger.PrintYellow("[GB403Logger] Sending request :\n%s", req)
 
 				// Send request and let server handle the comparison printing
-				_, err := client.DoRequest(req, resp)
+				_, err := client.DoRequest(req, resp, payload.PayloadJob{})
 				if err != nil {
 					t.Fatalf("Job %d failed: %v", i, err)
 				}
@@ -297,7 +297,7 @@ func TestRequestBuilderMidPathsPayloads(t *testing.T) {
 				GB403Logger.PrintGreen("[GB403Logger][RequestBuilder] [X-GB403-Token: %s] Sending request: %s\n================>\n%s<================\n", job.PayloadToken, payload.BypassPayloadToFullURL(job), req)
 
 				// Send request and let server handle the comparison printing
-				if _, err := client.DoRequest(req, resp); err != nil {
+				if _, err := client.DoRequest(req, resp, job); err != nil {
 					t.Fatalf("Job %d failed: %v", i, err)
 				}
 
@@ -366,7 +366,7 @@ func TestRequestBuilderHostHeaders(t *testing.T) {
 			GB403Logger.PrintYellow("Request URI: %s", req.URI().FullURI())
 			GB403Logger.PrintYellow("===================\n")
 
-			if _, err := client.DoRequest(req, resp); err != nil {
+			if _, err := client.DoRequest(req, resp, job); err != nil {
 				t.Fatalf("Request failed: %v", err)
 			}
 
@@ -471,7 +471,7 @@ func TestResponseProcessingWithSpacedHeaders(t *testing.T) {
 			req.Header.SetMethod("GET")
 			req.Header.Set("X-Test-Case", tc.testCaseID)
 
-			respTime, err := client.DoRequest(req, resp)
+			respTime, err := client.DoRequest(req, resp, payload.PayloadJob{})
 			if err != nil && !tc.expectError {
 				t.Fatalf("Unexpected request error: %v", err)
 			}

@@ -4,12 +4,15 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
+	"strconv"
 	"sync"
 	"sync/atomic"
 	"time"
 
+	"github.com/slicingmelon/go-bypass-403/internal/engine/payload"
 	GB403ErrorHandler "github.com/slicingmelon/go-bypass-403/internal/utils/error"
 	GB403Logger "github.com/slicingmelon/go-bypass-403/internal/utils/logger"
+	"github.com/tiendc/gofn"
 	"github.com/valyala/fasthttp"
 )
 
@@ -61,6 +64,13 @@ type HTTPClient struct {
 
 // DefaultHTTPClientOptions returns the default HTTP client options
 func DefaultHTTPClientOptions() *HTTPClientOptions {
+	const (
+		KB              = 1024
+		headerAllowance = 5 * KB  // 5120 bytes for headers (based on github.com.. huge list of headers)
+		maxBodySize     = 12 * KB // 12288 bytes for body
+		bufferSize      = 18 * KB // 18432 bytes (headers + body + some padding)
+	)
+
 	return &HTTPClientOptions{
 		BypassModule:             "",
 		Timeout:                  20000 * time.Millisecond,
@@ -69,9 +79,9 @@ func DefaultHTTPClientOptions() *HTTPClientOptions {
 		MaxIdleConnDuration:      1 * time.Minute, // Idle keep-alive connections are closed after this duration.
 		MaxConnWaitTimeout:       1 * time.Second, // Maximum duration for waiting for a free connection.
 		NoDefaultUserAgent:       true,
-		MaxResponseBodySize:      12188, // Hardlimit at 12KB
-		ReadBufferSize:           13212, // Hardlimit at 13KB
-		WriteBufferSize:          13212, // Hardlimit at 13KB
+		MaxResponseBodySize:      maxBodySize, // 12288 bytes - just body limit
+		ReadBufferSize:           bufferSize,  // 18432 bytes - total buffer
+		WriteBufferSize:          bufferSize,  // 18432 bytes - total buffer
 		StreamResponseBody:       true,
 		MaxRetries:               2,
 		RetryDelay:               500 * time.Millisecond,
@@ -148,23 +158,12 @@ func (c *HTTPClient) SetHTTPClientOptions(opts *HTTPClientOptions) {
 	c.options = &newOpts
 }
 
-func (c *HTTPClient) execFunc(req *fasthttp.Request, resp *fasthttp.Response) (int64, error) {
+func (c *HTTPClient) execFunc(req *fasthttp.Request, resp *fasthttp.Response, job payload.PayloadJob) (int64, error) {
 	c.retryConfig.ResetPerReqAttempts()
 	//var lastErr error
 
-	reqCopy := fasthttp.AcquireRequest()
+	reqCopy := ReqCopyToWithSettings(req)
 	defer fasthttp.ReleaseRequest(reqCopy)
-	req.CopyTo(reqCopy)
-
-	// Preserve special flags
-	reqCopy.URI().DisablePathNormalizing = true
-	reqCopy.Header.DisableNormalizing()
-	reqCopy.Header.SetNoDefaultContentType(true)
-	reqCopy.UseHostHeader = true
-
-	// Re-set scheme and host after copy to preserve raw path
-	reqCopy.URI().SetScheme(string(req.URI().Scheme()))
-	reqCopy.URI().SetHost(string(req.URI().Host()))
 
 	GB403Logger.Debug().Msgf("Request copy details: scheme=%s host=%s path=%s",
 		reqCopy.URI().Scheme(), reqCopy.URI().Host(), reqCopy.URI().Path())
@@ -218,45 +217,50 @@ func (c *HTTPClient) execFunc(req *fasthttp.Request, resp *fasthttp.Response) (i
 		err := c.client.DoTimeout(reqCopy, resp, currentTimeout)
 		elapsed := time.Since(start)
 
-		//GB403Logger.Debug().Msgf("Attempt %d completed in %v with error: %v\n", attempt, elapsed, err)
-		//lastErr = err
+		if err != nil {
+			jobURL := job.Scheme + "://" + job.Host
+			reqURL := string(reqCopy.URI().Scheme()) + "://" + string(reqCopy.URI().Host())
 
-		if err == nil {
-			// Check if we should throttle based on the response status code
-			if c.throttler.IsThrottableRespCode(resp.StatusCode()) {
-				// Enable throttling for future requests
-				c.throttler.EnableThrottler()
+			errorContext := GB403ErrorHandler.ErrorContext{
+				ErrorSource:  []byte("HTTPClient.execFunc/attempt=" + strconv.Itoa(attempt)),
+				Host:         []byte(gofn.FirstNonEmpty(jobURL, reqURL)),
+				BypassModule: []byte(job.BypassModule),
+				DebugToken:   []byte(job.PayloadToken),
 			}
-			return elapsed.Milliseconds(), nil
-		}
+			if handleErr := GB403ErrorHandler.GetErrorHandler().HandleError(err, errorContext); handleErr != nil {
+				return 0, fmt.Errorf("error handling failed: %v (original error: %v)", handleErr, err)
+			}
 
-		lastErr = err
+			lastErr = err
 
-		if !IsRetryableError(err) {
-			GB403Logger.Debug().Msgf("Non-retryable error: %v\n", err)
-			return elapsed.Milliseconds(), err
-		}
+			retryDecision := IsRetryableError(err)
+			if !retryDecision.ShouldRetry {
+				GB403Logger.Debug().Msgf("Non-retryable error: %v\n", err)
+				return elapsed.Milliseconds(), err
+			}
 
-		if attempt < maxRetries {
-			// Prepare req for next retry
-			// For retries, re-apply all settings again
-			reqCopy.Header.Del("Connection")
+			if attempt < maxRetries {
+				switch retryDecision.Action {
+				case RetryWithConnectionClose:
+					reqCopy.Header.Del("Connection")
+					reqCopy.Header.Set("Connection", "close")
+				case RetryWithoutResponseStreaming:
+					c.DisableStreamResponseBody()
+					defer c.EnableStreamResponseBody()
+				}
+				c.retryConfig.PerReqRetriedAttempts.Add(1)
+				resp.Reset()
+				continue
+			}
 
-			reqCopy.URI().DisablePathNormalizing = true
-			reqCopy.Header.DisableNormalizing()
-			reqCopy.Header.SetNoDefaultContentType(true)
-			reqCopy.UseHostHeader = true
-			reqCopy.URI().SetScheme(string(req.URI().Scheme()))
-			reqCopy.URI().SetHost(string(req.URI().Host()))
-			c.retryConfig.PerReqRetriedAttempts.Add(1)
-			resp.Reset()
-		}
-
-		// Signal max retries reached
-		if attempt == maxRetries {
 			return 0, fmt.Errorf("%w: %v", ErrReqFailedMaxRetries, lastErr)
 		}
 
+		// Success case
+		if c.throttler.IsThrottableRespCode(resp.StatusCode()) {
+			c.throttler.EnableThrottler()
+		}
+		return elapsed.Milliseconds(), nil
 	}
 
 	return 0, lastErr
@@ -264,43 +268,18 @@ func (c *HTTPClient) execFunc(req *fasthttp.Request, resp *fasthttp.Response) (i
 
 // DoRequest performs a HTTP request (raw)
 // Returns the HTTP response time (in ms) and error
-func (c *HTTPClient) DoRequest(req *fasthttp.Request, resp *fasthttp.Response) (int64, error) {
-	errHandler := GB403ErrorHandler.GetErrorHandler()
-
+func (c *HTTPClient) DoRequest(req *fasthttp.Request, resp *fasthttp.Response, job payload.PayloadJob) (int64, error) {
 	// Execute request with retry handling
-	respTime, err := c.execFunc(req, resp)
+	respTime, err := c.execFunc(req, resp, job)
 
 	if err != nil {
 		if err == ErrReqFailedMaxRetries {
-			// Increment consecutive failures counter
 			newCount := c.consecutiveFailedReqs.Add(1)
-
-			// Check if we've hit max consecutive failures
 			if newCount >= int32(c.options.MaxConsecutiveFailedReqs) {
 				return respTime, ErrReqFailedMaxConsecutiveFails
 			}
 		}
 
-		debugToken := PeekRequestHeaderKeyCaseInsensitive(req, []byte("X-GB403-Token"))
-		if debugToken == nil {
-			debugToken = []byte("")
-		}
-
-		// Handle the error first
-		handleErr := errHandler.HandleError(err, GB403ErrorHandler.ErrorContext{
-			ErrorSource:  []byte("HTTPClient.DoRequest"),
-			Host:         append([]byte(nil), req.Host()...),
-			BypassModule: []byte(c.options.BypassModule),
-			DebugToken:   []byte(debugToken),
-		})
-
-		if handleErr != nil {
-			// If error handling itself failed, we should probably know about it
-			return respTime, fmt.Errorf("request failed after %d retries and error handling failed: %w (handler error: %v)",
-				c.retryConfig.GetPerReqRetriedAttempts(), err, handleErr)
-		}
-
-		// Return original error with retry context
 		return respTime, fmt.Errorf("request failed after %d retries: %w",
 			c.retryConfig.GetPerReqRetriedAttempts(), err)
 	}
@@ -335,6 +314,18 @@ func (c *HTTPClient) DisableThrottler() {
 	c.throttler.DisableThrottler()
 }
 
+func (c *HTTPClient) DisableStreamResponseBody() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.client.StreamResponseBody = false
+}
+
+func (c *HTTPClient) EnableStreamResponseBody() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.client.StreamResponseBody = true
+}
+
 // Close releases all idle connections
 func (c *HTTPClient) Close() {
 	c.client.CloseIdleConnections()
@@ -359,4 +350,30 @@ func (c *HTTPClient) AcquireResponse() *fasthttp.Response {
 // ReleaseResponse returns response to pool
 func (c *HTTPClient) ReleaseResponse(resp *fasthttp.Response) {
 	fasthttp.ReleaseResponse(resp)
+}
+
+func applyReqCopyConfig(reqCopy *fasthttp.Request) {
+	reqCopy.URI().DisablePathNormalizing = true
+	reqCopy.Header.DisableNormalizing()
+	reqCopy.Header.SetNoDefaultContentType(true)
+	reqCopy.UseHostHeader = true
+}
+
+func ReqCopyToWithSettings(src *fasthttp.Request) *fasthttp.Request {
+	dst := fasthttp.AcquireRequest()
+
+	// Copy basic request data
+	src.CopyTo(dst)
+
+	// Apply all required settings
+	dst.URI().DisablePathNormalizing = true
+	dst.Header.DisableNormalizing()
+	dst.Header.SetNoDefaultContentType(true)
+	dst.UseHostHeader = true
+
+	// Ensure raw path preservation
+	dst.URI().SetScheme(string(src.URI().Scheme()))
+	dst.URI().SetHost(string(src.URI().Host()))
+
+	return dst
 }

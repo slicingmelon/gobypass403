@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/slicingmelon/go-bypass-403/internal/engine/payload"
 	"github.com/slicingmelon/go-bypass-403/internal/engine/rawhttp"
 	"github.com/valyala/fasthttp"
 )
@@ -36,7 +37,7 @@ func TestConsecutiveFailures(t *testing.T) {
 
 		totalRequests++
 		start := time.Now()
-		_, err := client.DoRequest(req, resp)
+		_, err := client.DoRequest(req, resp, payload.PayloadJob{})
 		elapsed := time.Since(start)
 
 		if err != nil {

@@ -14,7 +14,7 @@ import (
 func DefaultDialer() *fasthttp.TCPDialer {
 	return &fasthttp.TCPDialer{
 		Concurrency:      2048,
-		DNSCacheDuration: 15 * time.Minute,
+		DNSCacheDuration: 60 * time.Minute,
 	}
 }
 

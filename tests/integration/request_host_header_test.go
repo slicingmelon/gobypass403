@@ -100,7 +100,7 @@ func TestHostHeaderInjection(t *testing.T) {
 			//req.UseHostHeader = true
 			assert.NoError(t, err)
 
-			_, err = client.DoRequest(req, resp)
+			_, err = client.DoRequest(req, resp, payload.PayloadJob{})
 			assert.NoError(t, err)
 
 			// Verify response
@@ -218,7 +218,7 @@ func TestHostHeaderInjection2(t *testing.T) {
 			// Log the actual request being sent
 			t.Logf("Sending request with headers:\n%s", req.Header.String())
 
-			_, err := client.DoRequest(req, resp)
+			_, err := client.DoRequest(req, resp, payload.PayloadJob{})
 			assert.NoError(t, err)
 
 			// Log the response received
@@ -339,7 +339,7 @@ func TestManualHostHeaderInjection(t *testing.T) {
 			t.Logf("Request headers:\n%s", req.Header.String())
 
 			// Send request
-			_, err := client.DoRequest(req, resp)
+			_, err := client.DoRequest(req, resp, payload.PayloadJob{})
 			assert.NoError(t, err)
 
 			// Verify response

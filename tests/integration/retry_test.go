@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/slicingmelon/go-bypass-403/internal/engine/payload"
 	"github.com/slicingmelon/go-bypass-403/internal/engine/rawhttp"
 	GB403Logger "github.com/slicingmelon/go-bypass-403/internal/utils/logger"
 	"github.com/stretchr/testify/assert"
@@ -86,7 +87,7 @@ func TestRetryOnEOF(t *testing.T) {
 	req.SetRequestURI("http://test.local/test")
 
 	// Execute request and capture each error
-	_, err := client.DoRequest(req, resp)
+	_, err := client.DoRequest(req, resp, payload.PayloadJob{})
 	t.Logf("DoRequest returned error: %v", err)
 
 	// Log for debugging
@@ -243,7 +244,7 @@ func TestRetryWithPayloads(t *testing.T) {
 	semaphore := make(chan struct{}, 5) // Limit concurrent requests
 
 	// Launch goroutine to process payloads
-	for i, payload := range payloads {
+	for i, _payload := range payloads {
 		wg.Add(1)
 		go func(p string, idx int) {
 			defer wg.Done()
@@ -264,7 +265,7 @@ func TestRetryWithPayloads(t *testing.T) {
 			req.SetRequestURI(fullURL)
 			t.Logf("Goroutine %d: Sending request to %s", idx, fullURL)
 
-			_, err := client.DoRequest(req, resp)
+			_, err := client.DoRequest(req, resp, payload.PayloadJob{})
 			t.Logf("Goroutine %d: Got response with error: %v", idx, err)
 
 			results <- struct {
@@ -277,7 +278,7 @@ func TestRetryWithPayloads(t *testing.T) {
 				err:     err,
 			}
 			t.Logf("Goroutine %d: Sent result to channel", idx)
-		}(payload, i)
+		}(_payload, i)
 	}
 
 	t.Log("All goroutines launched, waiting for completion")
@@ -379,7 +380,7 @@ func TestRetryWithLargeResponse(t *testing.T) {
 	req.SetRequestURI("http://localhost/test") // The actual URL doesn't matter with our custom dialer
 	t.Log("Sending request...")
 
-	_, err := client.DoRequest(req, resp)
+	_, err := client.DoRequest(req, resp, payload.PayloadJob{})
 	t.Logf("Request completed with error: %v", err)
 
 	// Verify retry count
@@ -453,7 +454,7 @@ func TestRetryWithConcurrentRequests(t *testing.T) {
 			defer client.ReleaseResponse(resp)
 
 			req.SetRequestURI("http://localhost/test")
-			_, err := client.DoRequest(req, resp)
+			_, err := client.DoRequest(req, resp, payload.PayloadJob{})
 
 			if err != nil {
 				errorCount.Add(1)

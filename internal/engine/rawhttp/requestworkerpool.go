@@ -2,6 +2,8 @@ package rawhttp
 
 import (
 	"context"
+	"fmt"
+	"runtime"
 	"sync/atomic"
 	"time"
 
@@ -27,6 +29,11 @@ type RequestWorkerPool struct {
 // NewWorkerPool initializes a new RequestWorkerPool instance
 func NewRequestWorkerPool(opts *HTTPClientOptions, maxWorkers int) *RequestWorkerPool {
 	ctx, cancel := context.WithCancel(context.Background())
+
+	if maxWorkers > opts.MaxConnsPerHost {
+		// Add 50% more connections than workers for buffer
+		opts.MaxConnsPerHost = maxWorkers + (maxWorkers / 2)
+	}
 
 	wp := &RequestWorkerPool{
 		httpClient: NewHTTPClient(opts),
@@ -160,33 +167,36 @@ func (wp *RequestWorkerPool) Close() {
 func (wp *RequestWorkerPool) ProcessRequestResponseJob(job payload.PayloadJob) *RawHTTPResponseDetails {
 	req := wp.httpClient.AcquireRequest()
 	resp := wp.httpClient.AcquireResponse()
+
+	// Release request early since we don't need it after DoRequest
 	defer wp.httpClient.ReleaseRequest(req)
-	defer wp.httpClient.ReleaseResponse(resp)
 
 	if err := BuildRawHTTPRequest(wp.httpClient, req, job); err != nil {
-		handleErr := GB403ErrorHandler.GetErrorHandler().HandleError(err, GB403ErrorHandler.ErrorContext{
-			ErrorSource:  []byte("RequestWorkerPool.BuildRawRequestTask"),
-			Host:         []byte(job.Host),
-			BypassModule: []byte(job.BypassModule),
-		})
-		if handleErr != nil {
-			return nil
-		}
+		wp.httpClient.ReleaseResponse(resp) // Release on error
+		return nil
 	}
 
-	// DoRequest already handles error logging/handling
-	respTime, err := wp.httpClient.DoRequest(req, resp)
+	respTime, err := wp.httpClient.DoRequest(req, resp, job)
 	if err != nil {
+		wp.httpClient.ReleaseResponse(resp) // Release on error
 		if err == ErrReqFailedMaxConsecutiveFails {
-			wp.cancel()
+			GB403Logger.Warning().Msgf("Cancelling current bypass module due to max consecutive failures reached for module [%s]\n", wp.httpClient.options.BypassModule)
+			wp.Close()
+			return nil
 		}
 		return nil
 	}
 
-	// Let ProcessHTTPResponse handle its own resource lifecycle
+	// Process response before releasing
 	result := ProcessHTTPResponse(wp.httpClient, resp, job)
+	wp.httpClient.ReleaseResponse(resp)
+
 	if result != nil {
 		result.ResponseTime = respTime
+		// Add deferred release of response details
+		runtime.SetFinalizer(result, func(r *RawHTTPResponseDetails) {
+			ReleaseResponseDetails(r)
+		})
 	}
 
 	return result
@@ -194,7 +204,19 @@ func (wp *RequestWorkerPool) ProcessRequestResponseJob(job payload.PayloadJob) *
 
 // buildRequest constructs the HTTP request
 func (wp *RequestWorkerPool) BuildRawRequestTask(req *fasthttp.Request, job payload.PayloadJob) error {
-	return BuildRawHTTPRequest(wp.httpClient, req, job)
+	if err := BuildRawHTTPRequest(wp.httpClient, req, job); err != nil {
+		errorContext := GB403ErrorHandler.ErrorContext{
+			ErrorSource:  []byte("BuildRawRequestTask"),
+			Host:         []byte(job.Host),
+			BypassModule: []byte(job.BypassModule),
+			DebugToken:   []byte(job.PayloadToken),
+		}
+		if handleErr := GB403ErrorHandler.GetErrorHandler().HandleError(err, errorContext); handleErr != nil {
+			return fmt.Errorf("failed to handle error in BuildRawRequestTask: %v (original error: %v)", handleErr, err)
+		}
+		return err
+	}
+	return nil
 }
 
 // SendRequest sends the HTTP request
@@ -212,8 +234,8 @@ func (wp *RequestWorkerPool) BuildRawRequestTask(req *fasthttp.Request, job payl
 // 'Connection: close' response header before closing the connection
 // or add 'Connection: close' request header before sending requests
 // to broken server.
-func (wp *RequestWorkerPool) SendRequestTask(req *fasthttp.Request, resp *fasthttp.Response) (int64, error) {
-	return wp.httpClient.DoRequest(req, resp)
+func (wp *RequestWorkerPool) SendRequestTask(req *fasthttp.Request, resp *fasthttp.Response, job payload.PayloadJob) (int64, error) {
+	return wp.httpClient.DoRequest(req, resp, job)
 }
 
 // processResponse processes the HTTP response and extracts details

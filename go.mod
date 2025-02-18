@@ -19,6 +19,7 @@ require (
 	github.com/refraction-networking/utls v1.6.7
 	github.com/slicingmelon/go-rawurlparser v0.3.1
 	github.com/stretchr/testify v1.10.0
+	github.com/tiendc/gofn v1.14.0
 	github.com/valyala/fasthttp v1.58.0
 	github.com/vmihailenco/msgpack/v5 v5.4.1
 )
@@ -41,6 +42,7 @@ require (
 	github.com/mattn/go-runewidth v0.0.16 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
+	github.com/tiendc/go-rflutil v0.0.0-20240919184150-3c910c4770e2 // indirect
 	github.com/twitchyliquid64/golang-asm v0.15.1 // indirect
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
 	github.com/valyala/fastrand v1.1.0 // indirect

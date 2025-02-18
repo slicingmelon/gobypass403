@@ -18,6 +18,19 @@ type RetryConfig struct {
 	mu                    sync.RWMutex
 }
 
+type RetryAction int
+
+const (
+	RetryWithConnectionClose RetryAction = iota
+	RetryWithoutResponseStreaming
+	NoRetry
+)
+
+type RetryDecision struct {
+	ShouldRetry bool
+	Action      RetryAction
+}
+
 func DefaultRetryConfig() *RetryConfig {
 	return &RetryConfig{
 		MaxRetries: 2,
@@ -50,17 +63,26 @@ func (rc *RetryConfig) ResetPerReqAttempts() {
 	rc.PerReqRetriedAttempts.Store(0)
 }
 
-func IsRetryableError(err error) bool {
+func IsRetryableError(err error) RetryDecision {
 	if err == nil {
-		return false
+		return RetryDecision{false, NoRetry}
 	}
 
-	// Check for specific error types
-	if err == io.EOF || errors.Is(err, fasthttp.ErrConnectionClosed) || errors.Is(err, fasthttp.ErrTimeout) ||
-		strings.Contains(err.Error(), "timeout") || strings.Contains(err.Error(), "existing connection was forcibly closed") ||
+	// Check for malformed response error that requires disabling streaming
+	if strings.Contains(err.Error(), "cannot find whitespace in the first line") ||
+		strings.Contains(err.Error(), "cannot parse response status code") {
+		return RetryDecision{true, RetryWithoutResponseStreaming}
+	}
+
+	// Standard connection-related errors that require connection close
+	if err == io.EOF ||
+		errors.Is(err, fasthttp.ErrConnectionClosed) ||
+		errors.Is(err, fasthttp.ErrTimeout) ||
+		strings.Contains(err.Error(), "timeout") ||
+		strings.Contains(err.Error(), "existing connection was forcibly closed") ||
 		strings.Contains(err.Error(), "Only one usage of each socket address") {
-		return true
+		return RetryDecision{true, RetryWithConnectionClose}
 	}
 
-	return false
+	return RetryDecision{false, NoRetry}
 }

@@ -50,6 +50,7 @@ type CliOptions struct {
 
 	// StreamResponseBody
 	DisableStreamResponseBody bool
+	DisableProgressBar        bool
 
 	// ResendRequest
 	ResendRequest string
