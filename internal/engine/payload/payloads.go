@@ -12,7 +12,7 @@ import (
 type PayloadGenerator struct {
 }
 
-type PayloadJob struct {
+type BypassPayload struct {
 	OriginalURL  string    // store it as we might need it
 	Scheme       string    // this gets updated
 	Method       string    // this gets updated
@@ -32,8 +32,8 @@ type Headers struct {
 	Value  string
 }
 
-func (pg *PayloadGenerator) GenerateDumbJob(targetURL string, bypassModule string) []PayloadJob {
-	var allJobs []PayloadJob
+func (pg *PayloadGenerator) GenerateDumbJob(targetURL string, bypassModule string) []BypassPayload {
+	var allJobs []BypassPayload
 
 	parsedURL, err := rawurlparser.RawURLParse(targetURL)
 	if err != nil {
@@ -42,7 +42,7 @@ func (pg *PayloadGenerator) GenerateDumbJob(targetURL string, bypassModule strin
 	}
 
 	// Just one job with the original URL
-	job := PayloadJob{
+	job := BypassPayload{
 		OriginalURL:  targetURL,
 		Method:       "GET",
 		Scheme:       parsedURL.Scheme,
@@ -65,8 +65,8 @@ func (pg *PayloadGenerator) GenerateDumbJob(targetURL string, bypassModule strin
 	return allJobs
 }
 
-func (pg *PayloadGenerator) GenerateMidPathsJobs(targetURL string, bypassModule string) []PayloadJob {
-	var jobs []PayloadJob
+func (pg *PayloadGenerator) GenerateMidPathsJobs(targetURL string, bypassModule string) []BypassPayload {
+	var jobs []BypassPayload
 	parsedURL, err := rawurlparser.RawURLParse(targetURL)
 	if err != nil {
 		GB403Logger.Error().Msgf("Failed to parse URL")
@@ -114,7 +114,7 @@ func (pg *PayloadGenerator) GenerateMidPathsJobs(targetURL string, bypassModule 
 
 	// Convert unique paths to PayloadJobs
 	for rawURI := range uniquePaths {
-		job := PayloadJob{
+		job := BypassPayload{
 			OriginalURL:  targetURL,
 			Method:       "GET",
 			Scheme:       parsedURL.Scheme,
@@ -138,8 +138,8 @@ func (pg *PayloadGenerator) GenerateMidPathsJobs(targetURL string, bypassModule 
 	return jobs
 }
 
-func (pg *PayloadGenerator) GenerateEndPathsJobs(targetURL string, bypassModule string) []PayloadJob {
-	var jobs []PayloadJob
+func (pg *PayloadGenerator) GenerateEndPathsJobs(targetURL string, bypassModule string) []BypassPayload {
+	var jobs []BypassPayload
 
 	parsedURL, err := rawurlparser.RawURLParse(targetURL)
 	if err != nil {
@@ -187,7 +187,7 @@ func (pg *PayloadGenerator) GenerateEndPathsJobs(targetURL string, bypassModule 
 
 	// Convert unique paths to PayloadJobs
 	for rawURI := range uniquePaths {
-		job := PayloadJob{
+		job := BypassPayload{
 			OriginalURL:  targetURL,
 			Method:       "GET",
 			Scheme:       parsedURL.Scheme,
@@ -210,8 +210,8 @@ func (pg *PayloadGenerator) GenerateEndPathsJobs(targetURL string, bypassModule 
 	return jobs
 }
 
-func (pg *PayloadGenerator) GenerateHeaderIPJobs(targetURL string, bypassModule string, spoofHeader string, spoofIP string) []PayloadJob {
-	var allJobs []PayloadJob
+func (pg *PayloadGenerator) GenerateHeaderIPJobs(targetURL string, bypassModule string, spoofHeader string, spoofIP string) []BypassPayload {
+	var allJobs []BypassPayload
 
 	parsedURL, err := rawurlparser.RawURLParse(targetURL)
 	if err != nil {
@@ -256,7 +256,7 @@ func (pg *PayloadGenerator) GenerateHeaderIPJobs(targetURL string, bypassModule 
 	}
 
 	// Base job template
-	baseJob := PayloadJob{
+	baseJob := BypassPayload{
 		OriginalURL:  targetURL,
 		Method:       "GET",
 		Scheme:       parsedURL.Scheme,
@@ -327,8 +327,8 @@ func (pg *PayloadGenerator) GenerateHeaderIPJobs(targetURL string, bypassModule 
 	return allJobs
 }
 
-func (pg *PayloadGenerator) GenerateCaseSubstitutionJobs(targetURL string, bypassModule string) []PayloadJob {
-	var allJobs []PayloadJob
+func (pg *PayloadGenerator) GenerateCaseSubstitutionJobs(targetURL string, bypassModule string) []BypassPayload {
+	var allJobs []BypassPayload
 
 	parsedURL, err := rawurlparser.RawURLParse(targetURL)
 	if err != nil {
@@ -359,7 +359,7 @@ func (pg *PayloadGenerator) GenerateCaseSubstitutionJobs(targetURL string, bypas
 
 	// Convert to PayloadJobs
 	for rawURI := range uniquePaths {
-		job := PayloadJob{
+		job := BypassPayload{
 			OriginalURL:  targetURL,
 			Method:       "GET",
 			Scheme:       parsedURL.Scheme,
@@ -382,8 +382,8 @@ func (pg *PayloadGenerator) GenerateCaseSubstitutionJobs(targetURL string, bypas
 	return allJobs
 }
 
-func (pg *PayloadGenerator) GenerateCharEncodeJobs(targetURL string, bypassModule string) []PayloadJob {
-	var allJobs []PayloadJob
+func (pg *PayloadGenerator) GenerateCharEncodeJobs(targetURL string, bypassModule string) []BypassPayload {
+	var allJobs []BypassPayload
 
 	parsedURL, err := rawurlparser.RawURLParse(targetURL)
 	if err != nil {
@@ -399,7 +399,7 @@ func (pg *PayloadGenerator) GenerateCharEncodeJobs(targetURL string, bypassModul
 	triplePaths := make(map[string]struct{})
 
 	// Base job template
-	baseJob := PayloadJob{
+	baseJob := BypassPayload{
 		OriginalURL:  targetURL,
 		Method:       "GET",
 		Scheme:       parsedURL.Scheme,
@@ -451,8 +451,8 @@ func (pg *PayloadGenerator) GenerateCharEncodeJobs(targetURL string, bypassModul
 	return allJobs
 }
 
-func (pg *PayloadGenerator) GenerateHeaderSchemeJobs(targetURL string, bypassModule string) []PayloadJob {
-	var allJobs []PayloadJob
+func (pg *PayloadGenerator) GenerateHeaderSchemeJobs(targetURL string, bypassModule string) []BypassPayload {
+	var allJobs []BypassPayload
 
 	parsedURL, err := rawurlparser.RawURLParse(targetURL)
 	if err != nil {
@@ -473,7 +473,7 @@ func (pg *PayloadGenerator) GenerateHeaderSchemeJobs(targetURL string, bypassMod
 	}
 
 	// Base job template
-	baseJob := PayloadJob{
+	baseJob := BypassPayload{
 		OriginalURL:  targetURL,
 		Method:       "GET",
 		Scheme:       parsedURL.Scheme,
@@ -537,8 +537,8 @@ func (pg *PayloadGenerator) GenerateHeaderSchemeJobs(targetURL string, bypassMod
 	return allJobs
 }
 
-func (pg *PayloadGenerator) GenerateHeaderURLJobs(targetURL string, bypassModule string) []PayloadJob {
-	var allJobs []PayloadJob
+func (pg *PayloadGenerator) GenerateHeaderURLJobs(targetURL string, bypassModule string) []BypassPayload {
+	var allJobs []BypassPayload
 
 	parsedURL, err := rawurlparser.RawURLParse(targetURL)
 	if err != nil {
@@ -558,7 +558,7 @@ func (pg *PayloadGenerator) GenerateHeaderURLJobs(targetURL string, bypassModule
 	}
 
 	// Base job template
-	baseJob := PayloadJob{
+	baseJob := BypassPayload{
 		OriginalURL:  targetURL,
 		Method:       "GET",
 		Scheme:       parsedURL.Scheme,
@@ -653,8 +653,8 @@ func (pg *PayloadGenerator) GenerateHeaderURLJobs(targetURL string, bypassModule
 	return allJobs
 }
 
-func (pg *PayloadGenerator) GenerateHeaderPortJobs(targetURL string, bypassModule string) []PayloadJob {
-	var allJobs []PayloadJob
+func (pg *PayloadGenerator) GenerateHeaderPortJobs(targetURL string, bypassModule string) []BypassPayload {
+	var allJobs []BypassPayload
 
 	parsedURL, err := rawurlparser.RawURLParse(targetURL)
 	if err != nil {
@@ -675,7 +675,7 @@ func (pg *PayloadGenerator) GenerateHeaderPortJobs(targetURL string, bypassModul
 	}
 
 	// Base job template
-	baseJob := PayloadJob{
+	baseJob := BypassPayload{
 		OriginalURL:  targetURL,
 		Method:       "GET",
 		Scheme:       parsedURL.Scheme,
@@ -711,8 +711,8 @@ func (pg *PayloadGenerator) GenerateHeaderPortJobs(targetURL string, bypassModul
 	return allJobs
 }
 
-func (pg *PayloadGenerator) GenerateHostHeaderJobs(targetURL string, bypassModule string, reconCache *recon.ReconCache) []PayloadJob {
-	var allJobs []PayloadJob
+func (pg *PayloadGenerator) GenerateHostHeaderJobs(targetURL string, bypassModule string, reconCache *recon.ReconCache) []BypassPayload {
+	var allJobs []BypassPayload
 
 	parsedURL, err := rawurlparser.RawURLParse(targetURL)
 	if err != nil {
@@ -734,7 +734,7 @@ func (pg *PayloadGenerator) GenerateHostHeaderJobs(targetURL string, bypassModul
 	}
 
 	// Base job template
-	baseJob := PayloadJob{
+	baseJob := BypassPayload{
 		OriginalURL:  targetURL,
 		Method:       "GET",
 		BypassModule: bypassModule,
@@ -870,8 +870,8 @@ const normalizedMatches = new Set();
 
 normalizedMatches.forEach(match => console.log(match));
 */
-func (pg *PayloadGenerator) GenerateUnicodePathNormalizationsJobs(targetURL string, bypassModule string) []PayloadJob {
-	var jobs []PayloadJob
+func (pg *PayloadGenerator) GenerateUnicodePathNormalizationsJobs(targetURL string, bypassModule string) []BypassPayload {
+	var jobs []BypassPayload
 
 	parsedURL, err := rawurlparser.RawURLParse(targetURL)
 	if err != nil {
@@ -908,7 +908,7 @@ func (pg *PayloadGenerator) GenerateUnicodePathNormalizationsJobs(targetURL stri
 		charMap[asciiChar] = append(charMap[asciiChar], unicodeChar)
 	}
 
-	baseJob := PayloadJob{
+	baseJob := BypassPayload{
 		OriginalURL:  targetURL,
 		Method:       "GET",
 		Scheme:       parsedURL.Scheme,

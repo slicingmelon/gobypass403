@@ -151,8 +151,8 @@ To set true raw request line, e.g. GET @evil.com HTTP/1.1, do not set req.SetReq
 For this to work, everything must be set in order, Raw Request line, headers, then appply settings,
 then set req.UseHostHeader = true and then req.URI().SetScheme() and req.URI().SetHost()
 */
-func BuildRawHTTPRequest(httpclient *HTTPClient, req *fasthttp.Request, job payload.PayloadJob) error {
-	shouldCloseConn := len(job.Headers) > 0 ||
+func BuildRawHTTPRequest(httpclient *HTTPClient, req *fasthttp.Request, bypassPayload payload.BypassPayload) error {
+	shouldCloseConn := len(bypassPayload.Headers) > 0 ||
 		httpclient.GetHTTPClientOptions().DisableKeepAlive ||
 		httpclient.GetHTTPClientOptions().ProxyURL != ""
 
@@ -161,14 +161,14 @@ func BuildRawHTTPRequest(httpclient *HTTPClient, req *fasthttp.Request, job payl
 	defer ReleaseRawRequest(buf)
 
 	// Build request line
-	buf.WriteString(job.Method)
+	buf.WriteString(bypassPayload.Method)
 	buf.WriteString(" ")
-	buf.WriteString(job.RawURI)
+	buf.WriteString(bypassPayload.RawURI)
 	buf.WriteString(" HTTP/1.1") // Add HTTP version
 	buf.WriteString("\r\n")      // Important newline after request line
 
 	hasHostHeader := false
-	for _, h := range job.Headers {
+	for _, h := range bypassPayload.Headers {
 		if h.Header == "Host" {
 			hasHostHeader = true
 			shouldCloseConn = true
@@ -182,7 +182,7 @@ func BuildRawHTTPRequest(httpclient *HTTPClient, req *fasthttp.Request, job payl
 	// Add Host header if not present in job.Headers
 	if !hasHostHeader {
 		buf.WriteString("Host: ")
-		buf.WriteString(job.Host)
+		buf.WriteString(bypassPayload.Host)
 		buf.WriteString("\r\n")
 	}
 
@@ -193,7 +193,7 @@ func BuildRawHTTPRequest(httpclient *HTTPClient, req *fasthttp.Request, job payl
 	// Debug token
 	if GB403Logger.IsDebugEnabled() {
 		buf.WriteString("X-GB403-Token: ")
-		buf.WriteString(job.PayloadToken)
+		buf.WriteString(bypassPayload.PayloadToken)
 		buf.WriteString("\r\n")
 	}
 
@@ -223,13 +223,13 @@ func BuildRawHTTPRequest(httpclient *HTTPClient, req *fasthttp.Request, job payl
 	req.Header.DisableNormalizing()
 	req.Header.SetNoDefaultContentType(true)
 	req.UseHostHeader = true
-	req.URI().SetScheme(job.Scheme)
-	req.URI().SetHost(job.Host)
+	req.URI().SetScheme(bypassPayload.Scheme)
+	req.URI().SetHost(bypassPayload.Host)
 
 	return nil
 }
 
-func ProcessHTTPResponse(httpclient *HTTPClient, resp *fasthttp.Response, job payload.PayloadJob) *RawHTTPResponseDetails {
+func ProcessHTTPResponse(httpclient *HTTPClient, resp *fasthttp.Response, bypassPayload payload.BypassPayload) *RawHTTPResponseDetails {
 	result := AcquireResponseDetails() // Allocate new result each time
 
 	statusCode := resp.StatusCode()
@@ -237,11 +237,11 @@ func ProcessHTTPResponse(httpclient *HTTPClient, resp *fasthttp.Response, job pa
 	httpClientOpts := httpclient.GetHTTPClientOptions()
 
 	// Set basic response details
-	result.URL = append(result.URL, job.OriginalURL...)
-	result.BypassModule = append(result.BypassModule, job.BypassModule...)
+	result.URL = append(result.URL, bypassPayload.OriginalURL...)
+	result.BypassModule = append(result.BypassModule, bypassPayload.BypassModule...)
 	result.StatusCode = statusCode
 	result.ContentLength = int64(contentLength)
-	result.DebugToken = append(result.DebugToken, job.PayloadToken...)
+	result.DebugToken = append(result.DebugToken, bypassPayload.PayloadToken...)
 
 	// Check for redirect early
 	if fasthttp.StatusCodeIsRedirect(statusCode) {
@@ -293,7 +293,7 @@ func ProcessHTTPResponse(httpclient *HTTPClient, resp *fasthttp.Response, job pa
 	}
 
 	// Generate curl command PoC
-	result.CurlCommand = BuildCurlCommandPoc(job, result.CurlCommand)
+	result.CurlCommand = BuildCurlCommandPoc(bypassPayload, result.CurlCommand)
 
 	return result
 }
@@ -330,7 +330,7 @@ func ReadLimitedResponseBodyStream(stream io.Reader, previewSize int, dest []byt
 
 // BuildCurlCommandPoc builds a curl command for the payload job
 // Appends the result to dest slice
-func BuildCurlCommandPoc(job payload.PayloadJob, dest []byte) []byte {
+func BuildCurlCommandPoc(bypassPayload payload.BypassPayload, dest []byte) []byte {
 	// Reset destination slice
 	dest = dest[:0]
 
@@ -339,15 +339,15 @@ func BuildCurlCommandPoc(job payload.PayloadJob, dest []byte) []byte {
 	dest = append(dest, strSpace...)
 	dest = append(dest, curlFlags...)
 
-	if job.Method != "GET" {
+	if bypassPayload.Method != "GET" {
 		dest = append(dest, strSpace...)
 		dest = append(dest, curlMethodX...)
 		dest = append(dest, strSpace...)
-		dest = append(dest, bytesutil.ToUnsafeBytes(job.Method)...)
+		dest = append(dest, bytesutil.ToUnsafeBytes(bypassPayload.Method)...)
 	}
 
 	// Headers
-	for _, h := range job.Headers {
+	for _, h := range bypassPayload.Headers {
 		dest = append(dest, strSpace...)
 		dest = append(dest, curlHeaderH...)
 		dest = append(dest, strSpace...)
@@ -363,14 +363,14 @@ func BuildCurlCommandPoc(job payload.PayloadJob, dest []byte) []byte {
 	dest = append(dest, strSingleQuote...)
 
 	// Scheme
-	dest = append(dest, bytesutil.ToUnsafeBytes(job.Scheme)...)
+	dest = append(dest, bytesutil.ToUnsafeBytes(bypassPayload.Scheme)...)
 	dest = append(dest, strSchemeDelim...)
 
 	// Host
-	dest = append(dest, bytesutil.ToUnsafeBytes(job.Host)...)
+	dest = append(dest, bytesutil.ToUnsafeBytes(bypassPayload.Host)...)
 
 	// RawURI
-	dest = append(dest, bytesutil.ToUnsafeBytes(job.RawURI)...)
+	dest = append(dest, bytesutil.ToUnsafeBytes(bypassPayload.RawURI)...)
 
 	dest = append(dest, strSingleQuote...)
 

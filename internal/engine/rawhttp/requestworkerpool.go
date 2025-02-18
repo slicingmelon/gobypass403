@@ -123,14 +123,14 @@ func (wp *RequestWorkerPool) ResetPeakRate() {
 }
 
 // ProcessRequests handles multiple payload jobs
-func (wp *RequestWorkerPool) ProcessRequests(jobs []payload.PayloadJob) <-chan *RawHTTPResponseDetails {
+func (wp *RequestWorkerPool) ProcessRequests(bypassPayloads []payload.BypassPayload) <-chan *RawHTTPResponseDetails {
 	results := make(chan *RawHTTPResponseDetails)
 	group := wp.pool.NewGroupContext(wp.ctx)
 
-	for _, job := range jobs {
-		job := job // Capture for closure
+	for _, bypassPayload := range bypassPayloads {
+		bypassPayload := bypassPayload // Capture for closure
 		group.Submit(func() {
-			if resp := wp.ProcessRequestResponseJob(job); resp != nil {
+			if resp := wp.ProcessRequestResponseJob(bypassPayload); resp != nil {
 				select {
 				case <-wp.ctx.Done():
 					return
@@ -164,19 +164,19 @@ func (wp *RequestWorkerPool) Close() {
 }
 
 // ProcessRequestResponseJob handles a single job: builds request, sends it, and processes response
-func (wp *RequestWorkerPool) ProcessRequestResponseJob(job payload.PayloadJob) *RawHTTPResponseDetails {
+func (wp *RequestWorkerPool) ProcessRequestResponseJob(bypassPayload payload.BypassPayload) *RawHTTPResponseDetails {
 	req := wp.httpClient.AcquireRequest()
 	resp := wp.httpClient.AcquireResponse()
 
 	// Release request early since we don't need it after DoRequest
 	defer wp.httpClient.ReleaseRequest(req)
 
-	if err := BuildRawHTTPRequest(wp.httpClient, req, job); err != nil {
+	if err := BuildRawHTTPRequest(wp.httpClient, req, bypassPayload); err != nil {
 		wp.httpClient.ReleaseResponse(resp) // Release on error
 		return nil
 	}
 
-	respTime, err := wp.httpClient.DoRequest(req, resp, job)
+	respTime, err := wp.httpClient.DoRequest(req, resp, bypassPayload)
 	if err != nil {
 		wp.httpClient.ReleaseResponse(resp) // Release on error
 		if err == ErrReqFailedMaxConsecutiveFails {
@@ -188,7 +188,7 @@ func (wp *RequestWorkerPool) ProcessRequestResponseJob(job payload.PayloadJob) *
 	}
 
 	// Process response before releasing
-	result := ProcessHTTPResponse(wp.httpClient, resp, job)
+	result := ProcessHTTPResponse(wp.httpClient, resp, bypassPayload)
 	wp.httpClient.ReleaseResponse(resp)
 
 	if result != nil {
@@ -203,13 +203,13 @@ func (wp *RequestWorkerPool) ProcessRequestResponseJob(job payload.PayloadJob) *
 }
 
 // buildRequest constructs the HTTP request
-func (wp *RequestWorkerPool) BuildRawRequestTask(req *fasthttp.Request, job payload.PayloadJob) error {
-	if err := BuildRawHTTPRequest(wp.httpClient, req, job); err != nil {
+func (wp *RequestWorkerPool) BuildRawRequestTask(req *fasthttp.Request, bypassPayload payload.BypassPayload) error {
+	if err := BuildRawHTTPRequest(wp.httpClient, req, bypassPayload); err != nil {
 		errorContext := GB403ErrorHandler.ErrorContext{
 			ErrorSource:  []byte("BuildRawRequestTask"),
-			Host:         []byte(job.Host),
-			BypassModule: []byte(job.BypassModule),
-			DebugToken:   []byte(job.PayloadToken),
+			Host:         []byte(payload.BypassPayloadToFullURL(bypassPayload)),
+			BypassModule: []byte(bypassPayload.BypassModule),
+			DebugToken:   []byte(bypassPayload.PayloadToken),
 		}
 		if handleErr := GB403ErrorHandler.GetErrorHandler().HandleError(err, errorContext); handleErr != nil {
 			return fmt.Errorf("failed to handle error in BuildRawRequestTask: %v (original error: %v)", handleErr, err)
@@ -234,11 +234,11 @@ func (wp *RequestWorkerPool) BuildRawRequestTask(req *fasthttp.Request, job payl
 // 'Connection: close' response header before closing the connection
 // or add 'Connection: close' request header before sending requests
 // to broken server.
-func (wp *RequestWorkerPool) SendRequestTask(req *fasthttp.Request, resp *fasthttp.Response, job payload.PayloadJob) (int64, error) {
-	return wp.httpClient.DoRequest(req, resp, job)
+func (wp *RequestWorkerPool) SendRequestTask(req *fasthttp.Request, resp *fasthttp.Response, bypassPayload payload.BypassPayload) (int64, error) {
+	return wp.httpClient.DoRequest(req, resp, bypassPayload)
 }
 
 // processResponse processes the HTTP response and extracts details
-func (wp *RequestWorkerPool) ProcessResponseTask(resp *fasthttp.Response, job payload.PayloadJob) *RawHTTPResponseDetails {
-	return ProcessHTTPResponse(wp.httpClient, resp, job)
+func (wp *RequestWorkerPool) ProcessResponseTask(resp *fasthttp.Response, bypassPayload payload.BypassPayload) *RawHTTPResponseDetails {
+	return ProcessHTTPResponse(wp.httpClient, resp, bypassPayload)
 }

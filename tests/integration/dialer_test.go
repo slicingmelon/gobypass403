@@ -46,7 +46,7 @@ func TestDialerInMemory(t *testing.T) {
 	pool := rawhttp.NewRequestWorkerPool(clientOpts, 1)
 
 	// Create test payload
-	jobs := []payload.PayloadJob{
+	jobs := []payload.BypassPayload{
 		{
 			Scheme:       "http",
 			Host:         "example.com",
@@ -116,7 +116,7 @@ func TestDialerWithProxy(t *testing.T) {
 	pool := rawhttp.NewRequestWorkerPool(clientOpts, 1)
 
 	// Create test payload
-	jobs := []payload.PayloadJob{
+	jobs := []payload.BypassPayload{
 		{
 			Scheme:       "http",
 			Host:         "example.com",

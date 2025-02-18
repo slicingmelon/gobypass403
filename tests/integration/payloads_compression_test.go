@@ -400,7 +400,7 @@ type HeaderBytes struct {
 
 func TestStringVsBytes(t *testing.T) {
 	// Original string-based structs
-	stringJob := payload.PayloadJob{
+	stringJob := payload.BypassPayload{
 		OriginalURL:  "https://www.example.com/admin",
 		Method:       "GET",
 		Host:         "www.example.com",

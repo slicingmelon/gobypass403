@@ -66,7 +66,7 @@ func TestRequestWorkerPoolThrottle(t *testing.T) {
 		pool.GetReqWPSubmittedTasks())
 
 	// Create test jobs
-	jobs := []payload.PayloadJob{
+	jobs := []payload.BypassPayload{
 		{
 			Scheme:       "http",
 			Host:         "example.com",

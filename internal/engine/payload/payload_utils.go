@@ -279,11 +279,11 @@ func URLEncodeAll(s string) string {
 }
 
 // BypassPayloadToFullURL converts a bypass payload to a full URL (utility function for unit tests)
-func BypassPayloadToFullURL(job PayloadJob) string {
+func BypassPayloadToFullURL(bypassPayload BypassPayload) string {
 	// Ensure RawURI starts with / if not empty and not already starting with /
-	rawURI := job.RawURI
+	rawURI := bypassPayload.RawURI
 
-	return fmt.Sprintf("%s://%s%s", job.Scheme, job.Host, rawURI)
+	return fmt.Sprintf("%s://%s%s", bypassPayload.Scheme, bypassPayload.Host, rawURI)
 }
 
 // FullURLToBypassPayload converts a full URL to a bypass payload (utility function for unit tests)
@@ -330,19 +330,19 @@ func TryNormalizationForms(fullURL string) (string, error) {
 }
 
 // FullURLToBypassPayload converts a full URL to a bypass payload
-func FullURLToBypassPayload(fullURL string, method string, headers []Headers) (PayloadJob, error) {
+func FullURLToBypassPayload(fullURL string, method string, headers []Headers) (BypassPayload, error) {
 	// Try different normalization forms
 	normalizedURL, err := TryNormalizationForms(fullURL)
 	if err != nil {
-		return PayloadJob{}, fmt.Errorf("invalid URL: %w", err)
+		return BypassPayload{}, fmt.Errorf("invalid URL: %w", err)
 	}
 
 	parsedURL, err := rawurlparser.RawURLParse(normalizedURL)
 	if err != nil {
-		return PayloadJob{}, fmt.Errorf("failed to parse URL: %w", err)
+		return BypassPayload{}, fmt.Errorf("failed to parse URL: %w", err)
 	}
 
-	return PayloadJob{
+	return BypassPayload{
 		Method:  method,
 		Scheme:  parsedURL.Scheme,
 		Host:    parsedURL.Host,

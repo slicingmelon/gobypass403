@@ -92,7 +92,7 @@ func TestRetryOnEOF(t *testing.T) {
 	req.SetRequestURI("http://test.local/test")
 
 	// Execute request and capture each error
-	_, err := client.DoRequest(req, resp, payload.PayloadJob{})
+	_, err := client.DoRequest(req, resp, payload.BypassPayload{})
 	t.Logf("DoRequest returned error: %v", err)
 
 	// Log for debugging
@@ -270,7 +270,7 @@ func TestRetryWithPayloads(t *testing.T) {
 			req.SetRequestURI(fullURL)
 			t.Logf("Goroutine %d: Sending request to %s", idx, fullURL)
 
-			_, err := client.DoRequest(req, resp, payload.PayloadJob{})
+			_, err := client.DoRequest(req, resp, payload.BypassPayload{})
 			t.Logf("Goroutine %d: Got response with error: %v", idx, err)
 
 			results <- struct {
@@ -385,7 +385,7 @@ func TestRetryWithLargeResponse(t *testing.T) {
 	req.SetRequestURI("http://localhost/test") // The actual URL doesn't matter with our custom dialer
 	t.Log("Sending request...")
 
-	_, err := client.DoRequest(req, resp, payload.PayloadJob{})
+	_, err := client.DoRequest(req, resp, payload.BypassPayload{})
 	t.Logf("Request completed with error: %v", err)
 
 	// Verify retry count
@@ -459,7 +459,7 @@ func TestRetryWithConcurrentRequests(t *testing.T) {
 			defer client.ReleaseResponse(resp)
 
 			req.SetRequestURI("http://localhost/test")
-			_, err := client.DoRequest(req, resp, payload.PayloadJob{})
+			_, err := client.DoRequest(req, resp, payload.BypassPayload{})
 
 			if err != nil {
 				errorCount.Add(1)
@@ -542,7 +542,7 @@ func TestRetryWhitespaceFirstLine(t *testing.T) {
 	req.SetRequestURI("http://localhost/test")
 
 	// Execute request
-	_, err := client.DoRequest(req, resp, payload.PayloadJob{})
+	_, err := client.DoRequest(req, resp, payload.BypassPayload{})
 	t.Logf("DoRequest returned error: %v", err)
 
 	// Log for debugging

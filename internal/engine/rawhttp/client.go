@@ -324,7 +324,7 @@ func (c *HTTPClient) SetHTTPClientOptions(opts *HTTPClientOptions) {
 // 	return 0, lastErr
 // }
 
-func (c *HTTPClient) execFunc(req *fasthttp.Request, resp *fasthttp.Response, job payload.PayloadJob) (int64, error) {
+func (c *HTTPClient) execFunc(req *fasthttp.Request, resp *fasthttp.Response, bypassPayload payload.BypassPayload) (int64, error) {
 	c.retryConfig.ResetPerReqAttempts()
 
 	// Initial request copy
@@ -374,9 +374,9 @@ func (c *HTTPClient) execFunc(req *fasthttp.Request, resp *fasthttp.Response, jo
 		if err != nil {
 			errCtx := GB403ErrorHandler.ErrorContext{
 				ErrorSource:  []byte("execFunc"),
-				Host:         []byte(payload.BypassPayloadToFullURL(job)),
-				BypassModule: []byte(job.BypassModule),
-				DebugToken:   []byte(job.PayloadToken),
+				Host:         []byte(payload.BypassPayloadToFullURL(bypassPayload)),
+				BypassModule: []byte(bypassPayload.BypassModule),
+				DebugToken:   []byte(bypassPayload.PayloadToken),
 			}
 
 			if handledErr := GB403ErrorHandler.GetErrorHandler().HandleError(err, errCtx); handledErr == nil {
@@ -421,9 +421,9 @@ func (c *HTTPClient) execFunc(req *fasthttp.Request, resp *fasthttp.Response, jo
 				if err != nil {
 					errCtx := GB403ErrorHandler.ErrorContext{
 						ErrorSource:  []byte("RetryWithoutResponseStreaming"),
-						Host:         []byte(payload.BypassPayloadToFullURL(job)),
-						BypassModule: []byte(job.BypassModule),
-						DebugToken:   []byte(job.PayloadToken),
+						Host:         []byte(payload.BypassPayloadToFullURL(bypassPayload)),
+						BypassModule: []byte(bypassPayload.BypassModule),
+						DebugToken:   []byte(bypassPayload.PayloadToken),
 					}
 
 					if handledErr := GB403ErrorHandler.GetErrorHandler().HandleError(err, errCtx); handledErr == nil {
@@ -456,9 +456,9 @@ func (c *HTTPClient) execFunc(req *fasthttp.Request, resp *fasthttp.Response, jo
 
 // DoRequest performs a HTTP request (raw)
 // Returns the HTTP response time (in ms) and error
-func (c *HTTPClient) DoRequest(req *fasthttp.Request, resp *fasthttp.Response, job payload.PayloadJob) (int64, error) {
+func (c *HTTPClient) DoRequest(req *fasthttp.Request, resp *fasthttp.Response, bypassPayload payload.BypassPayload) (int64, error) {
 	// Execute request with retry handling
-	respTime, err := c.execFunc(req, resp, job)
+	respTime, err := c.execFunc(req, resp, bypassPayload)
 
 	if err != nil {
 		if err == ErrReqFailedMaxRetries {
