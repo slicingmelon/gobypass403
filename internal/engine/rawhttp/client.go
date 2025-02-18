@@ -374,7 +374,7 @@ func (c *HTTPClient) execFunc(req *fasthttp.Request, resp *fasthttp.Response, by
 		if err != nil {
 			errCtx := GB403ErrorHandler.ErrorContext{
 				ErrorSource:  []byte("execFunc"),
-				Host:         []byte(payload.BypassPayloadToFullURL(bypassPayload)),
+				Host:         []byte(payload.BypassPayloadToBaseURL(bypassPayload)),
 				BypassModule: []byte(bypassPayload.BypassModule),
 				DebugToken:   []byte(bypassPayload.PayloadToken),
 			}
@@ -421,7 +421,7 @@ func (c *HTTPClient) execFunc(req *fasthttp.Request, resp *fasthttp.Response, by
 				if err != nil {
 					errCtx := GB403ErrorHandler.ErrorContext{
 						ErrorSource:  []byte("RetryWithoutResponseStreaming"),
-						Host:         []byte(payload.BypassPayloadToFullURL(bypassPayload)),
+						Host:         []byte(payload.BypassPayloadToBaseURL(bypassPayload)),
 						BypassModule: []byte(bypassPayload.BypassModule),
 						DebugToken:   []byte(bypassPayload.PayloadToken),
 					}

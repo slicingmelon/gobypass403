@@ -286,6 +286,11 @@ func BypassPayloadToFullURL(bypassPayload BypassPayload) string {
 	return fmt.Sprintf("%s://%s%s", bypassPayload.Scheme, bypassPayload.Host, rawURI)
 }
 
+// BypassPayloadToBaseURL converts a bypass payload to base URL (scheme://host)
+func BypassPayloadToBaseURL(bypassPayload BypassPayload) string {
+	return fmt.Sprintf("%s://%s", bypassPayload.Scheme, bypassPayload.Host)
+}
+
 // FullURLToBypassPayload converts a full URL to a bypass payload (utility function for unit tests)
 func TryNormalizationForms(fullURL string) (string, error) {
 	// Basic validation first

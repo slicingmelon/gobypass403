@@ -310,7 +310,7 @@ func (s *Scanner) ResendRequestFromToken(debugToken string, resendCount int) ([]
 
 	// Construct display URL for logging/display purposes only
 	//displayURL := fmt.Sprintf("%s://%s%s", tokenData.Scheme, tokenData.Host, tokenData.RawURI)
-	displayURL := payload.BypassPayloadToFullURL(bypassPayload)
+	displayURL := payload.BypassPayloadToBaseURL(bypassPayload)
 
 	// Create a new worker for the bypass module
 	worker := NewBypassWorker("debugRequest", displayURL, s.scannerOpts, resendCount)

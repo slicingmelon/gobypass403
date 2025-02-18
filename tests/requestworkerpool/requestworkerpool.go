@@ -79,7 +79,7 @@ func (wp *RequestWorkerPool) processJob(job payload.BypassPayload) *RawHTTPRespo
 	defer wp.httpClient.ReleaseRequest(req)
 	defer wp.httpClient.ReleaseResponse(resp)
 
-	fmt.Printf("Processing request for URL: %s\n", payload.BypassPayloadToFullURL(job))
+	fmt.Printf("Processing request for URL: %s\n", payload.BypassPayloadToBaseURL(job))
 
 	// Build request
 	if err := wp.buildRequest(req, job); err != nil {

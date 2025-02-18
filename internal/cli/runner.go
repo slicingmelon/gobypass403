@@ -112,10 +112,9 @@ func (r *Runner) handleResendRequest() error {
 	}
 
 	// Construct display URL for logging purposes
-	targetURL := payload.BypassPayloadToFullURL(payload.BypassPayload{
-		Scheme:  tokenData.Scheme,
-		Host:    tokenData.Host,
-		Headers: tokenData.Headers,
+	targetURL := payload.BypassPayloadToBaseURL(payload.BypassPayload{
+		Scheme: tokenData.Scheme,
+		Host:   tokenData.Host,
 	})
 	GB403Logger.Info().Msgf("Resending request %d times to: %s\n", r.RunnerOptions.ResendNum, targetURL)
 

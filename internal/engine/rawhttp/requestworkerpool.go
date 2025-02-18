@@ -207,7 +207,7 @@ func (wp *RequestWorkerPool) BuildRawRequestTask(req *fasthttp.Request, bypassPa
 	if err := BuildRawHTTPRequest(wp.httpClient, req, bypassPayload); err != nil {
 		errorContext := GB403ErrorHandler.ErrorContext{
 			ErrorSource:  []byte("BuildRawRequestTask"),
-			Host:         []byte(payload.BypassPayloadToFullURL(bypassPayload)),
+			Host:         []byte(payload.BypassPayloadToBaseURL(bypassPayload)),
 			BypassModule: []byte(bypassPayload.BypassModule),
 			DebugToken:   []byte(bypassPayload.PayloadToken),
 		}
