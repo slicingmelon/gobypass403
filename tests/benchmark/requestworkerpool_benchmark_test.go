@@ -25,7 +25,7 @@ func BenchmarkProcessRequests(b *testing.B) {
 	resp.Header.Set("Server", "test-server")
 
 	// Setup test job
-	job := payload.PayloadJob{
+	job := payload.BypassPayload{
 		Scheme:       "http",
 		Host:         "example.com",
 		RawURI:       "/test",
@@ -37,7 +37,7 @@ func BenchmarkProcessRequests(b *testing.B) {
 	b.ResetTimer()
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
-			pool.ProcessRequests([]payload.PayloadJob{job})
+			pool.ProcessRequests([]payload.BypassPayload{job})
 		}
 	})
 }
@@ -45,7 +45,7 @@ func BenchmarkProcessRequests(b *testing.B) {
 func BenchmarkProcessRequests2(b *testing.B) {
 	pool := rawhttp.NewRequestWorkerPool(rawhttp.DefaultHTTPClientOptions(), 10)
 
-	baseJob := payload.PayloadJob{
+	baseJob := payload.BypassPayload{
 		Scheme:       "http",
 		Host:         "example.com",
 		RawURI:       "/test",
@@ -54,7 +54,7 @@ func BenchmarkProcessRequests2(b *testing.B) {
 		BypassModule: "test-mode",
 	}
 
-	jobs := make([]payload.PayloadJob, 2000)
+	jobs := make([]payload.BypassPayload, 2000)
 	for i := range jobs {
 		jobs[i] = baseJob
 	}
@@ -101,7 +101,7 @@ func BenchmarkProcessRequests3(b *testing.B) {
 	pool := rawhttp.NewRequestWorkerPool(opts, 10)
 	defer pool.Close()
 
-	baseJob := payload.PayloadJob{
+	baseJob := payload.BypassPayload{
 		Scheme:       "http",
 		Host:         "example.com",
 		RawURI:       "/test",
@@ -110,7 +110,7 @@ func BenchmarkProcessRequests3(b *testing.B) {
 		BypassModule: "test-mode",
 	}
 
-	jobs := make([]payload.PayloadJob, 2000)
+	jobs := make([]payload.BypassPayload, 2000)
 	for i := range jobs {
 		jobs[i] = baseJob
 	}

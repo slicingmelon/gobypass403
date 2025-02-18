@@ -16,7 +16,7 @@ import (
 type BypassModule struct {
 	Name         string
 	payloadGen   *payload.PayloadGenerator
-	GenerateJobs func(targetURL string, mode string, opts *ScannerOpts) []payload.PayloadJob
+	GenerateJobs func(targetURL string, bypassMmode string, opts *ScannerOpts) []payload.BypassPayload
 }
 
 func NewBypassModule(name string) *BypassModule {
@@ -48,48 +48,48 @@ func InitializeBypassModules() {
 
 		switch module.Name {
 		case "dumb_check":
-			module.GenerateJobs = func(targetURL string, mode string, opts *ScannerOpts) []payload.PayloadJob {
-				return module.payloadGen.GenerateDumbJob(targetURL, mode)
+			module.GenerateJobs = func(targetURL string, bypassModule string, opts *ScannerOpts) []payload.BypassPayload {
+				return module.payloadGen.GenerateDumbCheckPayload(targetURL, bypassModule)
 			}
 		case "mid_paths":
-			module.GenerateJobs = func(targetURL string, mode string, opts *ScannerOpts) []payload.PayloadJob {
-				return module.payloadGen.GenerateMidPathsJobs(targetURL, mode)
+			module.GenerateJobs = func(targetURL string, bypassModule string, opts *ScannerOpts) []payload.BypassPayload {
+				return module.payloadGen.GenerateMidPathsPayloads(targetURL, bypassModule)
 			}
 		case "end_paths":
-			module.GenerateJobs = func(targetURL string, mode string, opts *ScannerOpts) []payload.PayloadJob {
-				return module.payloadGen.GenerateEndPathsJobs(targetURL, mode)
+			module.GenerateJobs = func(targetURL string, bypassModule string, opts *ScannerOpts) []payload.BypassPayload {
+				return module.payloadGen.GenerateEndPathsPayloads(targetURL, bypassModule)
 			}
 		case "http_headers_ip":
-			module.GenerateJobs = func(targetURL string, mode string, opts *ScannerOpts) []payload.PayloadJob {
-				return module.payloadGen.GenerateHeaderIPJobs(targetURL, mode, opts.SpoofHeader, opts.SpoofIP)
+			module.GenerateJobs = func(targetURL string, bypassModule string, opts *ScannerOpts) []payload.BypassPayload {
+				return module.payloadGen.GenerateHeaderIPPayloads(targetURL, bypassModule, opts.SpoofHeader, opts.SpoofIP)
 			}
 		case "case_substitution":
-			module.GenerateJobs = func(targetURL string, mode string, opts *ScannerOpts) []payload.PayloadJob {
-				return module.payloadGen.GenerateCaseSubstitutionJobs(targetURL, mode)
+			module.GenerateJobs = func(targetURL string, bypassModule string, opts *ScannerOpts) []payload.BypassPayload {
+				return module.payloadGen.GenerateCaseSubstitutionPayloads(targetURL, bypassModule)
 			}
 		case "char_encode":
-			module.GenerateJobs = func(targetURL string, mode string, opts *ScannerOpts) []payload.PayloadJob {
-				return module.payloadGen.GenerateCharEncodeJobs(targetURL, mode)
+			module.GenerateJobs = func(targetURL string, bypassModule string, opts *ScannerOpts) []payload.BypassPayload {
+				return module.payloadGen.GenerateCharEncodePayloads(targetURL, bypassModule)
 			}
 		case "http_host":
-			module.GenerateJobs = func(targetURL string, mode string, opts *ScannerOpts) []payload.PayloadJob {
-				return module.payloadGen.GenerateHostHeaderJobs(targetURL, mode, opts.ReconCache)
+			module.GenerateJobs = func(targetURL string, bypassModule string, opts *ScannerOpts) []payload.BypassPayload {
+				return module.payloadGen.GenerateHostHeaderPayloads(targetURL, bypassModule, opts.ReconCache)
 			}
 		case "http_headers_scheme":
-			module.GenerateJobs = func(targetURL string, mode string, opts *ScannerOpts) []payload.PayloadJob {
-				return module.payloadGen.GenerateHeaderSchemeJobs(targetURL, mode)
+			module.GenerateJobs = func(targetURL string, bypassModule string, opts *ScannerOpts) []payload.BypassPayload {
+				return module.payloadGen.GenerateHeaderSchemePayloads(targetURL, bypassModule)
 			}
 		case "http_headers_port":
-			module.GenerateJobs = func(targetURL string, mode string, opts *ScannerOpts) []payload.PayloadJob {
-				return module.payloadGen.GenerateHeaderPortJobs(targetURL, mode)
+			module.GenerateJobs = func(targetURL string, bypassModule string, opts *ScannerOpts) []payload.BypassPayload {
+				return module.payloadGen.GenerateHeaderPortPayloads(targetURL, bypassModule)
 			}
 		case "http_headers_url":
-			module.GenerateJobs = func(targetURL string, mode string, opts *ScannerOpts) []payload.PayloadJob {
-				return module.payloadGen.GenerateHeaderURLJobs(targetURL, mode)
+			module.GenerateJobs = func(targetURL string, bypassModule string, opts *ScannerOpts) []payload.BypassPayload {
+				return module.payloadGen.GenerateHeaderURLPayloads(targetURL, bypassModule)
 			}
 		case "unicode_path_normalization":
-			module.GenerateJobs = func(targetURL string, mode string, opts *ScannerOpts) []payload.PayloadJob {
-				return module.payloadGen.GenerateUnicodePathNormalizationsJobs(targetURL, mode)
+			module.GenerateJobs = func(targetURL string, bypassModule string, opts *ScannerOpts) []payload.BypassPayload {
+				return module.payloadGen.GenerateUnicodePathNormalizationsPayloads(targetURL, bypassModule)
 			}
 		}
 	}
@@ -288,15 +288,17 @@ func (s *Scanner) RunBypassModule(bypassModule string, targetURL string, results
 	}
 }
 
-func (s *Scanner) ResendRequestWithToken(debugToken string, resendCount int) ([]*Result, error) {
+// ResendRequestFromToken
+// Resend a request from a payload token (debug token)
+func (s *Scanner) ResendRequestFromToken(debugToken string, resendCount int) ([]*Result, error) {
 	// Parse URL from token
-	tokenData, err := payload.DecodeDebugToken(debugToken)
+	tokenData, err := payload.DecodePayloadToken(debugToken)
 	if err != nil {
 		return nil, fmt.Errorf("failed to decode debug token: %w", err)
 	}
 
 	// Create base job
-	job := payload.PayloadJob{
+	bypassPayload := payload.BypassPayload{
 		OriginalURL:  tokenData.OriginalURL, // kept for compatibility
 		Method:       tokenData.Method,
 		Scheme:       tokenData.Scheme,
@@ -307,22 +309,18 @@ func (s *Scanner) ResendRequestWithToken(debugToken string, resendCount int) ([]
 	}
 
 	// Construct display URL for logging/display purposes only
-	displayURL := fmt.Sprintf("%s://%s%s", tokenData.Scheme, tokenData.Host, tokenData.RawURI)
+	//displayURL := fmt.Sprintf("%s://%s%s", tokenData.Scheme, tokenData.Host, tokenData.RawURI)
+	displayURL := payload.BypassPayloadToBaseURL(bypassPayload)
 
+	// Create a new worker for the bypass module
 	worker := NewBypassWorker("debugRequest", displayURL, s.scannerOpts, resendCount)
 	defer worker.Stop()
 
 	// Create jobs array with pre-allocated capacity
-	jobs := make([]payload.PayloadJob, 0, resendCount)
+	jobs := make([]payload.BypassPayload, 0, resendCount)
 	for i := 0; i < resendCount; i++ {
-		jobCopy := job // Create a copy to avoid sharing the same job reference
-		jobCopy.PayloadToken = payload.GenerateDebugToken(payload.SeedData{
-			Method:  tokenData.Method,
-			Scheme:  tokenData.Scheme,
-			Host:    tokenData.Host,
-			RawURI:  tokenData.RawURI,
-			Headers: tokenData.Headers,
-		})
+		jobCopy := bypassPayload // Create a copy to avoid sharing the same job reference
+		jobCopy.PayloadToken = payload.GeneratePayloadToken(bypassPayload)
 		jobs = append(jobs, jobCopy)
 	}
 

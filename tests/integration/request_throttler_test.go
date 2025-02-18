@@ -45,7 +45,7 @@ func TestHTTPClient_Throttler(t *testing.T) {
 		req.Header.SetMethod(fasthttp.MethodGet)
 
 		// Execute the request
-		_, err := client.DoRequest(req, resp, payload.PayloadJob{})
+		_, err := client.DoRequest(req, resp, payload.BypassPayload{})
 		if err != nil {
 			t.Logf("Request %d failed: %v", i+1, err)
 		}

@@ -50,7 +50,7 @@ func NewWorkerPool(opts *rawhttp.HTTPClientOptions, maxWorkers int, errorHandler
 }
 
 // ProcessRequests handles multiple payload jobs
-func (wp *RequestWorkerPool) ProcessRequests(jobs []payload.PayloadJob) <-chan *RawHTTPResponseDetails {
+func (wp *RequestWorkerPool) ProcessRequests(jobs []payload.BypassPayload) <-chan *RawHTTPResponseDetails {
 	results := make(chan *RawHTTPResponseDetails)
 	group := wp.pool.NewGroup()
 
@@ -73,13 +73,13 @@ func (wp *RequestWorkerPool) ProcessRequests(jobs []payload.PayloadJob) <-chan *
 }
 
 // processJob handles a single job: builds request, sends it, and processes response
-func (wp *RequestWorkerPool) processJob(job payload.PayloadJob) *RawHTTPResponseDetails {
+func (wp *RequestWorkerPool) processJob(job payload.BypassPayload) *RawHTTPResponseDetails {
 	req := wp.httpClient.AcquireRequest()
 	resp := wp.httpClient.AcquireResponse()
 	defer wp.httpClient.ReleaseRequest(req)
 	defer wp.httpClient.ReleaseResponse(resp)
 
-	fmt.Printf("Processing request for URL: %s\n", payload.BypassPayloadToFullURL(job))
+	fmt.Printf("Processing request for URL: %s\n", payload.BypassPayloadToBaseURL(job))
 
 	// Build request
 	if err := wp.buildRequest(req, job); err != nil {
@@ -110,7 +110,7 @@ func (wp *RequestWorkerPool) processJob(job payload.PayloadJob) *RawHTTPResponse
 }
 
 // buildRequest constructs the HTTP request
-func (wp *RequestWorkerPool) buildRequest(req *fasthttp.Request, job payload.PayloadJob) error {
+func (wp *RequestWorkerPool) buildRequest(req *fasthttp.Request, job payload.BypassPayload) error {
 	req.UseHostHeader = false
 	req.Header.SetMethod(job.Method)
 	req.SetRequestURI(job.Scheme + "://" + job.Host + job.RawURI)
@@ -144,12 +144,12 @@ func (wp *RequestWorkerPool) buildRequest(req *fasthttp.Request, job payload.Pay
 }
 
 // SendRequest sends the HTTP request
-func (wp *RequestWorkerPool) SendRequest(req *fasthttp.Request, resp *fasthttp.Response, job payload.PayloadJob) (int64, error) {
+func (wp *RequestWorkerPool) SendRequest(req *fasthttp.Request, resp *fasthttp.Response, job payload.BypassPayload) (int64, error) {
 	return wp.httpClient.DoRequest(req, resp, job)
 }
 
 // processResponse processes the HTTP response and extracts details
-func (wp *RequestWorkerPool) processResponse(resp *fasthttp.Response, job payload.PayloadJob) *RawHTTPResponseDetails {
+func (wp *RequestWorkerPool) processResponse(resp *fasthttp.Response, job payload.BypassPayload) *RawHTTPResponseDetails {
 	statusCode := resp.StatusCode()
 	body := resp.Body()
 
@@ -195,9 +195,9 @@ func main() {
 	defer pool.Close()
 
 	// Generate test URLs
-	var jobs []payload.PayloadJob
+	var jobs []payload.BypassPayload
 	for i := 1; i <= 200; i++ {
-		jobs = append(jobs, payload.PayloadJob{
+		jobs = append(jobs, payload.BypassPayload{
 			Scheme:       "https",
 			Host:         "localhost",
 			Method:       "GET",

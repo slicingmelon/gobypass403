@@ -91,7 +91,7 @@ func TestResponseHandlingRaces(t *testing.T) {
 
 			req.SetRequestURI(ts.URL)
 
-			job := payload.PayloadJob{
+			job := payload.BypassPayload{
 				Host:         ts.URL,
 				BypassModule: "test",
 				PayloadToken: "test-token",
@@ -158,11 +158,11 @@ func TestRequestWorkerPoolRaces(t *testing.T) {
 	defer ts.Close()
 
 	// Create multiple jobs
-	jobs := make([]payload.PayloadJob, 100)
+	jobs := make([]payload.BypassPayload, 100)
 	for i := 0; i < len(jobs); i++ {
 
 		u, _ := rawurlparser.RawURLParse(ts.URL)
-		jobs[i] = payload.PayloadJob{
+		jobs[i] = payload.BypassPayload{
 			Scheme:       u.Scheme,
 			Host:         u.Host,
 			BypassModule: "test",
@@ -178,7 +178,7 @@ func TestRequestWorkerPoolRaces(t *testing.T) {
 
 	for _, job := range jobs {
 		wg.Add(1)
-		go func(j payload.PayloadJob) {
+		go func(j payload.BypassPayload) {
 			defer wg.Done()
 			result := pool.ProcessRequestResponseJob(j)
 			if result != nil {
@@ -232,7 +232,7 @@ func TestMidPathsWorkerPool(t *testing.T) {
 
 	pg := payload.NewPayloadGenerator()
 	targetURL := "http://thuxxxxxx1.mp4"
-	jobs := pg.GenerateMidPathsJobs(targetURL, "midpaths_test")
+	jobs := pg.GenerateMidPathsPayloads(targetURL, "midpaths_test")
 
 	// Process jobs concurrently
 	var wg sync.WaitGroup
@@ -240,7 +240,7 @@ func TestMidPathsWorkerPool(t *testing.T) {
 
 	for _, job := range jobs {
 		wg.Add(1)
-		go func(j payload.PayloadJob) {
+		go func(j payload.BypassPayload) {
 			defer wg.Done()
 			result := pool.ProcessRequestResponseJob(j)
 			if result != nil {
@@ -292,7 +292,7 @@ func TestEndPathsWorkerPool(t *testing.T) {
 	// Generate payloads
 	pg := payload.NewPayloadGenerator()
 	targetURL := "https://thsssssss221.mp4"
-	jobs := pg.GenerateEndPathsJobs(targetURL, "endpaths_test")
+	jobs := pg.GenerateEndPathsPayloads(targetURL, "endpaths_test")
 
 	// Process jobs concurrently
 	var wg sync.WaitGroup
@@ -300,7 +300,7 @@ func TestEndPathsWorkerPool(t *testing.T) {
 
 	for _, job := range jobs {
 		wg.Add(1)
-		go func(j payload.PayloadJob) {
+		go func(j payload.BypassPayload) {
 			defer wg.Done()
 			result := pool.ProcessRequestResponseJob(j)
 			if result != nil {
@@ -357,7 +357,7 @@ func TestFasthttpStreamingConcurrent(t *testing.T) {
 	// Generate payloads
 	pg := payload.NewPayloadGenerator()
 	targetURL := "https://thumbssdasd221.mp4"
-	jobs := pg.GenerateEndPathsJobs(targetURL, "endpaths_test")
+	jobs := pg.GenerateEndPathsPayloads(targetURL, "endpaths_test")
 
 	var wg sync.WaitGroup
 	results := make(chan struct {
@@ -370,7 +370,7 @@ func TestFasthttpStreamingConcurrent(t *testing.T) {
 	// Start concurrent requests
 	for _, job := range jobs {
 		wg.Add(1)
-		go func(j payload.PayloadJob) {
+		go func(j payload.BypassPayload) {
 			defer wg.Done()
 
 			// Create request
@@ -493,10 +493,10 @@ func TestFasthttpStreamingConcurrent2(t *testing.T) {
 	// Generate payloads
 	pg := payload.NewPayloadGenerator()
 	targetURL := "https://thumbsfdsfsd221.mp4"
-	jobs := pg.GenerateEndPathsJobs(targetURL, "endpaths_test")
+	jobs := pg.GenerateEndPathsPayloads(targetURL, "endpaths_test")
 
 	// Create job and result channels
-	jobsChan := make(chan payload.PayloadJob, len(jobs))
+	jobsChan := make(chan payload.BypassPayload, len(jobs))
 	results := make(chan struct {
 		statusCode int
 		err        error
@@ -659,9 +659,9 @@ func TestFasthttpStreamingConcurrent3(t *testing.T) {
 	// Generate payloads
 	pg := payload.NewPayloadGenerator()
 	targetURL := "https://txxxxxxxx0Kssss7221.mp4"
-	jobs := pg.GenerateEndPathsJobs(targetURL, "endpaths_test")
+	jobs := pg.GenerateEndPathsPayloads(targetURL, "endpaths_test")
 
-	jobsChan := make(chan payload.PayloadJob, len(jobs))
+	jobsChan := make(chan payload.BypassPayload, len(jobs))
 	results := make(chan struct {
 		statusCode int
 		err        error
@@ -690,7 +690,7 @@ func TestFasthttpStreamingConcurrent3(t *testing.T) {
 					// Create error context
 					errorContext := GB403ErrorHandler.ErrorContext{
 						ErrorSource:  []byte("TestFasthttpStreamingConcurrent3"),
-						Host:         []byte(job.Scheme + "://" + job.Host),
+						Host:         []byte(payload.BypassPayloadToFullURL(job)),
 						BypassModule: []byte(job.BypassModule),
 						DebugToken:   []byte(job.PayloadToken),
 					}

@@ -349,12 +349,12 @@ func TestMessagePackComparison(t *testing.T) {
 }
 
 func TestPayloadSeedSimple(t *testing.T) {
-	urlOnly := payload.SeedData{
+	urlOnly := payload.BypassPayload{
 		Scheme: "https",
 		Host:   "example.com",
 	}
-	seed1 := payload.GenerateDebugToken(urlOnly)
-	recovered1, err := payload.DecodeDebugToken(seed1)
+	seed1 := payload.GeneratePayloadToken(urlOnly)
+	recovered1, err := payload.DecodePayloadToken(seed1)
 	if err != nil {
 
 		t.Fatalf("Failed to recover URL-only seed: %v", err)
@@ -362,15 +362,15 @@ func TestPayloadSeedSimple(t *testing.T) {
 	if recovered1.Scheme != urlOnly.Scheme {
 		t.Errorf("URL mismatch: got %s, want %s", recovered1.Scheme, urlOnly.Scheme)
 	}
-	headerOnly := payload.SeedData{
+	headerOnly := payload.BypassPayload{
 		Headers: []payload.Headers{{
 			Header: "X-Test",
 			Value:  "test",
 		}},
 	}
 
-	seed2 := payload.GenerateDebugToken(headerOnly)
-	recovered2, err := payload.DecodeDebugToken(seed2)
+	seed2 := payload.GeneratePayloadToken(headerOnly)
+	recovered2, err := payload.DecodePayloadToken(seed2)
 	if err != nil {
 		t.Fatalf("Failed to recover header-only seed: %v", err)
 	}
@@ -400,7 +400,7 @@ type HeaderBytes struct {
 
 func TestStringVsBytes(t *testing.T) {
 	// Original string-based structs
-	stringJob := payload.PayloadJob{
+	stringJob := payload.BypassPayload{
 		OriginalURL:  "https://www.example.com/admin",
 		Method:       "GET",
 		Host:         "www.example.com",

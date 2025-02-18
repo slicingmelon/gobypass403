@@ -12,7 +12,7 @@ import (
 // 4435408	       280.9 ns/op	       0 B/op	       0 allocs/op
 func BenchmarkBuildRawHTTPRequest(b *testing.B) {
 	client := rawhttp.NewHTTPClient(rawhttp.DefaultHTTPClientOptions())
-	job := payload.PayloadJob{
+	job := payload.BypassPayload{
 		Method:       "GET",
 		Scheme:       "http",
 		Host:         "example.com",
@@ -69,7 +69,7 @@ func BenchmarkProcessHTTPResponseStreamed(b *testing.B) {
 	resp.SetBodyStream(bytes.NewReader([]byte(`<!DOCTYPE html><html><head><title>Test Page</title></head><body>test response body</body></html>`)), 1024)
 
 	// Setup test job
-	job := payload.PayloadJob{
+	job := payload.BypassPayload{
 		Method:       "GET",
 		Scheme:       "http",
 		Host:         "example.com",
@@ -136,7 +136,7 @@ func BenchmarkProcessHTTPResponsePerIterationNew(b *testing.B) {
 	resp.Header.SetContentType("text/html")
 	resp.SetBodyStream(bytes.NewReader([]byte(`<!DOCTYPE html><html><head><title>Test Page</title></head><body>test</body></html>`)), 1024)
 
-	job := payload.PayloadJob{
+	job := payload.BypassPayload{
 		Method:       "GET",
 		Scheme:       "http",
 		Host:         "example.com",
@@ -176,7 +176,7 @@ func BenchmarkByte2StringConversion(b *testing.B) {
 
 // 167723862	         7.974 ns/op	       0 B/op	       0 allocs/op
 func BenchmarkBuildCurlCmd(b *testing.B) {
-	job := payload.PayloadJob{
+	job := payload.BypassPayload{
 		Method: "POST",
 		Scheme: "http",
 		Host:   "example.com",
@@ -258,11 +258,11 @@ func BenchmarkBuildRawHTTPRequestNew(b *testing.B) {
 	// Test cases with different path complexities
 	tests := []struct {
 		name string
-		job  payload.PayloadJob
+		job  payload.BypassPayload
 	}{
 		{
 			name: "SimpleRequest",
-			job: payload.PayloadJob{
+			job: payload.BypassPayload{
 				Method:       "GET",
 				RawURI:       "/test",
 				Host:         "example.com",
@@ -272,7 +272,7 @@ func BenchmarkBuildRawHTTPRequestNew(b *testing.B) {
 		},
 		{
 			name: "ComplexPath",
-			job: payload.PayloadJob{
+			job: payload.BypassPayload{
 				Method:       "GET",
 				RawURI:       "//;/../%2f/。。/test%20space/%252e/",
 				Host:         "example.com",
@@ -282,7 +282,7 @@ func BenchmarkBuildRawHTTPRequestNew(b *testing.B) {
 		},
 		{
 			name: "LongHeaders",
-			job: payload.PayloadJob{
+			job: payload.BypassPayload{
 				Method: "POST",
 				RawURI: "/api/test",
 				Host:   "example.com",

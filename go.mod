@@ -11,7 +11,6 @@ require (
 	github.com/andybalholm/brotli v1.1.1
 	github.com/bytedance/sonic v1.12.8
 	github.com/golang/snappy v0.0.4
-	github.com/jedib0t/go-pretty/v6 v6.6.5
 	github.com/klauspost/compress v1.17.11
 	github.com/phuslu/fastdns v0.12.1
 	github.com/pierrec/lz4/v4 v4.1.22
@@ -19,9 +18,9 @@ require (
 	github.com/refraction-networking/utls v1.6.7
 	github.com/slicingmelon/go-rawurlparser v0.3.1
 	github.com/stretchr/testify v1.10.0
-	github.com/tiendc/gofn v1.14.0
 	github.com/valyala/fasthttp v1.58.0
 	github.com/vmihailenco/msgpack/v5 v5.4.1
+	golang.org/x/text v0.21.0
 )
 
 require (
@@ -42,7 +41,6 @@ require (
 	github.com/mattn/go-runewidth v0.0.16 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
-	github.com/tiendc/go-rflutil v0.0.0-20240919184150-3c910c4770e2 // indirect
 	github.com/twitchyliquid64/golang-asm v0.15.1 // indirect
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
 	github.com/valyala/fastrand v1.1.0 // indirect
@@ -55,6 +53,5 @@ require (
 	golang.org/x/net v0.34.0 // indirect
 	golang.org/x/sys v0.29.0 // indirect
 	golang.org/x/term v0.28.0 // indirect
-	golang.org/x/text v0.21.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

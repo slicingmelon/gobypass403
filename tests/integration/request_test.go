@@ -43,7 +43,7 @@ func TestClient301RedirectInmemory(t *testing.T) {
 	pool := rawhttp.NewRequestWorkerPool(clientOpts, 10)
 
 	// Create test payload
-	jobs := []payload.PayloadJob{
+	jobs := []payload.BypassPayload{
 		{
 			Scheme:       "http",
 			Host:         "example.com",
@@ -133,7 +133,7 @@ func TestClient302RedirectCaseInsensitive(t *testing.T) {
 	pool := rawhttp.NewRequestWorkerPool(clientOpts, 10)
 
 	// Create test payload
-	jobs := []payload.PayloadJob{
+	jobs := []payload.BypassPayload{
 		{
 			Scheme:       "http",
 			Host:         "example.com",
@@ -209,7 +209,7 @@ func TestRequestDelay(t *testing.T) {
 	pool := rawhttp.NewRequestWorkerPool(clientOpts, 10)
 
 	// Create test payloads
-	jobs := []payload.PayloadJob{
+	jobs := []payload.BypassPayload{
 		{
 			Scheme:       "http",
 			Host:         "example.com",
@@ -317,7 +317,7 @@ func TestRequestDelayWithMultipleWorkers(t *testing.T) {
 	pool := rawhttp.NewRequestWorkerPool(clientOpts, 3)
 
 	// Create 6 test jobs
-	jobs := []payload.PayloadJob{
+	jobs := []payload.BypassPayload{
 		{Scheme: "http", Host: "example.com", RawURI: "/test1", Method: "GET"},
 		{Scheme: "http", Host: "example.com", RawURI: "/test2", Method: "GET"},
 		{Scheme: "http", Host: "example.com", RawURI: "/test3", Method: "GET"},

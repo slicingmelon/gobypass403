@@ -57,7 +57,7 @@ func TestClientResponseTimeSequential(t *testing.T) {
 	req.SetRequestURI("http://example.com/")
 
 	// Perform the request.
-	directResponseTime, err := client.DoRequest(req, resp, payload.PayloadJob{})
+	directResponseTime, err := client.DoRequest(req, resp, payload.BypassPayload{})
 	if err != nil {
 		t.Fatalf("DoRequest error: %v", err)
 	}
@@ -135,7 +135,7 @@ func TestClientResponseTimeConcurrent(t *testing.T) {
 			req.SetRequestURI("http://example.com/")
 
 			// Get direct response time from DoRequest
-			directRT, err := client.DoRequest(req, resp, payload.PayloadJob{})
+			directRT, err := client.DoRequest(req, resp, payload.BypassPayload{})
 			// Get response time via getter
 			getterRT := client.GetLastResponseTime()
 

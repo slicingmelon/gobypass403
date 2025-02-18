@@ -37,7 +37,7 @@ func TestConsecutiveFailures(t *testing.T) {
 
 		totalRequests++
 		start := time.Now()
-		_, err := client.DoRequest(req, resp, payload.PayloadJob{})
+		_, err := client.DoRequest(req, resp, payload.BypassPayload{})
 		elapsed := time.Since(start)
 
 		if err != nil {

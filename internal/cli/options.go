@@ -54,7 +54,7 @@ type CliOptions struct {
 
 	// ResendRequest
 	ResendRequest string
-	ResendCount   int
+	ResendNum     int
 
 	//UpdatePayloads
 	UpdatePayloads bool
@@ -159,7 +159,7 @@ func (o *CliOptions) validate() error {
 	}
 
 	if o.ResendRequest != "" {
-		data, err := payload.DecodeDebugToken(o.ResendRequest)
+		data, err := payload.DecodePayloadToken(o.ResendRequest)
 		if err != nil {
 			return fmt.Errorf("invalid debug token: %v", err)
 		}
