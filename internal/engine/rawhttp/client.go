@@ -11,6 +11,7 @@ import (
 	"github.com/slicingmelon/go-bypass-403/internal/engine/payload"
 	GB403ErrorHandler "github.com/slicingmelon/go-bypass-403/internal/utils/error"
 	GB403Logger "github.com/slicingmelon/go-bypass-403/internal/utils/logger"
+	"github.com/tiendc/gofn"
 	"github.com/valyala/fasthttp"
 )
 
@@ -220,10 +221,9 @@ func (c *HTTPClient) execFunc(req *fasthttp.Request, resp *fasthttp.Response, jo
 		elapsed := time.Since(start)
 
 		if err != nil {
-			// Add error handling here
 			errorContext := GB403ErrorHandler.ErrorContext{
-				ErrorSource:  []byte("HTTPClient.execFunc"),
-				Host:         []byte(job.Scheme + "://" + job.Host),
+				ErrorSource:  []byte(fmt.Sprintf("HTTPClient.execFunc/attempt=%d", attempt)),
+				Host:         []byte(gofn.FirstNonEmpty(job.Scheme, job.Host, string(reqCopy.URI().Scheme()), string(reqCopy.URI().Host()))),
 				BypassModule: []byte(job.BypassModule),
 				DebugToken:   []byte(job.PayloadToken),
 			}
