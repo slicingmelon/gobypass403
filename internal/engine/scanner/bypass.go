@@ -49,47 +49,47 @@ func InitializeBypassModules() {
 		switch module.Name {
 		case "dumb_check":
 			module.GenerateJobs = func(targetURL string, bypassModule string, opts *ScannerOpts) []payload.BypassPayload {
-				return module.payloadGen.GenerateDumbJob(targetURL, bypassModule)
+				return module.payloadGen.GenerateDumbCheckPayload(targetURL, bypassModule)
 			}
 		case "mid_paths":
 			module.GenerateJobs = func(targetURL string, bypassModule string, opts *ScannerOpts) []payload.BypassPayload {
-				return module.payloadGen.GenerateMidPathsJobs(targetURL, bypassModule)
+				return module.payloadGen.GenerateMidPathsPayloads(targetURL, bypassModule)
 			}
 		case "end_paths":
 			module.GenerateJobs = func(targetURL string, bypassModule string, opts *ScannerOpts) []payload.BypassPayload {
-				return module.payloadGen.GenerateEndPathsJobs(targetURL, bypassModule)
+				return module.payloadGen.GenerateEndPathsPayloads(targetURL, bypassModule)
 			}
 		case "http_headers_ip":
 			module.GenerateJobs = func(targetURL string, bypassModule string, opts *ScannerOpts) []payload.BypassPayload {
-				return module.payloadGen.GenerateHeaderIPJobs(targetURL, bypassModule, opts.SpoofHeader, opts.SpoofIP)
+				return module.payloadGen.GenerateHeaderIPPayloads(targetURL, bypassModule, opts.SpoofHeader, opts.SpoofIP)
 			}
 		case "case_substitution":
 			module.GenerateJobs = func(targetURL string, bypassModule string, opts *ScannerOpts) []payload.BypassPayload {
-				return module.payloadGen.GenerateCaseSubstitutionJobs(targetURL, bypassModule)
+				return module.payloadGen.GenerateCaseSubstitutionPayloads(targetURL, bypassModule)
 			}
 		case "char_encode":
 			module.GenerateJobs = func(targetURL string, bypassModule string, opts *ScannerOpts) []payload.BypassPayload {
-				return module.payloadGen.GenerateCharEncodeJobs(targetURL, bypassModule)
+				return module.payloadGen.GenerateCharEncodePayloads(targetURL, bypassModule)
 			}
 		case "http_host":
 			module.GenerateJobs = func(targetURL string, bypassModule string, opts *ScannerOpts) []payload.BypassPayload {
-				return module.payloadGen.GenerateHostHeaderJobs(targetURL, bypassModule, opts.ReconCache)
+				return module.payloadGen.GenerateHostHeaderPayloads(targetURL, bypassModule, opts.ReconCache)
 			}
 		case "http_headers_scheme":
 			module.GenerateJobs = func(targetURL string, bypassModule string, opts *ScannerOpts) []payload.BypassPayload {
-				return module.payloadGen.GenerateHeaderSchemeJobs(targetURL, bypassModule)
+				return module.payloadGen.GenerateHeaderSchemePayloads(targetURL, bypassModule)
 			}
 		case "http_headers_port":
 			module.GenerateJobs = func(targetURL string, bypassModule string, opts *ScannerOpts) []payload.BypassPayload {
-				return module.payloadGen.GenerateHeaderPortJobs(targetURL, bypassModule)
+				return module.payloadGen.GenerateHeaderPortPayloads(targetURL, bypassModule)
 			}
 		case "http_headers_url":
 			module.GenerateJobs = func(targetURL string, bypassModule string, opts *ScannerOpts) []payload.BypassPayload {
-				return module.payloadGen.GenerateHeaderURLJobs(targetURL, bypassModule)
+				return module.payloadGen.GenerateHeaderURLPayloads(targetURL, bypassModule)
 			}
 		case "unicode_path_normalization":
 			module.GenerateJobs = func(targetURL string, bypassModule string, opts *ScannerOpts) []payload.BypassPayload {
-				return module.payloadGen.GenerateUnicodePathNormalizationsJobs(targetURL, bypassModule)
+				return module.payloadGen.GenerateUnicodePathNormalizationsPayloads(targetURL, bypassModule)
 			}
 		}
 	}
@@ -320,13 +320,7 @@ func (s *Scanner) ResendRequestFromToken(debugToken string, resendCount int) ([]
 	jobs := make([]payload.BypassPayload, 0, resendCount)
 	for i := 0; i < resendCount; i++ {
 		jobCopy := bypassPayload // Create a copy to avoid sharing the same job reference
-		jobCopy.PayloadToken = payload.GeneratePayloadToken(payload.SeedData{
-			Method:  tokenData.Method,
-			Scheme:  tokenData.Scheme,
-			Host:    tokenData.Host,
-			RawURI:  tokenData.RawURI,
-			Headers: tokenData.Headers,
-		})
+		jobCopy.PayloadToken = payload.GeneratePayloadToken(bypassPayload)
 		jobs = append(jobs, jobCopy)
 	}
 

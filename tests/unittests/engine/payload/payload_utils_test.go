@@ -1,6 +1,7 @@
 package tests
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/slicingmelon/go-bypass-403/internal/engine/payload"
@@ -191,6 +192,204 @@ func TestNormalizationForms(t *testing.T) {
 			if normalized != tt.expected {
 				t.Errorf("got %q, want %q", normalized, tt.expected)
 			}
+		})
+	}
+}
+
+func TestPayloadTokenWithUnicode(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    payload.BypassPayload
+		wantFail bool
+	}{
+		{
+			name: "Chinese Path with Mixed Characters",
+			input: payload.BypassPayload{
+				Method: "GET",
+				Scheme: "https",
+				Host:   "example.com",
+				RawURI: "/路径/测试/文件.jpg",
+				Headers: []payload.Headers{
+					{Header: "X-Custom", Value: "测试值"},
+				},
+			},
+		},
+		{
+			name: "Japanese Path with Special Characters",
+			input: payload.BypassPayload{
+				Method: "POST",
+				Scheme: "https",
+				Host:   "example.co.jp",
+				RawURI: "/パス/テスト/ファイル名に★☆♪も.png",
+				Headers: []payload.Headers{
+					{Header: "X-Test", Value: "テスト値"},
+				},
+			},
+		},
+		{
+			name: "Mixed Unicode Path",
+			input: payload.BypassPayload{
+				Method: "GET",
+				Scheme: "http",
+				Host:   "localhost",
+				RawURI: "/path/文件/パス/🔒/test/café/über/", // Emojis, CJK, Latin Extended
+				Headers: []payload.Headers{
+					{Header: "X-Path", Value: "パス/文件"},
+				},
+			},
+		},
+		{
+			name: "Very Long Unicode Path",
+			input: payload.BypassPayload{
+				Method: "GET",
+				Scheme: "https",
+				Host:   "example.com",
+				RawURI: "/测试/" + strings.Repeat("文件/", 50) + "end.txt", // Long repeating Unicode
+				Headers: []payload.Headers{
+					{Header: "X-Long", Value: "测试"},
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Generate token
+			token := payload.GeneratePayloadToken(tt.input)
+			if token == "" {
+				t.Fatal("failed to generate token")
+			}
+
+			// Decode token
+			decoded, err := payload.DecodePayloadToken(token)
+			if tt.wantFail {
+				if err == nil {
+					t.Error("expected error, got nil")
+				}
+				return
+			}
+
+			if err != nil {
+				t.Fatalf("failed to decode token: %v", err)
+			}
+
+			// Compare original and decoded data
+			if decoded.Method != tt.input.Method {
+				t.Errorf("Method mismatch: got %v, want %v", decoded.Method, tt.input.Method)
+			}
+			if decoded.Scheme != tt.input.Scheme {
+				t.Errorf("Scheme mismatch: got %v, want %v", decoded.Scheme, tt.input.Scheme)
+			}
+			if decoded.Host != tt.input.Host {
+				t.Errorf("Host mismatch: got %v, want %v", decoded.Host, tt.input.Host)
+			}
+			if decoded.RawURI != tt.input.RawURI {
+				t.Errorf("RawURI mismatch:\ngot:  %v\nwant: %v", decoded.RawURI, tt.input.RawURI)
+			}
+
+			// Print token lengths for analysis
+			t.Logf("Token length for %s: %d", tt.name, len(token))
+		})
+	}
+}
+
+func TestPayloadTokenWithUnicode2(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    payload.BypassPayload
+		wantFail bool
+	}{
+		{
+			name: "Chinese Path with Mixed Characters",
+			input: payload.BypassPayload{
+				Method: "GET",
+				Scheme: "https",
+				Host:   "example.com",
+				RawURI: "/路径/测试/文件.jpg",
+				Headers: []payload.Headers{
+					{Header: "X-Custom", Value: "测试值"},
+				},
+			},
+		},
+		{
+			name: "Japanese Path with Special Characters",
+			input: payload.BypassPayload{
+				Method: "POST",
+				Scheme: "https",
+				Host:   "example.co.jp",
+				RawURI: "/パス/テスト/ファイル.png",
+				Headers: []payload.Headers{
+					{Header: "X-Test", Value: "テスト値"},
+				},
+			},
+		},
+		{
+			name: "Mixed Unicode Path",
+			input: payload.BypassPayload{
+				Method: "GET",
+				Scheme: "http",
+				Host:   "localhost",
+				RawURI: "/path/文件/パス/🔒/test/café/",
+				Headers: []payload.Headers{
+					{Header: "X-Path", Value: "パス/文件"},
+				},
+			},
+		},
+		{
+			name: "Long Unicode Path Within Limits",
+			input: payload.BypassPayload{
+				Method: "GET",
+				Scheme: "https",
+				Host:   "example.com",
+				RawURI: "/测试/" + strings.Repeat("文件/", 10) + "end.txt", // Shorter but still tests length
+				Headers: []payload.Headers{
+					{Header: "X-Long", Value: "测试"},
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Print original lengths in bytes
+			t.Logf("Original RawURI length in bytes: %d", len([]byte(tt.input.RawURI)))
+
+			// Generate token
+			token := payload.GeneratePayloadToken(tt.input)
+			if token == "" {
+				t.Fatal("failed to generate token")
+			}
+
+			// Decode token
+			decoded, err := payload.DecodePayloadToken(token)
+			if tt.wantFail {
+				if err == nil {
+					t.Error("expected error, got nil")
+				}
+				return
+			}
+
+			if err != nil {
+				t.Fatalf("failed to decode token: %v", err)
+			}
+
+			// Compare original and decoded data
+			if decoded.Method != tt.input.Method {
+				t.Errorf("Method mismatch: got %v, want %v", decoded.Method, tt.input.Method)
+			}
+			if decoded.Scheme != tt.input.Scheme {
+				t.Errorf("Scheme mismatch: got %v, want %v", decoded.Scheme, tt.input.Scheme)
+			}
+			if decoded.Host != tt.input.Host {
+				t.Errorf("Host mismatch: got %v, want %v", decoded.Host, tt.input.Host)
+			}
+			if decoded.RawURI != tt.input.RawURI {
+				t.Errorf("RawURI mismatch:\ngot:  %v\nwant: %v", decoded.RawURI, tt.input.RawURI)
+			}
+
+			// Print token and decoded lengths for analysis
+			t.Logf("Token length: %d", len(token))
+			t.Logf("Decoded RawURI length in bytes: %d", len([]byte(decoded.RawURI)))
 		})
 	}
 }

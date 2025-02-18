@@ -88,7 +88,7 @@ func TestRequestBuilderViaEchoServer(t *testing.T) {
 			targetURL:    "http://example.com/test",
 			bypassModule: "http_headers_ip",
 			generator: func(pg *payload.PayloadGenerator, url, module string) []payload.BypassPayload {
-				return pg.GenerateHeaderIPJobs(url, module, "", "")
+				return pg.GenerateHeaderIPPayloads(url, module, "", "")
 			},
 		},
 		{
@@ -96,7 +96,7 @@ func TestRequestBuilderViaEchoServer(t *testing.T) {
 			targetURL:    "http://example.com/test/path",
 			bypassModule: "mid_paths",
 			generator: func(pg *payload.PayloadGenerator, url, module string) []payload.BypassPayload {
-				return pg.GenerateMidPathsJobs(url, module)
+				return pg.GenerateMidPathsPayloads(url, module)
 			},
 		},
 		{
@@ -104,7 +104,7 @@ func TestRequestBuilderViaEchoServer(t *testing.T) {
 			targetURL:    "http://example.com/admin",
 			bypassModule: "header_scheme",
 			generator: func(pg *payload.PayloadGenerator, url, module string) []payload.BypassPayload {
-				return pg.GenerateHeaderSchemeJobs(url, module)
+				return pg.GenerateHeaderSchemePayloads(url, module)
 			},
 		},
 	}
@@ -256,7 +256,7 @@ func TestRequestBuilderMidPathsPayloads(t *testing.T) {
 			targetURL:    "http://example.com/admin",
 			bypassModule: "mid_paths",
 			generator: func(pg *payload.PayloadGenerator, url, module string) []payload.BypassPayload {
-				return pg.GenerateMidPathsJobs(url, module)
+				return pg.GenerateMidPathsPayloads(url, module)
 			},
 		},
 	}

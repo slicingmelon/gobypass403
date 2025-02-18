@@ -30,60 +30,60 @@ type SeedData struct {
 // This function will generate a debug token that will act as a fingerprint of the request
 // Running in debug mode, a header will be added to each request to debug the requests better
 // At any time, a token can be decoded and retrieve back the payload info/URL that was sent
-func GeneratePayloadToken(data SeedData) string {
+func GeneratePayloadToken(job BypassPayload) string {
 	bb := &bytesutil.ByteBuffer{}
 	bb.B = append(bb.B, 1) // version
 
 	// Add nonce
 	bb.B = append(bb.B, 0xFF)
-	nonce := make([]byte, 8)
+	nonce := make([]byte, 4)
 	mu.Lock()
 	rnd.Read(nonce)
 	mu.Unlock()
-	bb.B = append(bb.B, 8)
+	bb.B = append(bb.B, 4)
 	bb.Write(nonce)
 
 	// Write Scheme
-	if data.Scheme != "" {
+	if job.Scheme != "" {
 		bb.B = append(bb.B, 1) // field type for scheme
-		schemeLen := len(data.Scheme)
+		schemeLen := len(job.Scheme)
 		bb.B = append(bb.B, byte(schemeLen))
-		bb.Write(bytesutil.ToUnsafeBytes(data.Scheme))
+		bb.Write(bytesutil.ToUnsafeBytes(job.Scheme))
 	}
 
 	// Write Host
-	if data.Host != "" {
+	if job.Host != "" {
 		bb.B = append(bb.B, 2) // field type for host
-		hostLen := len(data.Host)
+		hostLen := len(job.Host)
 		bb.B = append(bb.B, byte(hostLen))
-		bb.Write(bytesutil.ToUnsafeBytes(data.Host))
+		bb.Write(bytesutil.ToUnsafeBytes(job.Host))
 	}
 
 	// Write RawURI
-	if data.RawURI != "" {
+	if job.RawURI != "" {
 		bb.B = append(bb.B, 3) // field type for RawURI
-		uriLen := len(data.RawURI)
+		uriLen := len(job.RawURI)
 		bb.B = append(bb.B, byte(uriLen))
-		bb.Write(bytesutil.ToUnsafeBytes(data.RawURI))
+		bb.Write(bytesutil.ToUnsafeBytes(job.RawURI))
 	}
 
 	// Write Method
-	if data.Method != "" {
+	if job.Method != "" {
 		bb.B = append(bb.B, 4) // field type for method
-		methodLen := len(data.Method)
+		methodLen := len(job.Method)
 		bb.B = append(bb.B, byte(methodLen))
-		bb.Write(bytesutil.ToUnsafeBytes(data.Method))
+		bb.Write(bytesutil.ToUnsafeBytes(job.Method))
 	}
 
 	// Write Headers if present
-	if len(data.Headers) > 0 {
+	if len(job.Headers) > 0 {
 		bb.B = append(bb.B, 5) // field type for headers
-		headerCount := len(data.Headers)
+		headerCount := len(job.Headers)
 		if headerCount > 255 {
 			headerCount = 255
 		}
 		bb.B = append(bb.B, byte(headerCount))
-		for _, h := range data.Headers {
+		for _, h := range job.Headers {
 			hLen := len(h.Header)
 			if hLen > 255 {
 				hLen = 255
@@ -106,25 +106,26 @@ func GeneratePayloadToken(data SeedData) string {
 
 // DecodePayloadToken
 // Use this function to decode a debug token and retrieve back the payload info/URL that was sent
-func DecodePayloadToken(seed string) (SeedData, error) {
-	var data SeedData
-	compressed, err := base64.RawURLEncoding.DecodeString(seed)
+func DecodePayloadToken(token string) (BypassPayload, error) {
+	result := BypassPayload{}
+
+	compressed, err := base64.RawURLEncoding.DecodeString(token)
 	if err != nil {
-		return data, fmt.Errorf("failed to decode base64: %w", err)
+		return result, fmt.Errorf("failed to decode base64: %w", err)
 	}
 
 	bb, err := snappy.Decode(nil, compressed)
 	if err != nil {
-		return data, fmt.Errorf("failed to decompress: %w", err)
+		return result, fmt.Errorf("failed to decompress: %w", err)
 	}
 
 	if len(bb) < 1 {
-		return data, fmt.Errorf("invalid seed: too short")
+		return result, fmt.Errorf("invalid token: too short")
 	}
 
 	version := bb[0]
 	if version != 1 {
-		return data, fmt.Errorf("unsupported seed version: %d", version)
+		return result, fmt.Errorf("unsupported token version: %d", version)
 	}
 
 	pos := 1
@@ -142,16 +143,16 @@ func DecodePayloadToken(seed string) (SeedData, error) {
 		case 0xFF: // nonce - skip
 			pos += fieldLen
 		case 1: // Scheme
-			data.Scheme = string(bb[pos : pos+fieldLen])
+			result.Scheme = string(bb[pos : pos+fieldLen])
 			pos += fieldLen
 		case 2: // Host
-			data.Host = string(bb[pos : pos+fieldLen])
+			result.Host = string(bb[pos : pos+fieldLen])
 			pos += fieldLen
 		case 3: // RawURI
-			data.RawURI = string(bb[pos : pos+fieldLen])
+			result.RawURI = string(bb[pos : pos+fieldLen])
 			pos += fieldLen
 		case 4: // Method
-			data.Method = string(bb[pos : pos+fieldLen])
+			result.Method = string(bb[pos : pos+fieldLen])
 			pos += fieldLen
 		case 5: // Headers
 			headerCount := fieldLen
@@ -178,12 +179,12 @@ func DecodePayloadToken(seed string) (SeedData, error) {
 				headerValue := string(bb[pos : pos+valueLen])
 				pos += valueLen
 
-				data.Headers = append(data.Headers, Headers{
+				result.Headers = append(result.Headers, Headers{
 					Header: headerName,
 					Value:  headerValue,
 				})
 			}
 		}
 	}
-	return data, nil
+	return result, nil
 }

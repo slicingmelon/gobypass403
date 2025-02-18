@@ -14,7 +14,7 @@ func TestGenerateHeaderIPJobs_RequestFormat(t *testing.T) {
 	pg := payload.NewPayloadGenerator()
 
 	// Generate sample jobs
-	jobs := pg.GenerateHeaderIPJobs(targetURL, bypassModule, "", "")
+	jobs := pg.GenerateHeaderIPPayloads(targetURL, bypassModule, "", "")
 
 	// Print a few sample jobs to demonstrate the structure
 	t.Log("\nSample PayloadJobs generated for:", targetURL)
@@ -85,7 +85,7 @@ func TestGenerateHeaderIPJobs_RequestFormatAllJobs(t *testing.T) {
 	pg := payload.NewPayloadGenerator()
 
 	// Generate all jobs
-	jobs := pg.GenerateHeaderIPJobs(targetURL, bypassModule, "", "")
+	jobs := pg.GenerateHeaderIPPayloads(targetURL, bypassModule, "", "")
 
 	t.Logf("\nAll PayloadJobs generated for: %s", targetURL)
 	t.Logf("Total jobs generated: %d\n", len(jobs))
@@ -139,7 +139,7 @@ func TestGenerateHeaderIPJobs_RequestFormatAllJobs(t *testing.T) {
 
 func TestPayloadSeedRoundTrip(t *testing.T) {
 	// Test case matching your HeaderIP job
-	original := payload.SeedData{
+	original := payload.BypassPayload{
 		Scheme: "https",
 		Host:   "www.example.com",
 		RawURI: "/admin",

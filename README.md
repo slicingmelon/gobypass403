@@ -96,9 +96,9 @@ Usage:
         Update payload files to latest version (Default: false)
   -dpg, -disable-progress-bar
         Disable progress bar (Default: false)
-  -resend, -resend-request
+  -r,-resend, -resend-request
         Resend the exact request using the debug token (example: -resend xyzdebugtoken)
-  -resend-count, -resend-request-count
+  -rn,resend-num,resend-request-num
         Number of times to resend the debugged request (Default: 1) (Default: 1)
   -profile
         Enable pprof profiler (Default: false)

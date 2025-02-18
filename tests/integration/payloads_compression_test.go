@@ -349,7 +349,7 @@ func TestMessagePackComparison(t *testing.T) {
 }
 
 func TestPayloadSeedSimple(t *testing.T) {
-	urlOnly := payload.SeedData{
+	urlOnly := payload.BypassPayload{
 		Scheme: "https",
 		Host:   "example.com",
 	}
@@ -362,7 +362,7 @@ func TestPayloadSeedSimple(t *testing.T) {
 	if recovered1.Scheme != urlOnly.Scheme {
 		t.Errorf("URL mismatch: got %s, want %s", recovered1.Scheme, urlOnly.Scheme)
 	}
-	headerOnly := payload.SeedData{
+	headerOnly := payload.BypassPayload{
 		Headers: []payload.Headers{{
 			Header: "X-Test",
 			Value:  "test",

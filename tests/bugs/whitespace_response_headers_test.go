@@ -232,7 +232,7 @@ func TestMidPathsWorkerPool(t *testing.T) {
 
 	pg := payload.NewPayloadGenerator()
 	targetURL := "http://thuxxxxxx1.mp4"
-	jobs := pg.GenerateMidPathsJobs(targetURL, "midpaths_test")
+	jobs := pg.GenerateMidPathsPayloads(targetURL, "midpaths_test")
 
 	// Process jobs concurrently
 	var wg sync.WaitGroup
@@ -292,7 +292,7 @@ func TestEndPathsWorkerPool(t *testing.T) {
 	// Generate payloads
 	pg := payload.NewPayloadGenerator()
 	targetURL := "https://thsssssss221.mp4"
-	jobs := pg.GenerateEndPathsJobs(targetURL, "endpaths_test")
+	jobs := pg.GenerateEndPathsPayloads(targetURL, "endpaths_test")
 
 	// Process jobs concurrently
 	var wg sync.WaitGroup
@@ -357,7 +357,7 @@ func TestFasthttpStreamingConcurrent(t *testing.T) {
 	// Generate payloads
 	pg := payload.NewPayloadGenerator()
 	targetURL := "https://thumbssdasd221.mp4"
-	jobs := pg.GenerateEndPathsJobs(targetURL, "endpaths_test")
+	jobs := pg.GenerateEndPathsPayloads(targetURL, "endpaths_test")
 
 	var wg sync.WaitGroup
 	results := make(chan struct {
@@ -493,7 +493,7 @@ func TestFasthttpStreamingConcurrent2(t *testing.T) {
 	// Generate payloads
 	pg := payload.NewPayloadGenerator()
 	targetURL := "https://thumbsfdsfsd221.mp4"
-	jobs := pg.GenerateEndPathsJobs(targetURL, "endpaths_test")
+	jobs := pg.GenerateEndPathsPayloads(targetURL, "endpaths_test")
 
 	// Create job and result channels
 	jobsChan := make(chan payload.BypassPayload, len(jobs))
@@ -659,7 +659,7 @@ func TestFasthttpStreamingConcurrent3(t *testing.T) {
 	// Generate payloads
 	pg := payload.NewPayloadGenerator()
 	targetURL := "https://txxxxxxxx0Kssss7221.mp4"
-	jobs := pg.GenerateEndPathsJobs(targetURL, "endpaths_test")
+	jobs := pg.GenerateEndPathsPayloads(targetURL, "endpaths_test")
 
 	jobsChan := make(chan payload.BypassPayload, len(jobs))
 	results := make(chan struct {
