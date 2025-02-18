@@ -71,6 +71,7 @@ func IsRetryableError(err error) RetryDecision {
 	// Check for malformed response error that requires disabling streaming
 	if strings.Contains(err.Error(), "cannot find whitespace in the first line") ||
 		strings.Contains(err.Error(), "cannot parse response status code") {
+		//GB403Logger.Debug().Msgf("Identified as retryable error: %v", err)
 		return RetryDecision{true, RetryWithoutResponseStreaming}
 	}
 

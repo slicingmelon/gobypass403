@@ -1,7 +1,6 @@
 package tests
 
 import (
-	"bytes"
 	"errors"
 	"io"
 	"net"
@@ -12,6 +11,7 @@ import (
 
 	"github.com/slicingmelon/go-bypass-403/internal/engine/payload"
 	"github.com/slicingmelon/go-bypass-403/internal/engine/rawhttp"
+	GB403ErrorHandler "github.com/slicingmelon/go-bypass-403/internal/utils/error"
 	GB403Logger "github.com/slicingmelon/go-bypass-403/internal/utils/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/valyala/fasthttp"
@@ -35,12 +35,17 @@ func TestRetryOnEOF(t *testing.T) {
 			t.Logf("Server handling attempt %d", attempts)
 
 			if attempts <= 2 {
-				// Send a large response that will be cut off
-				ctx.Response.SetBody(bytes.Repeat([]byte("x"), 1024))
-				t.Logf("Server sending large response for attempt %d", attempts)
+				// Send completely malformed response
+				_, err := ctx.Write([]byte("   200 OK\r\nContent-Length: 5\r\n\r\nhello"))
+				if err != nil {
+					t.Errorf("Failed to write response: %v", err)
+				}
+				t.Logf("Server sending malformed response for attempt %d", attempts)
 			} else {
+				// Send proper response
+				ctx.Response.SetStatusCode(200)
 				ctx.WriteString("success")
-				t.Logf("Server sending success response for attempt %d", attempts)
+				t.Logf("Server sending proper response for attempt %d", attempts)
 			}
 		})
 		if err != nil {
@@ -477,4 +482,79 @@ func TestRetryWithConcurrentRequests(t *testing.T) {
 	if retryCount.Load() != concurrentRequests {
 		t.Errorf("Expected all requests to retry, got %d/%d", retryCount.Load(), concurrentRequests)
 	}
+}
+
+func TestRetryWhitespaceFirstLine(t *testing.T) {
+	GB403Logger.DefaultLogger.EnableDebug()
+
+	// Create in-memory listener
+	ln := fasthttputil.NewInmemoryListener()
+	defer ln.Close()
+
+	// Track connection attempts
+	connectionAttempts := atomic.Int32{}
+
+	// Start server that sends malformed response
+	go func() {
+		err := fasthttp.Serve(ln, func(ctx *fasthttp.RequestCtx) {
+			attempts := connectionAttempts.Add(1)
+			t.Logf("Server handling attempt %d", attempts)
+
+			if attempts == 1 {
+				// First attempt: send malformed response
+				_, err := ctx.Write([]byte("TRaILeR:,\n\n"))
+				if err != nil {
+					t.Errorf("Failed to write response: %v", err)
+				}
+				t.Logf("Server sending malformed response")
+			} else {
+				// Subsequent attempts: send proper response
+				ctx.Response.SetStatusCode(200)
+				ctx.WriteString("success")
+				t.Logf("Server sending proper response")
+			}
+		})
+		if err != nil {
+			t.Errorf("Unexpected server error: %v", err)
+		}
+	}()
+
+	// Create client options
+	opts := rawhttp.DefaultHTTPClientOptions()
+	opts.MaxRetries = 4
+	opts.Timeout = 2 * time.Second
+	opts.RetryDelay = 100 * time.Millisecond
+
+	// Set up the dialer to use our in-memory listener
+	opts.Dialer = func(addr string) (net.Conn, error) {
+		return ln.Dial()
+	}
+
+	client := rawhttp.NewHTTPClient(opts)
+	defer client.Close()
+
+	// Prepare request
+	req := client.AcquireRequest()
+	resp := client.AcquireResponse()
+	defer client.ReleaseRequest(req)
+	defer client.ReleaseResponse(resp)
+
+	req.SetRequestURI("http://localhost/test")
+
+	// Execute request
+	_, err := client.DoRequest(req, resp, payload.PayloadJob{})
+	t.Logf("DoRequest returned error: %v", err)
+
+	// Log for debugging
+	t.Logf("Final error: %v", err)
+	t.Logf("Retry attempts: %d", client.GetPerReqRetryAttempts())
+	t.Logf("Connection attempts: %d", connectionAttempts.Load())
+
+	// Assertions
+	assert.NoError(t, err, "Expected successful request after retries")
+	assert.Equal(t, "success", string(resp.Body()), "Expected success response")
+	assert.Equal(t, int32(2), connectionAttempts.Load(), "Expected exactly 2 connection attempts")
+	assert.Equal(t, int32(1), client.GetPerReqRetryAttempts(), "Expected 1 retry attempt")
+
+	GB403ErrorHandler.GetErrorHandler().PrintErrorStats()
 }
