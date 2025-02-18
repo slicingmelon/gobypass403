@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"crypto/tls"
 	"fmt"
+	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"sync"
@@ -228,10 +230,66 @@ func TestMidPathsWorkerPool(t *testing.T) {
 
 	// Generate payloads
 
-	// pg := payload.NewPayloadGenerator()
-	// targetURL := "http://thumbs-cdn.redtube.com/videos/202401/26/447187221/720P_4000K_447187221.mp4"
-	// jobs := pg.GenerateMidPathsJobs(targetURL, "midpaths_test")
+	pg := payload.NewPayloadGenerator()
+	targetURL := "http://thumbs-cdn.redtube.com/videos/202401/26/447187221/720P_4000K_447187221.mp4"
+	jobs := pg.GenerateMidPathsJobs(targetURL, "midpaths_test")
 
+	// Process jobs concurrently
+	var wg sync.WaitGroup
+	results := make(chan *rawhttp.RawHTTPResponseDetails, len(jobs))
+
+	for _, job := range jobs {
+		wg.Add(1)
+		go func(j payload.PayloadJob) {
+			defer wg.Done()
+			result := pool.ProcessRequestResponseJob(j)
+			if result != nil {
+				results <- result
+			}
+		}(job)
+	}
+
+	// Wait for all jobs and close results channel
+	go func() {
+		wg.Wait()
+		close(results)
+	}()
+
+	// Collect and analyze results
+	statusCodes := make(map[int]int)
+	for result := range results {
+		statusCodes[result.StatusCode]++
+
+		if result.StatusCode > 300 && result.StatusCode < 400 {
+			t.Logf("Interesting response found:\nURL: %s\nStatus: %d\nContent-Type: %s\nBody Preview: %s\n",
+				result.URL, result.StatusCode, result.ContentType, result.ResponsePreview[:30])
+		} else {
+			t.Logf("Interesting response found:\nURL: %s\nStatus: %d\nContent-Type: %s\nBody Preview: %s\n",
+				result.URL, result.StatusCode, result.ContentType, result.ResponsePreview)
+		}
+	}
+
+	// Print summary
+	t.Logf("Total jobs generated: %d", len(jobs))
+	t.Logf("Status code distribution:")
+	for code, count := range statusCodes {
+		t.Logf("  %d: %d responses", code, count)
+	}
+
+	GB403ErrorHandler.GetErrorHandler().PrintErrorStats()
+}
+
+func TestEndPathsWorkerPool(t *testing.T) {
+	// Configure HTTP client options
+	httpClientOpts := rawhttp.DefaultHTTPClientOptions()
+	//httpClientOpts.RequestDelay = 0 * time.Millisecond
+	httpClientOpts.ResponseBodyPreviewSize = 1024 // 1KB preview
+
+	// Create worker pool with 50 workers
+	pool := rawhttp.NewRequestWorkerPool(httpClientOpts, 50)
+	defer pool.Close()
+
+	// Generate payloads
 	pg := payload.NewPayloadGenerator()
 	targetURL := "https://thumbs-cdn.redtube.com/videos/202401/26/447187221/720P_4000K_447187221.mp4"
 	jobs := pg.GenerateEndPathsJobs(targetURL, "endpaths_test")
@@ -279,4 +337,461 @@ func TestMidPathsWorkerPool(t *testing.T) {
 	}
 
 	GB403ErrorHandler.GetErrorHandler().PrintErrorStats()
+}
+
+func TestFasthttpStreamingConcurrent(t *testing.T) {
+	// Create fasthttp client with streaming enabled
+	client := &fasthttp.Client{
+		MaxConnsPerHost: 500,
+		// Enable streaming
+		DisableHeaderNamesNormalizing: true,
+		DisablePathNormalizing:        true,
+		StreamResponseBody:            true,
+		MaxResponseBodySize:           12188, // Hardlimit at 12KB
+		ReadBufferSize:                13212, // Hardlimit at 13KB
+		WriteBufferSize:               13212, // Hardlimit at 13KB
+	}
+
+	//workers := 50
+
+	// Generate payloads
+	pg := payload.NewPayloadGenerator()
+	targetURL := "https://thumbs-cdn.redtube.com/videos/202401/26/447187221/720P_4000K_447187221.mp4"
+	jobs := pg.GenerateEndPathsJobs(targetURL, "endpaths_test")
+
+	var wg sync.WaitGroup
+	results := make(chan struct {
+		statusCode int
+		err        error
+		response   []byte
+		url        string // Added to track which URL caused issues
+	}, len(jobs)) // Buffer for all jobs
+
+	// Start concurrent requests
+	for _, job := range jobs {
+		wg.Add(1)
+		go func(j payload.PayloadJob) {
+			defer wg.Done()
+
+			// Create request
+			req := fasthttp.AcquireRequest()
+			resp := fasthttp.AcquireResponse()
+			defer fasthttp.ReleaseRequest(req)
+			defer fasthttp.ReleaseResponse(resp)
+
+			fullURL := payload.BypassPayloadToFullURL(j)
+			req.SetRequestURI(fullURL)
+			req.Header.SetMethod(j.Method) // Use method from job
+			req.Header.Set("Connection", "keep-alive")
+
+			err := client.Do(req, resp)
+			if err != nil {
+				results <- struct {
+					statusCode int
+					err        error
+					response   []byte
+					url        string
+				}{0, err, nil, fullURL}
+				return
+			}
+
+			// Read first 1KB of response body
+			preview := make([]byte, 1024)
+			n, err := resp.BodyStream().Read(preview)
+			if err != nil && err != io.EOF {
+				results <- struct {
+					statusCode int
+					err        error
+					response   []byte
+					url        string
+				}{resp.StatusCode(), err, nil, fullURL}
+				return
+			}
+
+			results <- struct {
+				statusCode int
+				err        error
+				response   []byte
+				url        string
+			}{resp.StatusCode(), nil, preview[:n], fullURL}
+		}(job)
+	}
+
+	// Wait and close results
+	go func() {
+		wg.Wait()
+		close(results)
+	}()
+
+	// Analyze results
+	statusCodes := make(map[int]int)
+	errors := make(map[string]int)
+	urlErrors := make(map[string][]string) // Track which URLs caused which errors
+
+	for result := range results {
+		if result.err != nil {
+			errors[result.err.Error()]++
+			urlErrors[result.url] = append(urlErrors[result.url], result.err.Error())
+			t.Logf("Error for URL %s: %v", result.url, result.err)
+			continue
+		}
+
+		statusCodes[result.statusCode]++
+		if len(result.response) > 0 {
+			t.Logf("URL: %s\nStatus: %d\nResponse preview (first 32 bytes): %x",
+				result.url,
+				result.statusCode,
+				result.response[:min(32, len(result.response))])
+		}
+	}
+
+	// Print summary
+	t.Logf("\nTotal jobs: %d", len(jobs))
+	t.Logf("\nStatus code distribution:")
+	for code, count := range statusCodes {
+		t.Logf("  %d: %d responses", code, count)
+	}
+
+	if len(errors) > 0 {
+		t.Logf("\nErrors distribution:")
+		for err, count := range errors {
+			t.Logf("  %s: %d occurrences", err, count)
+		}
+
+		t.Logf("\nURLs causing errors:")
+		for url, errs := range urlErrors {
+			t.Logf("  URL: %s", url)
+			for _, err := range errs {
+				t.Logf("    - %s", err)
+			}
+		}
+	}
+}
+
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}
+
+func TestFasthttpStreamingConcurrent2(t *testing.T) {
+	// Create fasthttp client with streaming enabled
+	client := &fasthttp.Client{
+		MaxConnsPerHost: 500,
+		// Enable streaming
+		DisableHeaderNamesNormalizing: true,
+		DisablePathNormalizing:        true,
+		StreamResponseBody:            true,
+		MaxResponseBodySize:           12188, // Hardlimit at 12KB
+		ReadBufferSize:                13212, // Hardlimit at 13KB
+		WriteBufferSize:               13212, // Hardlimit at 13KB
+	}
+
+	workers := 50 // Limit concurrent workers
+
+	// Generate payloads
+	pg := payload.NewPayloadGenerator()
+	targetURL := "https://thumbs-cdn.redtube.com/videos/202401/26/447187221/720P_4000K_447187221.mp4"
+	jobs := pg.GenerateEndPathsJobs(targetURL, "endpaths_test")
+
+	// Create job and result channels
+	jobsChan := make(chan payload.PayloadJob, len(jobs))
+	results := make(chan struct {
+		statusCode int
+		err        error
+		response   []byte
+		url        string
+	}, len(jobs))
+
+	// Start worker pool
+	var wg sync.WaitGroup
+	for i := 0; i < workers; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for job := range jobsChan {
+				// Create request
+				req := fasthttp.AcquireRequest()
+				resp := fasthttp.AcquireResponse()
+				defer fasthttp.ReleaseRequest(req)
+				defer fasthttp.ReleaseResponse(resp)
+
+				fullURL := payload.BypassPayloadToFullURL(job)
+				req.SetRequestURI(fullURL)
+				req.Header.SetMethod(job.Method)
+				req.Header.Set("Connection", "keep-alive")
+
+				err := client.Do(req, resp)
+				if err != nil {
+					results <- struct {
+						statusCode int
+						err        error
+						response   []byte
+						url        string
+					}{0, err, nil, fullURL}
+					continue
+				}
+
+				// Read first 1KB of response body
+				preview := make([]byte, 1024)
+				n, err := resp.BodyStream().Read(preview)
+				if err != nil && err != io.EOF {
+					results <- struct {
+						statusCode int
+						err        error
+						response   []byte
+						url        string
+					}{resp.StatusCode(), err, nil, fullURL}
+					continue
+				}
+
+				results <- struct {
+					statusCode int
+					err        error
+					response   []byte
+					url        string
+				}{resp.StatusCode(), nil, preview[:n], fullURL}
+			}
+		}()
+	}
+
+	// Feed jobs to workers
+	go func() {
+		for _, job := range jobs {
+			jobsChan <- job
+		}
+		close(jobsChan)
+	}()
+
+	// Wait for all workers to finish and close results
+	go func() {
+		wg.Wait()
+		close(results)
+	}()
+
+	// Analyze results
+	statusCodes := make(map[int]int)
+	errors := make(map[string]int)
+	urlErrors := make(map[string][]string)
+
+	for result := range results {
+		if result.err != nil {
+			errors[result.err.Error()]++
+			urlErrors[result.url] = append(urlErrors[result.url], result.err.Error())
+			t.Logf("Error for URL %s: %v", result.url, result.err)
+			continue
+		}
+
+		statusCodes[result.statusCode]++
+		if len(result.response) > 0 {
+			t.Logf("URL: %s\nStatus: %d\nResponse preview (first 32 bytes): %x",
+				result.url,
+				result.statusCode,
+				result.response[:min(32, len(result.response))])
+		}
+	}
+
+	// Print summary
+	t.Logf("\nTotal jobs: %d", len(jobs))
+	t.Logf("Workers used: %d", workers)
+	t.Logf("\nStatus code distribution:")
+	for code, count := range statusCodes {
+		t.Logf("  %d: %d responses", code, count)
+	}
+
+	if len(errors) > 0 {
+		t.Logf("\nErrors distribution:")
+		for err, count := range errors {
+			t.Logf("  %s: %d occurrences", err, count)
+		}
+
+		t.Logf("\nURLs causing errors:")
+		for url, errs := range urlErrors {
+			t.Logf("  URL: %s", url)
+			for _, err := range errs {
+				t.Logf("    - %s", err)
+			}
+		}
+	}
+}
+
+func createCustomDialer() fasthttp.DialFunc {
+	return func(addr string) (net.Conn, error) {
+		dialer := &fasthttp.TCPDialer{
+			Concurrency:      500,
+			DNSCacheDuration: time.Minute,
+		}
+
+		// Create error context
+		errorContext := GB403ErrorHandler.ErrorContext{
+			ErrorSource: []byte("TestFasthttpStreamingConcurrent3.Dial"),
+			Host:        []byte(addr),
+		}
+
+		conn, err := dialer.DialDualStack(addr)
+		if err != nil {
+			if handleErr := GB403ErrorHandler.GetErrorHandler().HandleError(err, errorContext); handleErr != nil {
+				return nil, fmt.Errorf("dial error handling failed: %v (original error: %v)", handleErr, err)
+			}
+			return nil, err
+		}
+		return conn, nil
+	}
+}
+
+func TestFasthttpStreamingConcurrent3(t *testing.T) {
+	// Create fasthttp client with streaming enabled
+	client := &fasthttp.Client{
+		MaxConnsPerHost:               500,
+		DisableHeaderNamesNormalizing: true,
+		DisablePathNormalizing:        true,
+		StreamResponseBody:            true,
+		MaxResponseBodySize:           12188,
+		ReadBufferSize:                13212,
+		WriteBufferSize:               13212,
+		Dial:                          createCustomDialer(),
+	}
+
+	workers := 50
+	errHandler := GB403ErrorHandler.GetErrorHandler()
+
+	// Generate payloads
+	pg := payload.NewPayloadGenerator()
+	targetURL := "https://thumbs-cdn.redtube.com/videos/202401/26/447187221/720P_4000K_447187221.mp4"
+	jobs := pg.GenerateEndPathsJobs(targetURL, "endpaths_test")
+
+	jobsChan := make(chan payload.PayloadJob, len(jobs))
+	results := make(chan struct {
+		statusCode int
+		err        error
+		response   []byte
+		url        string
+	}, len(jobs))
+
+	var wg sync.WaitGroup
+	for i := 0; i < workers; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for job := range jobsChan {
+				req := fasthttp.AcquireRequest()
+				resp := fasthttp.AcquireResponse()
+				defer fasthttp.ReleaseRequest(req)
+				defer fasthttp.ReleaseResponse(resp)
+
+				fullURL := payload.BypassPayloadToFullURL(job)
+				req.SetRequestURI(fullURL)
+				req.Header.SetMethod(job.Method)
+				req.Header.Set("Connection", "keep-alive")
+
+				err := client.DoTimeout(req, resp, 5*time.Second)
+				if err != nil {
+					// Create error context
+					errorContext := GB403ErrorHandler.ErrorContext{
+						ErrorSource:  []byte("TestFasthttpStreamingConcurrent3"),
+						Host:         []byte(job.Scheme + "://" + job.Host),
+						BypassModule: []byte(job.BypassModule),
+						DebugToken:   []byte(job.PayloadToken),
+					}
+					errHandler.HandleError(err, errorContext)
+
+					results <- struct {
+						statusCode int
+						err        error
+						response   []byte
+						url        string
+					}{0, err, nil, fullURL}
+					continue
+				}
+
+				preview := make([]byte, 1024)
+				n, err := resp.BodyStream().Read(preview)
+				if err != nil && err != io.EOF {
+					// Create error context for body read errors
+					errorContext := GB403ErrorHandler.ErrorContext{
+						ErrorSource:  []byte("TestFasthttpStreamingConcurrent2.BodyRead"),
+						Host:         []byte(job.Scheme + "://" + job.Host),
+						BypassModule: []byte(job.BypassModule),
+						DebugToken:   []byte(job.PayloadToken),
+					}
+					errHandler.HandleError(err, errorContext)
+
+					results <- struct {
+						statusCode int
+						err        error
+						response   []byte
+						url        string
+					}{resp.StatusCode(), err, nil, fullURL}
+					continue
+				}
+
+				results <- struct {
+					statusCode int
+					err        error
+					response   []byte
+					url        string
+				}{resp.StatusCode(), nil, preview[:n], fullURL}
+			}
+		}()
+	}
+
+	go func() {
+		for _, job := range jobs {
+			jobsChan <- job
+		}
+		close(jobsChan)
+	}()
+
+	go func() {
+		wg.Wait()
+		close(results)
+	}()
+
+	statusCodes := make(map[int]int)
+	errors := make(map[string]int)
+	urlErrors := make(map[string][]string)
+
+	for result := range results {
+		if result.err != nil {
+			errors[result.err.Error()]++
+			urlErrors[result.url] = append(urlErrors[result.url], result.err.Error())
+			t.Logf("Error for URL %s: %v", result.url, result.err)
+			continue
+		}
+
+		statusCodes[result.statusCode]++
+		if len(result.response) > 0 {
+			t.Logf("URL: %s\nStatus: %d\nResponse preview (first 32 bytes): %x",
+				result.url,
+				result.statusCode,
+				result.response[:min(32, len(result.response))])
+		}
+	}
+
+	// Print summary
+	t.Logf("\nTotal jobs: %d", len(jobs))
+	t.Logf("Workers used: %d", workers)
+	t.Logf("\nStatus code distribution:")
+	for code, count := range statusCodes {
+		t.Logf("  %d: %d responses", code, count)
+	}
+
+	if len(errors) > 0 {
+		t.Logf("\nErrors distribution:")
+		for err, count := range errors {
+			t.Logf("  %s: %d occurrences", err, count)
+		}
+
+		t.Logf("\nURLs causing errors:")
+		for url, errs := range urlErrors {
+			t.Logf("  URL: %s", url)
+			for _, err := range errs {
+				t.Logf("    - %s", err)
+			}
+		}
+	}
+
+	// Print error handler stats at the end
+	errHandler.PrintErrorStats()
 }

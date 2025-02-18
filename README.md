@@ -57,7 +57,7 @@ Usage:
   -shf, -substitute-hosts-file
         File containing a list of hosts to substitute target URL's hostname (mostly used in CDN bypasses by providing a list of CDNs)
   -m, -module
-        Bypass module (all, mid_paths, end_paths, case_substitution, char_encode, http_headers_scheme, http_headers_ip, http_headers_port, http_headers_url, http_host) (Default: all)
+        Bypass module (all, mid_paths, end_paths, case_substitution, char_encode,unicode_path_normalization, http_headers_scheme, http_headers_ip, http_headers_port, http_headers_url, http_host) (Default: all)
   -o, -outdir
         Output directory
   -t, -threads
@@ -93,11 +93,13 @@ Usage:
   -disable-response-body-streaming
         Disables streaming of response body (default: False) (Default: false)
   -update-payloads
-        Update payload files to latest version
+        Update payload files to latest version (Default: false)
+  -dpg, -disable-progress-bar
+        Disable progress bar (Default: false)
   -resend, -resend-request
-        Resend the exact request using the debug token (-resend xyzdebugtoken)
+        Resend the exact request using the debug token (example: -resend xyzdebugtoken)
   -resend-count, -resend-request-count
-        Number of times to resend the debugged request (Default: 1)
+        Number of times to resend the debugged request (Default: 1) (Default: 1)
   -profile
         Enable pprof profiler (Default: false)
 ```

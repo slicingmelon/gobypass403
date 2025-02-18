@@ -4,6 +4,7 @@ import (
 	"net"
 	"testing"
 
+	"github.com/slicingmelon/go-bypass-403/internal/engine/payload"
 	"github.com/slicingmelon/go-bypass-403/internal/engine/rawhttp"
 	"github.com/valyala/fasthttp"
 	"github.com/valyala/fasthttp/fasthttputil"
@@ -44,7 +45,7 @@ func TestHTTPClient_Throttler(t *testing.T) {
 		req.Header.SetMethod(fasthttp.MethodGet)
 
 		// Execute the request
-		_, err := client.DoRequest(req, resp)
+		_, err := client.DoRequest(req, resp, payload.PayloadJob{})
 		if err != nil {
 			t.Logf("Request %d failed: %v", i+1, err)
 		}

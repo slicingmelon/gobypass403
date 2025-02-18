@@ -117,7 +117,7 @@ func TestRawHTTPClientBuildAndSendRequest(t *testing.T) {
 	t.Logf("Request headers:\n%s", req.Header.String())
 
 	// Send request using the in-memory listener
-	_, err = client.DoRequest(req, resp)
+	_, err = client.DoRequest(req, resp, payload.PayloadJob{})
 	assert.NoError(t, err, "Failed to send request")
 
 	// Verify response
@@ -167,7 +167,7 @@ func TestRawHTTPClientBuildAndSendRequestDirectLocalhost(t *testing.T) {
 	t.Logf("Request headers:\n%s", req.Header.String())
 
 	// Send request to the real server
-	_, err = client.DoRequest(req, resp)
+	_, err = client.DoRequest(req, resp, payload.PayloadJob{})
 	assert.NoError(t, err, "Failed to send request")
 
 	// Verify response

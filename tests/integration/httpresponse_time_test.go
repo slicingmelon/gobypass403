@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/slicingmelon/go-bypass-403/internal/engine/payload"
 	"github.com/slicingmelon/go-bypass-403/internal/engine/rawhttp"
 	"github.com/valyala/fasthttp"
 	"github.com/valyala/fasthttp/fasthttputil"
@@ -56,7 +57,7 @@ func TestClientResponseTimeSequential(t *testing.T) {
 	req.SetRequestURI("http://example.com/")
 
 	// Perform the request.
-	directResponseTime, err := client.DoRequest(req, resp)
+	directResponseTime, err := client.DoRequest(req, resp, payload.PayloadJob{})
 	if err != nil {
 		t.Fatalf("DoRequest error: %v", err)
 	}
@@ -134,7 +135,7 @@ func TestClientResponseTimeConcurrent(t *testing.T) {
 			req.SetRequestURI("http://example.com/")
 
 			// Get direct response time from DoRequest
-			directRT, err := client.DoRequest(req, resp)
+			directRT, err := client.DoRequest(req, resp, payload.PayloadJob{})
 			// Get response time via getter
 			getterRT := client.GetLastResponseTime()
 

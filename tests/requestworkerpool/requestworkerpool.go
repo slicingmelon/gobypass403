@@ -94,7 +94,7 @@ func (wp *RequestWorkerPool) processJob(job payload.PayloadJob) *RawHTTPResponse
 	}
 
 	// Send request
-	if _, err := wp.httpClient.DoRequest(req, resp); err != nil {
+	if _, err := wp.httpClient.DoRequest(req, resp, job); err != nil {
 		//fmt.Printf("Error sending request: %v\n", err)
 		if err := wp.errorHandler.HandleError(err, GB403ErrorHandler.ErrorContext{
 			ErrorSource:  []byte("RequestWorkerPool.SendRequest"),
@@ -145,7 +145,7 @@ func (wp *RequestWorkerPool) buildRequest(req *fasthttp.Request, job payload.Pay
 
 // SendRequest sends the HTTP request
 func (wp *RequestWorkerPool) SendRequest(req *fasthttp.Request, resp *fasthttp.Response, job payload.PayloadJob) (int64, error) {
-	return wp.httpClient.DoRequest(req, resp)
+	return wp.httpClient.DoRequest(req, resp, job)
 }
 
 // processResponse processes the HTTP response and extracts details

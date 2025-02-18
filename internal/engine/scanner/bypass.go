@@ -114,12 +114,6 @@ func NewBypassWorker(bypassmodule string, targetURL string, scannerOpts *Scanner
 	httpClientOpts.Timeout = time.Duration(scannerOpts.Timeout) * time.Millisecond
 	httpClientOpts.ResponseBodyPreviewSize = scannerOpts.ResponseBodyPreviewSize
 
-	// Ensure MaxConnsPerHost is at least equal to number of workers plus buffer
-	if scannerOpts.Threads > httpClientOpts.MaxConnsPerHost {
-		// Add 50% more connections than workers for buffer
-		httpClientOpts.MaxConnsPerHost = scannerOpts.Threads + (scannerOpts.Threads / 2)
-	}
-
 	// and proxy ofc
 	httpClientOpts.ProxyURL = scannerOpts.Proxy
 
@@ -219,10 +213,12 @@ func (s *Scanner) RunBypassModule(bypassModule string, targetURL string, results
 	worker := NewBypassWorker(bypassModule, targetURL, s.scannerOpts, len(allJobs))
 	defer worker.Stop()
 
-	// Initialize progress bar with initial state
-	progressBar := NewProgressBar(bypassModule, len(allJobs), s.scannerOpts.Threads)
-	progressBar.Start()
-	defer progressBar.Stop()
+	var progressBar *ProgressBar
+	if !s.scannerOpts.DisableProgressBar {
+		progressBar = NewProgressBar(bypassModule, len(allJobs), s.scannerOpts.Threads)
+		progressBar.Start()
+		defer progressBar.Stop()
+	}
 
 	responses := worker.requestPool.ProcessRequests(allJobs)
 
@@ -232,23 +228,19 @@ func (s *Scanner) RunBypassModule(bypassModule string, targetURL string, results
 			continue
 		}
 
-		// Ensure release happens even if processing panics
-		// defer func(resp *rawhttp.RawHTTPResponseDetails) {
-		// 	rawhttp.ReleaseResponseDetails(resp)
-		// }(response)
-
 		// Update progress bar to match pool state
-		progressBar.Increment()
-
-		progressBar.UpdateSpinnerText(
-			bypassModule,
-			s.scannerOpts.Threads,
-			worker.requestPool.GetReqWPActiveWorkers(),
-			worker.requestPool.GetReqWPCompletedTasks(),
-			worker.requestPool.GetReqWPSubmittedTasks(),
-			worker.requestPool.GetRequestRate(),
-			worker.requestPool.GetAverageRequestRate(),
-		)
+		if !s.scannerOpts.DisableProgressBar {
+			progressBar.Increment()
+			progressBar.UpdateSpinnerText(
+				bypassModule,
+				s.scannerOpts.Threads,
+				worker.requestPool.GetReqWPActiveWorkers(),
+				worker.requestPool.GetReqWPCompletedTasks(),
+				worker.requestPool.GetReqWPSubmittedTasks(),
+				worker.requestPool.GetRequestRate(),
+				worker.requestPool.GetAverageRequestRate(),
+			)
+		}
 
 		if matchStatusCodes(response.StatusCode, s.scannerOpts.MatchStatusCodes) {
 			buf := resultsBufferPool.Get().(*bytes.Buffer)
@@ -282,16 +274,18 @@ func (s *Scanner) RunBypassModule(bypassModule string, targetURL string, results
 	}
 
 	// Final success state
-	progressBar.SpinnerSuccess(
-		bypassModule,
-		s.scannerOpts.Threads,
-		0,
-		worker.requestPool.GetReqWPCompletedTasks(),
-		worker.requestPool.GetReqWPSubmittedTasks(),
-		worker.requestPool.GetRequestRate(),
-		worker.requestPool.GetAverageRequestRate(),
-		worker.requestPool.GetPeakRequestRate(),
-	)
+	if !s.scannerOpts.DisableProgressBar {
+		progressBar.SpinnerSuccess(
+			bypassModule,
+			s.scannerOpts.Threads,
+			0,
+			worker.requestPool.GetReqWPCompletedTasks(),
+			worker.requestPool.GetReqWPSubmittedTasks(),
+			worker.requestPool.GetRequestRate(),
+			worker.requestPool.GetAverageRequestRate(),
+			worker.requestPool.GetPeakRequestRate(),
+		)
+	}
 }
 
 func (s *Scanner) ResendRequestWithToken(debugToken string, resendCount int) ([]*Result, error) {

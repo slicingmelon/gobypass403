@@ -11,7 +11,6 @@ import (
 	"github.com/slicingmelon/go-bypass-403/internal/engine/payload"
 	GB403ErrorHandler "github.com/slicingmelon/go-bypass-403/internal/utils/error"
 	GB403Logger "github.com/slicingmelon/go-bypass-403/internal/utils/logger"
-	"github.com/tiendc/gofn"
 	"github.com/valyala/fasthttp"
 )
 
@@ -220,45 +219,42 @@ func (c *HTTPClient) execFunc(req *fasthttp.Request, resp *fasthttp.Response, jo
 		err := c.client.DoTimeout(reqCopy, resp, currentTimeout)
 		elapsed := time.Since(start)
 
-		//GB403Logger.Debug().Msgf("Attempt %d completed in %v with error: %v\n", attempt, elapsed, err)
-		//lastErr = err
-
-		if err == nil {
-			// Check if we should throttle based on the response status code
-			if c.throttler.IsThrottableRespCode(resp.StatusCode()) {
-				// Enable throttling for future requests
-				c.throttler.EnableThrottler()
+		if err != nil {
+			// Add error handling here
+			errorContext := GB403ErrorHandler.ErrorContext{
+				ErrorSource:  []byte("HTTPClient.execFunc"),
+				Host:         []byte(job.Scheme + "://" + job.Host),
+				BypassModule: []byte(job.BypassModule),
+				DebugToken:   []byte(job.PayloadToken),
 			}
-			return elapsed.Milliseconds(), nil
-		}
+			if handleErr := GB403ErrorHandler.GetErrorHandler().HandleError(err, errorContext); handleErr != nil {
+				return 0, fmt.Errorf("error handling failed: %v (original error: %v)", handleErr, err)
+			}
 
-		lastErr = err
+			lastErr = err
 
-		if !IsRetryableError(err) {
-			GB403Logger.Debug().Msgf("Non-retryable error: %v\n", err)
-			return elapsed.Milliseconds(), err
-		}
+			if !IsRetryableError(err) {
+				GB403Logger.Debug().Msgf("Non-retryable error: %v\n", err)
+				return elapsed.Milliseconds(), err
+			}
 
-		if attempt < maxRetries {
-			// Prepare req for next retry
-			// For retries, re-apply all settings again
-			reqCopy.Header.Del("Connection")
+			if attempt < maxRetries {
+				// Reset connection for retry
+				reqCopy.Header.Del("Connection")
+				reqCopy.Header.Set("Connection", "close")
+				c.retryConfig.PerReqRetriedAttempts.Add(1)
+				resp.Reset()
+				continue
+			}
 
-			reqCopy.URI().DisablePathNormalizing = true
-			reqCopy.Header.DisableNormalizing()
-			reqCopy.Header.SetNoDefaultContentType(true)
-			reqCopy.UseHostHeader = true
-			reqCopy.URI().SetScheme(string(req.URI().Scheme()))
-			reqCopy.URI().SetHost(string(req.URI().Host()))
-			c.retryConfig.PerReqRetriedAttempts.Add(1)
-			resp.Reset()
-		}
-
-		// Signal max retries reached
-		if attempt == maxRetries {
 			return 0, fmt.Errorf("%w: %v", ErrReqFailedMaxRetries, lastErr)
 		}
 
+		// Success case
+		if c.throttler.IsThrottableRespCode(resp.StatusCode()) {
+			c.throttler.EnableThrottler()
+		}
+		return elapsed.Milliseconds(), nil
 	}
 
 	return 0, lastErr
@@ -267,8 +263,6 @@ func (c *HTTPClient) execFunc(req *fasthttp.Request, resp *fasthttp.Response, jo
 // DoRequest performs a HTTP request (raw)
 // Returns the HTTP response time (in ms) and error
 func (c *HTTPClient) DoRequest(req *fasthttp.Request, resp *fasthttp.Response, job payload.PayloadJob) (int64, error) {
-	errHandler := GB403ErrorHandler.GetErrorHandler()
-
 	// Execute request with retry handling
 	respTime, err := c.execFunc(req, resp, job)
 
@@ -278,20 +272,6 @@ func (c *HTTPClient) DoRequest(req *fasthttp.Request, resp *fasthttp.Response, j
 			if newCount >= int32(c.options.MaxConsecutiveFailedReqs) {
 				return respTime, ErrReqFailedMaxConsecutiveFails
 			}
-		}
-
-		// Create error context with fallback values
-		errorContext := GB403ErrorHandler.ErrorContext{
-			ErrorSource:  []byte("HTTPClient.DoRequest"),
-			Host:         []byte(gofn.FirstNonEmpty(job.Host, string(req.Host()))),
-			BypassModule: []byte(gofn.FirstNonEmpty(job.BypassModule, c.options.BypassModule)),
-			DebugToken:   []byte(job.PayloadToken), // Optional, empty if not provided
-		}
-
-		handleErr := errHandler.HandleError(err, errorContext)
-		if handleErr != nil {
-			return respTime, fmt.Errorf("request failed after %d retries and error handling failed: %w (handler error: %v)",
-				c.retryConfig.GetPerReqRetriedAttempts(), err, handleErr)
 		}
 
 		return respTime, fmt.Errorf("request failed after %d retries: %w",

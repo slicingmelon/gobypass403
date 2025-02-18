@@ -2,6 +2,7 @@ package rawhttp
 
 import (
 	"context"
+	"fmt"
 	"runtime"
 	"sync/atomic"
 	"time"
@@ -28,6 +29,11 @@ type RequestWorkerPool struct {
 // NewWorkerPool initializes a new RequestWorkerPool instance
 func NewRequestWorkerPool(opts *HTTPClientOptions, maxWorkers int) *RequestWorkerPool {
 	ctx, cancel := context.WithCancel(context.Background())
+
+	if maxWorkers > opts.MaxConnsPerHost {
+		// Add 50% more connections than workers for buffer
+		opts.MaxConnsPerHost = maxWorkers + (maxWorkers / 2)
+	}
 
 	wp := &RequestWorkerPool{
 		httpClient: NewHTTPClient(opts),
@@ -167,14 +173,7 @@ func (wp *RequestWorkerPool) ProcessRequestResponseJob(job payload.PayloadJob) *
 
 	if err := BuildRawHTTPRequest(wp.httpClient, req, job); err != nil {
 		wp.httpClient.ReleaseResponse(resp) // Release on error
-		handleErr := GB403ErrorHandler.GetErrorHandler().HandleError(err, GB403ErrorHandler.ErrorContext{
-			ErrorSource:  []byte("RequestWorkerPool.BuildRawRequestTask"),
-			Host:         []byte(job.Host),
-			BypassModule: []byte(job.BypassModule),
-		})
-		if handleErr != nil {
-			return nil
-		}
+		return nil
 	}
 
 	respTime, err := wp.httpClient.DoRequest(req, resp, job)
@@ -205,7 +204,19 @@ func (wp *RequestWorkerPool) ProcessRequestResponseJob(job payload.PayloadJob) *
 
 // buildRequest constructs the HTTP request
 func (wp *RequestWorkerPool) BuildRawRequestTask(req *fasthttp.Request, job payload.PayloadJob) error {
-	return BuildRawHTTPRequest(wp.httpClient, req, job)
+	if err := BuildRawHTTPRequest(wp.httpClient, req, job); err != nil {
+		errorContext := GB403ErrorHandler.ErrorContext{
+			ErrorSource:  []byte("BuildRawRequestTask"),
+			Host:         []byte(job.Host),
+			BypassModule: []byte(job.BypassModule),
+			DebugToken:   []byte(job.PayloadToken),
+		}
+		if handleErr := GB403ErrorHandler.GetErrorHandler().HandleError(err, errorContext); handleErr != nil {
+			return fmt.Errorf("failed to handle error in BuildRawRequestTask: %v (original error: %v)", handleErr, err)
+		}
+		return err
+	}
+	return nil
 }
 
 // SendRequest sends the HTTP request
