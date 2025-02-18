@@ -30,7 +30,7 @@ type SeedData struct {
 // This function will generate a debug token that will act as a fingerprint of the request
 // Running in debug mode, a header will be added to each request to debug the requests better
 // At any time, a token can be decoded and retrieve back the payload info/URL that was sent
-func GenerateDebugToken(data SeedData) string {
+func GeneratePayloadToken(data SeedData) string {
 	bb := &bytesutil.ByteBuffer{}
 	bb.B = append(bb.B, 1) // version
 
@@ -104,8 +104,9 @@ func GenerateDebugToken(data SeedData) string {
 	return base64.RawURLEncoding.EncodeToString(compressed)
 }
 
+// DecodePayloadToken
 // Use this function to decode a debug token and retrieve back the payload info/URL that was sent
-func DecodeDebugToken(seed string) (SeedData, error) {
+func DecodePayloadToken(seed string) (SeedData, error) {
 	var data SeedData
 	compressed, err := base64.RawURLEncoding.DecodeString(seed)
 	if err != nil {

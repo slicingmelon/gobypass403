@@ -288,15 +288,17 @@ func (s *Scanner) RunBypassModule(bypassModule string, targetURL string, results
 	}
 }
 
-func (s *Scanner) ResendRequestWithToken(debugToken string, resendCount int) ([]*Result, error) {
+// ResendRequestFromToken
+// Resend a request from a payload token (debug token)
+func (s *Scanner) ResendRequestFromToken(debugToken string, resendCount int) ([]*Result, error) {
 	// Parse URL from token
-	tokenData, err := payload.DecodeDebugToken(debugToken)
+	tokenData, err := payload.DecodePayloadToken(debugToken)
 	if err != nil {
 		return nil, fmt.Errorf("failed to decode debug token: %w", err)
 	}
 
 	// Create base job
-	job := payload.BypassPayload{
+	bypassPayload := payload.BypassPayload{
 		OriginalURL:  tokenData.OriginalURL, // kept for compatibility
 		Method:       tokenData.Method,
 		Scheme:       tokenData.Scheme,
@@ -307,16 +309,18 @@ func (s *Scanner) ResendRequestWithToken(debugToken string, resendCount int) ([]
 	}
 
 	// Construct display URL for logging/display purposes only
-	displayURL := fmt.Sprintf("%s://%s%s", tokenData.Scheme, tokenData.Host, tokenData.RawURI)
+	//displayURL := fmt.Sprintf("%s://%s%s", tokenData.Scheme, tokenData.Host, tokenData.RawURI)
+	displayURL := payload.BypassPayloadToFullURL(bypassPayload)
 
+	// Create a new worker for the bypass module
 	worker := NewBypassWorker("debugRequest", displayURL, s.scannerOpts, resendCount)
 	defer worker.Stop()
 
 	// Create jobs array with pre-allocated capacity
 	jobs := make([]payload.BypassPayload, 0, resendCount)
 	for i := 0; i < resendCount; i++ {
-		jobCopy := job // Create a copy to avoid sharing the same job reference
-		jobCopy.PayloadToken = payload.GenerateDebugToken(payload.SeedData{
+		jobCopy := bypassPayload // Create a copy to avoid sharing the same job reference
+		jobCopy.PayloadToken = payload.GeneratePayloadToken(payload.SeedData{
 			Method:  tokenData.Method,
 			Scheme:  tokenData.Scheme,
 			Host:    tokenData.Host,

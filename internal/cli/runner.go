@@ -106,14 +106,18 @@ func (r *Runner) handleResendRequest() error {
 	errHandler := GB403ErrorHandler.GetErrorHandler()
 
 	// Decode the token
-	tokenData, err := payload.DecodeDebugToken(r.RunnerOptions.ResendRequest)
+	tokenData, err := payload.DecodePayloadToken(r.RunnerOptions.ResendRequest)
 	if err != nil {
 		return fmt.Errorf("failed to decode debug token: %w", err)
 	}
 
 	// Construct display URL for logging purposes
-	targetURL := fmt.Sprintf("%s://%s%s", tokenData.Scheme, tokenData.Host, tokenData.RawURI)
-	GB403Logger.Info().Msgf("Resending request %d times to: %s\n", r.RunnerOptions.ResendCount, targetURL)
+	targetURL := payload.BypassPayloadToFullURL(payload.BypassPayload{
+		Scheme:  tokenData.Scheme,
+		Host:    tokenData.Host,
+		Headers: tokenData.Headers,
+	})
+	GB403Logger.Info().Msgf("Resending request %d times to: %s\n", r.RunnerOptions.ResendNum, targetURL)
 
 	outputFile := filepath.Join(r.RunnerOptions.OutDir, "findings.json")
 
@@ -139,7 +143,7 @@ func (r *Runner) handleResendRequest() error {
 	defer s.Close()
 
 	// Process the resend request
-	findings, err := s.ResendRequestWithToken(r.RunnerOptions.ResendRequest, r.RunnerOptions.ResendCount)
+	findings, err := s.ResendRequestFromToken(r.RunnerOptions.ResendRequest, r.RunnerOptions.ResendNum)
 	if err != nil {
 		return fmt.Errorf("failed to process resend request: %w", err)
 	}

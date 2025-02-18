@@ -150,10 +150,10 @@ func TestPayloadSeedRoundTrip(t *testing.T) {
 	}
 
 	// Generate seed
-	seed := payload.GenerateDebugToken(original)
+	seed := payload.GeneratePayloadToken(original)
 	t.Logf("Generated seed: %s", seed)
 	// Recover data
-	recovered, err := payload.DecodeDebugToken(seed)
+	recovered, err := payload.DecodePayloadToken(seed)
 
 	if err != nil {
 		t.Fatalf("Failed to recover seed: %v", err)

@@ -540,11 +540,11 @@ func (c *HTTPClient) ReleaseResponse(resp *fasthttp.Response) {
 	fasthttp.ReleaseResponse(resp)
 }
 
-func applyReqCopyConfig(reqCopy *fasthttp.Request) {
-	reqCopy.URI().DisablePathNormalizing = true
-	reqCopy.Header.DisableNormalizing()
-	reqCopy.Header.SetNoDefaultContentType(true)
-	reqCopy.UseHostHeader = true
+func applyReqFlags(req *fasthttp.Request) {
+	req.URI().DisablePathNormalizing = true
+	req.Header.DisableNormalizing()
+	req.Header.SetNoDefaultContentType(true)
+	req.UseHostHeader = true
 }
 
 func ReqCopyToWithSettings(src *fasthttp.Request, dst *fasthttp.Request) *fasthttp.Request {
@@ -556,10 +556,7 @@ func ReqCopyToWithSettings(src *fasthttp.Request, dst *fasthttp.Request) *fastht
 		string(dst.URI().Scheme()), string(dst.URI().Host()))
 
 	// Apply all required settings
-	dst.URI().DisablePathNormalizing = true
-	dst.Header.DisableNormalizing()
-	dst.Header.SetNoDefaultContentType(true)
-	dst.UseHostHeader = true
+	applyReqFlags(dst)
 
 	// Get original values
 	originalScheme := string(src.URI().Scheme())

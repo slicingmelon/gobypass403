@@ -353,8 +353,8 @@ func TestPayloadSeedSimple(t *testing.T) {
 		Scheme: "https",
 		Host:   "example.com",
 	}
-	seed1 := payload.GenerateDebugToken(urlOnly)
-	recovered1, err := payload.DecodeDebugToken(seed1)
+	seed1 := payload.GeneratePayloadToken(urlOnly)
+	recovered1, err := payload.DecodePayloadToken(seed1)
 	if err != nil {
 
 		t.Fatalf("Failed to recover URL-only seed: %v", err)
@@ -369,8 +369,8 @@ func TestPayloadSeedSimple(t *testing.T) {
 		}},
 	}
 
-	seed2 := payload.GenerateDebugToken(headerOnly)
-	recovered2, err := payload.DecodeDebugToken(seed2)
+	seed2 := payload.GeneratePayloadToken(headerOnly)
+	recovered2, err := payload.DecodePayloadToken(seed2)
 	if err != nil {
 		t.Fatalf("Failed to recover header-only seed: %v", err)
 	}
