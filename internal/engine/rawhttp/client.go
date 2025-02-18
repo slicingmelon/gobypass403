@@ -8,6 +8,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/VictoriaMetrics/VictoriaMetrics/lib/bytesutil"
 	"github.com/slicingmelon/go-bypass-403/internal/engine/payload"
 	GB403ErrorHandler "github.com/slicingmelon/go-bypass-403/internal/utils/error"
 	GB403Logger "github.com/slicingmelon/go-bypass-403/internal/utils/logger"
@@ -157,180 +158,8 @@ func (c *HTTPClient) SetHTTPClientOptions(opts *HTTPClientOptions) {
 	c.options = &newOpts
 }
 
-// func (c *HTTPClient) execFunc(req *fasthttp.Request, resp *fasthttp.Response, job payload.PayloadJob) (int64, error) {
-// 	c.retryConfig.ResetPerReqAttempts()
-
-// 	// Initial request copy
-// 	GB403Logger.Debug().Msgf("Original request - scheme=%s host=%s",
-// 		string(req.URI().Scheme()), string(req.URI().Host()))
-
-// 	// Initial request copy
-// 	reqCopy := fasthttp.AcquireRequest()
-// 	defer fasthttp.ReleaseRequest(reqCopy)
-// 	ReqCopyToWithSettings(req, reqCopy)
-
-// 	GB403Logger.Debug().Msgf("After copy - scheme=%s host=%s path=%s",
-// 		string(reqCopy.URI().Scheme()), string(reqCopy.URI().Host()), string(reqCopy.URI().Path()))
-
-// 	// Capture original timeout and retry delay from the global options and retry config.
-// 	origOpts := c.GetHTTPClientOptions()
-// 	baseTimeout := origOpts.Timeout
-// 	retryDelay := c.retryConfig.RetryDelay
-// 	maxRetries := c.retryConfig.MaxRetries
-
-// 	var lastErr error
-// 	for attempt := 0; attempt <= maxRetries; attempt++ {
-// 		// Apply the request delay to all requests (from cli opts)
-// 		if origOpts.RequestDelay > 0 {
-// 			time.Sleep(origOpts.RequestDelay)
-// 		}
-
-// 		// Apply throttler delay if active (only on first attempt)
-// 		if attempt == 0 && c.throttler.IsThrottlerActive() {
-// 			c.throttler.ThrottleRequest()
-// 		}
-
-// 		// Calculate timeout for this attempt
-// 		currentTimeout := baseTimeout
-// 		if attempt > 0 {
-// 			// For retry attempts:
-// 			// 1. Sleep for retry delay
-// 			//GB403Logger.Debug().Msgf("Sleeping for retry delay: %v\n", retryDelay)
-// 			time.Sleep(retryDelay)
-
-// 			// 2. Increase timeout based on attempt number
-// 			currentTimeout = baseTimeout + time.Duration(attempt)*retryDelay
-
-// 			// 3. Disable keep-alive for retries
-// 			//reqCopy.Header.Del("Connection")
-// 			reqCopy.Header.Set("Connection", "close")
-// 		}
-
-// 		// For retries, re-apply all settings again
-// 		//eqCopy.SetConnectionClose()
-// 		reqCopy.URI().DisablePathNormalizing = true
-// 		reqCopy.Header.DisableNormalizing()
-// 		reqCopy.Header.SetNoDefaultContentType(true)
-// 		reqCopy.UseHostHeader = true
-// 		reqCopy.URI().SetScheme(string(req.URI().Scheme()))
-// 		reqCopy.URI().SetHost(string(req.URI().Host()))
-
-// 		GB403Logger.Debug().Msgf("Attempt %d: timeout=%v (base=%v)\n", attempt, currentTimeout, baseTimeout)
-
-// 		start := time.Now()
-// 		err := c.client.DoTimeout(reqCopy, resp, currentTimeout)
-// 		elapsed := time.Since(start)
-
-// 		//GB403Logger.Debug().Msgf("Attempt %d completed in %v with error: %v\n", attempt, elapsed, err)
-// 		//lastErr = err
-
-// 		if err != nil {
-// 			host := fmt.Sprintf("%s://%s", reqCopy.URI().Scheme(), reqCopy.URI().Host())
-// 			errCtx := GB403ErrorHandler.ErrorContext{
-// 				ErrorSource:  []byte("execFunc"),
-// 				Host:         []byte(host),
-// 				BypassModule: []byte(job.BypassModule),
-// 				DebugToken:   []byte(job.PayloadToken),
-// 			}
-
-// 			if handledErr := GB403ErrorHandler.GetErrorHandler().HandleError(err, errCtx); handledErr == nil {
-// 				// Error was whitelisted, treat as success
-// 				return elapsed.Milliseconds(), nil
-// 			}
-// 			lastErr = err
-// 		}
-
-// 		if err == nil {
-// 			// Check if we should throttle based on the response status code
-// 			if c.throttler.IsThrottableRespCode(resp.StatusCode()) {
-// 				// Enable throttling for future requests
-// 				c.throttler.EnableThrottler()
-// 			}
-// 			return elapsed.Milliseconds(), nil
-// 		}
-
-// 		lastErr = err
-
-// 		retryDecision := IsRetryableError(err)
-// 		GB403Logger.Debug().Msgf("Retry decision for attempt %d: shouldRetry=%v, action=%v",
-// 			attempt, retryDecision.ShouldRetry, retryDecision.Action)
-
-// 		if !retryDecision.ShouldRetry {
-// 			GB403Logger.Debug().Msgf("Error not retryable, stopping at attempt %d", attempt)
-// 			fasthttp.ReleaseRequest(reqCopy)
-// 			return elapsed.Milliseconds(), err
-// 		}
-
-// 		if attempt < maxRetries {
-// 			switch retryDecision.Action {
-// 			case RetryWithConnectionClose:
-// 				// Delete existing connection header and set Connection: close
-// 				reqCopy.Header.Del("Connection")
-// 				reqCopy.Header.Set("Connection", "close")
-
-// 			case RetryWithoutResponseStreaming:
-// 				// Create new client with streaming disabled for this attempt
-// 				noStreamOpts := c.GetHTTPClientOptions()
-// 				noStreamOpts.StreamResponseBody = false
-// 				tempClient := NewHTTPClient(noStreamOpts)
-// 				defer tempClient.Close()
-
-// 				reqCopy.URI().DisablePathNormalizing = true
-// 				reqCopy.Header.DisableNormalizing()
-// 				reqCopy.Header.SetNoDefaultContentType(true)
-// 				reqCopy.UseHostHeader = true
-// 				reqCopy.URI().SetScheme(string(req.URI().Scheme()))
-// 				reqCopy.URI().SetHost(string(req.URI().Host()))
-// 				reqCopy.Header.SetHost(string(req.URI().Host()))
-
-// 				err = tempClient.client.DoTimeout(reqCopy, resp, currentTimeout)
-// 				if err != nil {
-// 					_host := fmt.Sprintf("%s://%s", reqCopy.URI().Scheme(), reqCopy.URI().Host())
-// 					errCtx := GB403ErrorHandler.ErrorContext{
-// 						ErrorSource:  []byte("RetryWithoutResponseStreaming"),
-// 						Host:         []byte(_host),
-// 						BypassModule: []byte(job.BypassModule),
-// 						DebugToken:   []byte(job.PayloadToken),
-// 					}
-
-// 					if handledErr := GB403ErrorHandler.GetErrorHandler().HandleError(err, errCtx); handledErr == nil {
-// 						// Error was whitelisted, treat as success
-// 						return elapsed.Milliseconds(), nil
-// 					}
-
-// 					lastErr = err
-// 					c.retryConfig.PerReqRetriedAttempts.Add(1)
-// 					resp.Reset()
-// 					continue
-// 				}
-
-// 				// Success case - resp is already populated by DoTimeout
-// 				if c.throttler.IsThrottableRespCode(resp.StatusCode()) {
-// 					c.throttler.EnableThrottler()
-// 				}
-// 				return elapsed.Milliseconds(), nil
-// 			}
-
-// 			// Common retry preparation (moved outside switch)
-// 			c.retryConfig.PerReqRetriedAttempts.Add(1)
-// 			resp.Reset()
-// 		}
-
-// 		// Signal max retries reached -- important!
-// 		if attempt == maxRetries {
-// 			return 0, ErrReqFailedMaxRetries
-// 		}
-// 	}
-
-// 	return 0, lastErr
-// }
-
 func (c *HTTPClient) execFunc(req *fasthttp.Request, resp *fasthttp.Response, bypassPayload payload.BypassPayload) (int64, error) {
 	c.retryConfig.ResetPerReqAttempts()
-
-	// Initial request copy
-	GB403Logger.Debug().Msgf("Original request - scheme=%s host=%s",
-		string(req.URI().Scheme()), string(req.URI().Host()))
 
 	// Initial request copy
 	reqCopy := fasthttp.AcquireRequest()
@@ -363,10 +192,10 @@ func (c *HTTPClient) execFunc(req *fasthttp.Request, resp *fasthttp.Response, by
 		if attempt > 0 {
 			time.Sleep(retryDelay)
 			currentTimeout = baseTimeout + time.Duration(attempt)*retryDelay
-			reqCopy.Header.Set("Connection", "close")
+			reqCopy.SetConnectionClose()
 		}
 
-		GB403Logger.Debug().Msgf("Attempt %d: timeout=%v (base=%v)\n", attempt, currentTimeout, baseTimeout)
+		//GB403Logger.Debug().Msgf("Attempt %d: timeout=%v (base=%v)\n", attempt, currentTimeout, baseTimeout)
 
 		start := time.Now()
 		err := c.client.DoTimeout(reqCopy, resp, currentTimeout)
@@ -374,10 +203,10 @@ func (c *HTTPClient) execFunc(req *fasthttp.Request, resp *fasthttp.Response, by
 
 		if err != nil {
 			errCtx := GB403ErrorHandler.ErrorContext{
-				ErrorSource:  []byte("execFunc"),
-				Host:         []byte(payload.BypassPayloadToBaseURL(bypassPayload)),
-				BypassModule: []byte(bypassPayload.BypassModule),
-				DebugToken:   []byte(bypassPayload.PayloadToken),
+				ErrorSource:  bytesutil.ToUnsafeBytes("execFunc"),
+				Host:         bytesutil.ToUnsafeBytes(payload.BypassPayloadToBaseURL(bypassPayload)),
+				BypassModule: bytesutil.ToUnsafeBytes(bypassPayload.BypassModule),
+				DebugToken:   bytesutil.ToUnsafeBytes(bypassPayload.PayloadToken),
 			}
 
 			if handledErr := GB403ErrorHandler.GetErrorHandler().HandleError(err, errCtx); handledErr == nil {
@@ -394,8 +223,8 @@ func (c *HTTPClient) execFunc(req *fasthttp.Request, resp *fasthttp.Response, by
 		}
 
 		retryDecision := IsRetryableError(err)
-		GB403Logger.Debug().Msgf("Retry decision for attempt %d: shouldRetry=%v, action=%v",
-			attempt, retryDecision.ShouldRetry, retryDecision.Action)
+		//GB403Logger.Debug().Msgf("Retry decision for attempt %d: shouldRetry=%v, action=%v",
+		//	attempt, retryDecision.ShouldRetry, retryDecision.Action)
 
 		if !retryDecision.ShouldRetry {
 			return elapsed.Milliseconds(), err
@@ -405,7 +234,7 @@ func (c *HTTPClient) execFunc(req *fasthttp.Request, resp *fasthttp.Response, by
 			switch retryDecision.Action {
 			case RetryWithConnectionClose:
 				reqCopy.Header.Del("Connection")
-				reqCopy.Header.Set("Connection", "close")
+				reqCopy.SetConnectionClose()
 
 			case RetryWithoutResponseStreaming:
 				noStreamOpts := c.GetHTTPClientOptions()
@@ -416,15 +245,15 @@ func (c *HTTPClient) execFunc(req *fasthttp.Request, resp *fasthttp.Response, by
 				// Use ReqCopyToWithSettings for temp client request too
 				reqCopy.Reset()
 				ReqCopyToWithSettings(req, reqCopy)
-				reqCopy.Header.Set("Connection", "close")
+				reqCopy.SetConnectionClose()
 
 				err = tempClient.client.DoTimeout(reqCopy, resp, currentTimeout)
 				if err != nil {
 					errCtx := GB403ErrorHandler.ErrorContext{
-						ErrorSource:  []byte("RetryWithoutResponseStreaming"),
-						Host:         []byte(payload.BypassPayloadToBaseURL(bypassPayload)),
-						BypassModule: []byte(bypassPayload.BypassModule),
-						DebugToken:   []byte(bypassPayload.PayloadToken),
+						ErrorSource:  bytesutil.ToUnsafeBytes("RetryWithoutResponseStreaming"),
+						Host:         bytesutil.ToUnsafeBytes(payload.BypassPayloadToBaseURL(bypassPayload)),
+						BypassModule: bytesutil.ToUnsafeBytes(bypassPayload.BypassModule),
+						DebugToken:   bytesutil.ToUnsafeBytes(bypassPayload.PayloadToken),
 					}
 
 					if handledErr := GB403ErrorHandler.GetErrorHandler().HandleError(err, errCtx); handledErr == nil {
@@ -553,35 +382,36 @@ func ReqCopyToWithSettings(src *fasthttp.Request, dst *fasthttp.Request) *fastht
 	src.CopyTo(dst)
 
 	// Log initial state after copy
-	GB403Logger.Debug().Msgf("After CopyTo - scheme=%s host=%s",
-		string(dst.URI().Scheme()), string(dst.URI().Host()))
+	//GB403Logger.Debug().Msgf("After CopyTo - scheme=%s host=%s",
+	//	src.URI().Scheme(), src.URI().Host()) // Use bytes directly in logging
 
 	// Apply all required settings
 	applyReqFlags(dst)
 
-	// Get original values
-	originalScheme := string(src.URI().Scheme())
-	originalHost := string(src.URI().Host())
+	// Store original values as []byte
+	originalScheme := src.URI().Scheme() // Returns []byte
+	originalHost := src.URI().Host()     // Returns []byte
 
-	GB403Logger.Debug().Msgf("Original values - scheme=%s host=%s",
-		originalScheme, originalHost)
+	//GB403Logger.Debug().Msgf("Original values - scheme=%s host=%s",
+	//	originalScheme, originalHost) // Use bytes directly in logging
 
-	// Ensure raw path preservation
-	dst.URI().SetScheme(originalScheme)
-	dst.URI().SetHost(originalHost)
+	// Use byte variants to avoid allocations
+	dst.URI().SetSchemeBytes(originalScheme)
+	dst.URI().SetHostBytes(originalHost)
 
 	// Check if Host header exists using case-insensitive lookup
-	if len(PeekRequestHeaderKeyCaseInsensitive(dst, []byte("Host"))) == 0 {
-		GB403Logger.Debug().Msgf("No Host header found, setting from URI.Host: %s", originalHost)
-		dst.Header.SetHost(originalHost)
+	hostKey := []byte("Host")
+	if len(PeekRequestHeaderKeyCaseInsensitive(dst, hostKey)) == 0 {
+		//GB403Logger.Debug().Msgf("No Host header found, setting from URI.Host: %s", originalHost)
+		dst.Header.SetHostBytes(originalHost)
 	} else {
-		GB403Logger.Debug().Msgf("Existing Host header: %s",
-			string(PeekRequestHeaderKeyCaseInsensitive(dst, []byte("Host"))))
+		//GB403Logger.Debug().Msgf("Existing Host header: %s",
+		//	PeekRequestHeaderKeyCaseInsensitive(dst, hostKey))
 	}
 
 	GB403Logger.Debug().Msgf("After SetScheme/SetHost - scheme=%s host=%s header_host=%s",
-		string(dst.URI().Scheme()), string(dst.URI().Host()),
-		string(PeekRequestHeaderKeyCaseInsensitive(dst, []byte("Host"))))
+		dst.URI().Scheme(), dst.URI().Host(),
+		PeekRequestHeaderKeyCaseInsensitive(dst, hostKey))
 
 	return dst
 }

@@ -55,13 +55,13 @@ type ErrorContext struct {
 
 // ErrorStats tracks statistics for each error type
 type ErrorStats struct {
-	count         atomic.Int64
-	firstSeen     time.Time
-	lastSeen      atomic.Pointer[time.Time]
-	errorSources  sync.Map
-	bypassModules sync.Map
-	debugTokens   []string
-	tokensMutex   sync.RWMutex
+	Count         atomic.Int64
+	FirstSeen     time.Time                 // Exported
+	LastSeen      atomic.Pointer[time.Time] // Exported
+	ErrorSources  sync.Map                  // Exported
+	BypassModules sync.Map                  // Exported
+	DebugTokens   []string                  // Exported
+	tokensMutex   sync.RWMutex              // Can stay unexported
 }
 
 type ErrorHandler struct {
@@ -91,12 +91,12 @@ func NewErrorHandler(cacheSizeMB int) *ErrorHandler {
 			New: func() interface{} {
 				now := time.Now()
 				stats := &ErrorStats{
-					firstSeen:   now,
-					debugTokens: make([]string, 0),
+					FirstSeen:   now,
+					DebugTokens: make([]string, 0),
 				}
 				// Initialize atomic pointer
 				nowCopy := now
-				stats.lastSeen.Store(&nowCopy)
+				stats.LastSeen.Store(&nowCopy)
 				return stats
 			},
 		},
@@ -193,25 +193,25 @@ func (s *ErrorStats) MarshalJSON() ([]byte, error) {
 
 	// Convert sync.Maps to regular maps
 	errorSources := make(map[string]int64)
-	s.errorSources.Range(func(key, value interface{}) bool {
+	s.ErrorSources.Range(func(key, value interface{}) bool {
 		errorSources[key.(string)] = value.(int64)
 		return true
 	})
 
 	bypassModules := make(map[string]int64)
-	s.bypassModules.Range(func(key, value interface{}) bool {
+	s.BypassModules.Range(func(key, value interface{}) bool {
 		bypassModules[key.(string)] = value.(int64)
 		return true
 	})
 
 	// Create serializable struct
 	serializable := SerializableStats{
-		Count:         s.count.Load(),
-		FirstSeen:     s.firstSeen,
-		LastSeen:      *s.lastSeen.Load(),
+		Count:         s.Count.Load(),
+		FirstSeen:     s.FirstSeen,
+		LastSeen:      *s.LastSeen.Load(),
 		ErrorSources:  errorSources,
 		BypassModules: bypassModules,
-		DebugTokens:   s.debugTokens,
+		DebugTokens:   s.DebugTokens,
 	}
 
 	return json.Marshal(serializable)
@@ -232,22 +232,22 @@ func (s *ErrorStats) UnmarshalJSON(data []byte) error {
 		return err
 	}
 
-	s.count.Store(temp.Count)
-	s.firstSeen = temp.FirstSeen
+	s.Count.Store(temp.Count)
+	s.FirstSeen = temp.FirstSeen
 	lastSeen := temp.LastSeen
-	s.lastSeen.Store(&lastSeen)
+	s.LastSeen.Store(&lastSeen)
 
-	s.errorSources = sync.Map{}
+	s.ErrorSources = sync.Map{}
 	for k, v := range temp.ErrorSources {
-		s.errorSources.Store(k, v)
+		s.ErrorSources.Store(k, v)
 	}
 
-	s.bypassModules = sync.Map{}
+	s.BypassModules = sync.Map{}
 	for k, v := range temp.BypassModules {
-		s.bypassModules.Store(k, v)
+		s.BypassModules.Store(k, v)
 	}
 
-	s.debugTokens = temp.DebugTokens
+	s.DebugTokens = temp.DebugTokens
 
 	return nil
 }
@@ -274,43 +274,43 @@ func (e *ErrorHandler) HandleError(err error, ctx ErrorContext) error {
 	} else {
 		errorStats = e.statsPool.Get().(*ErrorStats)
 		now := time.Now()
-		errorStats.firstSeen = now
+		errorStats.FirstSeen = now
 		nowCopy := now
-		errorStats.lastSeen.Store(&nowCopy)
-		errorStats.count.Store(1)
+		errorStats.LastSeen.Store(&nowCopy)
+		errorStats.Count.Store(1)
 
-		errorStats.errorSources = sync.Map{}
-		errorStats.bypassModules = sync.Map{}
-		errorStats.debugTokens = make([]string, 0)
+		errorStats.ErrorSources = sync.Map{}
+		errorStats.BypassModules = sync.Map{}
+		errorStats.DebugTokens = make([]string, 0)
 	}
 
-	errorStats.count.Add(1)
+	errorStats.Count.Add(1)
 
 	if src := string(ctx.ErrorSource); src != "" {
-		if val, ok := errorStats.errorSources.Load(src); ok {
+		if val, ok := errorStats.ErrorSources.Load(src); ok {
 			count := val.(int64)
-			errorStats.errorSources.Store(src, count+1)
+			errorStats.ErrorSources.Store(src, count+1)
 		} else {
-			errorStats.errorSources.Store(src, int64(1))
+			errorStats.ErrorSources.Store(src, int64(1))
 		}
 	}
 
 	if mod := string(ctx.BypassModule); mod != "" {
-		if val, ok := errorStats.bypassModules.Load(mod); ok {
+		if val, ok := errorStats.BypassModules.Load(mod); ok {
 			count := val.(int64)
-			errorStats.bypassModules.Store(mod, count+1)
+			errorStats.BypassModules.Store(mod, count+1)
 		} else {
-			errorStats.bypassModules.Store(mod, int64(1))
+			errorStats.BypassModules.Store(mod, int64(1))
 		}
 	}
 
 	nowUpdate := time.Now()
-	errorStats.lastSeen.Store(&nowUpdate)
+	errorStats.LastSeen.Store(&nowUpdate)
 
 	// Add debug token if present
 	if len(ctx.DebugToken) > 0 {
 		errorStats.tokensMutex.Lock()
-		errorStats.debugTokens = append(errorStats.debugTokens, string(ctx.DebugToken))
+		errorStats.DebugTokens = append(errorStats.DebugTokens, string(ctx.DebugToken))
 		errorStats.tokensMutex.Unlock()
 	}
 
@@ -358,14 +358,14 @@ func (e *ErrorHandler) PrintErrorStats() {
 						}
 
 						fmt.Fprintf(&buf, "  Error: %s\n", errMsg) // Indented error under host
-						fmt.Fprintf(&buf, "  Count: %d occurrences\n", errorStats.count.Load())
-						fmt.Fprintf(&buf, "  First Seen: %s\n", errorStats.firstSeen.Format("15:04:05 02 Jan 2006"))
-						if lastSeen := errorStats.lastSeen.Load(); lastSeen != nil {
+						fmt.Fprintf(&buf, "  Count: %d occurrences\n", errorStats.Count.Load())
+						fmt.Fprintf(&buf, "  First Seen: %s\n", errorStats.FirstSeen.Format("15:04:05 02 Jan 2006"))
+						if lastSeen := errorStats.LastSeen.Load(); lastSeen != nil {
 							fmt.Fprintf(&buf, "  Last Seen: %s\n", lastSeen.Format("15:04:05 02 Jan 2006"))
 						}
 
 						fmt.Fprintln(&buf, "Error Sources:")
-						errorStats.errorSources.Range(func(key, value interface{}) bool {
+						errorStats.ErrorSources.Range(func(key, value interface{}) bool {
 							src := key.(string)
 							count := value.(int64)
 							fmt.Fprintf(&buf, "  - %s: %d times\n", src, count)
@@ -373,7 +373,7 @@ func (e *ErrorHandler) PrintErrorStats() {
 						})
 
 						fmt.Fprintln(&buf, "Bypass Modules:")
-						errorStats.bypassModules.Range(func(key, value interface{}) bool {
+						errorStats.BypassModules.Range(func(key, value interface{}) bool {
 							module := key.(string)
 							count := value.(int64)
 							fmt.Fprintf(&buf, "  - %s: %d times\n", module, count)
@@ -381,9 +381,9 @@ func (e *ErrorHandler) PrintErrorStats() {
 						})
 
 						errorStats.tokensMutex.RLock()
-						if len(errorStats.debugTokens) > 0 {
+						if len(errorStats.DebugTokens) > 0 {
 							fmt.Fprintln(&buf, "Debug Tokens:")
-							tokens := errorStats.debugTokens
+							tokens := errorStats.DebugTokens
 							if len(tokens) > 5 {
 								fmt.Fprintf(&buf, "  Showing last 5 of %d tokens:\n", len(tokens))
 								tokens = tokens[len(tokens)-5:]
