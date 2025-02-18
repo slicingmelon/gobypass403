@@ -11,7 +11,6 @@ import (
 	"github.com/VictoriaMetrics/VictoriaMetrics/lib/bytesutil"
 	"github.com/slicingmelon/go-bypass-403/internal/engine/payload"
 	GB403ErrorHandler "github.com/slicingmelon/go-bypass-403/internal/utils/error"
-	GB403Logger "github.com/slicingmelon/go-bypass-403/internal/utils/logger"
 	"github.com/valyala/fasthttp"
 )
 
@@ -404,14 +403,11 @@ func ReqCopyToWithSettings(src *fasthttp.Request, dst *fasthttp.Request) *fastht
 	if len(PeekRequestHeaderKeyCaseInsensitive(dst, hostKey)) == 0 {
 		//GB403Logger.Debug().Msgf("No Host header found, setting from URI.Host: %s", originalHost)
 		dst.Header.SetHostBytes(originalHost)
-	} else {
-		//GB403Logger.Debug().Msgf("Existing Host header: %s",
-		//	PeekRequestHeaderKeyCaseInsensitive(dst, hostKey))
 	}
 
-	GB403Logger.Debug().Msgf("After SetScheme/SetHost - scheme=%s host=%s header_host=%s",
-		dst.URI().Scheme(), dst.URI().Host(),
-		PeekRequestHeaderKeyCaseInsensitive(dst, hostKey))
+	// GB403Logger.Debug().Msgf("After SetScheme/SetHost - scheme=%s host=%s header_host=%s",
+	// 	dst.URI().Scheme(), dst.URI().Host(),
+	// 	PeekRequestHeaderKeyCaseInsensitive(dst, hostKey))
 
 	return dst
 }
