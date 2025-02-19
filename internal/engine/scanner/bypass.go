@@ -214,9 +214,10 @@ func (s *Scanner) RunBypassModule(bypassModule string, targetURL string, results
 	defer worker.Stop()
 
 	var progressBar *ProgressBar
-	if !s.scannerOpts.DisableProgressBar {
+	if s.progressBarEnabled.Load() {
 		progressBar = NewProgressBar(bypassModule, len(allJobs), s.scannerOpts.Threads)
 		progressBar.Start()
+		progressBar.UpdateCurrentURL(targetURL)
 		defer progressBar.Stop()
 	}
 
@@ -229,8 +230,9 @@ func (s *Scanner) RunBypassModule(bypassModule string, targetURL string, results
 		}
 
 		// Update progress bar to match pool state
-		if !s.scannerOpts.DisableProgressBar {
+		if progressBar != nil { // Simple pointer check instead of flag check
 			progressBar.Increment()
+			progressBar.UpdateCurrentURL(string(response.URL))
 			progressBar.UpdateSpinnerText(
 				bypassModule,
 				s.scannerOpts.Threads,
@@ -274,7 +276,7 @@ func (s *Scanner) RunBypassModule(bypassModule string, targetURL string, results
 	}
 
 	// Final success state
-	if !s.scannerOpts.DisableProgressBar {
+	if progressBar != nil {
 		progressBar.SpinnerSuccess(
 			bypassModule,
 			s.scannerOpts.Threads,
@@ -324,9 +326,13 @@ func (s *Scanner) ResendRequestFromToken(debugToken string, resendCount int) ([]
 		jobs = append(jobs, jobCopy)
 	}
 
-	progressbar := NewProgressBar("debugRequest", len(jobs), s.scannerOpts.Threads)
-	progressbar.Start()
-	defer progressbar.Stop()
+	var progressBar *ProgressBar
+	if s.progressBarEnabled.Load() {
+		progressBar = NewProgressBar("debugRequest", resendCount, s.scannerOpts.Threads)
+		progressBar.Start()
+		progressBar.UpdateCurrentURL(displayURL) // Add this line
+		defer progressBar.Stop()
+	}
 
 	responses := worker.requestPool.ProcessRequests(jobs)
 	var results []*Result
@@ -342,16 +348,18 @@ func (s *Scanner) ResendRequestFromToken(debugToken string, resendCount int) ([]
 		}(response)
 
 		// Update progress
-		progressbar.Increment()
-		progressbar.UpdateSpinnerText(
-			"debugRequest",
-			s.scannerOpts.Threads,
-			worker.requestPool.GetReqWPActiveWorkers(),
-			worker.requestPool.GetReqWPCompletedTasks(),
-			worker.requestPool.GetReqWPSubmittedTasks(),
-			worker.requestPool.GetRequestRate(),
-			worker.requestPool.GetAverageRequestRate(),
-		)
+		if progressBar != nil {
+			progressBar.Increment()
+			progressBar.UpdateSpinnerText(
+				"debugRequest",
+				s.scannerOpts.Threads,
+				worker.requestPool.GetReqWPActiveWorkers(),
+				worker.requestPool.GetReqWPCompletedTasks(),
+				worker.requestPool.GetReqWPSubmittedTasks(),
+				worker.requestPool.GetRequestRate(),
+				worker.requestPool.GetAverageRequestRate(),
+			)
+		}
 
 		// Only add to results if status code matches
 		if matchStatusCodes(response.StatusCode, s.scannerOpts.MatchStatusCodes) {
@@ -382,16 +390,18 @@ func (s *Scanner) ResendRequestFromToken(debugToken string, resendCount int) ([]
 	}
 
 	// Final progress update
-	progressbar.SpinnerSuccess(
-		"debugRequest",
-		s.scannerOpts.Threads,
-		worker.requestPool.GetReqWPActiveWorkers(),
-		worker.requestPool.GetReqWPCompletedTasks(),
-		worker.requestPool.GetReqWPSubmittedTasks(),
-		worker.requestPool.GetRequestRate(),
-		worker.requestPool.GetAverageRequestRate(),
-		worker.requestPool.GetPeakRequestRate(),
-	)
+	if progressBar != nil {
+		progressBar.SpinnerSuccess(
+			"debugRequest",
+			s.scannerOpts.Threads,
+			worker.requestPool.GetReqWPActiveWorkers(),
+			worker.requestPool.GetReqWPCompletedTasks(),
+			worker.requestPool.GetReqWPSubmittedTasks(),
+			worker.requestPool.GetRequestRate(),
+			worker.requestPool.GetAverageRequestRate(),
+			worker.requestPool.GetPeakRequestRate(),
+		)
+	}
 
 	return results, nil
 }

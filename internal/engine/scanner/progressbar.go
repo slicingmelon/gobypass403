@@ -13,8 +13,10 @@ import (
 // ProgressBar manages a combined spinner and progress bar display
 type ProgressBar struct {
 	multiprinter *pterm.MultiPrinter
-	spinner      *pterm.SpinnerPrinter
+	urlSpinner   *pterm.SpinnerPrinter // New spinner for URL
+	statsSpinner *pterm.SpinnerPrinter // Renamed from spinner
 	progressbar  *pterm.ProgressbarPrinter
+	currentURL   string
 	mu           sync.RWMutex
 	bypassModule string
 	totalJobs    int
@@ -23,56 +25,61 @@ type ProgressBar struct {
 
 // NewProgressBar creates a new progress display for a bypass module
 func NewProgressBar(bypassModule string, totalJobs int, totalWorkers int) *ProgressBar {
-	//multi := pterm.DefaultMultiPrinter
-
 	multi := &pterm.MultiPrinter{
 		Writer:      os.Stdout,
 		UpdateDelay: time.Millisecond * 200,
-		// buffers and area will be initialized by pterm internally
 	}
 
-	// initialText := bypassModule +
-	// 	" - Total Workers: " + strconv.Itoa(totalWorkers) +
-	// 	" - Active Workers: 0" +
-	// 	" - Requests: 0/" + strconv.Itoa(totalJobs) +
-	// 	" - Rate: 0 req/s"
+	// URL Spinner - Cyan theme
+	urlSpinner := &pterm.SpinnerPrinter{
+		Sequence:     []string{"▀ ", " ▀", " ▄", "▄ "},
+		Style:        &pterm.Style{pterm.FgCyan},
+		Delay:        time.Millisecond * 200,
+		MessageStyle: &pterm.Style{pterm.FgCyan},
+		ShowTimer:    false,
+		Writer:       multi.NewWriter(),
+	}
 
-	spinnerPrinter := &pterm.SpinnerPrinter{
-		Sequence:            []string{"▀ ", " ▀", " ▄", "▄ "},
-		Style:               &pterm.ThemeDefault.SpinnerStyle,
-		Delay:               time.Millisecond * 200,
-		MessageStyle:        &pterm.ThemeDefault.SpinnerTextStyle,
-		SuccessPrinter:      &pterm.Success,
-		FailPrinter:         &pterm.Error,
-		WarningPrinter:      &pterm.Warning,
+	// Stats Spinner - Blue theme
+	statsSpinner := &pterm.SpinnerPrinter{
+		Sequence:     []string{"▀ ", " ▀", " ▄", "▄ "},
+		Style:        &pterm.Style{pterm.FgBlue},
+		Delay:        time.Millisecond * 200,
+		MessageStyle: &pterm.Style{pterm.FgBlue},
+		SuccessPrinter: &pterm.PrefixPrinter{
+			MessageStyle: &pterm.Style{pterm.FgGreen},
+			Prefix: pterm.Prefix{
+				Text:  " SUCCESS ",
+				Style: &pterm.Style{pterm.BgGreen, pterm.FgBlack},
+			},
+		},
 		ShowTimer:           true,
 		TimerRoundingFactor: time.Second,
-		TimerStyle:          &pterm.ThemeDefault.TimerStyle,
+		TimerStyle:          &pterm.Style{pterm.FgGray},
 		Writer:              multi.NewWriter(),
 	}
 
+	// Progress bar - Cyan/Blue gradient
 	progressPrinter := &pterm.ProgressbarPrinter{
 		Total:                     totalJobs,
 		BarCharacter:              "█",
 		LastCharacter:             "█",
 		ElapsedTimeRoundingFactor: time.Second,
-		BarStyle:                  &pterm.ThemeDefault.ProgressbarBarStyle,
-		TitleStyle:                &pterm.ThemeDefault.ProgressbarTitleStyle,
+		BarStyle:                  &pterm.Style{pterm.FgCyan},
+		TitleStyle:                &pterm.Style{pterm.FgBlue},
 		ShowTitle:                 true,
 		ShowCount:                 true,
 		ShowPercentage:            true,
 		ShowElapsedTime:           true,
-		BarFiller:                 pterm.Gray("█"),
+		BarFiller:                 pterm.Gray("░"),
 		MaxWidth:                  80,
 		Writer:                    multi.NewWriter(),
 	}
 
-	//spinner, _ := spinnerPrinter.Start(initialText)
-	//progressbar, _ := progressPrinter.Start(bypassModule)
-
 	return &ProgressBar{
 		multiprinter: multi,
-		spinner:      spinnerPrinter,
+		urlSpinner:   urlSpinner,
+		statsSpinner: statsSpinner,
 		progressbar:  progressPrinter,
 		mu:           sync.RWMutex{},
 		bypassModule: bypassModule,
@@ -101,11 +108,11 @@ func (pb *ProgressBar) Increment() {
 func (pb *ProgressBar) UpdateSpinnerText(
 	bypassModule string,
 	totalWorkers int,
-	activeWorkers int64, // from GetReqWPActiveWorkers(),
-	completedTasks uint64, // from GetReqWPCompletedTasks()
-	submittedTasks uint64, // from GetReqWPSubmittedTasks()
-	currentRate uint64, // from GetRequestRate()
-	avgRate uint64, // from GetAverageRequestRate()
+	activeWorkers int64,
+	completedTasks uint64,
+	submittedTasks uint64,
+	currentRate uint64,
+	avgRate uint64,
 ) {
 	pb.mu.Lock()
 	defer pb.mu.Unlock()
@@ -117,7 +124,7 @@ func (pb *ProgressBar) UpdateSpinnerText(
 		"/" + strconv.FormatUint(submittedTasks, 10) +
 		" - Rate: " + strconv.FormatUint(currentRate, 10) + " req/s" +
 		" - Completed Rate: " + strconv.FormatUint(avgRate, 10) + " req/s"
-	pb.spinner.UpdateText(text)
+	pb.statsSpinner.UpdateText(text)
 }
 
 // SpinnerSuccess marks the spinner as complete with success message
@@ -134,23 +141,27 @@ func (pb *ProgressBar) SpinnerSuccess(
 	pb.mu.Lock()
 	defer pb.mu.Unlock()
 
-	// First ensure progress bar is at 100%
+	// Ensure progress bar is at 100%
 	if pb.progressbar != nil && pb.progressbar.Current < pb.progressbar.Total {
 		pb.progressbar.Current = pb.progressbar.Total
 	}
 
-	text := bypassModule +
+	// Stats text
+	statsText := bypassModule +
 		" - Workers: " + strconv.Itoa(totalWorkers) +
 		" - Completed: " + strconv.FormatUint(completedTasks, 10) +
 		"/" + strconv.FormatUint(submittedTasks, 10) +
 		" - Avg Rate: " + strconv.FormatUint(avgRate, 10) + " req/s" +
 		" - Peak Rate: " + strconv.FormatUint(peakRate, 10) + " req/s"
 
-	// Print a newline before success message
-	//fmt.Fprintln(os.Stdout)
-	pb.spinner.Success(text)
-	// Print another newline after success message
-	//fmt.Fprintln(os.Stdout)
+	if pb.urlSpinner != nil {
+		pb.urlSpinner.Success(bypassModule + " Scan completed for " + pb.currentURL)
+	}
+
+	// Then show stats success
+	if pb.statsSpinner != nil {
+		pb.statsSpinner.Success(statsText)
+	}
 }
 
 // UpdateProgressbarTitle updates the progress bar title
@@ -158,6 +169,14 @@ func (pb *ProgressBar) UpdateProgressbarTitle(title string) {
 	pb.mu.Lock()
 	defer pb.mu.Unlock()
 	pb.progressbar.UpdateTitle(title)
+}
+
+func (pb *ProgressBar) UpdateCurrentURL(url string) {
+	pb.mu.Lock()
+	pb.currentURL = url
+	text := pb.bypassModule + " Scanning " + url
+	pb.urlSpinner.UpdateText(text)
+	pb.mu.Unlock()
 }
 
 // Start initializes the progressbar
@@ -176,14 +195,17 @@ func (pb *ProgressBar) Start() {
 		pb.multiprinter.Start()
 	}
 
-	if pb.spinner != nil {
-		started, _ := pb.spinner.Start(initialSpinnerText)
-		pb.spinner = started
+	if pb.statsSpinner != nil { // Changed from spinner to statsSpinner
+		started, _ := pb.statsSpinner.Start(initialSpinnerText)
+		pb.statsSpinner = started
 	}
 
 	if pb.progressbar != nil {
 		started, _ := pb.progressbar.Start(pb.bypassModule)
 		pb.progressbar = started
+	}
+	if pb.urlSpinner != nil {
+		pb.urlSpinner.Success(pb.bypassModule + " Scan completed")
 	}
 }
 
@@ -200,8 +222,12 @@ func (pb *ProgressBar) Stop() {
 		pb.progressbar.Stop()
 	}
 
-	if pb.spinner != nil {
-		pb.spinner.Stop()
+	if pb.urlSpinner != nil {
+		pb.urlSpinner.Stop()
+	}
+
+	if pb.statsSpinner != nil {
+		pb.statsSpinner.Stop()
 	}
 
 	if pb.multiprinter != nil {

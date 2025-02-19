@@ -3,6 +3,7 @@ package scanner
 import (
 	"fmt"
 	"path/filepath"
+	"sync/atomic"
 
 	"github.com/slicingmelon/go-bypass-403/internal/engine/recon"
 	GB403ErrorHandler "github.com/slicingmelon/go-bypass-403/internal/utils/error"
@@ -35,8 +36,9 @@ type ScannerOpts struct {
 
 // Scanner represents the main scanner structure, perhaps the highest level in the hierarchy of the tool
 type Scanner struct {
-	scannerOpts *ScannerOpts
-	urls        []string
+	scannerOpts        *ScannerOpts
+	urls               []string
+	progressBarEnabled atomic.Bool
 }
 
 func InitResultsFile(path string) {
@@ -54,10 +56,12 @@ func NewScanner(opts *ScannerOpts, urls []string) *Scanner {
 	// Initialize bypass modules first
 	InitializeBypassModules()
 
-	return &Scanner{
+	s := &Scanner{
 		scannerOpts: opts,
 		urls:        urls,
 	}
+	s.progressBarEnabled.Store(!opts.DisableProgressBar) // Set once
+	return s
 }
 
 // Run runs the scanner..
