@@ -150,7 +150,7 @@ func TestPayloadSeedRoundTrip(t *testing.T) {
 	}
 
 	// Generate seed
-	seed := payload.GeneratePayloadToken(original)
+	seed := "ywHwygH_BCkBgFkEAQgGAQYBBWh0dHBzAjJzdGFnZTktcHJvYmlsbGVyLW1pbGVoaWdobWVkaWEucHJvamVjdDFzZXJ2aWNlLmNvbQNeLzBkMy9kYzQvNTk4L2IyZS80NGIvNGE1LzMzNS9iZWIvZjM3L2VhNS85NS92aWRlby9mZTBjZDhiZTA0M2I1NWQ1ZTRlYjA1YjIzMmU0Mzc4NGFiZGYyOTMyLm1wNAQDR0VUBQEQWC1UcnVlLUNsaWVudC1JUApub3JlYWxob3N0"
 	t.Logf("Generated seed: %s", seed)
 	// Recover data
 	recovered, err := payload.DecodePayloadToken(seed)

@@ -153,14 +153,6 @@ func GeneratePayloadToken(job BypassPayload) string {
 		}
 	}
 
-	// Write Scheme
-	if job.Scheme != "" {
-		bb.B = append(bb.B, 1) // field type for scheme
-		schemeLen := len(job.Scheme)
-		bb.B = append(bb.B, byte(schemeLen))
-		bb.Write(bytesutil.ToUnsafeBytes(job.Scheme))
-	}
-
 	// Write Host
 	if job.Host != "" {
 		bb.B = append(bb.B, 2) // field type for host
