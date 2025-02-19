@@ -3,6 +3,7 @@ package rawhttp
 import (
 	"fmt"
 	"net"
+	"sync"
 	"time"
 
 	GB403ErrorHandler "github.com/slicingmelon/go-bypass-403/internal/utils/error"
@@ -10,23 +11,28 @@ import (
 	"github.com/valyala/fasthttp/fasthttpproxy"
 )
 
-// DefaultDialer returns the default dialer configuration
-func DefaultDialer() *fasthttp.TCPDialer {
+var (
+	sharedDialer *fasthttp.TCPDialer
+	onceDialer   sync.Once
+)
+
+func DefaultDialerOptions() *fasthttp.TCPDialer {
 	return &fasthttp.TCPDialer{
 		Concurrency:      2048,
 		DNSCacheDuration: 60 * time.Minute,
 	}
 }
 
-// SetDialer sets a custom dialer for the client
-func (c *HTTPClient) SetDialer(dialer fasthttp.DialFunc) *HTTPClient {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	if c.client != nil {
-		c.client.Dial = dialer
-	}
-	return c
+// Function to get the shared dialer
+func GetSharedDialer() *fasthttp.TCPDialer {
+	onceDialer.Do(func() {
+		// Configure the dialer only once
+		sharedDialer = &fasthttp.TCPDialer{
+			Concurrency:      2048,
+			DNSCacheDuration: 60 * time.Minute,
+		}
+	})
+	return sharedDialer
 }
 
 // CreateDialFunc creates a dial function with the given options and error handler
@@ -36,7 +42,7 @@ func CreateDialFunc(opts *HTTPClientOptions) fasthttp.DialFunc {
 	}
 
 	// Create default dialer
-	dialer := DefaultDialer()
+	dialer := GetSharedDialer()
 
 	return func(addr string) (net.Conn, error) {
 		if opts.ProxyURL != "" {

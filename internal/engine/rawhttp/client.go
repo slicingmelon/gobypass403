@@ -154,6 +154,17 @@ func (c *HTTPClient) SetHTTPClientOptions(opts *HTTPClientOptions) {
 	c.options = &newOpts
 }
 
+// SetDialer sets a custom dialer for the client
+func (c *HTTPClient) SetDialer(dialer fasthttp.DialFunc) *HTTPClient {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if c.client != nil {
+		c.client.Dial = dialer
+	}
+	return c
+}
+
 func (c *HTTPClient) handleRetries(req *fasthttp.Request, resp *fasthttp.Response, bypassPayload payload.BypassPayload, retryAction RetryAction) (int64, error) {
 	c.retryConfig.ResetPerReqAttempts()
 
