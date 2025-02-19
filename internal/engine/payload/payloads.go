@@ -11,7 +11,7 @@ import (
 
 // BypassModuleRegistry contains all available bypass modules
 // This is used for debug token indexing and is independent of which modules are enabled for a scan
-var BypassModuleRegistry = []string{
+var BypassModulesRegistry = []string{
 	"dumb_check",
 	"mid_paths",
 	"end_paths",
@@ -23,17 +23,6 @@ var BypassModuleRegistry = []string{
 	"http_headers_url",
 	"http_host",
 	"unicode_path_normalization",
-}
-
-// GetBypassModuleIndex returns the index of a module in the registry
-// Used by debugtoken.go for efficient token generation
-func GetBypassModuleIndex(module string) (byte, bool) {
-	for i, m := range BypassModuleRegistry {
-		if m == module {
-			return byte(i), true
-		}
-	}
-	return 0, false
 }
 
 type PayloadGenerator struct {

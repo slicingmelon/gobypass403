@@ -3,35 +3,39 @@ package payload
 import (
 	"encoding/base64"
 	"fmt"
-	"math/rand"
 	"sync"
 	"time"
 
 	"github.com/VictoriaMetrics/VictoriaMetrics/lib/bytesutil"
 	"github.com/golang/snappy"
+	"golang.org/x/exp/rand"
 )
 
 var (
-	// concurrent-safe random source
-	rnd               = rand.New(rand.NewSource(time.Now().UnixNano()))
-	mu                sync.Mutex
 	bypassModuleIndex map[string]byte
 	methodIndex       map[string]byte
 	once              sync.Once
+	mu                sync.Mutex
+	rnd               = rand.New(rand.NewSource(uint64(time.Now().UnixNano())))
 )
+
+var defaultHTTPMethods = []string{
+	"GET", "POST", "HEAD", "PUT", "DELETE", "OPTIONS",
+	"TRACE", "PATCH", "CONNECT",
+}
 
 func initIndices() {
 	once.Do(func() {
-		// Initialize bypass module index - now using the registry directly
-		bypassModuleIndex = make(map[string]byte, len(BypassModuleRegistry))
-		for i, module := range BypassModuleRegistry {
+		// Initialize bypass module index
+		bypassModuleIndex = make(map[string]byte, len(BypassModulesRegistry))
+		for i, module := range BypassModulesRegistry {
 			bypassModuleIndex[module] = byte(i)
 		}
 
-		// Initialize HTTP methods index
+		// Initialize HTTP methods index with fallback defaults
 		methods, err := ReadPayloadsFromFile("internal_http_methods.lst")
 		if err != nil {
-			panic(err)
+			methods = defaultHTTPMethods
 		}
 		methodIndex = make(map[string]byte, len(methods))
 		for i, method := range methods {
@@ -56,7 +60,7 @@ type SeedData struct {
 /*
 Token Structure (before base64 + compression):
 
-[Version][Nonce Block][Scheme Block][Host Block][RawURI Block][Method Block][Headers Block]
+[Version][Nonce Block][Scheme Block][Host Block][RawURI Block][Method Block][Headers Block][BypassModule Block]
 
 1. Version (1 byte):
 [0x01]  // Version 1
@@ -84,7 +88,7 @@ Token Structure (before base64 + compression):
 6. Method Block (variable):
 [0x04]  // Method identifier
 [len]   // Length (1 byte)
-[bytes] // Method string (e.g., "GET")
+[idx/bytes] // Either index byte (if standard method) or method string (e.g., "GET")
 
 7. Headers Block (variable):
 [0x05]     // Headers identifier
@@ -95,31 +99,59 @@ For each header:
   [valuelen] // Header value length (1 byte)
   [value]    // Header value bytes
 
+8. BypassModule Block (variable):
+[0x06]      // BypassModule identifier
+[len]       // Length (1 byte)
+[idx/bytes] // Either index byte (if standard module) or module string
+
 Example (hex):
 01                    // Version
 FF 04 AB CD EF 12    // Nonce
 01 05 68 74 74 70 73 // Scheme "https"
 02 0B 65 78 61 6D 70 6C 65 2E 63 6F 6D  // Host "example.com"
 03 05 2F 70 61 74 68 // URI "/path"
-04 03 47 45 54       // Method "GET"
+04 01 00             // Method "GET" (indexed)
 05 01                // Headers (1 header)
   0A 55 73 65 72 2D 41 67 65 6E 74  // Name "User-Agent"
   07 4D 6F 7A 69 6C 6C 61           // Value "Mozilla"
+06 01 03             // BypassModule "http_host" (indexed)
 
 Final output: base64(snappy(above_bytes))
 */
 func GeneratePayloadToken(job BypassPayload) string {
+	initIndices()
 	bb := &bytesutil.ByteBuffer{}
 	bb.B = append(bb.B, 1) // version
 
 	// Add nonce
-	bb.B = append(bb.B, 0xFF)
+	bb.B = append(bb.B, 0xFF, 4)
 	nonce := make([]byte, 4)
 	mu.Lock()
 	rnd.Read(nonce)
 	mu.Unlock()
-	bb.B = append(bb.B, 4)
 	bb.Write(nonce)
+
+	// Write Method using index
+	if job.Method != "" {
+		bb.B = append(bb.B, 4) // field type for method
+		if idx, ok := methodIndex[job.Method]; ok {
+			bb.B = append(bb.B, 1, idx) // length=1, index byte
+		} else {
+			bb.B = append(bb.B, byte(len(job.Method)))
+			bb.Write(bytesutil.ToUnsafeBytes(job.Method))
+		}
+	}
+
+	// Add BypassModule using index
+	if job.BypassModule != "" {
+		bb.B = append(bb.B, 6) // field type for bypass module
+		if idx, ok := bypassModuleIndex[job.BypassModule]; ok {
+			bb.B = append(bb.B, 1, idx) // length=1, index byte
+		} else {
+			bb.B = append(bb.B, byte(len(job.BypassModule)))
+			bb.Write(bytesutil.ToUnsafeBytes(job.BypassModule))
+		}
+	}
 
 	// Write Scheme
 	if job.Scheme != "" {
@@ -213,60 +245,47 @@ DECODING PROCESS:
     +---------- Nonce identifier
    pos += (2 + length)  // Skip nonce
 
-   Type 0x01 (Scheme):
+   Type 0x01-0x03 (Scheme, Host, RawURI):
    [01][05][68 74 74 70 73]
     |   |   |
-    |   |   +-- "https"
-    |   +------ Length = 5
-    +---------- Scheme identifier
-   result.Scheme = string(data)
-
-   Type 0x02 (Host):
-   [02][0B][65 78 61 6D 70 6C 65 2E 63 6F 6D]
-    |   |   |
-    |   |   +-- "example.com"
-    |   +------ Length = 11
-    +---------- Host identifier
-   result.Host = string(data)
-
-   Type 0x03 (RawURI):
-   [03][05][2F 70 61 74 68]
-    |   |   |
-    |   |   +-- "/path"
-    |   +------ Length = 5
-    +---------- URI identifier
-   result.RawURI = string(data)
+    |   |   +-- String data
+    |   +------ Length
+    +---------- Field identifier
+   result.{Field} = string(data)
 
    Type 0x04 (Method):
-   [04][03][47 45 54]
+   [04][01][00]
     |   |   |
-    |   |   +-- "GET"
-    |   +------ Length = 3
+    |   |   +-- Index (if len=1) or string data
+    |   +------ Length = 1 for index, >1 for string
     +---------- Method identifier
-   result.Method = string(data)
+   result.Method = lookupMethod(data) or string(data)
 
    Type 0x05 (Headers):
    [05][01]                              // One header
-       [0A][55 73 65 72 2D 41 67 65 6E 74]  // "User-Agent" (len=10)
-       [07][4D 6F 7A 69 6C 6C 61]           // "Mozilla" (len=7)
+       [0A][55 73 65 72 2D 41 67 65 6E 74]  // Name "User-Agent" (len=10)
+       [07][4D 6F 7A 69 6C 6C 61]           // Value "Mozilla" (len=7)
     |   |
     |   +-- Number of headers
     +------ Headers identifier
 
-   For each header:
-   1. Read name length byte
-   2. Read name bytes
-   3. Read value length byte
-   4. Read value bytes
-   5. Append to result.Headers
+   Type 0x06 (BypassModule):
+   [06][01][03]
+    |   |   |
+    |   |   +-- Index (if len=1) or string data
+    |   +------ Length = 1 for index, >1 for string
+    +---------- BypassModule identifier
+   result.BypassModule = lookupModule(data) or string(data)
 
 5. Safety Checks:
    - pos+fieldLen never exceeds total length
    - Break if can't read complete field
    - Maximum 255 headers
    - Maximum 255 bytes per header name/value
+   - Indexed lookups fallback to raw strings if not found
 */
 func DecodePayloadToken(token string) (BypassPayload, error) {
+	initIndices() // Initialize indices if not already done
 	result := BypassPayload{}
 
 	compressed, err := base64.RawURLEncoding.DecodeString(token)
@@ -312,7 +331,18 @@ func DecodePayloadToken(token string) (BypassPayload, error) {
 			result.RawURI = string(bb[pos : pos+fieldLen])
 			pos += fieldLen
 		case 4: // Method
-			result.Method = string(bb[pos : pos+fieldLen])
+			if fieldLen == 1 {
+				// Indexed method
+				methodIdx := bb[pos]
+				for method, idx := range methodIndex {
+					if idx == methodIdx {
+						result.Method = method
+						break
+					}
+				}
+			} else {
+				result.Method = string(bb[pos : pos+fieldLen])
+			}
 			pos += fieldLen
 		case 5: // Headers
 			headerCount := fieldLen
@@ -344,7 +374,29 @@ func DecodePayloadToken(token string) (BypassPayload, error) {
 					Value:  headerValue,
 				})
 			}
+		case 6: // BypassModule
+			if fieldLen == 1 {
+				// Indexed bypass module
+				moduleIdx := bb[pos]
+				if moduleIdx < byte(len(BypassModulesRegistry)) {
+					result.BypassModule = BypassModulesRegistry[moduleIdx]
+				}
+			} else {
+				result.BypassModule = string(bb[pos : pos+fieldLen])
+			}
+			pos += fieldLen
 		}
 	}
 	return result, nil
+}
+
+// GetBypassModuleIndex returns the index of a module in the registry
+// Used by debugtoken.go for efficient token generation
+func GetBypassModuleIndex(module string) (byte, bool) {
+	for i, m := range BypassModulesRegistry {
+		if m == module {
+			return byte(i), true
+		}
+	}
+	return 0, false
 }

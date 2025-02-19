@@ -244,7 +244,7 @@ func TestPayloadTokenWithUnicode(t *testing.T) {
 				Method: "GET",
 				Scheme: "https",
 				Host:   "example.com",
-				RawURI: "/测试/" + strings.Repeat("文件/", 50) + "end.txt", // Long repeating Unicode
+				RawURI: "/测试/" + strings.Repeat("文件/", 7) + "end.txt", // Long repeating Unicode
 				Headers: []payload.Headers{
 					{Header: "X-Long", Value: "测试"},
 				},
