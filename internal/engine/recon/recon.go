@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/slicingmelon/go-bypass-403/internal/engine/rawhttp/dialer"
 	GB403Logger "github.com/slicingmelon/go-bypass-403/internal/utils/logger"
 	"github.com/slicingmelon/go-rawurlparser"
 	"github.com/valyala/fasthttp"
@@ -30,30 +31,39 @@ type ReconResult struct {
 	CNAMEs       []string
 }
 
-func NewReconService() *ReconService {
-	dnsServers := []string{
-		"8.8.8.8:53",        // Google
-		"1.1.1.1:53",        // Cloudflare
-		"9.9.9.9:53",        // Quad9
-		"208.67.222.222:53", // OpenDNS
-	}
+// func NewReconService() *ReconService {
+// 	dnsServers := []string{
+// 		"8.8.8.8:53",        // Google
+// 		"1.1.1.1:53",        // Cloudflare
+// 		"9.9.9.9:53",        // Quad9
+// 		"208.67.222.222:53", // OpenDNS
+// 	}
 
-	dialer := &fasthttp.TCPDialer{
-		Concurrency:      2000,
-		DNSCacheDuration: 60 * time.Minute,
-		Resolver: &net.Resolver{
-			PreferGo: true,
-			Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
-				d := net.Dialer{Timeout: 2 * time.Second}
-				return d.DialContext(ctx, "udp", dnsServers[0]) // First server as primary
-			},
-		},
-	}
+// 	d := dialer.GetSharedDialer() // Get shared dialer for HTTP operations only
+
+// 	// Create separate resolver for DNS operations
+// 	resolver := &net.Resolver{
+// 		PreferGo: true,
+// 		Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
+// 			d := net.Dialer{Timeout: 2 * time.Second}
+// 			return d.DialContext(ctx, "udp", dnsServers[0])
+// 		},
+// 	}
+
+// 	return &ReconService{
+// 		dialer:     d,        // For HTTP operations
+// 		resolver:   resolver, // For DNS operations
+// 		cache:      NewReconCache(),
+// 		dnsServers: dnsServers,
+// 	}
+// }
+
+func NewReconService() *ReconService {
+	d := dialer.GetSharedDialer()
 
 	return &ReconService{
-		dialer:     dialer,
-		cache:      NewReconCache(),
-		dnsServers: dnsServers,
+		dialer: d,
+		cache:  NewReconCache(),
 	}
 }
 

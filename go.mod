@@ -40,6 +40,8 @@ require (
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/gookit/color v1.5.4 // indirect
 	github.com/klauspost/cpuid/v2 v2.2.3 // indirect
+	github.com/likexian/doh v0.7.1 // indirect
+	github.com/likexian/gokit v0.25.15 // indirect
 	github.com/lithammer/fuzzysearch v1.1.8 // indirect
 	github.com/mattn/go-runewidth v0.0.16 // indirect
 	github.com/pkg/errors v0.9.1 // indirect

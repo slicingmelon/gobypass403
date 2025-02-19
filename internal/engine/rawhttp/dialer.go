@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/slicingmelon/go-bypass-403/internal/engine/rawhttp/dialer"
 	GB403ErrorHandler "github.com/slicingmelon/go-bypass-403/internal/utils/error"
 	"github.com/valyala/fasthttp"
 	"github.com/valyala/fasthttp/fasthttpproxy"
@@ -24,15 +25,19 @@ func DefaultDialerOptions() *fasthttp.TCPDialer {
 }
 
 // Function to get the shared dialer
+// func GetSharedDialer() *fasthttp.TCPDialer {
+// 	onceDialer.Do(func() {
+// 		// Configure the dialer only once
+// 		sharedDialer = &fasthttp.TCPDialer{
+// 			Concurrency:      2048,
+// 			DNSCacheDuration: 120 * time.Minute,
+// 		}
+// 	})
+// 	return sharedDialer
+// }
+
 func GetSharedDialer() *fasthttp.TCPDialer {
-	onceDialer.Do(func() {
-		// Configure the dialer only once
-		sharedDialer = &fasthttp.TCPDialer{
-			Concurrency:      2048,
-			DNSCacheDuration: 120 * time.Minute,
-		}
-	})
-	return sharedDialer
+	return dialer.GetSharedDialer()
 }
 
 // CreateDialFunc creates a dial function with the given options and error handler

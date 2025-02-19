@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/slicingmelon/go-bypass-403/internal/engine/payload"
+	"github.com/slicingmelon/go-bypass-403/internal/engine/rawhttp/dialer"
 	GB403ErrorHandler "github.com/slicingmelon/go-bypass-403/internal/utils/error"
 	"github.com/valyala/fasthttp"
 )
@@ -96,7 +97,8 @@ func NewHTTPClient(opts *HTTPClientOptions) *HTTPClient {
 
 	// Set the default dialer if none is provided
 	if opts.Dialer == nil {
-		opts.Dialer = CreateDialFunc(opts)
+		d := dialer.GetSharedDialer()
+		opts.Dialer = d.Dial // Use the Dial method from the shared dialer
 	}
 
 	retryConfig := DefaultRetryConfig()
