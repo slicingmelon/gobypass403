@@ -52,7 +52,7 @@ func NewProgressBar(bypassModule string, targetURL string, totalJobs int, totalW
 		BarStyle:                  &pterm.ThemeDefault.ProgressbarBarStyle,
 		TitleStyle:                &pterm.ThemeDefault.ProgressbarTitleStyle,
 		ShowTitle:                 true,
-		ShowCount:                 true,
+		ShowCount:                 true, // This shows the [current/total]
 		ShowPercentage:            true,
 		ShowElapsedTime:           true,
 		BarFiller:                 pterm.Gray("█"),
@@ -70,7 +70,6 @@ func NewProgressBar(bypassModule string, targetURL string, totalJobs int, totalW
 		totalJobs:    totalJobs,
 		totalWorkers: totalWorkers,
 	}
-
 }
 
 func padNumber(num, length int) string {
@@ -89,20 +88,13 @@ func (pb *ProgressBar) Increment() {
 	if pb.progressbar != nil {
 		pb.progressbar.Add(1)
 
-		// Update title with current progress
-		current := pb.progressbar.Current
-		total := pb.progressbar.Total
-		currentPad := padNumber(current, 4)
-		totalPad := padNumber(total, 4)
-
-		// Create new progressbar instance with updated title
 		updatedBar := *pb.progressbar
-		updatedBar.Title = pb.bypassModule + " [" + currentPad + "/" + totalPad + "]"
+		updatedBar.Title = pb.bypassModule
 		*pb.progressbar = updatedBar
 
 		// Ensure we don't exceed 100%
-		if current > total {
-			pb.progressbar.Current = total
+		if pb.progressbar.Current > pb.progressbar.Total {
+			pb.progressbar.Current = pb.progressbar.Total
 		}
 	}
 }
@@ -185,10 +177,8 @@ func (pb *ProgressBar) Start() {
 		" (0 active) - Requests: 0/" + strconv.Itoa(pb.totalJobs) +
 		" - Rate: 0 req/s - Completed Rate: 0 req/s"
 
-	// Build progress title with padded numbers
-	currentPad := padNumber(0, 4)
-	totalPad := padNumber(pb.totalJobs, 4)
-	progressTitle := pb.bypassModule + " [" + currentPad + "/" + totalPad + "]"
+	// Just use the bypass module name as the title
+	progressTitle := pb.bypassModule
 
 	if pb.multiprinter != nil {
 		pb.multiprinter.Start()
@@ -229,7 +219,7 @@ func (pb *ProgressBar) Stop() {
 		pb.multiprinter.Stop()
 	}
 
-	// Print a newline to ensure proper spacing
+	// Print "a" newline to ensure proper spacing
 	fmt.Fprintln(os.Stdout)
 	fmt.Fprintln(os.Stdout)
 }
