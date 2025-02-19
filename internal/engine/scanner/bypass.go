@@ -3,6 +3,7 @@ package scanner
 import (
 	"bytes"
 	"fmt"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -215,7 +216,7 @@ func (s *Scanner) RunBypassModule(bypassModule string, targetURL string, results
 
 	var progressBar *ProgressBar
 	if s.progressBarEnabled.Load() {
-		progressBar = NewProgressBar(bypassModule, len(allJobs), s.scannerOpts.Threads)
+		progressBar = NewProgressBar(bypassModule, targetURL, len(allJobs), s.scannerOpts.Threads)
 		progressBar.Start()
 		//progressBar.UpdateCurrentURL(targetURL)
 		defer progressBar.Stop()
@@ -230,12 +231,9 @@ func (s *Scanner) RunBypassModule(bypassModule string, targetURL string, results
 		}
 
 		// Update progress bar to match pool state
-		if progressBar != nil { // Simple pointer check instead of flag check
+		if progressBar != nil {
 			progressBar.Increment()
-			//progressBar.UpdateCurrentURL(string(response.URL))
 			progressBar.UpdateSpinnerText(
-				bypassModule,
-				s.scannerOpts.Threads,
 				worker.requestPool.GetReqWPActiveWorkers(),
 				worker.requestPool.GetReqWPCompletedTasks(),
 				worker.requestPool.GetReqWPSubmittedTasks(),
@@ -275,15 +273,10 @@ func (s *Scanner) RunBypassModule(bypassModule string, targetURL string, results
 		}
 	}
 
-	// Final success state
 	if progressBar != nil {
 		progressBar.SpinnerSuccess(
-			bypassModule,
-			s.scannerOpts.Threads,
-			0,
 			worker.requestPool.GetReqWPCompletedTasks(),
 			worker.requestPool.GetReqWPSubmittedTasks(),
-			worker.requestPool.GetRequestRate(),
 			worker.requestPool.GetAverageRequestRate(),
 			worker.requestPool.GetPeakRequestRate(),
 		)
@@ -293,15 +286,13 @@ func (s *Scanner) RunBypassModule(bypassModule string, targetURL string, results
 // ResendRequestFromToken
 // Resend a request from a payload token (debug token)
 func (s *Scanner) ResendRequestFromToken(debugToken string, resendCount int) ([]*Result, error) {
-	// Parse URL from token
 	tokenData, err := payload.DecodePayloadToken(debugToken)
 	if err != nil {
 		return nil, fmt.Errorf("failed to decode debug token: %w", err)
 	}
 
-	// Create base job
 	bypassPayload := payload.BypassPayload{
-		OriginalURL:  tokenData.OriginalURL, // kept for compatibility
+		OriginalURL:  tokenData.OriginalURL,
 		Method:       tokenData.Method,
 		Scheme:       tokenData.Scheme,
 		Host:         tokenData.Host,
@@ -310,12 +301,10 @@ func (s *Scanner) ResendRequestFromToken(debugToken string, resendCount int) ([]
 		BypassModule: "debugRequest",
 	}
 
-	// Construct display URL for logging/display purposes only
-	//displayURL := fmt.Sprintf("%s://%s%s", tokenData.Scheme, tokenData.Host, tokenData.RawURI)
-	displayURL := payload.BypassPayloadToBaseURL(bypassPayload)
+	targetURL := payload.BypassPayloadToBaseURL(bypassPayload)
 
 	// Create a new worker for the bypass module
-	worker := NewBypassWorker("debugRequest", displayURL, s.scannerOpts, resendCount)
+	worker := NewBypassWorker("debugRequest", targetURL, s.scannerOpts, resendCount)
 	defer worker.Stop()
 
 	// Create jobs array with pre-allocated capacity
@@ -328,9 +317,8 @@ func (s *Scanner) ResendRequestFromToken(debugToken string, resendCount int) ([]
 
 	var progressBar *ProgressBar
 	if s.progressBarEnabled.Load() {
-		progressBar = NewProgressBar("debugRequest", resendCount, s.scannerOpts.Threads)
+		progressBar = NewProgressBar("debugRequest", targetURL, resendCount, s.scannerOpts.Threads)
 		progressBar.Start()
-		//progressBar.UpdateCurrentURL(displayURL) // Add this line
 		defer progressBar.Stop()
 	}
 
@@ -351,8 +339,6 @@ func (s *Scanner) ResendRequestFromToken(debugToken string, resendCount int) ([]
 		if progressBar != nil {
 			progressBar.Increment()
 			progressBar.UpdateSpinnerText(
-				"debugRequest",
-				s.scannerOpts.Threads,
 				worker.requestPool.GetReqWPActiveWorkers(),
 				worker.requestPool.GetReqWPCompletedTasks(),
 				worker.requestPool.GetReqWPSubmittedTasks(),
@@ -364,7 +350,7 @@ func (s *Scanner) ResendRequestFromToken(debugToken string, resendCount int) ([]
 		// Only add to results if status code matches
 		if matchStatusCodes(response.StatusCode, s.scannerOpts.MatchStatusCodes) {
 			result := &Result{
-				TargetURL:           displayURL, // Using displayURL for consistent logging
+				TargetURL:           targetURL, // Using displayURL for consistent logging
 				BypassModule:        string(response.BypassModule),
 				StatusCode:          response.StatusCode,
 				ResponseHeaders:     string(response.ResponseHeaders),
@@ -392,12 +378,8 @@ func (s *Scanner) ResendRequestFromToken(debugToken string, resendCount int) ([]
 	// Final progress update
 	if progressBar != nil {
 		progressBar.SpinnerSuccess(
-			"debugRequest",
-			s.scannerOpts.Threads,
-			worker.requestPool.GetReqWPActiveWorkers(),
 			worker.requestPool.GetReqWPCompletedTasks(),
 			worker.requestPool.GetReqWPSubmittedTasks(),
-			worker.requestPool.GetRequestRate(),
 			worker.requestPool.GetAverageRequestRate(),
 			worker.requestPool.GetPeakRequestRate(),
 		)
@@ -409,16 +391,8 @@ func (s *Scanner) ResendRequestFromToken(debugToken string, resendCount int) ([]
 // match HTTP status code in list
 // if codes is nil, match all status codes
 func matchStatusCodes(code int, codes []int) bool {
-	// If codes is nil, match all status codes
-	if codes == nil {
+	if codes == nil { // Still need explicit nil check
 		return true
 	}
-
-	// Otherwise match specific codes
-	for _, c := range codes {
-		if c == code {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(codes, code) // Different behavior for empty vs nil slices
 }

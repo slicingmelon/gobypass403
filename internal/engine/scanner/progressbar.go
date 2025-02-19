@@ -17,14 +17,13 @@ type ProgressBar struct {
 	progressbar  *pterm.ProgressbarPrinter
 	mu           sync.RWMutex
 	bypassModule string
+	targetURL    string
 	totalJobs    int
 	totalWorkers int
 }
 
 // NewProgressBar creates a new progress display for a bypass module
-func NewProgressBar(bypassModule string, totalJobs int, totalWorkers int) *ProgressBar {
-	//multi := pterm.DefaultMultiPrinter
-
+func NewProgressBar(bypassModule string, targetURL string, totalJobs int, totalWorkers int) *ProgressBar {
 	multi := &pterm.MultiPrinter{
 		Writer:      os.Stdout,
 		UpdateDelay: time.Millisecond * 200,
@@ -66,10 +65,19 @@ func NewProgressBar(bypassModule string, totalJobs int, totalWorkers int) *Progr
 		progressbar:  progressPrinter,
 		mu:           sync.RWMutex{},
 		bypassModule: bypassModule,
+		targetURL:    targetURL,
 		totalJobs:    totalJobs,
 		totalWorkers: totalWorkers,
 	}
 
+}
+
+func padNumber(num, length int) string {
+	s := strconv.Itoa(num)
+	for len(s) < length {
+		s = "0" + s
+	}
+	return s
 }
 
 // Increment advances the progress bar by one step
@@ -80,67 +88,64 @@ func (pb *ProgressBar) Increment() {
 	if pb.progressbar != nil {
 		pb.progressbar.Add(1)
 
+		// Update title with current progress
+		current := pb.progressbar.Current
+		total := pb.progressbar.Total
+		currentPad := padNumber(current, 4)
+		totalPad := padNumber(total, 4)
+
+		// Create new progressbar instance with updated title
+		updatedBar := *pb.progressbar
+		updatedBar.Title = pb.bypassModule + " [" + currentPad + "/" + totalPad + "]"
+		*pb.progressbar = updatedBar
+
 		// Ensure we don't exceed 100%
-		if pb.progressbar.Current > pb.progressbar.Total {
-			pb.progressbar.Current = pb.progressbar.Total
+		if current > total {
+			pb.progressbar.Current = total
 		}
 	}
 }
 
 // UpdateSpinnerText updates the spinner text
 func (pb *ProgressBar) UpdateSpinnerText(
-	bypassModule string,
-	totalWorkers int,
-	activeWorkers int64, // from GetReqWPActiveWorkers(),
-	completedTasks uint64, // from GetReqWPCompletedTasks()
-	submittedTasks uint64, // from GetReqWPSubmittedTasks()
-	currentRate uint64, // from GetRequestRate()
-	avgRate uint64, // from GetAverageRequestRate()
+	activeWorkers int64,
+	completedTasks uint64,
+	submittedTasks uint64,
+	currentRate uint64,
+	avgRate uint64,
 ) {
 	pb.mu.Lock()
 	defer pb.mu.Unlock()
 
-	text := bypassModule +
-		" - Workers: " + strconv.Itoa(totalWorkers) +
+	text := pb.bypassModule + " - Scanning " + pb.targetURL + ".. | " +
+		"Workers: " + strconv.Itoa(pb.totalWorkers) +
 		" (" + strconv.FormatInt(activeWorkers, 10) + " active)" +
 		" - Requests: " + strconv.FormatUint(completedTasks, 10) +
 		"/" + strconv.FormatUint(submittedTasks, 10) +
 		" - Rate: " + strconv.FormatUint(currentRate, 10) + " req/s" +
 		" - Completed Rate: " + strconv.FormatUint(avgRate, 10) + " req/s"
+
 	pb.spinner.UpdateText(text)
 }
 
 // SpinnerSuccess marks the spinner as complete with success message
 func (pb *ProgressBar) SpinnerSuccess(
-	bypassModule string,
-	totalWorkers int,
-	activeWorkers int64,
 	completedTasks uint64,
 	submittedTasks uint64,
-	currentRate uint64,
 	avgRate uint64,
 	peakRate uint64,
 ) {
 	pb.mu.Lock()
 	defer pb.mu.Unlock()
 
-	// First ensure progress bar is at 100%
-	if pb.progressbar != nil && pb.progressbar.Current < pb.progressbar.Total {
-		pb.progressbar.Current = pb.progressbar.Total
-	}
-
-	text := bypassModule +
-		" - Workers: " + strconv.Itoa(totalWorkers) +
+	text := pb.bypassModule + " - Scan complete for " + pb.targetURL +
+		" - Workers: " + strconv.Itoa(pb.totalWorkers) +
 		" - Completed: " + strconv.FormatUint(completedTasks, 10) +
 		"/" + strconv.FormatUint(submittedTasks, 10) +
 		" - Avg Rate: " + strconv.FormatUint(avgRate, 10) + " req/s" +
 		" - Peak Rate: " + strconv.FormatUint(peakRate, 10) + " req/s"
 
-	// Print a newline before success message
-	//fmt.Fprintln(os.Stdout)
 	pb.spinner.Success(text)
-	// Print another newline after success message
-	//fmt.Fprintln(os.Stdout)
 }
 
 // UpdateProgressbarTitle updates the progress bar title
@@ -155,12 +160,16 @@ func (pb *ProgressBar) Start() {
 	pb.mu.Lock()
 	defer pb.mu.Unlock()
 
-	initialSpinnerText := pb.bypassModule +
-		" - Workers: " + strconv.Itoa(pb.totalWorkers) +
-		" (0 active)" +
-		" - Requests: 0/" + strconv.Itoa(pb.totalJobs) +
-		" - Rate: 0 req/s" +
-		" - Completed Rate: 0 req/s"
+	// Build spinner text with target URL
+	initialSpinnerText := pb.bypassModule + " - Scanning " + pb.targetURL + ".. | " +
+		"Workers: " + strconv.Itoa(pb.totalWorkers) +
+		" (0 active) - Requests: 0/" + strconv.Itoa(pb.totalJobs) +
+		" - Rate: 0 req/s - Completed Rate: 0 req/s"
+
+	// Build progress title with padded numbers
+	currentPad := padNumber(0, 4)
+	totalPad := padNumber(pb.totalJobs, 4)
+	progressTitle := pb.bypassModule + " [" + currentPad + "/" + totalPad + "]"
 
 	if pb.multiprinter != nil {
 		pb.multiprinter.Start()
@@ -172,7 +181,10 @@ func (pb *ProgressBar) Start() {
 	}
 
 	if pb.progressbar != nil {
-		started, _ := pb.progressbar.Start(pb.bypassModule)
+		// Clone existing progressbar config with new title
+		updatedBar := *pb.progressbar
+		updatedBar.Title = progressTitle
+		started, _ := updatedBar.Start()
 		pb.progressbar = started
 	}
 }
@@ -199,5 +211,6 @@ func (pb *ProgressBar) Stop() {
 	}
 
 	// Print a newline to ensure proper spacing
+	fmt.Fprintln(os.Stdout)
 	fmt.Fprintln(os.Stdout)
 }
