@@ -48,7 +48,7 @@ func BenchmarkErrorHandler(b *testing.B) {
 	b.Run("cache_operations", func(b *testing.B) {
 		b.ReportAllocs()
 		errCtx := GB403ErrorHandler.ErrorContext{
-			ErrorSource:  bytesutil.ToUnsafeBytes("execFunc"),
+			ErrorSource:  bytesutil.ToUnsafeBytes("execFunc2"),
 			Host:         bytesutil.ToUnsafeBytes("test.com"),
 			BypassModule: bytesutil.ToUnsafeBytes("test-module"),
 			DebugToken:   bytesutil.ToUnsafeBytes("test-token"),

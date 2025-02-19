@@ -183,7 +183,7 @@ func (wp *RequestWorkerPool) Close() {
 
 func main() {
 	// Initialize error handler
-	errorHandler := GB403ErrorHandler.NewErrorHandler(32)
+	errorHandler := GB403ErrorHandler.NewErrorHandler()
 	httpclientopts := rawhttp.DefaultHTTPClientOptions()
 	httpclientopts.ReadBufferSize = 8092      // 8KB
 	httpclientopts.WriteBufferSize = 8092     // 8KB

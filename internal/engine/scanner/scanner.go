@@ -8,6 +8,7 @@ import (
 	"github.com/slicingmelon/go-bypass-403/internal/engine/recon"
 	GB403ErrorHandler "github.com/slicingmelon/go-bypass-403/internal/utils/error"
 	GB403Logger "github.com/slicingmelon/go-bypass-403/internal/utils/logger"
+	"github.com/slicingmelon/go-rawurlparser"
 )
 
 type ScannerOpts struct {
@@ -71,26 +72,38 @@ func (s *Scanner) Run() error {
 	// Normal scanning mode
 	GB403Logger.Info().Msgf("Initializing scanner with %d URLs", len(s.urls))
 
-	//outputFile := GetResultsFile()
-
 	for _, url := range s.urls {
-		if err := s.scanURL(url); err != nil {
-			GB403Logger.Error().Msgf("Error scanning %s: %v", url, err)
+		parsedURL, err := rawurlparser.RawURLParse(url)
+		if err != nil {
+			host := ""
+			if parsedURL != nil {
+				host = parsedURL.BaseURL()
+			}
+
 			if handleErr := GB403ErrorHandler.GetErrorHandler().HandleError(err, GB403ErrorHandler.ErrorContext{
-				TargetURL:    []byte(url),
+				Host:         []byte(host),
 				ErrorSource:  []byte("Scanner.Run"),
 				BypassModule: []byte(s.scannerOpts.BypassModule),
 			}); handleErr != nil {
-				GB403Logger.Error().Msgf("Error handling error: %v\n", handleErr)
+				GB403Logger.Error().Msgf("Error handling error: %v", handleErr)
 			}
 			continue
 		}
+
+		if err := s.scanURL(url); err != nil {
+			// Handle scan error
+			host := parsedURL.BaseURL() // We know parsedURL is valid here
+			if handleErr := GB403ErrorHandler.GetErrorHandler().HandleError(err, GB403ErrorHandler.ErrorContext{
+				Host:         []byte(host),
+				ErrorSource:  []byte("Scanner.Run"),
+				BypassModule: []byte(s.scannerOpts.BypassModule),
+			}); handleErr != nil {
+				GB403Logger.Error().Msgf("Error handling error: %v", handleErr)
+			}
+		}
 	}
 
-	// print error stats
-	fmt.Println()
 	GB403ErrorHandler.GetErrorHandler().PrintErrorStats()
-
 	return nil
 }
 

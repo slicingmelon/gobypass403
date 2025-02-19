@@ -19,7 +19,7 @@ type Runner struct {
 
 func NewRunner() *Runner {
 	// Initialize the singleton error handler
-	_ = GB403ErrorHandler.GetErrorHandler(32)
+	_ = GB403ErrorHandler.GetErrorHandler()
 	return &Runner{}
 }
 
