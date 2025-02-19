@@ -5,9 +5,7 @@ import (
 	"net"
 	"time"
 
-	"github.com/slicingmelon/go-bypass-403/internal/engine/recon"
 	GB403ErrorHandler "github.com/slicingmelon/go-bypass-403/internal/utils/error"
-	GB403Logger "github.com/slicingmelon/go-bypass-403/internal/utils/logger"
 	"github.com/valyala/fasthttp"
 	"github.com/valyala/fasthttp/fasthttpproxy"
 )
@@ -37,20 +35,38 @@ func CreateDialFunc(opts *HTTPClientOptions) fasthttp.DialFunc {
 		return opts.Dialer
 	}
 
-	reconDialer := recon.GetReconInstance().GetDialer()
-	GB403Logger.Debug().Msgf("Creating dial func with recon dialer: %v", reconDialer != nil)
+	// Create default dialer
+	dialer := DefaultDialer()
 
 	return func(addr string) (net.Conn, error) {
-		GB403Logger.Debug().Msgf("Dialing address: %s", addr)
-
 		if opts.ProxyURL != "" {
-			return handleProxyDial(opts, addr)
+			proxyDialer := fasthttpproxy.FasthttpHTTPDialerTimeout(opts.ProxyURL, opts.DialTimeout)
+			conn, err := proxyDialer(addr)
+			if err != nil {
+				if handleErr := GB403ErrorHandler.GetErrorHandler().HandleError(err, GB403ErrorHandler.ErrorContext{
+					ErrorSource: "Client.proxyDial",
+					Host:        addr,
+				}); handleErr != nil {
+					return nil, fmt.Errorf("proxy dial error handling failed: %v (original error: %v)", handleErr, err)
+				}
+				return nil, err
+			}
+			return conn, nil
 		}
 
-		// Use recon's dialer which already includes robust DNS resolution
-		conn, err := reconDialer.DialDualStackTimeout(addr, opts.DialTimeout)
+		// No proxy, use our TCPDialer with timeout
+		// DialTimeout dials the given TCP addr using tcp4 using the given timeout.
+		// This function has the following additional features comparing to net.Dial:
+		//	It reduces load on DNS resolver by caching resolved TCP addressed for DNSCacheDuration.
+		//	It dials all the resolved TCP addresses in round-robin manner until connection is established. This may be useful if certain addresses are temporarily unreachable.
+		// This dialer is intended for custom code wrapping before passing to Client.DialTimeout or HostClient.DialTimeout.
+		// For instance, per-host counters and/or limits may be implemented by such wrappers.
+		// The addr passed to the function must contain port. Example addr values:
+		// foobar.baz:443
+		// foo.bar:80
+		// aaa.com:8080
+		conn, err := dialer.DialDualStackTimeout(addr, opts.DialTimeout)
 		if err != nil {
-			GB403Logger.Error().Msgf("Dial error for %s: %v", addr, err)
 			if handleErr := GB403ErrorHandler.GetErrorHandler().HandleError(err, GB403ErrorHandler.ErrorContext{
 				ErrorSource: "Client.directDial",
 				Host:        addr,
@@ -59,30 +75,6 @@ func CreateDialFunc(opts *HTTPClientOptions) fasthttp.DialFunc {
 			}
 			return nil, err
 		}
-
-		GB403Logger.Debug().Msgf("Successfully connected to %s", addr)
 		return conn, nil
 	}
-}
-
-func handleProxyDial(opts *HTTPClientOptions, addr string) (net.Conn, error) {
-	proxyDialer := fasthttpproxy.FasthttpHTTPDialerTimeout(opts.ProxyURL, opts.DialTimeout)
-	conn, err := proxyDialer(addr)
-	if err != nil {
-		if handleErr := GB403ErrorHandler.GetErrorHandler().HandleError(err, GB403ErrorHandler.ErrorContext{
-			ErrorSource: "Client.proxyDial",
-			Host:        addr,
-		}); handleErr != nil {
-			return nil, fmt.Errorf("proxy dial error handling failed: %v (original error: %v)", handleErr, err)
-		}
-		return nil, err
-	}
-
-	// Set TCP keep-alive for proxy connections
-	if tcpConn, ok := conn.(*net.TCPConn); ok {
-		tcpConn.SetKeepAlive(true)
-		tcpConn.SetKeepAlivePeriod(30 * time.Second)
-	}
-
-	return conn, nil
 }

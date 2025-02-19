@@ -16,32 +16,11 @@ import (
 	"github.com/valyala/fasthttp"
 )
 
-var (
-	instance *ReconService
-	once     sync.Once
-)
-
-// GetInstance returns the singleton instance of ReconService
-func GetReconInstance() *ReconService {
-	once.Do(func() {
-		instance = NewReconService()
-	})
-	return instance
-}
-
 type ReconService struct {
 	cache      *ReconCache
 	dialer     *fasthttp.TCPDialer
 	resolver   *net.Resolver
 	dnsServers []string
-	dialerOnce sync.Once
-}
-
-var dnsServers = []string{
-	"8.8.8.8:53",        // Google
-	"1.1.1.1:53",        // Cloudflare
-	"9.9.9.9:53",        // Quad9
-	"208.67.222.222:53", // OpenDNS
 }
 
 type ReconResult struct {
@@ -52,41 +31,30 @@ type ReconResult struct {
 }
 
 func NewReconService() *ReconService {
-	service := &ReconService{
-		cache:      NewReconCache(),
-		dnsServers: dnsServers,
+	dnsServers := []string{
+		"8.8.8.8:53",        // Google
+		"1.1.1.1:53",        // Cloudflare
+		"9.9.9.9:53",        // Quad9
+		"208.67.222.222:53", // OpenDNS
 	}
 
-	service.dialer = &fasthttp.TCPDialer{
+	dialer := &fasthttp.TCPDialer{
 		Concurrency:      2000,
 		DNSCacheDuration: 60 * time.Minute,
 		Resolver: &net.Resolver{
 			PreferGo: true,
 			Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
-				host, _, err := net.SplitHostPort(address)
-				if err != nil {
-					host = address
-				}
-
-				// Use ResolveDomain which already handles everything
-				ips, err := service.ResolveDomain(host)
-				if err == nil && len(ips) > 0 {
-					d := net.Dialer{Timeout: 2 * time.Second}
-					return d.DialContext(ctx, network, net.JoinHostPort(ips[0].String(), "53"))
-				}
-
-				// Last resort: direct connection to first DNS server
 				d := net.Dialer{Timeout: 2 * time.Second}
-				return d.DialContext(ctx, "udp", service.dnsServers[0])
+				return d.DialContext(ctx, "udp", dnsServers[0]) // First server as primary
 			},
 		},
 	}
 
-	return service
-}
-
-func (r *ReconService) GetDialer() *fasthttp.TCPDialer {
-	return r.dialer
+	return &ReconService{
+		dialer:     dialer,
+		cache:      NewReconCache(),
+		dnsServers: dnsServers,
+	}
 }
 
 // ProcessHost handles both domains and IPs
