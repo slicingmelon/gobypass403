@@ -18,6 +18,7 @@ import (
 const (
 	DefaultCacheSizeMB = 32 // MB - kept for compatibility
 	MaxDebugTokens     = 5
+	maxErrorLength     = 100
 )
 
 var (
@@ -243,11 +244,18 @@ func (e *ErrorHandler) IsWhitelistedErrNew(err error) bool {
 // StripErrorMessage strips the error message to a more readable format
 // This is needed as some connection errors include a different port number messing up the cache stats
 func (e *ErrorHandler) StripErrorMessage(err error) string {
-	// Check the error message itself
 	errMsg := err.Error()
+
+	// Handle special case first
 	if strings.Contains(errMsg, ErrConnForciblyClosedWin.Error()) {
 		return ErrConnForciblyClosedWin.Error()
 	}
+
+	// Truncate long error messages
+	if len(errMsg) > maxErrorLength {
+		return errMsg[:maxErrorLength] + "..."
+	}
+
 	return errMsg
 }
 
