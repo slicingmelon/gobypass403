@@ -117,7 +117,7 @@ func (pb *ProgressBar) UpdateSpinnerText(
 	pb.mu.Lock()
 	defer pb.mu.Unlock()
 
-	text := pb.bypassModule + " - Scanning " + pb.targetURL + ".. | " +
+	text := pb.bypassModule + " - Scanning " + pb.targetURL + "  .. | " +
 		"Workers: " + strconv.Itoa(pb.totalWorkers) +
 		" (" + strconv.FormatInt(activeWorkers, 10) + " active)" +
 		" - Requests: " + strconv.FormatUint(completedTasks, 10) +

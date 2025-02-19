@@ -298,13 +298,13 @@ func (s *Scanner) ResendRequestFromToken(debugToken string, resendCount int) ([]
 		Host:         tokenData.Host,
 		RawURI:       tokenData.RawURI,
 		Headers:      tokenData.Headers,
-		BypassModule: "debugRequest",
+		BypassModule: tokenData.BypassModule,
 	}
 
 	targetURL := payload.BypassPayloadToBaseURL(bypassPayload)
 
 	// Create a new worker for the bypass module
-	worker := NewBypassWorker("debugRequest", targetURL, s.scannerOpts, resendCount)
+	worker := NewBypassWorker(bypassPayload.BypassModule, targetURL, s.scannerOpts, resendCount)
 	defer worker.Stop()
 
 	// Create jobs array with pre-allocated capacity
@@ -317,7 +317,7 @@ func (s *Scanner) ResendRequestFromToken(debugToken string, resendCount int) ([]
 
 	var progressBar *ProgressBar
 	if s.progressBarEnabled.Load() {
-		progressBar = NewProgressBar("debugRequest", targetURL, resendCount, s.scannerOpts.Threads)
+		progressBar = NewProgressBar(bypassPayload.BypassModule, targetURL, resendCount, s.scannerOpts.Threads)
 		progressBar.Start()
 		defer progressBar.Stop()
 	}
@@ -367,9 +367,9 @@ func (s *Scanner) ResendRequestFromToken(debugToken string, resendCount int) ([]
 			}
 
 			// Write to file immediately like in RunBypassModule
-			if err := AppendResultsToJsonL(GetResultsFile(), []*Result{result}); err != nil {
-				GB403Logger.Error().Msgf("Failed to write result: %v\n", err)
-			}
+			// if err := AppendResultsToJsonL(GetResultsFile(), []*Result{result}); err != nil {
+			// 	GB403Logger.Error().Msgf("Failed to write result: %v\n", err)
+			// }
 
 			results = append(results, result)
 		}
