@@ -24,17 +24,17 @@ var (
 
 // HTTPClientOptions contains configuration options for the HTTPClient
 type HTTPClientOptions struct {
-	BypassModule        string        // ScannerCliOpts
-	Timeout             time.Duration // ScannerCliOpts
-	DialTimeout         time.Duration // Custom Dial Timeout
-	MaxConnsPerHost     int           // fasthttp core
-	MaxIdleConnDuration time.Duration // fasthttp core
-	MaxConnWaitTimeout  time.Duration // fasthttp core
-	NoDefaultUserAgent  bool          // fasthttp core
-	ProxyURL            string        // ScannerCliOpts
-	MaxResponseBodySize int           // fasthttp core
-	//ReadBufferSize           int           // fasthttp core
-	//WriteBufferSize          int           // fasthttp core
+	BypassModule             string        // ScannerCliOpts
+	Timeout                  time.Duration // ScannerCliOpts
+	DialTimeout              time.Duration // Custom Dial Timeout
+	MaxConnsPerHost          int           // fasthttp core
+	MaxIdleConnDuration      time.Duration // fasthttp core
+	MaxConnWaitTimeout       time.Duration // fasthttp core
+	NoDefaultUserAgent       bool          // fasthttp core
+	ProxyURL                 string        // ScannerCliOpts
+	MaxResponseBodySize      int           // fasthttp core
+	ReadBufferSize           int           // fasthttp core
+	WriteBufferSize          int           // fasthttp core
 	MaxRetries               int           // ScannerCliOpts
 	ResponseBodyPreviewSize  int           // ScannerCliOpts
 	StreamResponseBody       bool          // fasthttp core
@@ -61,24 +61,22 @@ type HTTPClient struct {
 
 // DefaultHTTPClientOptions returns the default HTTP client options
 func DefaultHTTPClientOptions() *HTTPClientOptions {
-	// const (
-	// 	KB              = 1024
-	// 	headerAllowance = 5 * KB  // 5120 bytes for headers (based on github.com.. huge list of headers)
-	// 	maxBodySize     = 12 * KB // 12288 bytes for body
-	// 	bufferSize      = 18 * KB // 18432 bytes (headers + body + some padding)
-	// )
+	const (
+		maxBodySize  = 12288 //
+		rwBufferSize = maxBodySize + 4096
+	)
 
 	return &HTTPClientOptions{
-		BypassModule:        "",
-		Timeout:             20000 * time.Millisecond,
-		DialTimeout:         5 * time.Second,
-		MaxConnsPerHost:     128,
-		MaxIdleConnDuration: 1 * time.Minute, // Idle keep-alive connections are closed after this duration.
-		MaxConnWaitTimeout:  1 * time.Second, // Maximum duration for waiting for a free connection.
-		NoDefaultUserAgent:  true,
-		MaxResponseBodySize: 12 * 1024, // 12288 bytes - just body limit
-		//ReadBufferSize:           bufferSize,  // 18432 bytes - total buffer
-		//WriteBufferSize:          bufferSize,  // 18432 bytes - total buffer
+		BypassModule:             "",
+		Timeout:                  20000 * time.Millisecond,
+		DialTimeout:              5 * time.Second,
+		MaxConnsPerHost:          128,
+		MaxIdleConnDuration:      1 * time.Minute, // Idle keep-alive connections are closed after this duration.
+		MaxConnWaitTimeout:       1 * time.Second, // Maximum duration for waiting for a free connection.
+		NoDefaultUserAgent:       true,
+		MaxResponseBodySize:      maxBodySize,  //  // 12288 bytes - just body limit
+		ReadBufferSize:           rwBufferSize, // 18432 bytes - total buffer
+		WriteBufferSize:          rwBufferSize, // 18432 bytes - total buffer
 		StreamResponseBody:       true,
 		MaxRetries:               2,
 		RetryDelay:               500 * time.Millisecond,
@@ -122,10 +120,11 @@ func NewHTTPClient(opts *HTTPClientOptions) *HTTPClient {
 		DisablePathNormalizing:        opts.DisablePathNormalizing,
 		NoDefaultUserAgentHeader:      true,
 		MaxResponseBodySize:           opts.MaxResponseBodySize,
-		//ReadBufferSize:                opts.ReadBufferSize,
-		//WriteBufferSize:               opts.WriteBufferSize,
-		StreamResponseBody: opts.StreamResponseBody,
-		Dial:               opts.Dialer,
+		ReadBufferSize:                opts.ReadBufferSize,
+		WriteBufferSize:               opts.WriteBufferSize,
+		ReadTimeout:                   opts.Timeout,
+		StreamResponseBody:            opts.StreamResponseBody,
+		Dial:                          opts.Dialer,
 		TLSConfig: &tls.Config{
 			InsecureSkipVerify: true,
 			MinVersion:         tls.VersionTLS10,
@@ -185,7 +184,7 @@ func (c *HTTPClient) handleRetries(req *fasthttp.Request, resp *fasthttp.Respons
 			reqCopy.Header.Del("Connection")
 			reqCopy.SetConnectionClose()
 			start = time.Now()
-			err = c.client.DoTimeout(reqCopy, resp, c.options.Timeout)
+			err = c.client.Do(reqCopy, resp)
 
 		case RetryWithoutResponseStreaming:
 			noStreamOpts := c.GetHTTPClientOptions()
@@ -193,12 +192,12 @@ func (c *HTTPClient) handleRetries(req *fasthttp.Request, resp *fasthttp.Respons
 			tempClient := NewHTTPClient(noStreamOpts)
 			reqCopy.SetConnectionClose()
 			start = time.Now()
-			err = tempClient.client.DoTimeout(reqCopy, resp, c.options.Timeout)
+			err = tempClient.client.Do(reqCopy, resp)
 			tempClient.client.CloseIdleConnections()
 
 		default:
 			start = time.Now()
-			err = c.client.DoTimeout(reqCopy, resp, c.options.Timeout)
+			err = c.client.Do(reqCopy, resp)
 		}
 
 		requestTime := time.Since(start)
@@ -237,7 +236,7 @@ func (c *HTTPClient) handleRetries(req *fasthttp.Request, resp *fasthttp.Respons
 func (c *HTTPClient) DoRequest(req *fasthttp.Request, resp *fasthttp.Response, bypassPayload payload.BypassPayload) (int64, error) {
 	// Initial request
 	start := time.Now()
-	err := c.client.DoTimeout(req, resp, c.options.Timeout)
+	err := c.client.Do(req, resp)
 	requestTime := time.Since(start)
 
 	// Handle initial request result
