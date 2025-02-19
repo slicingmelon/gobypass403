@@ -16,11 +16,65 @@ import (
 	"github.com/valyala/fasthttp"
 )
 
+var (
+	instance *ReconService
+	once     sync.Once
+)
+
+// GetInstance returns the singleton instance of ReconService
+func GetReconInstance() *ReconService {
+	once.Do(func() {
+		instance = NewReconService()
+	})
+	return instance
+}
+
 type ReconService struct {
 	cache      *ReconCache
 	dialer     *fasthttp.TCPDialer
 	resolver   *net.Resolver
 	dnsServers []string
+	dialerOnce sync.Once
+}
+
+var dnsServers = []string{
+	"8.8.8.8:53",        // Google
+	"1.1.1.1:53",        // Cloudflare
+	"9.9.9.9:53",        // Quad9
+	"208.67.222.222:53", // OpenDNS
+}
+
+// GetDialer returns the initialized TCPDialer with proper timeout
+func (r *ReconService) GetDialer() *fasthttp.TCPDialer {
+	r.dialerOnce.Do(func() {
+		r.dialer = &fasthttp.TCPDialer{
+			Concurrency:      2000,
+			DNSCacheDuration: 60 * time.Minute,
+			Resolver: &net.Resolver{
+				PreferGo: true,
+				Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
+					// Extract hostname from address
+					host, _, err := net.SplitHostPort(address)
+					if err != nil {
+						host = address
+					}
+
+					// Try to resolve using our robust ResolveDomain method
+					ips, err := r.ResolveDomain(host)
+					if err == nil && len(ips) > 0 {
+						// Use the first resolved IP
+						d := net.Dialer{Timeout: 2 * time.Second}
+						return d.DialContext(ctx, network, net.JoinHostPort(ips[0].String(), "53"))
+					}
+
+					// Fallback to default DNS server if everything fails
+					d := net.Dialer{Timeout: 2 * time.Second}
+					return d.DialContext(ctx, "udp", r.dnsServers[0])
+				},
+			},
+		}
+	})
+	return r.dialer
 }
 
 type ReconResult struct {
@@ -31,27 +85,7 @@ type ReconResult struct {
 }
 
 func NewReconService() *ReconService {
-	dnsServers := []string{
-		"8.8.8.8:53",        // Google
-		"1.1.1.1:53",        // Cloudflare
-		"9.9.9.9:53",        // Quad9
-		"208.67.222.222:53", // OpenDNS
-	}
-
-	dialer := &fasthttp.TCPDialer{
-		Concurrency:      2000,
-		DNSCacheDuration: 60 * time.Minute,
-		Resolver: &net.Resolver{
-			PreferGo: true,
-			Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
-				d := net.Dialer{Timeout: 2 * time.Second}
-				return d.DialContext(ctx, "udp", dnsServers[0]) // First server as primary
-			},
-		},
-	}
-
 	return &ReconService{
-		dialer:     dialer,
 		cache:      NewReconCache(),
 		dnsServers: dnsServers,
 	}

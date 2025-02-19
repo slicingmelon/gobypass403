@@ -331,6 +331,8 @@ func (e *ErrorHandler) HandleErrorAndContinue(err error, ctx ErrorContext) error
 	return err
 }
 
+// PrintErrorStats prints the error stats
+// call this anytime!
 func (e *ErrorHandler) PrintErrorStats() {
 	var buf strings.Builder
 	buf.WriteString("=== Error Statistics ===\n\n")

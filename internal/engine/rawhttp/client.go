@@ -125,9 +125,7 @@ func NewHTTPClient(opts *HTTPClientOptions) *HTTPClient {
 		ReadBufferSize:                opts.ReadBufferSize,
 		WriteBufferSize:               opts.WriteBufferSize,
 		StreamResponseBody:            opts.StreamResponseBody,
-		//ReadTimeout:                   opts.Timeout,
-		//WriteTimeout:                  opts.Timeout,
-		Dial: opts.Dialer,
+		Dial:                          opts.Dialer,
 		TLSConfig: &tls.Config{
 			InsecureSkipVerify: true,
 			MinVersion:         tls.VersionTLS10,
@@ -156,152 +154,122 @@ func (c *HTTPClient) SetHTTPClientOptions(opts *HTTPClientOptions) {
 	c.options = &newOpts
 }
 
-func (c *HTTPClient) execFunc(req *fasthttp.Request, resp *fasthttp.Response, bypassPayload payload.BypassPayload) (int64, error) {
+func (c *HTTPClient) handleRetries(req *fasthttp.Request, resp *fasthttp.Response, bypassPayload payload.BypassPayload, retryAction RetryAction) (int64, error) {
 	c.retryConfig.ResetPerReqAttempts()
 
-	// Initial request copy
-	reqCopy := fasthttp.AcquireRequest()
-	defer fasthttp.ReleaseRequest(reqCopy)
+	for attempt := 1; attempt <= c.retryConfig.MaxRetries; attempt++ {
+		// Apply retry delay
+		time.Sleep(c.retryConfig.RetryDelay)
 
-	// Capture original timeout and retry delay from the global options and retry config
-	origOpts := c.GetHTTPClientOptions()
-	baseTimeout := origOpts.Timeout
-	retryDelay := c.retryConfig.RetryDelay
-	maxRetries := c.retryConfig.MaxRetries
-
-	var lastErr error
-	for attempt := 0; attempt <= maxRetries; attempt++ {
-		// Reset and copy request for each attempt
-		reqCopy.Reset()
+		// Prepare request copy for retry
+		reqCopy := fasthttp.AcquireRequest()
 		ReqCopyToWithSettings(req, reqCopy)
+		defer fasthttp.ReleaseRequest(reqCopy)
 
-		// Apply the request delay to all requests (from cli opts)
-		if origOpts.RequestDelay > 0 {
-			time.Sleep(origOpts.RequestDelay)
-		}
+		var start time.Time
+		var err error
 
-		// Apply throttler delay if active (only on first attempt)
-		if attempt == 0 && c.throttler.IsThrottlerActive() {
-			c.throttler.ThrottleRequest()
-		}
-
-		// Calculate timeout for this attempt
-		currentTimeout := baseTimeout
-		if attempt > 0 {
-			time.Sleep(retryDelay)
-			currentTimeout = baseTimeout + time.Duration(attempt)*retryDelay
+		switch retryAction {
+		case RetryWithConnectionClose:
+			reqCopy.Header.Del("Connection")
 			reqCopy.SetConnectionClose()
+			start = time.Now()
+			err = c.client.DoTimeout(reqCopy, resp, c.options.Timeout)
+
+		case RetryWithoutResponseStreaming:
+			noStreamOpts := c.GetHTTPClientOptions()
+			noStreamOpts.StreamResponseBody = false
+			tempClient := NewHTTPClient(noStreamOpts)
+			reqCopy.SetConnectionClose()
+			start = time.Now()
+			err = tempClient.client.DoTimeout(reqCopy, resp, c.options.Timeout)
+			tempClient.client.CloseIdleConnections()
+
+		default:
+			start = time.Now()
+			err = c.client.DoTimeout(reqCopy, resp, c.options.Timeout)
 		}
 
-		//GB403Logger.Debug().Msgf("Attempt %d: timeout=%v (base=%v)\n", attempt, currentTimeout, baseTimeout)
-
-		start := time.Now()
-		err := c.client.DoTimeout(reqCopy, resp, currentTimeout)
-		elapsed := time.Since(start)
+		requestTime := time.Since(start)
 
 		if err != nil {
 			errCtx := GB403ErrorHandler.ErrorContext{
-				ErrorSource:  "execFunc",
+				ErrorSource:  fmt.Sprintf("handleRetries/Retry-%d", attempt),
 				Host:         payload.BypassPayloadToBaseURL(bypassPayload),
 				BypassModule: bypassPayload.BypassModule,
 				DebugToken:   bypassPayload.PayloadToken,
 			}
 
-			if handledErr := GB403ErrorHandler.GetErrorHandler().HandleError(err, errCtx); handledErr == nil {
-				return elapsed.Milliseconds(), nil
-			}
-			lastErr = err
-		}
-
-		if err == nil {
-			if c.throttler.IsThrottableRespCode(resp.StatusCode()) {
-				c.throttler.EnableThrottler()
-			}
-			return elapsed.Milliseconds(), nil
-		}
-
-		retryDecision := IsRetryableError(err)
-		//GB403Logger.Debug().Msgf("Retry decision for attempt %d: shouldRetry=%v, action=%v",
-		//	attempt, retryDecision.ShouldRetry, retryDecision.Action)
-
-		if !retryDecision.ShouldRetry {
-			return elapsed.Milliseconds(), err
-		}
-
-		if attempt < maxRetries {
-			switch retryDecision.Action {
-			case RetryWithConnectionClose:
-				reqCopy.Header.Del("Connection")
-				reqCopy.SetConnectionClose()
-
-			case RetryWithoutResponseStreaming:
-				noStreamOpts := c.GetHTTPClientOptions()
-				noStreamOpts.StreamResponseBody = false
-				tempClient := NewHTTPClient(noStreamOpts)
-				defer tempClient.Close()
-
-				// Use ReqCopyToWithSettings for temp client request too
-				reqCopy.Reset()
-				ReqCopyToWithSettings(req, reqCopy)
-				reqCopy.SetConnectionClose()
-
-				err = tempClient.client.DoTimeout(reqCopy, resp, currentTimeout)
-				if err != nil {
-					errCtx := GB403ErrorHandler.ErrorContext{
-						ErrorSource:  "RetryWithoutResponseStreaming",
-						Host:         payload.BypassPayloadToBaseURL(bypassPayload),
-						BypassModule: bypassPayload.BypassModule,
-						DebugToken:   bypassPayload.PayloadToken,
-					}
-
-					if handledErr := GB403ErrorHandler.GetErrorHandler().HandleError(err, errCtx); handledErr == nil {
-						return elapsed.Milliseconds(), nil // Whitelisted error, exit
-					}
-
-					// Continue with retry logic
-					lastErr = err
-					c.retryConfig.PerReqRetriedAttempts.Add(1)
-					resp.Reset()
-					continue
-				}
-
-				if c.throttler.IsThrottableRespCode(resp.StatusCode()) {
-					c.throttler.EnableThrottler()
-				}
-				return elapsed.Milliseconds(), nil
+			// Handle error but continue if whitelisted
+			if err = GB403ErrorHandler.GetErrorHandler().HandleErrorAndContinue(err, errCtx); err == nil {
+				return requestTime.Milliseconds(), nil
 			}
 
 			c.retryConfig.PerReqRetriedAttempts.Add(1)
 			resp.Reset()
+			continue
 		}
 
-		if attempt == maxRetries {
-			return 0, ErrReqFailedMaxRetries
+		// Handle successful response
+		if c.throttler.IsThrottableRespCode(resp.StatusCode()) {
+			c.throttler.EnableThrottler()
 		}
+
+		return requestTime.Milliseconds(), nil
 	}
 
-	return 0, lastErr
+	return 0, ErrReqFailedMaxRetries
 }
 
 // DoRequest performs a HTTP request (raw)
 // Returns the HTTP response time (in ms) and error
 func (c *HTTPClient) DoRequest(req *fasthttp.Request, resp *fasthttp.Response, bypassPayload payload.BypassPayload) (int64, error) {
-	// Execute request with retry handling
-	respTime, err := c.execFunc(req, resp, bypassPayload)
+	// Initial request
+	start := time.Now()
+	err := c.client.DoTimeout(req, resp, c.options.Timeout)
+	requestTime := time.Since(start)
 
+	// Handle initial request result
 	if err != nil {
-		if err == ErrReqFailedMaxRetries {
-			newCount := c.consecutiveFailedReqs.Add(1)
-			if newCount >= int32(c.options.MaxConsecutiveFailedReqs) {
-				return respTime, ErrReqFailedMaxConsecutiveFails
-			}
+		errCtx := GB403ErrorHandler.ErrorContext{
+			ErrorSource:  "DoRequest",
+			Host:         payload.BypassPayloadToBaseURL(bypassPayload),
+			BypassModule: bypassPayload.BypassModule,
+			DebugToken:   bypassPayload.PayloadToken,
 		}
 
-		return respTime, fmt.Errorf("request failed after %d retries: %w",
-			c.retryConfig.GetPerReqRetriedAttempts(), err)
+		// Handle error but continue if whitelisted
+		if err = GB403ErrorHandler.GetErrorHandler().HandleErrorAndContinue(err, errCtx); err == nil {
+			return requestTime.Milliseconds(), nil
+		}
+
+		// Check if we should retry
+		retryDecision := IsRetryableError(err)
+		if !retryDecision.ShouldRetry {
+			return requestTime.Milliseconds(), err
+		}
+
+		// Attempt retries
+		retryTime, retryErr := c.handleRetries(req, resp, bypassPayload, retryDecision.Action)
+		if retryErr != nil {
+			if retryErr == ErrReqFailedMaxRetries {
+				newCount := c.consecutiveFailedReqs.Add(1)
+				if newCount >= int32(c.options.MaxConsecutiveFailedReqs) {
+					return retryTime, ErrReqFailedMaxConsecutiveFails
+				}
+			}
+			return retryTime, fmt.Errorf("request failed after %d retries: %w",
+				c.retryConfig.GetPerReqRetriedAttempts(), retryErr)
+		}
+		return retryTime, nil
 	}
 
-	return respTime, nil
+	// Handle successful response
+	if c.throttler.IsThrottableRespCode(resp.StatusCode()) {
+		c.throttler.EnableThrottler()
+	}
+
+	return requestTime.Milliseconds(), nil
 }
 
 func (c *HTTPClient) GetPerReqRetryAttempts() int32 {
