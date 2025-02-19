@@ -19,7 +19,7 @@ var (
 func DefaultDialerOptions() *fasthttp.TCPDialer {
 	return &fasthttp.TCPDialer{
 		Concurrency:      2048,
-		DNSCacheDuration: 60 * time.Minute,
+		DNSCacheDuration: 120 * time.Minute,
 	}
 }
 
@@ -29,7 +29,7 @@ func GetSharedDialer() *fasthttp.TCPDialer {
 		// Configure the dialer only once
 		sharedDialer = &fasthttp.TCPDialer{
 			Concurrency:      2048,
-			DNSCacheDuration: 60 * time.Minute,
+			DNSCacheDuration: 120 * time.Minute,
 		}
 	})
 	return sharedDialer
