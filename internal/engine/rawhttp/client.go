@@ -256,9 +256,10 @@ func (c *HTTPClient) execFunc(req *fasthttp.Request, resp *fasthttp.Response, by
 					}
 
 					if handledErr := GB403ErrorHandler.GetErrorHandler().HandleError(err, errCtx); handledErr == nil {
-						return elapsed.Milliseconds(), nil
+						return elapsed.Milliseconds(), nil // Whitelisted error, exit
 					}
 
+					// Continue with retry logic
 					lastErr = err
 					c.retryConfig.PerReqRetriedAttempts.Add(1)
 					resp.Reset()

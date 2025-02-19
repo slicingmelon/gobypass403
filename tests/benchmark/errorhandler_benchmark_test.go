@@ -87,4 +87,25 @@ func BenchmarkErrorHandler(b *testing.B) {
 			handler.HandleError(testErr, errCtx)
 		}
 	})
+
+	b.Run("print_error_stats", func(b *testing.B) {
+		b.ReportAllocs()
+		// Setup some test data first
+		errCtx := GB403ErrorHandler.ErrorContext{
+			ErrorSource:  bytesutil.ToUnsafeBytes("execFunc"),
+			Host:         bytesutil.ToUnsafeBytes("test.com"),
+			BypassModule: bytesutil.ToUnsafeBytes("test-module"),
+			DebugToken:   bytesutil.ToUnsafeBytes("test-token"),
+		}
+		// Add some errors to have something to print
+		for i := 0; i < 10; i++ {
+			handler.HandleError(testErr, errCtx)
+		}
+
+		// Benchmark the print operation
+		b.ResetTimer() // Reset timer after setup
+		for i := 0; i < b.N; i++ {
+			handler.PrintErrorStats()
+		}
+	})
 }

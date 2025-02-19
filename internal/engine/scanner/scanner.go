@@ -69,38 +69,22 @@ func NewScanner(opts *ScannerOpts, urls []string) *Scanner {
 func (s *Scanner) Run() error {
 	defer s.Close()
 
-	// Normal scanning mode
 	GB403Logger.Info().Msgf("Initializing scanner with %d URLs", len(s.urls))
 
 	for _, url := range s.urls {
 		parsedURL, err := rawurlparser.RawURLParse(url)
 		if err != nil {
-			host := ""
-			if parsedURL != nil {
-				host = parsedURL.BaseURL()
-			}
-
-			if handleErr := GB403ErrorHandler.GetErrorHandler().HandleError(err, GB403ErrorHandler.ErrorContext{
-				Host:         []byte(host),
-				ErrorSource:  []byte("Scanner.Run"),
+			// Keep one error handling as reference example
+			GB403ErrorHandler.GetErrorHandler().HandleErrorAndContinue(err, GB403ErrorHandler.ErrorContext{
+				Host:         []byte(parsedURL.BaseURL()),
+				ErrorSource:  []byte("Scanner.Run.URLParse"),
 				BypassModule: []byte(s.scannerOpts.BypassModule),
-			}); handleErr != nil {
-				GB403Logger.Error().Msgf("Error handling error: %v", handleErr)
-			}
+			})
 			continue
 		}
 
-		if err := s.scanURL(url); err != nil {
-			// Handle scan error
-			host := parsedURL.BaseURL() // We know parsedURL is valid here
-			if handleErr := GB403ErrorHandler.GetErrorHandler().HandleError(err, GB403ErrorHandler.ErrorContext{
-				Host:         []byte(host),
-				ErrorSource:  []byte("Scanner.Run"),
-				BypassModule: []byte(s.scannerOpts.BypassModule),
-			}); handleErr != nil {
-				GB403Logger.Error().Msgf("Error handling error: %v", handleErr)
-			}
-		}
+		// Just scan and continue on error - no need for nested error handling
+		_ = s.scanURL(url)
 	}
 
 	GB403ErrorHandler.GetErrorHandler().PrintErrorStats()

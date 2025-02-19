@@ -45,16 +45,9 @@ var defaultWhitelistedErrorsStr = []string{
 }
 
 var (
-	errMsgCache     sync.Map
 	whitelistErrors = make(map[string]struct{})
 	whitelistMutex  sync.RWMutex
 )
-
-var keyBuilderPool = sync.Pool{
-	New: func() interface{} {
-		return &strings.Builder{}
-	},
-}
 
 type ErrorHandler struct {
 	cache      *ristretto.Cache[string, map[string]*ErrorStats]
@@ -259,6 +252,12 @@ func (e *ErrorHandler) StripErrorMessage(err error) string {
 	return errMsg
 }
 
+// HandleError handles the error and returns nil if it's whitelisted
+// Example usage: when error needs to be handled
+//
+//	if handledErr := .HandleError(err, errCtx); handledErr != nil {
+//	    return fmt.Errorf("custom handling: %v", handledErr)
+//	}
 func (e *ErrorHandler) HandleError(err error, ctx ErrorContext) error {
 	if err == nil || e.IsWhitelistedErrNew(err) {
 		return nil
@@ -320,6 +319,16 @@ func (e *ErrorHandler) HandleError(err error, ctx ErrorContext) error {
 	}
 
 	return nil
+}
+
+// HandleErrorAndContinue handles the error and returns nil if it's whitelisted
+// Example usage when error needs to be handled but the code must continue
+// return  errorHandler.HandleErrorAndContinue(err, errCtx)
+func (e *ErrorHandler) HandleErrorAndContinue(err error, ctx ErrorContext) error {
+	if err := e.HandleError(err, ctx); err != nil {
+		return nil
+	}
+	return err
 }
 
 func (e *ErrorHandler) PrintErrorStats() {
