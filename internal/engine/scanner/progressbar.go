@@ -1,6 +1,7 @@
 package scanner
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 	"strconv"
@@ -30,7 +31,7 @@ func NewProgressBar(bypassModule string, targetURL string, totalJobs int, totalW
 	}
 
 	spinnerPrinter := &pterm.SpinnerPrinter{
-		Sequence:            []string{"▀ ", " ▀", " ▄", "▄ "},
+		Sequence:            []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"},
 		Style:               &pterm.ThemeDefault.SpinnerStyle,
 		Delay:               time.Millisecond * 200,
 		MessageStyle:        &pterm.ThemeDefault.SpinnerTextStyle,
@@ -106,7 +107,7 @@ func (pb *ProgressBar) Increment() {
 	}
 }
 
-// UpdateSpinnerText updates the spinner text
+// UpdateSpinnerText
 func (pb *ProgressBar) UpdateSpinnerText(
 	activeWorkers int64,
 	completedTasks uint64,
@@ -117,18 +118,27 @@ func (pb *ProgressBar) UpdateSpinnerText(
 	pb.mu.Lock()
 	defer pb.mu.Unlock()
 
-	text := pb.bypassModule + " - Scanning " + pb.targetURL + "  .. | " +
-		"Workers: " + strconv.Itoa(pb.totalWorkers) +
-		" (" + strconv.FormatInt(activeWorkers, 10) + " active)" +
-		" - Requests: " + strconv.FormatUint(completedTasks, 10) +
-		"/" + strconv.FormatUint(submittedTasks, 10) +
-		" - Rate: " + strconv.FormatUint(currentRate, 10) + " req/s" +
-		" - Completed Rate: " + strconv.FormatUint(avgRate, 10) + " req/s"
+	var buf bytes.Buffer
+	fmt.Fprintf(&buf, "%s - %s %s | Workers: %s/%d | %s %s/%s | %s %s %s | %s %s %s",
+		pb.bypassModule,
+		pterm.White("Scanning"),
+		pterm.FgYellow.Sprint(pb.targetURL),
+		pterm.LightCyan(activeWorkers),
+		pb.totalWorkers,
+		pterm.White("Requests:"),
+		pterm.LightGreen(completedTasks),
+		pterm.LightGreen(submittedTasks),
+		pterm.White("Rate:"),
+		pterm.LightRed(currentRate),
+		pterm.White("req/s"),
+		pterm.White("Avg:"),
+		pterm.LightBlue(avgRate),
+		pterm.White("req/s"),
+	)
 
-	pb.spinner.UpdateText(text)
+	pb.spinner.UpdateText(buf.String())
 }
 
-// SpinnerSuccess marks the spinner as complete with success message
 func (pb *ProgressBar) SpinnerSuccess(
 	completedTasks uint64,
 	submittedTasks uint64,
@@ -138,14 +148,23 @@ func (pb *ProgressBar) SpinnerSuccess(
 	pb.mu.Lock()
 	defer pb.mu.Unlock()
 
-	text := pb.bypassModule + " - Scan complete for " + pb.targetURL +
-		" - Workers: " + strconv.Itoa(pb.totalWorkers) +
-		" - Completed: " + strconv.FormatUint(completedTasks, 10) +
-		"/" + strconv.FormatUint(submittedTasks, 10) +
-		" - Avg Rate: " + strconv.FormatUint(avgRate, 10) + " req/s" +
-		" - Peak Rate: " + strconv.FormatUint(peakRate, 10) + " req/s"
+	var buf bytes.Buffer
+	fmt.Fprintf(&buf, "%s - %s: %s | %s %s/%s | %s %s %s | %s %s %s",
+		pb.bypassModule,
+		pterm.White("Complete"),
+		pterm.FgYellow.Sprint(pb.targetURL),
+		pterm.White("Requests:"),
+		pterm.LightGreen(completedTasks),
+		pterm.LightGreen(submittedTasks),
+		pterm.White("Avg:"),
+		pterm.LightBlue(avgRate),
+		pterm.White("req/s"),
+		pterm.White("Peak:"),
+		pterm.LightRed(peakRate),
+		pterm.White("req/s"),
+	)
 
-	pb.spinner.Success(text)
+	pb.spinner.Success(buf.String())
 }
 
 // UpdateProgressbarTitle updates the progress bar title
@@ -161,7 +180,7 @@ func (pb *ProgressBar) Start() {
 	defer pb.mu.Unlock()
 
 	// Build spinner text with target URL
-	initialSpinnerText := pb.bypassModule + " - Scanning " + pb.targetURL + ".. | " +
+	initialSpinnerText := pb.bypassModule + " - Scanning " + pb.targetURL + " | " +
 		"Workers: " + strconv.Itoa(pb.totalWorkers) +
 		" (0 active) - Requests: 0/" + strconv.Itoa(pb.totalJobs) +
 		" - Rate: 0 req/s - Completed Rate: 0 req/s"
