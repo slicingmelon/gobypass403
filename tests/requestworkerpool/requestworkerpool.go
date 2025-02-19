@@ -85,9 +85,9 @@ func (wp *RequestWorkerPool) processJob(job payload.BypassPayload) *RawHTTPRespo
 	if err := wp.buildRequest(req, job); err != nil {
 		//fmt.Printf("Error building request: %v\n", err)
 		if err := wp.errorHandler.HandleError(err, GB403ErrorHandler.ErrorContext{
-			ErrorSource:  []byte("RequestWorkerPool.BuildRequest"),
-			Host:         []byte(job.Host),
-			BypassModule: []byte(job.BypassModule),
+			ErrorSource:  "RequestWorkerPool.BuildRequest",
+			Host:         job.Host,
+			BypassModule: job.BypassModule,
 		}); err != nil {
 			return nil
 		}
@@ -97,9 +97,9 @@ func (wp *RequestWorkerPool) processJob(job payload.BypassPayload) *RawHTTPRespo
 	if _, err := wp.httpClient.DoRequest(req, resp, job); err != nil {
 		//fmt.Printf("Error sending request: %v\n", err)
 		if err := wp.errorHandler.HandleError(err, GB403ErrorHandler.ErrorContext{
-			ErrorSource:  []byte("RequestWorkerPool.SendRequest"),
-			Host:         []byte(job.Host),
-			BypassModule: []byte(job.BypassModule),
+			ErrorSource:  "RequestWorkerPool.SendRequest",
+			Host:         job.Host,
+			BypassModule: job.BypassModule,
 		}); err != nil {
 			return nil
 		}

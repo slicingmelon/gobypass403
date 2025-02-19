@@ -13,9 +13,32 @@ import (
 
 var (
 	// concurrent-safe random source
-	rnd = rand.New(rand.NewSource(time.Now().UnixNano()))
-	mu  sync.Mutex
+	rnd               = rand.New(rand.NewSource(time.Now().UnixNano()))
+	mu                sync.Mutex
+	bypassModuleIndex map[string]byte
+	methodIndex       map[string]byte
+	once              sync.Once
 )
+
+func initIndices() {
+	once.Do(func() {
+		// Initialize bypass module index - now using the registry directly
+		bypassModuleIndex = make(map[string]byte, len(BypassModuleRegistry))
+		for i, module := range BypassModuleRegistry {
+			bypassModuleIndex[module] = byte(i)
+		}
+
+		// Initialize HTTP methods index
+		methods, err := ReadPayloadsFromFile("internal_http_methods.lst")
+		if err != nil {
+			panic(err)
+		}
+		methodIndex = make(map[string]byte, len(methods))
+		for i, method := range methods {
+			methodIndex[method] = byte(i)
+		}
+	})
+}
 
 type SeedData struct {
 	OriginalURL  string // Keep for reference

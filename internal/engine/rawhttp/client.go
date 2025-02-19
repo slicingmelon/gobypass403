@@ -8,7 +8,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/VictoriaMetrics/VictoriaMetrics/lib/bytesutil"
 	"github.com/slicingmelon/go-bypass-403/internal/engine/payload"
 	GB403ErrorHandler "github.com/slicingmelon/go-bypass-403/internal/utils/error"
 	"github.com/valyala/fasthttp"
@@ -202,10 +201,10 @@ func (c *HTTPClient) execFunc(req *fasthttp.Request, resp *fasthttp.Response, by
 
 		if err != nil {
 			errCtx := GB403ErrorHandler.ErrorContext{
-				ErrorSource:  bytesutil.ToUnsafeBytes("execFunc"),
-				Host:         bytesutil.ToUnsafeBytes(payload.BypassPayloadToBaseURL(bypassPayload)),
-				BypassModule: bytesutil.ToUnsafeBytes(bypassPayload.BypassModule),
-				DebugToken:   bytesutil.ToUnsafeBytes(bypassPayload.PayloadToken),
+				ErrorSource:  "execFunc",
+				Host:         payload.BypassPayloadToBaseURL(bypassPayload),
+				BypassModule: bypassPayload.BypassModule,
+				DebugToken:   bypassPayload.PayloadToken,
 			}
 
 			if handledErr := GB403ErrorHandler.GetErrorHandler().HandleError(err, errCtx); handledErr == nil {
@@ -249,10 +248,10 @@ func (c *HTTPClient) execFunc(req *fasthttp.Request, resp *fasthttp.Response, by
 				err = tempClient.client.DoTimeout(reqCopy, resp, currentTimeout)
 				if err != nil {
 					errCtx := GB403ErrorHandler.ErrorContext{
-						ErrorSource:  bytesutil.ToUnsafeBytes("RetryWithoutResponseStreaming"),
-						Host:         bytesutil.ToUnsafeBytes(payload.BypassPayloadToBaseURL(bypassPayload)),
-						BypassModule: bytesutil.ToUnsafeBytes(bypassPayload.BypassModule),
-						DebugToken:   bytesutil.ToUnsafeBytes(bypassPayload.PayloadToken),
+						ErrorSource:  "RetryWithoutResponseStreaming",
+						Host:         payload.BypassPayloadToBaseURL(bypassPayload),
+						BypassModule: bypassPayload.BypassModule,
+						DebugToken:   bypassPayload.PayloadToken,
 					}
 
 					if handledErr := GB403ErrorHandler.GetErrorHandler().HandleError(err, errCtx); handledErr == nil {

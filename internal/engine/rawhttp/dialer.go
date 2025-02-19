@@ -44,8 +44,8 @@ func CreateDialFunc(opts *HTTPClientOptions) fasthttp.DialFunc {
 			conn, err := proxyDialer(addr)
 			if err != nil {
 				if handleErr := GB403ErrorHandler.GetErrorHandler().HandleError(err, GB403ErrorHandler.ErrorContext{
-					ErrorSource: []byte("Client.proxyDial"),
-					Host:        []byte(addr),
+					ErrorSource: "Client.proxyDial",
+					Host:        addr,
 				}); handleErr != nil {
 					return nil, fmt.Errorf("proxy dial error handling failed: %v (original error: %v)", handleErr, err)
 				}
@@ -68,8 +68,8 @@ func CreateDialFunc(opts *HTTPClientOptions) fasthttp.DialFunc {
 		conn, err := dialer.DialDualStackTimeout(addr, opts.DialTimeout)
 		if err != nil {
 			if handleErr := GB403ErrorHandler.GetErrorHandler().HandleError(err, GB403ErrorHandler.ErrorContext{
-				ErrorSource: []byte("Client.directDial"),
-				Host:        []byte(addr),
+				ErrorSource: "Client.directDial",
+				Host:        addr,
 			}); handleErr != nil {
 				return nil, fmt.Errorf("direct dial error handling failed: %v (original error: %v)", handleErr, err)
 			}

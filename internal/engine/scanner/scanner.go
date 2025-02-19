@@ -76,9 +76,9 @@ func (s *Scanner) Run() error {
 		if err != nil {
 			// Keep one error handling as reference example
 			GB403ErrorHandler.GetErrorHandler().HandleErrorAndContinue(err, GB403ErrorHandler.ErrorContext{
-				Host:         []byte(parsedURL.BaseURL()),
-				ErrorSource:  []byte("Scanner.Run.URLParse"),
-				BypassModule: []byte(s.scannerOpts.BypassModule),
+				Host:         parsedURL.BaseURL(),
+				ErrorSource:  "Scanner.Run.URLParse",
+				BypassModule: s.scannerOpts.BypassModule,
 			})
 			continue
 		}

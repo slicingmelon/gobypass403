@@ -10,6 +10,7 @@ require (
 	github.com/alitto/pond/v2 v2.1.6
 	github.com/andybalholm/brotli v1.1.1
 	github.com/bytedance/sonic v1.12.8
+	github.com/dgraph-io/ristretto/v2 v2.1.0
 	github.com/golang/snappy v0.0.4
 	github.com/klauspost/compress v1.17.11
 	github.com/phuslu/fastdns v0.12.1
@@ -35,7 +36,6 @@ require (
 	github.com/cloudwego/base64x v0.1.5 // indirect
 	github.com/containerd/console v1.0.3 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
-	github.com/dgraph-io/ristretto/v2 v2.1.0 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/gookit/color v1.5.4 // indirect
 	github.com/klauspost/cpuid/v2 v2.2.3 // indirect

@@ -205,10 +205,10 @@ func (wp *RequestWorkerPool) ProcessRequestResponseJob(bypassPayload payload.Byp
 func (wp *RequestWorkerPool) BuildRawRequestTask(req *fasthttp.Request, bypassPayload payload.BypassPayload) error {
 	if err := BuildRawHTTPRequest(wp.httpClient, req, bypassPayload); err != nil {
 		return GB403ErrorHandler.GetErrorHandler().HandleErrorAndContinue(err, GB403ErrorHandler.ErrorContext{
-			ErrorSource:  []byte("BuildRawRequestTask"),
-			Host:         []byte(payload.BypassPayloadToBaseURL(bypassPayload)),
-			BypassModule: []byte(bypassPayload.BypassModule),
-			DebugToken:   []byte(bypassPayload.PayloadToken),
+			ErrorSource:  "BuildRawRequestTask",
+			Host:         payload.BypassPayloadToBaseURL(bypassPayload),
+			BypassModule: bypassPayload.BypassModule,
+			DebugToken:   bypassPayload.PayloadToken,
 		})
 	}
 	return nil

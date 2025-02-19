@@ -18,7 +18,7 @@ import (
 const (
 	DefaultCacheSizeMB = 32 // MB - kept for compatibility
 	MaxDebugTokens     = 5
-	maxErrorLength     = 100
+	maxErrorLength     = 250
 )
 
 var (
@@ -104,10 +104,10 @@ func (tr *TokenRing) GetLast(n int) []string {
 
 // ErrorContext holds metadata about where/when the error occurred
 type ErrorContext struct {
-	ErrorSource  []byte
-	Host         []byte
-	BypassModule []byte
-	DebugToken   []byte
+	ErrorSource  string
+	Host         string
+	BypassModule string
+	DebugToken   string
 }
 
 // ErrorStats tracks statistics for each error type

@@ -7,7 +7,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/VictoriaMetrics/VictoriaMetrics/lib/bytesutil"
 	"github.com/slicingmelon/go-bypass-403/internal/engine/payload"
 	"github.com/slicingmelon/go-bypass-403/internal/engine/rawhttp"
 	GB403ErrorHandler "github.com/slicingmelon/go-bypass-403/internal/utils/error"
@@ -215,10 +214,10 @@ func BenchmarkRequestComponents(b *testing.B) {
 		testErr := fmt.Errorf("test error")
 		for i := 0; i < b.N; i++ {
 			errCtx := GB403ErrorHandler.ErrorContext{
-				ErrorSource:  bytesutil.ToUnsafeBytes("execFunc"),
-				Host:         bytesutil.ToUnsafeBytes(payload.BypassPayloadToBaseURL(bypassPayload)),
-				BypassModule: bytesutil.ToUnsafeBytes(bypassPayload.BypassModule),
-				DebugToken:   bytesutil.ToUnsafeBytes(bypassPayload.PayloadToken),
+				ErrorSource:  "execFunc",
+				Host:         payload.BypassPayloadToBaseURL(bypassPayload),
+				BypassModule: bypassPayload.BypassModule,
+				DebugToken:   bypassPayload.PayloadToken,
 			}
 			_ = GB403ErrorHandler.GetErrorHandler().HandleError(testErr, errCtx)
 		}

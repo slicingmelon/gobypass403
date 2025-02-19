@@ -6,7 +6,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/VictoriaMetrics/VictoriaMetrics/lib/bytesutil"
 	"github.com/slicingmelon/go-bypass-403/internal/engine/payload"
 	GB403ErrorHandler "github.com/slicingmelon/go-bypass-403/internal/utils/error"
 )
@@ -24,10 +23,10 @@ func BenchmarkErrorHandler(b *testing.B) {
 		b.ReportAllocs()
 		for i := 0; i < b.N; i++ {
 			errCtx := GB403ErrorHandler.ErrorContext{
-				ErrorSource:  bytesutil.ToUnsafeBytes("execFunc"),
-				Host:         bytesutil.ToUnsafeBytes("test.com"),
-				BypassModule: bytesutil.ToUnsafeBytes(bypassPayload.BypassModule),
-				DebugToken:   bytesutil.ToUnsafeBytes(bypassPayload.PayloadToken),
+				ErrorSource:  "execFunc",
+				Host:         "test.com",
+				BypassModule: bypassPayload.BypassModule,
+				DebugToken:   bypassPayload.PayloadToken,
 			}
 			_ = errCtx
 		}
@@ -48,10 +47,10 @@ func BenchmarkErrorHandler(b *testing.B) {
 	b.Run("cache_operations", func(b *testing.B) {
 		b.ReportAllocs()
 		errCtx := GB403ErrorHandler.ErrorContext{
-			ErrorSource:  bytesutil.ToUnsafeBytes("execFunc2"),
-			Host:         bytesutil.ToUnsafeBytes("test.com"),
-			BypassModule: bytesutil.ToUnsafeBytes("test-module"),
-			DebugToken:   bytesutil.ToUnsafeBytes("test-token"),
+			ErrorSource:  "execFunc2",
+			Host:         "test.com",
+			BypassModule: "test-module",
+			DebugToken:   "test-token",
 		}
 		for i := 0; i < b.N; i++ {
 			handler.HandleError(testErr, errCtx)
@@ -79,10 +78,10 @@ func BenchmarkErrorHandler(b *testing.B) {
 		handler.Reset() // Clear previous state
 		for i := 0; i < b.N; i++ {
 			errCtx := GB403ErrorHandler.ErrorContext{
-				ErrorSource:  bytesutil.ToUnsafeBytes("execFunc"),
-				Host:         bytesutil.ToUnsafeBytes("test.com"),
-				BypassModule: bytesutil.ToUnsafeBytes("test-module"),
-				DebugToken:   bytesutil.ToUnsafeBytes("test-token"),
+				ErrorSource:  "execFunc",
+				Host:         "test.com",
+				BypassModule: "test-module",
+				DebugToken:   "test-token",
 			}
 			handler.HandleError(testErr, errCtx)
 		}
@@ -92,10 +91,10 @@ func BenchmarkErrorHandler(b *testing.B) {
 		b.ReportAllocs()
 		// Setup some test data first
 		errCtx := GB403ErrorHandler.ErrorContext{
-			ErrorSource:  bytesutil.ToUnsafeBytes("execFunc"),
-			Host:         bytesutil.ToUnsafeBytes("test.com"),
-			BypassModule: bytesutil.ToUnsafeBytes("test-module"),
-			DebugToken:   bytesutil.ToUnsafeBytes("test-token"),
+			ErrorSource:  "execFunc",
+			Host:         "test.com",
+			BypassModule: "test-module",
+			DebugToken:   "test-token",
 		}
 		// Add some errors to have something to print
 		for i := 0; i < 10; i++ {
