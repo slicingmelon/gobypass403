@@ -13,6 +13,7 @@ require (
 	github.com/dgraph-io/ristretto/v2 v2.1.0
 	github.com/golang/snappy v0.0.4
 	github.com/klauspost/compress v1.17.11
+	github.com/likexian/doh v0.7.1
 	github.com/phuslu/fastdns v0.12.1
 	github.com/pierrec/lz4/v4 v4.1.22
 	github.com/pterm/pterm v0.12.80
@@ -40,7 +41,6 @@ require (
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/gookit/color v1.5.4 // indirect
 	github.com/klauspost/cpuid/v2 v2.2.3 // indirect
-	github.com/likexian/doh v0.7.1 // indirect
 	github.com/likexian/gokit v0.25.15 // indirect
 	github.com/lithammer/fuzzysearch v1.1.8 // indirect
 	github.com/mattn/go-runewidth v0.0.16 // indirect

@@ -1,15 +1,15 @@
 package dialer
 
 import (
-	"context"
 	"fmt"
 	"net"
 	"sync"
 	"time"
 
 	"github.com/likexian/doh"
-	"github.com/likexian/doh/dns"
+	GB403ErrorHandler "github.com/slicingmelon/go-bypass-403/internal/utils/error"
 	"github.com/valyala/fasthttp"
+	"github.com/valyala/fasthttp/fasthttpproxy"
 )
 
 var (
@@ -25,49 +25,47 @@ func init() {
 
 func GetSharedDialer() *fasthttp.TCPDialer {
 	onceDialer.Do(func() {
-		// Initialize DoH client
-		dohClient = doh.Use(doh.CloudflareProvider, doh.GoogleProvider)
-
 		sharedDialer = &fasthttp.TCPDialer{
 			Concurrency:      2048,
 			DNSCacheDuration: 120 * time.Minute,
-			Resolver: &net.Resolver{
-				PreferGo: true,
-				Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
-					// Try system resolver first
-					d := net.Dialer{Timeout: 2 * time.Second}
-					if conn, err := d.DialContext(ctx, network, address); err == nil {
-						return conn, nil
-					}
-
-					// If system resolver fails, try DoH
-					host := address
-					if h, _, err := net.SplitHostPort(address); err == nil {
-						host = h
-					}
-
-					rsp, err := dohClient.Query(ctx, dns.Domain(host), dns.TypeA)
-					if err == nil && len(rsp.Answer) > 0 {
-						// Try each IP from DoH response
-						for _, a := range rsp.Answer {
-							if conn, err := d.DialContext(ctx, network, a.Data); err == nil {
-								return conn, nil
-							}
-						}
-					}
-
-					return nil, fmt.Errorf("all resolution methods failed for %s", address)
-				},
-			},
 		}
 	})
 	return sharedDialer
 }
 
-// Cleanup function
-func Cleanup() {
-	if dohClient != nil {
-		dohClient.Close()
+func CreateDialFunc(timeout time.Duration, proxyURL string) fasthttp.DialFunc {
+	// Get shared dialer instance
+	dialer := GetSharedDialer()
+
+	return func(addr string) (net.Conn, error) {
+		// Handle proxy if configured
+		if proxyURL != "" {
+			proxyDialer := fasthttpproxy.FasthttpHTTPDialerTimeout(proxyURL, timeout)
+			conn, err := proxyDialer(addr)
+			if err != nil {
+				if handleErr := GB403ErrorHandler.GetErrorHandler().HandleError(err, GB403ErrorHandler.ErrorContext{
+					ErrorSource: "Client.proxyDial",
+					Host:        addr,
+				}); handleErr != nil {
+					return nil, fmt.Errorf("proxy dial error handling failed: %v (original error: %v)", handleErr, err)
+				}
+				return nil, err
+			}
+			return conn, nil
+		}
+
+		// No proxy, use our TCPDialer with timeout
+		conn, err := dialer.DialDualStackTimeout(addr, timeout)
+		if err != nil {
+			if handleErr := GB403ErrorHandler.GetErrorHandler().HandleError(err, GB403ErrorHandler.ErrorContext{
+				ErrorSource: "Client.directDial",
+				Host:        addr,
+			}); handleErr != nil {
+				return nil, fmt.Errorf("direct dial error handling failed: %v (original error: %v)", handleErr, err)
+			}
+			return nil, err
+		}
+		return conn, nil
 	}
 }
 
@@ -120,6 +118,59 @@ func Cleanup() {
 
 // // Don't forget to clean up
 // func cleanup() {
+// 	if dohClient != nil {
+// 		dohClient.Close()
+// 	}
+// }
+
+// func GetSharedDialer() *fasthttp.TCPDialer {
+// 	onceDialer.Do(func() {
+// 		// Initialize DoH client
+// 		dohClient = doh.Use(doh.CloudflareProvider, doh.GoogleProvider)
+
+// 		sharedDialer = &fasthttp.TCPDialer{
+// 			Concurrency:      2048,
+// 			DNSCacheDuration: 120 * time.Minute,
+// 			Resolver: &net.Resolver{
+// 				PreferGo: true,
+// 				Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
+// 					// Try DialDualStack first
+// 					if conn, err := sharedDialer.DialDualStackTimeout(address, 5*time.Second); err == nil {
+// 						return conn, nil
+// 					}
+
+// 					// If DialDualStack fails, try DoH
+// 					host := address
+// 					if h, _, err := net.SplitHostPort(address); err == nil {
+// 						host = h
+// 					}
+
+// 					rsp, err := dohClient.Query(ctx, dns.Domain(host), dns.TypeA)
+// 					if err == nil && len(rsp.Answer) > 0 {
+// 						for _, a := range rsp.Answer {
+// 							if conn, err := sharedDialer.DialDualStackTimeout(a.Data, 5*time.Second); err == nil {
+// 								return conn, nil
+// 							}
+// 						}
+// 					}
+
+// 					return nil, fmt.Errorf("all resolution methods failed for %s", address)
+// 				},
+// 			},
+// 		}
+// 	})
+// 	return sharedDialer
+// }
+
+// CreateDialFunc creates a dial function with the given options and error handler
+
+// // Cleanup function
+// func Cleanup() {
+// 	if dohClient != nil {
+// 		dohClient.Close()
+// 	}
+// // // Cleanup function
+// func Cleanup() {
 // 	if dohClient != nil {
 // 		dohClient.Close()
 // 	}

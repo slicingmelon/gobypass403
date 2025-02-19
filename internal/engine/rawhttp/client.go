@@ -97,8 +97,7 @@ func NewHTTPClient(opts *HTTPClientOptions) *HTTPClient {
 
 	// Set the default dialer if none is provided
 	if opts.Dialer == nil {
-		d := dialer.GetSharedDialer()
-		opts.Dialer = d.Dial // Use the Dial method from the shared dialer
+		opts.Dialer = dialer.CreateDialFunc(opts.DialTimeout, opts.ProxyURL)
 	}
 
 	retryConfig := DefaultRetryConfig()
