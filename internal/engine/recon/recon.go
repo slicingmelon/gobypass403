@@ -18,10 +18,10 @@ import (
 )
 
 type ReconService struct {
-	cache      *ReconCache
-	dialer     *fasthttp.TCPDialer
-	resolver   *net.Resolver
-	dnsServers []string
+	dialer       *fasthttp.TCPDialer
+	cache        *ReconCache
+	dnsServers   []string
+	dohProviders []string
 }
 
 type ReconResult struct {
@@ -31,39 +31,33 @@ type ReconResult struct {
 	CNAMEs       []string
 }
 
-// func NewReconService() *ReconService {
-// 	dnsServers := []string{
-// 		"8.8.8.8:53",        // Google
-// 		"1.1.1.1:53",        // Cloudflare
-// 		"9.9.9.9:53",        // Quad9
-// 		"208.67.222.222:53", // OpenDNS
-// 	}
-
-// 	d := dialer.GetSharedDialer() // Get shared dialer for HTTP operations only
-
-// 	// Create separate resolver for DNS operations
-// 	resolver := &net.Resolver{
-// 		PreferGo: true,
-// 		Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
-// 			d := net.Dialer{Timeout: 2 * time.Second}
-// 			return d.DialContext(ctx, "udp", dnsServers[0])
-// 		},
-// 	}
-
-// 	return &ReconService{
-// 		dialer:     d,        // For HTTP operations
-// 		resolver:   resolver, // For DNS operations
-// 		cache:      NewReconCache(),
-// 		dnsServers: dnsServers,
-// 	}
-// }
-
 func NewReconService() *ReconService {
-	d := dialer.GetSharedDialer()
+	dnsServers := []string{
+		"8.8.8.8:53",                // Google
+		"1.1.1.1:53",                // Cloudflare
+		"9.9.9.9:53",                // Quad9
+		"208.67.222.222:53",         // OpenDNS
+		"8.8.4.4:53",                // Google Secondary
+		"1.0.0.1:53",                // Cloudflare Secondary
+		"149.112.112.112:53",        // Quad9 Secondary
+		"208.67.220.220:53",         // OpenDNS Secondary
+		"[2001:4860:4860::8888]:53", // Google IPv6
+		"[2606:4700:4700::1111]:53", // Cloudflare IPv6
+		"[2620:fe::fe]:53",          // Quad9 IPv6
+	}
+
+	// Add DoH providers that support IPv6
+	dohProviders := []string{
+		"https://cloudflare-dns.com/dns-query",
+		"https://dns.google/dns-query",
+		"https://dns.quad9.net/dns-query",
+	}
 
 	return &ReconService{
-		dialer: d,
-		cache:  NewReconCache(),
+		dialer:       dialer.GetSharedDialer(),
+		cache:        NewReconCache(),
+		dnsServers:   dnsServers,
+		dohProviders: dohProviders,
 	}
 }
 
@@ -199,20 +193,354 @@ func (r *ReconService) Run(urls []string) error {
 	return nil
 }
 
+// func (r *ReconService) ResolveDomain(host string) ([]net.IP, error) {
+// 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+// 	defer cancel()
+
+// 	// Create channels for all resolution methods
+// 	resultChan := make(chan []net.IP, len(r.dnsServers)+2)
+// 	errChan := make(chan error, len(r.dnsServers)+2)
+// 	doneChan := make(chan struct{})
+
+// 	// Track results
+// 	var ips []net.IP
+// 	seen := make(map[string]struct{})
+// 	responses := 0
+// 	expectedResponses := len(r.dnsServers) + 2 // DNS servers + system resolver + DoH
+
+// 	// Start result collector goroutine
+// 	go func() {
+// 		for {
+// 			select {
+// 			case resolvedIPs := <-resultChan:
+// 				responses++
+// 				// Add any new IPs to our result set
+// 				for _, ip := range resolvedIPs {
+// 					key := ip.String()
+// 					if _, exists := seen[key]; !exists {
+// 						seen[key] = struct{}{}
+// 						ips = append(ips, ip)
+// 					}
+// 				}
+// 			case <-errChan:
+// 				responses++
+// 			case <-ctx.Done():
+// 				doneChan <- struct{}{}
+// 				return
+// 			}
+
+// 			// Signal completion if we have IPs or all resolvers responded
+// 			if len(ips) > 0 || responses >= expectedResponses {
+// 				doneChan <- struct{}{}
+// 				return
+// 			}
+// 		}
+// 	}()
+
+// 	// 1. Launch system resolver
+// 	go func() {
+// 		if ips, err := net.DefaultResolver.LookupIPAddr(ctx, host); err == nil {
+// 			resultChan <- convertIPAddrs(ips)
+// 		} else {
+// 			errChan <- err
+// 		}
+// 	}()
+
+// 	// 2. Launch all DNS servers
+// 	for _, server := range r.dnsServers {
+// 		go func(server string) {
+// 			resolver := &net.Resolver{
+// 				PreferGo: true,
+// 				Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
+// 					d := net.Dialer{Timeout: 2 * time.Second}
+// 					return d.DialContext(ctx, "udp", server)
+// 				},
+// 			}
+
+// 			if ips, err := resolver.LookupIPAddr(ctx, host); err == nil {
+// 				resultChan <- convertIPAddrs(ips)
+// 			} else {
+// 				errChan <- err
+// 			}
+// 		}(server)
+// 	}
+
+// 	// 3. Launch DoH resolver
+// 	go func() {
+// 		req := fasthttp.AcquireRequest()
+// 		resp := fasthttp.AcquireResponse()
+// 		defer func() {
+// 			fasthttp.ReleaseRequest(req)
+// 			fasthttp.ReleaseResponse(resp)
+// 		}()
+
+// 		req.SetRequestURI(fmt.Sprintf("https://cloudflare-dns.com/dns-query?name=%s&type=A,AAAA", host))
+// 		req.Header.Set("Accept", "application/dns-json")
+
+// 		client := &fasthttp.Client{
+// 			TLSConfig:   &tls.Config{InsecureSkipVerify: true},
+// 			ReadTimeout: 5 * time.Second,
+// 			Dial:        r.dialer.Dial,
+// 		}
+
+// 		if err := client.DoTimeout(req, resp, 5*time.Second); err == nil {
+// 			var dohResponse struct {
+// 				Answer []struct {
+// 					Type int    `json:"type"`
+// 					Data string `json:"data"`
+// 				} `json:"Answer"`
+// 			}
+
+// 			if json.Unmarshal(resp.Body(), &dohResponse) == nil {
+// 				var ips []net.IP
+// 				for _, answer := range dohResponse.Answer {
+// 					if ip := net.ParseIP(answer.Data); ip != nil && (answer.Type == 1 || answer.Type == 28) {
+// 						ips = append(ips, ip)
+// 					}
+// 				}
+// 				resultChan <- ips
+// 			} else {
+// 				errChan <- fmt.Errorf("DoH JSON unmarshal failed")
+// 			}
+// 		} else {
+// 			errChan <- err
+// 		}
+// 	}()
+
+// 	// Wait for completion or timeout
+// 	select {
+// 	case <-doneChan:
+// 		if len(ips) > 0 {
+// 			return ips, nil
+// 		}
+// 		return nil, fmt.Errorf("all DNS resolution attempts failed")
+// 	case <-ctx.Done():
+// 		return nil, fmt.Errorf("DNS resolution timeout")
+// 	}
+// }
+
+// func (r *ReconService) ResolveDomain(host string) ([]net.IP, error) {
+// 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+// 	defer cancel()
+
+// 	// Create channels for all resolution methods
+// 	resultChan := make(chan []net.IP, len(r.dnsServers)+2)
+// 	errChan := make(chan error, len(r.dnsServers)+2)
+// 	doneChan := make(chan struct{})
+
+// 	// Track results
+// 	var ips []net.IP
+// 	seen := make(map[string]struct{})
+// 	responses := 0
+// 	expectedResponses := len(r.dnsServers) + 2 // DNS servers + system resolver + DoH
+
+// 	// Start result collector goroutine
+// 	go func() {
+// 		for {
+// 			select {
+// 			case resolvedIPs := <-resultChan:
+// 				responses++
+// 				// Add any new IPs to our result set
+// 				for _, ip := range resolvedIPs {
+// 					key := ip.String()
+// 					if _, exists := seen[key]; !exists {
+// 						seen[key] = struct{}{}
+// 						ips = append(ips, ip)
+// 					}
+// 				}
+// 			case <-errChan:
+// 				responses++
+// 			case <-ctx.Done():
+// 				doneChan <- struct{}{}
+// 				return
+// 			}
+
+// 			// Signal completion if we have IPs or all resolvers responded
+// 			if len(ips) > 0 || responses >= expectedResponses {
+// 				doneChan <- struct{}{}
+// 				return
+// 			}
+// 		}
+// 	}()
+
+// 	// 1. Launch system resolver
+// 	// go func() {
+// 	// 	if ips, err := net.DefaultResolver.LookupIPAddr(ctx, host); err == nil {
+// 	// 		resultChan <- convertIPAddrs(ips)
+// 	// 	} else {
+// 	// 		errChan <- err
+// 	// 	}
+// 	// }()
+// 	// 2. Custom DNS servers
+// 	for _, server := range r.dnsServers {
+// 		go func(server string) {
+// 			resolver := &net.Resolver{
+// 				PreferGo: true,
+// 				Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
+// 					d := net.Dialer{Timeout: 2 * time.Second}
+// 					// Try UDP first, then TCP
+// 					if conn, err := d.DialContext(ctx, "udp", server); err == nil {
+// 						return conn, nil
+// 					}
+// 					return d.DialContext(ctx, "tcp", server)
+// 				},
+// 			}
+// 			// Try both IPv4 and IPv6
+// 			ips4, _ := resolver.LookupIP(ctx, "ip4", host)
+// 			ips6, _ := resolver.LookupIP(ctx, "ip6", host)
+// 			resultChan <- append(ips4, ips6...)
+// 		}(server)
+// 	}
+
+// 	// 2. Launch all DNS servers
+// 	for _, server := range r.dnsServers {
+// 		go func(server string) {
+// 			resolver := &net.Resolver{
+// 				PreferGo: true,
+// 				Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
+// 					d := net.Dialer{Timeout: 2 * time.Second}
+// 					// Try UDP first, then TCP
+// 					if conn, err := d.DialContext(ctx, "udp", server); err == nil {
+// 						return conn, nil
+// 					}
+// 					return d.DialContext(ctx, "tcp", server)
+// 				},
+// 			}
+// 			// Try both IPv4 and IPv6
+// 			ips4, _ := resolver.LookupIP(ctx, "ip4", host)
+// 			ips6, _ := resolver.LookupIP(ctx, "ip6", host)
+// 			resultChan <- append(ips4, ips6...)
+// 		}(server)
+// 	}
+
+// 	// 3. Launch DoH resolver
+// 	for _, provider := range r.dohProviders {
+// 		go func(provider string) {
+// 			if ips := r.resolveWithDoH(ctx, provider, host); len(ips) > 0 {
+// 				resultChan <- ips
+// 			}
+// 		}(provider)
+// 	}
+
+// 	// Wait for completion or timeout
+// 	select {
+// 	case <-doneChan:
+// 		if len(ips) > 0 {
+// 			return ips, nil
+// 		}
+// 		return nil, fmt.Errorf("all DNS resolution attempts failed")
+// 	case <-ctx.Done():
+// 		return nil, fmt.Errorf("DNS resolution timeout")
+// 	}
+// }
+
+// func (r *ReconService) ResolveDomain(host string) ([]net.IP, error) {
+// 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second) // Increased timeout
+// 	defer cancel()
+
+// 	// Create channels for all resolution methods
+// 	resultChan := make(chan []net.IP, len(r.dnsServers)+len(r.dohProviders))
+// 	errChan := make(chan error, len(r.dnsServers)+len(r.dohProviders))
+// 	doneChan := make(chan struct{})
+
+// 	// Track results
+// 	var ips []net.IP
+// 	seen := make(map[string]struct{})
+// 	responses := 0
+// 	expectedResponses := len(r.dnsServers) + len(r.dohProviders) // DNS servers + DoH providers
+
+// 	// Start result collector goroutine
+// 	go func() {
+// 		for {
+// 			select {
+// 			case resolvedIPs := <-resultChan:
+// 				responses++
+// 				// Add any new IPs to our result set
+// 				for _, ip := range resolvedIPs {
+// 					key := ip.String()
+// 					if _, exists := seen[key]; !exists {
+// 						seen[key] = struct{}{}
+// 						ips = append(ips, ip)
+// 					}
+// 				}
+// 			case <-errChan:
+// 				responses++
+// 			case <-ctx.Done():
+// 				doneChan <- struct{}{}
+// 				return
+// 			}
+
+// 			// Signal completion if we have IPs or all resolvers responded
+// 			if len(ips) > 0 || responses >= expectedResponses {
+// 				doneChan <- struct{}{}
+// 				return
+// 			}
+// 		}
+// 	}()
+
+// 	// Launch DNS servers (only once)
+// 	for _, server := range r.dnsServers {
+// 		go func(server string) {
+// 			resolver := &net.Resolver{
+// 				PreferGo: true,
+// 				Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
+// 					d := net.Dialer{Timeout: 2 * time.Second}
+// 					// Try UDP first, then TCP
+// 					if conn, err := d.DialContext(ctx, "udp", server); err == nil {
+// 						return conn, nil
+// 					}
+// 					return d.DialContext(ctx, "tcp", server)
+// 				},
+// 			}
+// 			// Try both IPv4 and IPv6
+// 			ips4, _ := resolver.LookupIP(ctx, "ip4", host)
+// 			ips6, _ := resolver.LookupIP(ctx, "ip6", host)
+// 			resultChan <- append(ips4, ips6...)
+// 		}(server)
+// 	}
+
+// 	// Launch DoH resolvers
+// 	for _, provider := range r.dohProviders {
+// 		go func(provider string) {
+// 			if ips := r.resolveWithDoH(ctx, provider, host); len(ips) > 0 {
+// 				resultChan <- ips
+// 			} else {
+// 				errChan <- fmt.Errorf("DoH resolution failed for %s", provider)
+// 			}
+// 		}(provider)
+// 	}
+
+// 	// Wait for completion or timeout
+// 	select {
+// 	case <-doneChan:
+// 		if len(ips) > 0 {
+// 			return ips, nil
+// 		}
+// 		return nil, fmt.Errorf("all DNS resolution attempts failed")
+// 	case <-ctx.Done():
+// 		return nil, fmt.Errorf("DNS resolution timeout")
+// 	}
+// }
+
 func (r *ReconService) ResolveDomain(host string) ([]net.IP, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	// Shorter main timeout
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 
-	// Create channels for all resolution methods
-	resultChan := make(chan []net.IP, len(r.dnsServers)+2)
-	errChan := make(chan error, len(r.dnsServers)+2)
+	// Create channels
+	resultChan := make(chan []net.IP, len(r.dnsServers)+len(r.dohProviders)+1)
+	errChan := make(chan error, len(r.dnsServers)+len(r.dohProviders)+1)
 	doneChan := make(chan struct{})
 
 	// Track results
 	var ips []net.IP
 	seen := make(map[string]struct{})
 	responses := 0
-	expectedResponses := len(r.dnsServers) + 2 // DNS servers + system resolver + DoH
+	expectedResponses := len(r.dnsServers) + len(r.dohProviders) + 1
+
+	// Shorter timeouts for individual resolvers
+	//dialTimeout := 1 * time.Second
+	dohTimeout := 2 * time.Second
 
 	// Start result collector goroutine
 	go func() {
@@ -253,6 +581,7 @@ func (r *ReconService) ResolveDomain(host string) ([]net.IP, error) {
 	}()
 
 	// 2. Launch all DNS servers
+	// In ResolveDomain function
 	for _, server := range r.dnsServers {
 		go func(server string) {
 			resolver := &net.Resolver{
@@ -285,7 +614,7 @@ func (r *ReconService) ResolveDomain(host string) ([]net.IP, error) {
 
 		client := &fasthttp.Client{
 			TLSConfig:   &tls.Config{InsecureSkipVerify: true},
-			ReadTimeout: 5 * time.Second,
+			ReadTimeout: dohTimeout,
 			Dial:        r.dialer.Dial,
 		}
 
@@ -323,6 +652,42 @@ func (r *ReconService) ResolveDomain(host string) ([]net.IP, error) {
 	case <-ctx.Done():
 		return nil, fmt.Errorf("DNS resolution timeout")
 	}
+}
+
+func (r *ReconService) resolveWithDoH(ctx context.Context, provider, host string) []net.IP {
+	req := fasthttp.AcquireRequest()
+	resp := fasthttp.AcquireResponse()
+	defer fasthttp.ReleaseRequest(req)
+	defer fasthttp.ReleaseResponse(resp)
+
+	// Query both A and AAAA records
+	req.SetRequestURI(fmt.Sprintf("%s?name=%s&type=A,AAAA", provider, host))
+	req.Header.Set("Accept", "application/dns-json")
+
+	client := &fasthttp.Client{
+		TLSConfig:   &tls.Config{InsecureSkipVerify: true},
+		ReadTimeout: 5 * time.Second,
+		Dial:        r.dialer.Dial,
+	}
+
+	var ips []net.IP
+	if err := client.DoTimeout(req, resp, 5*time.Second); err == nil {
+		var dohResponse struct {
+			Answer []struct {
+				Type int    `json:"type"`
+				Data string `json:"data"`
+			} `json:"Answer"`
+		}
+
+		if json.Unmarshal(resp.Body(), &dohResponse) == nil {
+			for _, answer := range dohResponse.Answer {
+				if ip := net.ParseIP(answer.Data); ip != nil {
+					ips = append(ips, ip)
+				}
+			}
+		}
+	}
+	return ips
 }
 
 // ProbePort checks if a specific port is open and what protocol it speaks
