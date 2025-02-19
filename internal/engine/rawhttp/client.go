@@ -384,7 +384,6 @@ func ReqCopyToWithSettings(src *fasthttp.Request, dst *fasthttp.Request) *fastht
 	//GB403Logger.Debug().Msgf("After CopyTo - scheme=%s host=%s",
 	//	src.URI().Scheme(), src.URI().Host()) // Use bytes directly in logging
 
-	// Apply all required settings
 	applyReqFlags(dst)
 
 	// Store original values as []byte

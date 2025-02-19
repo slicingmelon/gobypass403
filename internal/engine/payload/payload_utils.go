@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	GB403Logger "github.com/slicingmelon/go-bypass-403/internal/utils/logger"
 	"github.com/slicingmelon/go-rawurlparser"
@@ -278,17 +279,48 @@ func URLEncodeAll(s string) string {
 	return string(buf)
 }
 
-// BypassPayloadToFullURL converts a bypass payload to a full URL (utility function for unit tests)
-func BypassPayloadToFullURL(bypassPayload BypassPayload) string {
-	// Ensure RawURI starts with / if not empty and not already starting with /
-	rawURI := bypassPayload.RawURI
+var baseURLPool = sync.Pool{
+	New: func() interface{} {
+		return &strings.Builder{}
+	},
+}
 
-	return fmt.Sprintf("%s://%s%s", bypassPayload.Scheme, bypassPayload.Host, rawURI)
+// BypassPayloadToFullURL converts a bypass payload to a full URL (utility function for unit tests)
+func BypassPayloadToBaseURLWithPool(bypassPayload BypassPayload) string {
+	sb := baseURLPool.Get().(*strings.Builder)
+	defer baseURLPool.Put(sb)
+	sb.Reset()
+
+	sb.WriteString(bypassPayload.Scheme)
+	sb.WriteString("://")
+	sb.WriteString(bypassPayload.Host)
+
+	return sb.String()
 }
 
 // BypassPayloadToBaseURL converts a bypass payload to base URL (scheme://host)
+// ex BypassPayloadToBaseURLwithMake winner
+/*
+BenchmarkBypassPayloadToBaseURL
+BenchmarkBypassPayloadToBaseURL/with_pool
+BenchmarkBypassPayloadToBaseURL/with_pool-20
+20745991	        60.15 ns/op	      32 B/op	       2 allocs/op
+BenchmarkBypassPayloadToBaseURL/with_make
+BenchmarkBypassPayloadToBaseURL/with_make-20
+46353880	        28.99 ns/op	      24 B/op	       1 allocs/op
+BenchmarkBypassPayloadToBaseURL/with_sprintf
+BenchmarkBypassPayloadToBaseURL/with_sprintf-20
+10295320	       120.5 ns/op	      56 B/op	       3 allocs/op
+PASS
+ok  	github.com/slicingmelon/go-bypass-403/tests/benchmark	5.679s
+*/
 func BypassPayloadToBaseURL(bypassPayload BypassPayload) string {
-	return fmt.Sprintf("%s://%s", bypassPayload.Scheme, bypassPayload.Host)
+	// Pre-allocate capacity: len(scheme) + len("://") + len(host)
+	b := make([]byte, 0, len(bypassPayload.Scheme)+3+len(bypassPayload.Host))
+	b = append(b, bypassPayload.Scheme...)
+	b = append(b, "://"...)
+	b = append(b, bypassPayload.Host...)
+	return string(b)
 }
 
 // FullURLToBypassPayload converts a full URL to a bypass payload (utility function for unit tests)
@@ -354,4 +386,15 @@ func FullURLToBypassPayload(fullURL string, method string, headers []Headers) (B
 		RawURI:  parsedURL.Path,
 		Headers: headers,
 	}, nil
+}
+
+// BypassPayloadToFullURL converts a bypass payload to a full URL (utility function for unit tests)
+func BypassPayloadToFullURL(bypassPayload BypassPayload) string {
+	// Single pre-allocation, no path normalization
+	b := make([]byte, 0, len(bypassPayload.Scheme)+3+len(bypassPayload.Host)+len(bypassPayload.RawURI))
+	b = append(b, bypassPayload.Scheme...)
+	b = append(b, "://"...)
+	b = append(b, bypassPayload.Host...)
+	b = append(b, bypassPayload.RawURI...)
+	return string(b)
 }
