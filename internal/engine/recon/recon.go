@@ -44,39 +44,6 @@ var dnsServers = []string{
 	"208.67.222.222:53", // OpenDNS
 }
 
-// GetDialer returns the initialized TCPDialer with proper timeout
-func (r *ReconService) GetDialer() *fasthttp.TCPDialer {
-	r.dialerOnce.Do(func() {
-		r.dialer = &fasthttp.TCPDialer{
-			Concurrency:      2000,
-			DNSCacheDuration: 60 * time.Minute,
-			Resolver: &net.Resolver{
-				PreferGo: true,
-				Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
-					// Extract hostname from address
-					host, _, err := net.SplitHostPort(address)
-					if err != nil {
-						host = address
-					}
-
-					// Try to resolve using our robust ResolveDomain method
-					ips, err := r.ResolveDomain(host)
-					if err == nil && len(ips) > 0 {
-						// Use the first resolved IP
-						d := net.Dialer{Timeout: 2 * time.Second}
-						return d.DialContext(ctx, network, net.JoinHostPort(ips[0].String(), "53"))
-					}
-
-					// Fallback to default DNS server if everything fails
-					d := net.Dialer{Timeout: 2 * time.Second}
-					return d.DialContext(ctx, "udp", r.dnsServers[0])
-				},
-			},
-		}
-	})
-	return r.dialer
-}
-
 type ReconResult struct {
 	Hostname     string
 	IPv4Services map[string]map[string][]string // scheme -> ipv4 -> []ports
@@ -85,10 +52,41 @@ type ReconResult struct {
 }
 
 func NewReconService() *ReconService {
-	return &ReconService{
+	service := &ReconService{
 		cache:      NewReconCache(),
 		dnsServers: dnsServers,
 	}
+
+	service.dialer = &fasthttp.TCPDialer{
+		Concurrency:      2000,
+		DNSCacheDuration: 60 * time.Minute,
+		Resolver: &net.Resolver{
+			PreferGo: true,
+			Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
+				host, _, err := net.SplitHostPort(address)
+				if err != nil {
+					host = address
+				}
+
+				// Use ResolveDomain which already handles everything
+				ips, err := service.ResolveDomain(host)
+				if err == nil && len(ips) > 0 {
+					d := net.Dialer{Timeout: 2 * time.Second}
+					return d.DialContext(ctx, network, net.JoinHostPort(ips[0].String(), "53"))
+				}
+
+				// Last resort: direct connection to first DNS server
+				d := net.Dialer{Timeout: 2 * time.Second}
+				return d.DialContext(ctx, "udp", service.dnsServers[0])
+			},
+		},
+	}
+
+	return service
+}
+
+func (r *ReconService) GetDialer() *fasthttp.TCPDialer {
+	return r.dialer
 }
 
 // ProcessHost handles both domains and IPs
