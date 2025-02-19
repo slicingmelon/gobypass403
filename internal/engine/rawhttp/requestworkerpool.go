@@ -2,7 +2,6 @@ package rawhttp
 
 import (
 	"context"
-	"fmt"
 	"runtime"
 	"sync/atomic"
 	"time"
@@ -193,7 +192,7 @@ func (wp *RequestWorkerPool) ProcessRequestResponseJob(bypassPayload payload.Byp
 
 	if result != nil {
 		result.ResponseTime = respTime
-		// Add deferred release of response details
+		// Add deferred release of response details ... what I got myself into
 		runtime.SetFinalizer(result, func(r *RawHTTPResponseDetails) {
 			ReleaseResponseDetails(r)
 		})
@@ -205,16 +204,12 @@ func (wp *RequestWorkerPool) ProcessRequestResponseJob(bypassPayload payload.Byp
 // buildRequest constructs the HTTP request
 func (wp *RequestWorkerPool) BuildRawRequestTask(req *fasthttp.Request, bypassPayload payload.BypassPayload) error {
 	if err := BuildRawHTTPRequest(wp.httpClient, req, bypassPayload); err != nil {
-		errorContext := GB403ErrorHandler.ErrorContext{
-			ErrorSource:  []byte("BuildRawRequestTask"),
-			Host:         []byte(payload.BypassPayloadToBaseURL(bypassPayload)),
-			BypassModule: []byte(bypassPayload.BypassModule),
-			DebugToken:   []byte(bypassPayload.PayloadToken),
-		}
-		if handleErr := GB403ErrorHandler.GetErrorHandler().HandleError(err, errorContext); handleErr != nil {
-			return fmt.Errorf("failed to handle error in BuildRawRequestTask: %v (original error: %v)", handleErr, err)
-		}
-		return err
+		return GB403ErrorHandler.GetErrorHandler().HandleErrorAndContinue(err, GB403ErrorHandler.ErrorContext{
+			ErrorSource:  "BuildRawRequestTask",
+			Host:         payload.BypassPayloadToBaseURL(bypassPayload),
+			BypassModule: bypassPayload.BypassModule,
+			DebugToken:   bypassPayload.PayloadToken,
+		})
 	}
 	return nil
 }

@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/slicingmelon/go-bypass-403/internal/engine/payload"
+	GB403Logger "github.com/slicingmelon/go-bypass-403/internal/utils/logger"
 )
 
 // Options represents command-line options
@@ -154,7 +155,7 @@ func (o *CliOptions) validate() error {
 		if err := payload.UpdatePayloads(); err != nil {
 			return fmt.Errorf("failed to update payloads: %v", err)
 		}
-		fmt.Println("Payloads updated successfully")
+		GB403Logger.Success().Msgf("Payloads updated successfully")
 		os.Exit(0)
 	}
 
@@ -165,13 +166,18 @@ func (o *CliOptions) validate() error {
 		}
 		// Print the decoded information
 		targetURL := fmt.Sprintf("%s://%s%s", data.Scheme, data.Host, data.RawURI)
-		fmt.Println("=== Debug Token Information ===")
-		fmt.Printf("Full URL: %s\n", targetURL)
-		fmt.Printf("Bypass Module: %s\n", data.BypassModule)
-		fmt.Println("Headers:")
+
+		GB403Logger.PrintYellowLn("=== Debug Token Information ===")
+		GB403Logger.PrintYellow("Full URL: %s\n", targetURL)
+		GB403Logger.PrintYellow("Scheme: %s\n", data.Scheme)
+		GB403Logger.PrintYellow("Method: %s\n", data.Method)
+		GB403Logger.PrintYellow("Host: %s\n", data.Host)
+		GB403Logger.PrintYellow("RawURI: %s\n", data.RawURI)
+		GB403Logger.PrintYellow("Headers:")
 		for _, h := range data.Headers {
 			fmt.Printf("  %s: %s\n", h.Header, h.Value)
 		}
+		GB403Logger.PrintYellow("Bypass Module: %s\n", data.BypassModule)
 	}
 
 	// Validate input parameters

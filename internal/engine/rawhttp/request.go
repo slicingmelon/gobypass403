@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"io"
 	"runtime"
+	"slices"
 	"sync"
 	"unsafe"
 
@@ -465,16 +466,8 @@ func GetHTTPResponseTime(details *RawHTTPResponseDetails) int64 {
 }
 
 func matchStatusCodes(code int, codes []int) bool {
-	// If codes is nil, match all status codes
-	if codes == nil {
+	if codes == nil { // Still need explicit nil check
 		return true
 	}
-
-	// Otherwise match specific codes
-	for _, c := range codes {
-		if c == code {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(codes, code)
 }

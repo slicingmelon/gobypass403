@@ -625,8 +625,8 @@ func createCustomDialer() fasthttp.DialFunc {
 
 		// Create error context
 		errorContext := GB403ErrorHandler.ErrorContext{
-			ErrorSource: []byte("TestFasthttpStreamingConcurrent3.Dial"),
-			Host:        []byte(addr),
+			ErrorSource: "TestFasthttpStreamingConcurrent3.Dial",
+			Host:        addr,
 		}
 
 		conn, err := dialer.DialDualStack(addr)
@@ -689,10 +689,10 @@ func TestFasthttpStreamingConcurrent3(t *testing.T) {
 				if err != nil {
 					// Create error context
 					errorContext := GB403ErrorHandler.ErrorContext{
-						ErrorSource:  []byte("TestFasthttpStreamingConcurrent3"),
-						Host:         []byte(payload.BypassPayloadToFullURL(job)),
-						BypassModule: []byte(job.BypassModule),
-						DebugToken:   []byte(job.PayloadToken),
+						ErrorSource:  "TestFasthttpStreamingConcurrent3",
+						Host:         payload.BypassPayloadToBaseURL(job),
+						BypassModule: job.BypassModule,
+						DebugToken:   job.PayloadToken,
 					}
 					errHandler.HandleError(err, errorContext)
 
@@ -710,10 +710,10 @@ func TestFasthttpStreamingConcurrent3(t *testing.T) {
 				if err != nil && err != io.EOF {
 					// Create error context for body read errors
 					errorContext := GB403ErrorHandler.ErrorContext{
-						ErrorSource:  []byte("TestFasthttpStreamingConcurrent2.BodyRead"),
-						Host:         []byte(job.Scheme + "://" + job.Host),
-						BypassModule: []byte(job.BypassModule),
-						DebugToken:   []byte(job.PayloadToken),
+						ErrorSource:  "TestFasthttpStreamingConcurrent2.BodyRead",
+						Host:         payload.BypassPayloadToBaseURL(job),
+						BypassModule: job.BypassModule,
+						DebugToken:   job.PayloadToken,
 					}
 					errHandler.HandleError(err, errorContext)
 

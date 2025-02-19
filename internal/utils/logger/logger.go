@@ -188,20 +188,32 @@ func IsVerboseEnabled() bool {
 	return DefaultLogger.IsVerboseEnabled()
 }
 
-func PrintGreen(format string, args ...interface{}) {
+func PrintGreenLn(format string, args ...interface{}) {
 	DefaultLogger.mu.Lock()
 	defer DefaultLogger.mu.Unlock()
 	pterm.FgGreen.Printfln(format, args...)
 }
 
-func PrintYellow(format string, args ...interface{}) {
+func PrintYellowLn(format string, args ...interface{}) {
 	DefaultLogger.mu.Lock()
 	defer DefaultLogger.mu.Unlock()
 	pterm.FgYellow.Printfln(format, args...)
 }
 
-func PrintCyan(format string, args ...interface{}) {
+func PrintCyanLn(format string, args ...interface{}) {
 	DefaultLogger.mu.Lock()
 	defer DefaultLogger.mu.Unlock()
 	pterm.FgCyan.Printfln(format, args...)
+}
+
+func PrintGreen(format string, args ...interface{}) string {
+	return pterm.FgGreen.Sprintf(format, args...)
+}
+
+func PrintYellow(format string, args ...interface{}) string {
+	return pterm.FgYellow.Sprintf(format, args...)
+}
+
+func PrintCyan(format string, args ...interface{}) string {
+	return pterm.FgCyan.Sprintf(format, args...)
 }
