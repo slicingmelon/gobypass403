@@ -35,8 +35,8 @@ type BypassPayload struct {
 	Host         string    // this gets updated
 	RawURI       string    // this gets updated, represents everything that goes into the first line of the request u
 	Headers      []Headers // all headers as result of various payload generators
-	BypassModule string
-	PayloadToken string
+	BypassModule string    // always gets updated
+	PayloadToken string    // always gets updated
 }
 
 func NewPayloadGenerator() *PayloadGenerator {
