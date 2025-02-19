@@ -217,7 +217,7 @@ func (s *Scanner) RunBypassModule(bypassModule string, targetURL string, results
 	if s.progressBarEnabled.Load() {
 		progressBar = NewProgressBar(bypassModule, len(allJobs), s.scannerOpts.Threads)
 		progressBar.Start()
-		progressBar.UpdateCurrentURL(targetURL)
+		//progressBar.UpdateCurrentURL(targetURL)
 		defer progressBar.Stop()
 	}
 
@@ -232,7 +232,7 @@ func (s *Scanner) RunBypassModule(bypassModule string, targetURL string, results
 		// Update progress bar to match pool state
 		if progressBar != nil { // Simple pointer check instead of flag check
 			progressBar.Increment()
-			progressBar.UpdateCurrentURL(string(response.URL))
+			//progressBar.UpdateCurrentURL(string(response.URL))
 			progressBar.UpdateSpinnerText(
 				bypassModule,
 				s.scannerOpts.Threads,
@@ -330,7 +330,7 @@ func (s *Scanner) ResendRequestFromToken(debugToken string, resendCount int) ([]
 	if s.progressBarEnabled.Load() {
 		progressBar = NewProgressBar("debugRequest", resendCount, s.scannerOpts.Threads)
 		progressBar.Start()
-		progressBar.UpdateCurrentURL(displayURL) // Add this line
+		//progressBar.UpdateCurrentURL(displayURL) // Add this line
 		defer progressBar.Stop()
 	}
 
