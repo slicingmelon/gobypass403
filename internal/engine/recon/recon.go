@@ -193,6 +193,7 @@ func (r *ReconService) Run(urls []string) error {
 	return nil
 }
 
+// ProbePort probes a port on an IP address and returns the protocol (http or https)
 func (r *ReconService) ProbePort(ip string, port string) (string, bool) {
 	addr := net.JoinHostPort(ip, port)
 
