@@ -3,7 +3,6 @@ package recon
 import (
 	"context"
 	"crypto/tls"
-	"encoding/json"
 	"fmt"
 	"net"
 	"slices"
@@ -17,11 +16,79 @@ import (
 	"github.com/valyala/fasthttp"
 )
 
+/*
+ReconService is a service that performs reconnaissance on a host.
+The recon is meant to probe the hosts that are going to be tested for WAF bypasses.
+
+Agenda:
+
+# 1. Service Initialization:
+
+	func NewReconService() *ReconService {
+		// Gets shared fasthttp dialer that includes:
+		//   - Custom resolver with parallel DNS resolution strategy
+		//   - DNS caching (120 minutes duration)
+		//   - Concurrency settings (2048)
+		// Creates a new cache instance for recon results
+
+# 2. Main Processing Flow (ProcessHost function):
+func (r *ReconService) ProcessHost(input string) (*ReconResult, error) {
+1. Extract host and port from input
+2. Check recon cache first for existing results
+3. Create new result structure
+4. Handle IP resolution:
+  - If input is IP, use directly
+  - Otherwise, resolve domain via ResolveDomain()
+
+5. Log successful DNS resolution
+6. Probe ports (80, 443, custom if specified)
+7. For each IP:
+  - Test each port
+  - Determine protocol (http/https)
+  - Store results in IPv4/IPv6 services maps
+
+8. Cache results
+9. Return results
+
+# 3. DNS Resolution (ResolveDomain function):
+Uses fasthttp's dialer with CustomResolver that implements parallel resolution:
+1. System resolver (IPv4 + IPv6)
+2. Custom DNS servers:
+  - Multiple providers (Cloudflare, Google, Quad9, OpenDNS)
+  - Both IPv4 and IPv6 servers
+
+3. DoH (DNS over HTTPS):
+  - Multiple providers (Cloudflare, Google, Quad9)
+  - Automatic fastest provider selection
+  - Built-in caching
+  - Both A and AAAA records
+
+All resolution methods run in parallel with a 5-second total timeout.
+First valid response can return early.
+Results are automatically cached by fasthttp's dialer.
+
+# 4. Port Probing (ProbePort method):
+For each IP+port combination:
+1. Try HTTPS first using fasthttp's dialer:
+  - 3-second connection timeout
+  - 2-second TLS handshake timeout
+  - Insecure skip verify enabled
+
+2. Fallback to HTTP if HTTPS fails:
+  - 3-second connection timeout
+  - Simple HEAD request
+  - 3-second read timeout
+
+Returns protocol ("http"/"https") and success status
+
+Note: All DNS operations utilize fasthttp's built-in caching mechanism,
+which maintains resolved addresses for 120 minutes and implements
+round-robin selection for multiple IPs.
+*/
 type ReconService struct {
-	dialer       *fasthttp.TCPDialer
-	cache        *ReconCache
-	dnsServers   []string
-	dohProviders []string
+	dialer     *fasthttp.TCPDialer
+	dnsServers []string
+	cache      *ReconCache
 }
 
 type ReconResult struct {
@@ -32,32 +99,24 @@ type ReconResult struct {
 }
 
 func NewReconService() *ReconService {
-	dnsServers := []string{
-		"8.8.8.8:53",                // Google
-		"1.1.1.1:53",                // Cloudflare
-		"9.9.9.9:53",                // Quad9
-		"208.67.222.222:53",         // OpenDNS
-		"8.8.4.4:53",                // Google Secondary
-		"1.0.0.1:53",                // Cloudflare Secondary
-		"149.112.112.112:53",        // Quad9 Secondary
-		"208.67.220.220:53",         // OpenDNS Secondary
-		"[2001:4860:4860::8888]:53", // Google IPv6
-		"[2606:4700:4700::1111]:53", // Cloudflare IPv6
-		"[2620:fe::fe]:53",          // Quad9 IPv6
-	}
-
-	// Add DoH providers that support IPv6
-	dohProviders := []string{
-		"https://cloudflare-dns.com/dns-query",
-		"https://dns.google/dns-query",
-		"https://dns.quad9.net/dns-query",
-	}
+	// Get the shared dialer that already has our custom resolver
+	dialer := dialer.GetSharedDialer()
 
 	return &ReconService{
-		dialer:       dialer.GetSharedDialer(),
-		cache:        NewReconCache(),
-		dnsServers:   dnsServers,
-		dohProviders: dohProviders,
+		dialer: dialer,
+		dnsServers: []string{
+			"1.1.1.1:53",                // Cloudflare
+			"9.9.9.9:53",                // Quad9
+			"208.67.222.222:53",         // OpenDNS
+			"8.8.4.4:53",                // Google Secondary
+			"1.0.0.1:53",                // Cloudflare Secondary
+			"149.112.112.112:53",        // Quad9 Secondary
+			"208.67.220.220:53",         // OpenDNS Secondary
+			"[2001:4860:4860::8888]:53", // Google IPv6
+			"[2606:4700:4700::1111]:53", // Cloudflare IPv6
+			"[2620:fe::fe]:53",          // Quad9 IPv6
+		},
+		cache: NewReconCache(),
 	}
 }
 
@@ -213,7 +272,7 @@ func (r *ReconService) ProbePort(ip string, port string) (string, bool) {
 	}
 
 	// Try HTTP
-	conn2, err := net.DialTimeout("tcp", addr, 3*time.Second)
+	conn2, err := r.dialer.DialDualStackTimeout(addr, 3*time.Second)
 	if err != nil {
 		return "", false
 	}
@@ -238,173 +297,25 @@ func (r *ReconService) ProbePort(ip string, port string) (string, bool) {
 	return "", false // Not HTTP/HTTPS
 }
 
+// ResolveDomain resolves a domain name to an array of IP addresses
+// This uses the dialer's custom resolver that implements parallel DNS resolution strategy
 func (r *ReconService) ResolveDomain(host string) ([]net.IP, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	// Expected responses from:
-	// - the system resolver (1)
-	// - each custom DNS server (len(r.dnsServers))
-	// - one DoH query covering both A and AAAA (1)
-	expectedResponses := len(r.dnsServers) + 2
-
-	resultChan := make(chan []net.IP, expectedResponses)
-	errChan := make(chan error, expectedResponses)
-	doneChan := make(chan struct{})
-
-	var ips []net.IP
-	seen := make(map[string]struct{})
-	responses := 0
-
-	dohTimeout := 2 * time.Second
-
-	// Collector goroutine which aggregates unique IPs.
-	go func() {
-		for {
-			select {
-			case resolvedIPs := <-resultChan:
-				responses++
-				for _, ip := range resolvedIPs {
-					key := ip.String()
-					if _, exists := seen[key]; !exists {
-						seen[key] = struct{}{}
-						ips = append(ips, ip)
-					}
-				}
-			case <-errChan:
-				responses++
-			case <-ctx.Done():
-				doneChan <- struct{}{}
-				return
-			}
-
-			if len(ips) > 0 || responses >= expectedResponses {
-				doneChan <- struct{}{}
-				return
-			}
-		}
-	}()
-
-	// 1. Launch system resolver query with explicit IPv4 and IPv6.
-	go func() {
-		var systemIPs []net.IP
-		if ips4, err := net.DefaultResolver.LookupIP(ctx, "ip4", host); err == nil {
-			systemIPs = append(systemIPs, ips4...)
-		}
-		if ips6, err := net.DefaultResolver.LookupIP(ctx, "ip6", host); err == nil {
-			systemIPs = append(systemIPs, ips6...)
-		}
-		if len(systemIPs) > 0 {
-			resultChan <- systemIPs
-		} else {
-			errChan <- fmt.Errorf("system resolver returned no IPs")
-		}
-	}()
-
-	// 2. Launch queries for each configured DNS server.
-	for _, server := range r.dnsServers {
-		go func(server string) {
-			resolver := &net.Resolver{
-				PreferGo: true,
-				Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
-					d := net.Dialer{Timeout: 2 * time.Second}
-					return d.DialContext(ctx, "udp", server)
-				},
-			}
-			var dnsIPs []net.IP
-			if ips4, err := resolver.LookupIP(ctx, "ip4", host); err == nil {
-				dnsIPs = append(dnsIPs, ips4...)
-			}
-			if ips6, err := resolver.LookupIP(ctx, "ip6", host); err == nil {
-				dnsIPs = append(dnsIPs, ips6...)
-			}
-			if len(dnsIPs) > 0 {
-				resultChan <- dnsIPs
-			} else {
-				errChan <- fmt.Errorf("DNS server %s returned no IPs", server)
-			}
-		}(server)
+	// Use the dialer's custom LookupIPAddr function which already implements our parallel strategy
+	ipAddrs, err := r.dialer.Resolver.LookupIPAddr(ctx, host)
+	if err != nil {
+		return nil, err
 	}
 
-	// 3. DoH resolution using Cloudflare DNS.
-	// First perform a query for A records, then for AAAA records, and merge the results.
-	go func() {
-		var allIPs []net.IP
-		client := &fasthttp.Client{
-			TLSConfig:   &tls.Config{InsecureSkipVerify: true},
-			ReadTimeout: dohTimeout,
-			Dial:        r.dialer.Dial,
-		}
-
-		// Query A records.
-		reqA := fasthttp.AcquireRequest()
-		respA := fasthttp.AcquireResponse()
-		reqA.SetRequestURI(fmt.Sprintf("https://cloudflare-dns.com/dns-query?name=%s&type=A", host))
-		reqA.Header.Set("Accept", "application/dns-json")
-		if err := client.Do(reqA, respA); err == nil {
-			var dohResponse struct {
-				Answer []struct {
-					Type int    `json:"type"`
-					Data string `json:"data"`
-				} `json:"Answer"`
-			}
-			if json.Unmarshal(respA.Body(), &dohResponse) == nil {
-				for _, answer := range dohResponse.Answer {
-					// Type 1 indicates an A record.
-					if answer.Type == 1 {
-						if ip := net.ParseIP(answer.Data); ip != nil {
-							allIPs = append(allIPs, ip)
-						}
-					}
-				}
-			}
-		}
-		fasthttp.ReleaseRequest(reqA)
-		fasthttp.ReleaseResponse(respA)
-
-		// Query AAAA records.
-		reqAAAA := fasthttp.AcquireRequest()
-		respAAAA := fasthttp.AcquireResponse()
-		reqAAAA.SetRequestURI(fmt.Sprintf("https://cloudflare-dns.com/dns-query?name=%s&type=AAAA", host))
-		reqAAAA.Header.Set("Accept", "application/dns-json")
-		if err := client.Do(reqAAAA, respAAAA); err == nil {
-			var dohResponse struct {
-				Answer []struct {
-					Type int    `json:"type"`
-					Data string `json:"data"`
-				} `json:"Answer"`
-			}
-			if json.Unmarshal(respAAAA.Body(), &dohResponse) == nil {
-				for _, answer := range dohResponse.Answer {
-					// Type 28 indicates an AAAA record.
-					if answer.Type == 28 {
-						if ip := net.ParseIP(answer.Data); ip != nil {
-							allIPs = append(allIPs, ip)
-						}
-					}
-				}
-			}
-		}
-		fasthttp.ReleaseRequest(reqAAAA)
-		fasthttp.ReleaseResponse(respAAAA)
-
-		if len(allIPs) > 0 {
-			resultChan <- allIPs
-		} else {
-			errChan <- fmt.Errorf("DoH query failed for both A and AAAA records")
-		}
-	}()
-
-	// Wait until either done or timeout.
-	select {
-	case <-doneChan:
-		if len(ips) > 0 {
-			return ips, nil
-		}
-		return nil, fmt.Errorf("all DNS resolution attempts failed")
-	case <-ctx.Done():
-		return nil, fmt.Errorf("DNS resolution timeout")
+	// Convert IPAddr to IP
+	ips := make([]net.IP, len(ipAddrs))
+	for i, addr := range ipAddrs {
+		ips[i] = addr.IP
 	}
+
+	return ips, nil
 }
 
 func convertIPAddrs(ipAddrs []net.IPAddr) []net.IP {

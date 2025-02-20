@@ -1,12 +1,14 @@
 package dialer
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"sync"
 	"time"
 
 	"github.com/likexian/doh"
+	"github.com/likexian/doh/dns"
 	GB403ErrorHandler "github.com/slicingmelon/go-bypass-403/internal/utils/error"
 	"github.com/valyala/fasthttp"
 	"github.com/valyala/fasthttp/fasthttpproxy"
@@ -15,24 +17,187 @@ import (
 var (
 	sharedDialer *fasthttp.TCPDialer
 	onceDialer   sync.Once
-	dohClient    *doh.DoH // Hold DoH client instance
 )
 
-func init() {
-	// Initialize DoH client once
-	dohClient = doh.Use(doh.Quad9Provider, doh.CloudflareProvider)
+type CustomResolver struct {
+	dohClient    *doh.DoH
+	dnsServers   []string
+	resolverChan chan []net.IPAddr
+	errChan      chan error
 }
 
+// func init() {
+// 	// Initialize DoH client once
+// 	dohClient = doh.Use(doh.Quad9Provider, doh.CloudflareProvider)
+// }
+
+func NewCustomResolver(dnsServers []string) *CustomResolver {
+	// Initialize DoH client with multiple providers for automatic fastest selection
+	dohClient := doh.Use(
+		doh.CloudflareProvider,
+		doh.GoogleProvider,
+		doh.Quad9Provider,
+	)
+
+	// Enable caching for better performance
+	dohClient.EnableCache(true)
+
+	return &CustomResolver{
+		dohClient:    dohClient,
+		dnsServers:   dnsServers,
+		resolverChan: make(chan []net.IPAddr, 3),
+		errChan:      make(chan error, 3),
+	}
+}
+
+// LookupIPAddr resolves a host and returns an array of IP addresses
+// This is the custom resolver that implements parallel DNS resolution strategy
+func (r *CustomResolver) LookupIPAddr(ctx context.Context, host string) ([]net.IPAddr, error) {
+	var ips []net.IPAddr
+
+	expectedResponses := len(r.dnsServers) + 2 // system + DoH + each DNS server
+	r.resolverChan = make(chan []net.IPAddr, expectedResponses)
+	r.errChan = make(chan error, expectedResponses)
+
+	// 1. System resolver (parallel)
+	go func() {
+		var systemIPs []net.IPAddr
+		if ips4, err := net.DefaultResolver.LookupIP(ctx, "ip4", host); err == nil {
+			for _, ip := range ips4 {
+				systemIPs = append(systemIPs, net.IPAddr{IP: ip})
+			}
+		}
+		if ips6, err := net.DefaultResolver.LookupIP(ctx, "ip6", host); err == nil {
+			for _, ip := range ips6 {
+				systemIPs = append(systemIPs, net.IPAddr{IP: ip})
+			}
+		}
+		if len(systemIPs) > 0 {
+			r.resolverChan <- systemIPs
+		} else {
+			r.errChan <- fmt.Errorf("system resolver returned no IPs")
+		}
+	}()
+
+	// 2. Custom DNS servers (parallel)
+	for _, server := range r.dnsServers {
+		go func(server string) {
+			resolver := &net.Resolver{
+				PreferGo: true,
+				Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
+					d := net.Dialer{Timeout: 2 * time.Second}
+					return d.DialContext(ctx, "udp", server)
+				},
+			}
+			var dnsIPs []net.IPAddr
+			if ips4, err := resolver.LookupIP(ctx, "ip4", host); err == nil {
+				for _, ip := range ips4 {
+					dnsIPs = append(dnsIPs, net.IPAddr{IP: ip})
+				}
+			}
+			if ips6, err := resolver.LookupIP(ctx, "ip6", host); err == nil {
+				for _, ip := range ips6 {
+					dnsIPs = append(dnsIPs, net.IPAddr{IP: ip})
+				}
+			}
+			if len(dnsIPs) > 0 {
+				r.resolverChan <- dnsIPs
+			} else {
+				r.errChan <- fmt.Errorf("DNS server %s returned no IPs", server)
+			}
+		}(server)
+	}
+
+	// 3. DoH resolution (parallel)
+	go func() {
+		var dohIPs []net.IPAddr
+		domain := dns.Domain(host)
+
+		// Query A records
+		rspA, err := r.dohClient.Query(ctx, domain, dns.TypeA)
+		if err == nil && rspA != nil && len(rspA.Answer) > 0 {
+			for _, answer := range rspA.Answer {
+				if ip := net.ParseIP(answer.Data); ip != nil {
+					dohIPs = append(dohIPs, net.IPAddr{IP: ip})
+				}
+			}
+		}
+
+		// Query AAAA records
+		rspAAAA, err := r.dohClient.Query(ctx, domain, dns.TypeAAAA)
+		if err == nil && rspAAAA != nil && len(rspAAAA.Answer) > 0 {
+			for _, answer := range rspAAAA.Answer {
+				if ip := net.ParseIP(answer.Data); ip != nil {
+					dohIPs = append(dohIPs, net.IPAddr{IP: ip})
+				}
+			}
+		}
+
+		if len(dohIPs) > 0 {
+			r.resolverChan <- dohIPs
+		} else {
+			r.errChan <- fmt.Errorf("DoH resolution returned no IPs")
+		}
+	}()
+
+	// Collector to aggregate unique IPs
+	seen := make(map[string]struct{})
+	responses := 0
+
+	// Wait for results or timeout
+	for {
+		select {
+		case resolvedIPs := <-r.resolverChan:
+			responses++
+			for _, ip := range resolvedIPs {
+				key := ip.IP.String()
+				if _, exists := seen[key]; !exists {
+					seen[key] = struct{}{}
+					ips = append(ips, ip)
+				}
+			}
+		case <-r.errChan:
+			responses++
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
+
+		// Break when we have results or all resolvers have responded
+		if len(ips) > 0 || responses >= expectedResponses {
+			break
+		}
+	}
+
+	if len(ips) > 0 {
+		return ips, nil
+	}
+	return nil, fmt.Errorf("all DNS resolution attempts failed")
+}
+
+// This gets the core dialer instance
 func GetSharedDialer() *fasthttp.TCPDialer {
 	onceDialer.Do(func() {
 		sharedDialer = &fasthttp.TCPDialer{
 			Concurrency:      2048,
 			DNSCacheDuration: 120 * time.Minute,
+			Resolver: NewCustomResolver([]string{
+				"1.1.1.1:53",                // Cloudflare
+				"9.9.9.9:53",                // Quad9
+				"208.67.222.222:53",         // OpenDNS
+				"8.8.4.4:53",                // Google Secondary
+				"1.0.0.1:53",                // Cloudflare Secondary
+				"149.112.112.112:53",        // Quad9 Secondary
+				"208.67.220.220:53",         // OpenDNS Secondary
+				"[2001:4860:4860::8888]:53", // Google IPv6
+				"[2606:4700:4700::1111]:53", // Cloudflare IPv6
+				"[2620:fe::fe]:53",          // Quad9 IPv6
+			}),
 		}
 	})
 	return sharedDialer
 }
 
+// This sets the dialer for the  HTTPClient
 func CreateDialFunc(timeout time.Duration, proxyURL string) fasthttp.DialFunc {
 	// Get shared dialer instance
 	dialer := GetSharedDialer()
@@ -68,110 +233,3 @@ func CreateDialFunc(timeout time.Duration, proxyURL string) fasthttp.DialFunc {
 		return conn, nil
 	}
 }
-
-// func ConfigureResolver(dialer *fasthttp.TCPDialer, dnsServer string) {
-// 	dialer.Resolver = &net.Resolver{
-// 		PreferGo: true,
-// 		Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
-// 			// Try UDP first
-// 			d := net.Dialer{Timeout: 2 * time.Second}
-// 			if conn, err := d.DialContext(ctx, "udp", dnsServer); err == nil {
-// 				return conn, nil
-// 			}
-
-// 			// If UDP fails, try TCP
-// 			if conn, err := d.DialContext(ctx, "tcp", dnsServer); err == nil {
-// 				return conn, nil
-// 			}
-
-// 			// If both UDP and TCP fail, use DoH as last resort
-// 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-// 			defer cancel()
-
-// 			// Create new DoH client for this request
-// 			c := doh.Use(doh.CloudflareProvider, doh.GoogleProvider)
-// 			defer c.Close()
-
-// 			rsp, err := c.Query(ctx, dns.Domain(address), dns.TypeA)
-// 			if err != nil {
-// 				return nil, err
-// 			}
-
-// 			// Try to connect using resolved IPs
-// 			for _, a := range rsp.Answer {
-// 				if conn, err := d.DialContext(ctx, "tcp", a.Data); err == nil {
-// 					return conn, nil
-// 				}
-// 			}
-
-// 			return nil, fmt.Errorf("all resolution methods failed")
-// 		},
-// 	}
-// }
-
-// // Cleanup function to be called when shutting down
-// func Cleanup() {
-// 	if dohClient != nil {
-// 		dohClient.Close()
-// 	}
-// }
-
-// // Don't forget to clean up
-// func cleanup() {
-// 	if dohClient != nil {
-// 		dohClient.Close()
-// 	}
-// }
-
-// func GetSharedDialer() *fasthttp.TCPDialer {
-// 	onceDialer.Do(func() {
-// 		// Initialize DoH client
-// 		dohClient = doh.Use(doh.CloudflareProvider, doh.GoogleProvider)
-
-// 		sharedDialer = &fasthttp.TCPDialer{
-// 			Concurrency:      2048,
-// 			DNSCacheDuration: 120 * time.Minute,
-// 			Resolver: &net.Resolver{
-// 				PreferGo: true,
-// 				Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
-// 					// Try DialDualStack first
-// 					if conn, err := sharedDialer.DialDualStackTimeout(address, 5*time.Second); err == nil {
-// 						return conn, nil
-// 					}
-
-// 					// If DialDualStack fails, try DoH
-// 					host := address
-// 					if h, _, err := net.SplitHostPort(address); err == nil {
-// 						host = h
-// 					}
-
-// 					rsp, err := dohClient.Query(ctx, dns.Domain(host), dns.TypeA)
-// 					if err == nil && len(rsp.Answer) > 0 {
-// 						for _, a := range rsp.Answer {
-// 							if conn, err := sharedDialer.DialDualStackTimeout(a.Data, 5*time.Second); err == nil {
-// 								return conn, nil
-// 							}
-// 						}
-// 					}
-
-// 					return nil, fmt.Errorf("all resolution methods failed for %s", address)
-// 				},
-// 			},
-// 		}
-// 	})
-// 	return sharedDialer
-// }
-
-// CreateDialFunc creates a dial function with the given options and error handler
-
-// // Cleanup function
-// func Cleanup() {
-// 	if dohClient != nil {
-// 		dohClient.Close()
-// 	}
-// // // Cleanup function
-// func Cleanup() {
-// 	if dohClient != nil {
-// 		dohClient.Close()
-// 	}
-// }
