@@ -20,7 +20,7 @@ var (
 
 func init() {
 	// Initialize DoH client once
-	dohClient = doh.Use(doh.CloudflareProvider, doh.GoogleProvider)
+	dohClient = doh.Use(doh.Quad9Provider, doh.CloudflareProvider)
 }
 
 func GetSharedDialer() *fasthttp.TCPDialer {
