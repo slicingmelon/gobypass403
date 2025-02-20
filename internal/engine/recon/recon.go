@@ -17,6 +17,61 @@ import (
 	"github.com/valyala/fasthttp"
 )
 
+/*
+ReconService is a service that performs reconnaissance on a host.
+The recon is meant to probe the hosts that are going to be engine for WAF bypasses.
+
+Agenda:
+
+# 1. Service Initialization:
+
+	func NewReconService() *ReconService {
+	    // Initializes with predefined DNS servers (Google, Cloudflare, Quad9, OpenDNS)
+	    // Sets up DoH providers
+	    // Creates a new cache instance
+	    // Gets shared dialer
+
+# 2. Main Processing Flow (ProcessHost function):
+func (r *ReconService) ProcessHost(input string) (*ReconResult, error) {
+1. Extract host and port from input
+2. Check cache first for existing results
+3. Create new result structure
+4. Handle IP resolution:
+  - If input is IP, use directly
+  - Otherwise, resolve domain via ResolveDomain()
+
+5. Log successful DNS resolution
+6. Probe ports (80, 443, custom if specified)
+7. For each IP:
+  - Test each port
+  - Determine protocol (http/https)
+  - Store results in IPv4/IPv6 services maps
+
+8. Cache results
+9. Return results
+
+# 3. DNS Resolution (ResolveDomain function)
+Parallel resolution using multiple methods:
+1. System resolver (IPv4 + IPv6)
+2. Custom DNS servers from list
+3. DoH (DNS over HTTPS) via Cloudflare
+  - Queries both A records (IPv4)
+  - Queries AAAA records (IPv6)
+
+Uses channels to collect results:
+
+	resultChan - successful resolutions
+	errChan - errors
+	doneChan - completion signal
+
+# First response with valid IPs wins
+
+# 4. Port Probing (ProbePort method):
+// For each IP+port combination:
+// 1. Try HTTPS first
+// 2. Fallback to HTTP if HTTPS fails
+// Returns protocol ("http"/"https") and success status
+*/
 type ReconService struct {
 	dialer       *fasthttp.TCPDialer
 	cache        *ReconCache
