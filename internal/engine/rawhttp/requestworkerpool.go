@@ -2,7 +2,6 @@ package rawhttp
 
 import (
 	"context"
-	"runtime"
 	"sync/atomic"
 	"time"
 
@@ -167,17 +166,16 @@ func (wp *RequestWorkerPool) ProcessRequestResponseJob(bypassPayload payload.Byp
 	req := wp.httpClient.AcquireRequest()
 	resp := wp.httpClient.AcquireResponse()
 
-	// Release request early since we don't need it after DoRequest
 	defer wp.httpClient.ReleaseRequest(req)
 
 	if err := BuildRawHTTPRequest(wp.httpClient, req, bypassPayload); err != nil {
-		wp.httpClient.ReleaseResponse(resp) // Release on error
+		wp.httpClient.ReleaseResponse(resp)
 		return nil
 	}
 
 	respTime, err := wp.httpClient.DoRequest(req, resp, bypassPayload)
 	if err != nil {
-		wp.httpClient.ReleaseResponse(resp) // Release on error
+		wp.httpClient.ReleaseResponse(resp)
 		if err == ErrReqFailedMaxConsecutiveFails {
 			GB403Logger.Warning().Msgf("Cancelling current bypass module due to max consecutive failures reached for module [%s]\n", wp.httpClient.options.BypassModule)
 			wp.Close()
@@ -192,10 +190,8 @@ func (wp *RequestWorkerPool) ProcessRequestResponseJob(bypassPayload payload.Byp
 
 	if result != nil {
 		result.ResponseTime = respTime
-		// Add deferred release of response details ... what I got myself into
-		runtime.SetFinalizer(result, func(r *RawHTTPResponseDetails) {
-			ReleaseResponseDetails(r)
-		})
+		// Let ProcessHTTPResponse handle the release via its defer
+		// Remove SetFinalizer since ProcessHTTPResponse now handles cleanup
 	}
 
 	return result

@@ -102,6 +102,26 @@ func ReleaseResponseDetails(rd *RawHTTPResponseDetails) {
 	responseDetailsPool.Put(rd)
 }
 
+func (r *RawHTTPResponseDetails) CopyTo(dst *RawHTTPResponseDetails) {
+	// Copy all byte slices
+	dst.URL = append(dst.URL[:0], r.URL...)
+	dst.BypassModule = append(dst.BypassModule[:0], r.BypassModule...)
+	dst.CurlCommand = append(dst.CurlCommand[:0], r.CurlCommand...)
+	dst.ResponseHeaders = append(dst.ResponseHeaders[:0], r.ResponseHeaders...)
+	dst.ResponsePreview = append(dst.ResponsePreview[:0], r.ResponsePreview...)
+	dst.ContentType = append(dst.ContentType[:0], r.ContentType...)
+	dst.ServerInfo = append(dst.ServerInfo[:0], r.ServerInfo...)
+	dst.Title = append(dst.Title[:0], r.Title...)
+	dst.RedirectURL = append(dst.RedirectURL[:0], r.RedirectURL...)
+	dst.DebugToken = append(dst.DebugToken[:0], r.DebugToken...)
+
+	// Copy scalar values
+	dst.StatusCode = r.StatusCode
+	dst.ContentLength = r.ContentLength
+	dst.ResponseBytes = r.ResponseBytes
+	dst.ResponseTime = r.ResponseTime
+}
+
 var (
 	rawRequestBuffPool = sync.Pool{
 		New: func() interface{} {
@@ -231,72 +251,64 @@ func BuildRawHTTPRequest(httpclient *HTTPClient, req *fasthttp.Request, bypassPa
 }
 
 func ProcessHTTPResponse(httpclient *HTTPClient, resp *fasthttp.Response, bypassPayload payload.BypassPayload) *RawHTTPResponseDetails {
-	result := AcquireResponseDetails() // Allocate new result each time
+	// Acquire and defer release of temporary result
+	tempResult := AcquireResponseDetails()
+	defer ReleaseResponseDetails(tempResult)
 
-	statusCode := resp.StatusCode()
-	contentLength := resp.Header.ContentLength()
-	httpClientOpts := httpclient.GetHTTPClientOptions()
+	// 1. Basic response info
+	tempResult.StatusCode = resp.StatusCode()
+	tempResult.ContentLength = int64(resp.Header.ContentLength())
+	tempResult.URL = append(tempResult.URL, bypassPayload.OriginalURL...)
+	tempResult.BypassModule = append(tempResult.BypassModule, bypassPayload.BypassModule...)
+	tempResult.DebugToken = append(tempResult.DebugToken, bypassPayload.PayloadToken...)
 
-	// Set basic response details
-	result.URL = append(result.URL, bypassPayload.OriginalURL...)
-	result.BypassModule = append(result.BypassModule, bypassPayload.BypassModule...)
-	result.StatusCode = statusCode
-	result.ContentLength = int64(contentLength)
-	result.DebugToken = append(result.DebugToken, bypassPayload.PayloadToken...)
+	// 2. Headers
+	tempResult.ResponseHeaders = GetResponseHeaders(&resp.Header, tempResult.StatusCode, tempResult.ResponseHeaders)
+	tempResult.ContentType = append(tempResult.ContentType, resp.Header.ContentType()...)
+	tempResult.ServerInfo = append(tempResult.ServerInfo, resp.Header.Server()...)
 
-	// Check for redirect early
-	if fasthttp.StatusCodeIsRedirect(statusCode) {
+	// 3. Handle redirects
+	if fasthttp.StatusCodeIsRedirect(tempResult.StatusCode) {
 		if location := PeekResponseHeaderKeyCaseInsensitive(resp, strLocationHeader); len(location) > 0 {
-			result.RedirectURL = append(result.RedirectURL, location...)
+			tempResult.RedirectURL = append(tempResult.RedirectURL, location...)
 		}
 	}
 
-	// Get all HTTP response headers
-	result.ResponseHeaders = GetResponseHeaders(&resp.Header, statusCode, result.ResponseHeaders)
-
-	// Store the rest of the processed data
-	result.ContentType = append(result.ContentType, resp.Header.ContentType()...)
-	result.ServerInfo = append(result.ServerInfo, resp.Header.Server()...)
-
-	// Handle body preview
+	// 4. Body preview
+	httpClientOpts := httpclient.GetHTTPClientOptions()
 	if httpClientOpts.MaxResponseBodySize > 0 && httpClientOpts.ResponseBodyPreviewSize > 0 {
+		previewSize := httpClientOpts.ResponseBodyPreviewSize
+
 		if httpClientOpts.StreamResponseBody {
 			if stream := resp.BodyStream(); stream != nil {
-				result.ResponsePreview = ReadLimitedResponseBodyStream(stream, httpClientOpts.ResponseBodyPreviewSize, result.ResponsePreview)
+				tempResult.ResponsePreview = ReadLimitedResponseBodyStream(stream, previewSize, tempResult.ResponsePreview)
 				resp.CloseBodyStream()
-				if contentLength > 0 {
-					result.ResponseBytes = int(contentLength)
-				} else {
-					result.ResponseBytes = len(result.ResponsePreview)
-				}
+				tempResult.ResponseBytes = len(tempResult.ResponsePreview)
 			}
 		} else {
 			if body := resp.Body(); len(body) > 0 {
-				previewSize := httpClientOpts.ResponseBodyPreviewSize
 				if len(body) > previewSize {
-					result.ResponsePreview = append(result.ResponsePreview, body[:previewSize]...)
+					tempResult.ResponsePreview = append(tempResult.ResponsePreview, body[:previewSize]...)
 				} else {
-					result.ResponsePreview = append(result.ResponsePreview, body...)
+					tempResult.ResponsePreview = append(tempResult.ResponsePreview, body...)
 				}
-
-				if contentLength > 0 {
-					result.ResponseBytes = int(contentLength)
-				} else {
-					result.ResponseBytes = len(body)
-				}
+				tempResult.ResponseBytes = len(body)
 			}
 		}
 	}
 
-	// Extract title if HTML response
-	if len(result.ResponsePreview) > 0 && bytes.Contains(result.ContentType, strHTML) {
-		result.Title = ExtractTitle(result.ResponsePreview, result.Title)
+	// 5. Extract title if HTML
+	if len(tempResult.ResponsePreview) > 0 && bytes.Contains(tempResult.ContentType, strHTML) {
+		tempResult.Title = ExtractTitle(tempResult.ResponsePreview, tempResult.Title)
 	}
 
-	// Generate curl command PoC
-	result.CurlCommand = BuildCurlCommandPoc(bypassPayload, result.CurlCommand)
+	// 6. Build curl command
+	tempResult.CurlCommand = BuildCurlCommandPoc(bypassPayload, tempResult.CurlCommand)
 
-	return result
+	// Create final result and copy data
+	finalResult := AcquireResponseDetails()
+	tempResult.CopyTo(finalResult)
+	return finalResult
 }
 
 // String2Byte converts string to a byte slice without memory allocation.

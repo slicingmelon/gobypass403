@@ -364,8 +364,8 @@ func TestRetryWithLargeResponse(t *testing.T) {
 	opts.RetryDelay = 100 * time.Millisecond
 	opts.MaxResponseBodySize = 1030
 	opts.MaxConnsPerHost = 100
-	opts.ReadBufferSize = 1030
-	opts.WriteBufferSize = 1030
+	//opts.ReadBufferSize = 1030
+	//opts.WriteBufferSize = 1030
 	opts.StreamResponseBody = false
 
 	// Set up the dialer to use our in-memory listener
@@ -433,8 +433,8 @@ func TestRetryWithConcurrentRequests(t *testing.T) {
 	opts.RetryDelay = 20 * time.Millisecond // Shorter delay for stress test
 	opts.MaxResponseBodySize = 1030
 	opts.MaxConnsPerHost = 100
-	opts.ReadBufferSize = 1030
-	opts.WriteBufferSize = 1030
+	//opts.ReadBufferSize = 1030
+	//opts.WriteBufferSize = 1030
 	opts.StreamResponseBody = false
 	opts.MaxConnsPerHost = 1000 // Allow many concurrent connections
 	opts.Dialer = func(addr string) (net.Conn, error) {

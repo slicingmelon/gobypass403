@@ -185,8 +185,8 @@ func main() {
 	// Initialize error handler
 	errorHandler := GB403ErrorHandler.NewErrorHandler()
 	httpclientopts := rawhttp.DefaultHTTPClientOptions()
-	httpclientopts.ReadBufferSize = 8092      // 8KB
-	httpclientopts.WriteBufferSize = 8092     // 8KB
+	//httpclientopts.ReadBufferSize = 8092      // 8KB
+	//httpclientopts.WriteBufferSize = 8092     // 8KB
 	httpclientopts.MaxResponseBodySize = 4096 // 8KB
 	httpclientopts.StreamResponseBody = true
 
