@@ -14,15 +14,19 @@ import (
 var (
 	bypassModuleIndex map[string]byte
 	methodIndex       map[string]byte
-	once              sync.Once
-	mu                sync.Mutex
-	rnd               = rand.New(rand.NewSource(uint64(time.Now().UnixNano())))
-)
+	schemeIndex       = map[string]byte{
+		"http":  0,
+		"https": 1,
+	}
+	defaultHTTPMethods = []string{
+		"GET", "POST", "HEAD", "PUT", "DELETE", "OPTIONS",
+		"TRACE", "PATCH", "CONNECT",
+	}
 
-var defaultHTTPMethods = []string{
-	"GET", "POST", "HEAD", "PUT", "DELETE", "OPTIONS",
-	"TRACE", "PATCH", "CONNECT",
-}
+	once sync.Once
+	mu   sync.Mutex
+	rnd  = rand.New(rand.NewSource(uint64(time.Now().UnixNano())))
+)
 
 func initIndices() {
 	once.Do(func() {
@@ -131,6 +135,31 @@ func GeneratePayloadToken(job BypassPayload) string {
 	mu.Unlock()
 	bb.Write(nonce)
 
+	// Write Scheme using index
+	if job.Scheme != "" {
+		bb.B = append(bb.B, 1) // field type for scheme
+		if idx, ok := schemeIndex[job.Scheme]; ok {
+			bb.B = append(bb.B, 1, idx) // length=1, index byte
+		} else {
+			bb.B = append(bb.B, byte(len(job.Scheme)))
+			bb.Write(bytesutil.ToUnsafeBytes(job.Scheme))
+		}
+	}
+
+	// Write Host
+	if job.Host != "" {
+		bb.B = append(bb.B, 2) // field type for host
+		bb.B = append(bb.B, byte(len(job.Host)))
+		bb.Write(bytesutil.ToUnsafeBytes(job.Host))
+	}
+
+	// Write RawURI
+	if job.RawURI != "" {
+		bb.B = append(bb.B, 3) // field type for RawURI
+		bb.B = append(bb.B, byte(len(job.RawURI)))
+		bb.Write(bytesutil.ToUnsafeBytes(job.RawURI))
+	}
+
 	// Write Method using index
 	if job.Method != "" {
 		bb.B = append(bb.B, 4) // field type for method
@@ -140,41 +169,6 @@ func GeneratePayloadToken(job BypassPayload) string {
 			bb.B = append(bb.B, byte(len(job.Method)))
 			bb.Write(bytesutil.ToUnsafeBytes(job.Method))
 		}
-	}
-
-	// Add BypassModule using index
-	if job.BypassModule != "" {
-		bb.B = append(bb.B, 6) // field type for bypass module
-		if idx, ok := bypassModuleIndex[job.BypassModule]; ok {
-			bb.B = append(bb.B, 1, idx) // length=1, index byte
-		} else {
-			bb.B = append(bb.B, byte(len(job.BypassModule)))
-			bb.Write(bytesutil.ToUnsafeBytes(job.BypassModule))
-		}
-	}
-
-	// Write Host
-	if job.Host != "" {
-		bb.B = append(bb.B, 2) // field type for host
-		hostLen := len(job.Host)
-		bb.B = append(bb.B, byte(hostLen))
-		bb.Write(bytesutil.ToUnsafeBytes(job.Host))
-	}
-
-	// Write RawURI
-	if job.RawURI != "" {
-		bb.B = append(bb.B, 3) // field type for RawURI
-		uriLen := len(job.RawURI)
-		bb.B = append(bb.B, byte(uriLen))
-		bb.Write(bytesutil.ToUnsafeBytes(job.RawURI))
-	}
-
-	// Write Method
-	if job.Method != "" {
-		bb.B = append(bb.B, 4) // field type for method
-		methodLen := len(job.Method)
-		bb.B = append(bb.B, byte(methodLen))
-		bb.Write(bytesutil.ToUnsafeBytes(job.Method))
 	}
 
 	// Write Headers if present
@@ -199,6 +193,17 @@ func GeneratePayloadToken(job BypassPayload) string {
 			}
 			bb.B = append(bb.B, byte(vLen))
 			bb.Write(bytesutil.ToUnsafeBytes(h.Value[:vLen]))
+		}
+	}
+
+	// Write BypassModule using index
+	if job.BypassModule != "" {
+		bb.B = append(bb.B, 6) // field type for bypass module
+		if idx, ok := bypassModuleIndex[job.BypassModule]; ok {
+			bb.B = append(bb.B, 1, idx) // length=1, index byte
+		} else {
+			bb.B = append(bb.B, byte(len(job.BypassModule)))
+			bb.Write(bytesutil.ToUnsafeBytes(job.BypassModule))
 		}
 	}
 
@@ -314,7 +319,18 @@ func DecodePayloadToken(token string) (BypassPayload, error) {
 		case 0xFF: // nonce - skip
 			pos += fieldLen
 		case 1: // Scheme
-			result.Scheme = string(bb[pos : pos+fieldLen])
+			if fieldLen == 1 {
+				// Indexed scheme
+				schemeIdx := bb[pos]
+				for scheme, idx := range schemeIndex {
+					if idx == schemeIdx {
+						result.Scheme = scheme
+						break
+					}
+				}
+			} else {
+				result.Scheme = string(bb[pos : pos+fieldLen])
+			}
 			pos += fieldLen
 		case 2: // Host
 			result.Host = string(bb[pos : pos+fieldLen])

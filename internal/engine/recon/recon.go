@@ -340,7 +340,7 @@ func (r *ReconService) ResolveDomain(host string) ([]net.IP, error) {
 		respA := fasthttp.AcquireResponse()
 		reqA.SetRequestURI(fmt.Sprintf("https://cloudflare-dns.com/dns-query?name=%s&type=A", host))
 		reqA.Header.Set("Accept", "application/dns-json")
-		if err := client.DoTimeout(reqA, respA, 5*time.Second); err == nil {
+		if err := client.Do(reqA, respA); err == nil {
 			var dohResponse struct {
 				Answer []struct {
 					Type int    `json:"type"`
@@ -366,7 +366,7 @@ func (r *ReconService) ResolveDomain(host string) ([]net.IP, error) {
 		respAAAA := fasthttp.AcquireResponse()
 		reqAAAA.SetRequestURI(fmt.Sprintf("https://cloudflare-dns.com/dns-query?name=%s&type=AAAA", host))
 		reqAAAA.Header.Set("Accept", "application/dns-json")
-		if err := client.DoTimeout(reqAAAA, respAAAA, 5*time.Second); err == nil {
+		if err := client.Do(reqAAAA, respAAAA); err == nil {
 			var dohResponse struct {
 				Answer []struct {
 					Type int    `json:"type"`

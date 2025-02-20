@@ -1,10 +1,10 @@
 package scanner
 
 import (
-	"bytes"
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -52,11 +52,11 @@ func NewProgressBar(bypassModule string, targetURL string, totalJobs int, totalW
 		BarStyle:                  &pterm.ThemeDefault.ProgressbarBarStyle,
 		TitleStyle:                &pterm.ThemeDefault.ProgressbarTitleStyle,
 		ShowTitle:                 true,
-		ShowCount:                 true, // This shows the [current/total]
+		ShowCount:                 true,
 		ShowPercentage:            true,
 		ShowElapsedTime:           true,
 		BarFiller:                 pterm.Gray("█"),
-		MaxWidth:                  80,
+		MaxWidth:                  120,
 		Writer:                    multi.NewWriter(),
 	}
 
@@ -70,14 +70,6 @@ func NewProgressBar(bypassModule string, targetURL string, totalJobs int, totalW
 		totalJobs:    totalJobs,
 		totalWorkers: totalWorkers,
 	}
-}
-
-func padNumber(num, length int) string {
-	s := strconv.Itoa(num)
-	for len(s) < length {
-		s = "0" + s
-	}
-	return s
 }
 
 // Increment advances the progress bar by one step
@@ -110,25 +102,31 @@ func (pb *ProgressBar) UpdateSpinnerText(
 	pb.mu.Lock()
 	defer pb.mu.Unlock()
 
-	var buf bytes.Buffer
-	fmt.Fprintf(&buf, "%s - %s %s | Workers: %s/%d | %s %s/%s | %s %s %s | %s %s %s",
-		pb.bypassModule,
-		pterm.White("Scanning"),
-		pterm.FgYellow.Sprint(pb.targetURL),
-		pterm.LightCyan(activeWorkers),
-		pb.totalWorkers,
-		pterm.White("Requests:"),
-		pterm.LightGreen(completedTasks),
-		pterm.LightGreen(submittedTasks),
-		pterm.White("Rate:"),
-		pterm.LightRed(currentRate),
-		pterm.White("req/s"),
-		pterm.White("Avg:"),
-		pterm.LightBlue(avgRate),
-		pterm.White("req/s"),
-	)
+	var spinnerBuf, titleBuf strings.Builder
 
-	pb.spinner.UpdateText(buf.String())
+	// Spinner text
+	spinnerBuf.Grow(len(pb.bypassModule) + len(pb.targetURL) + 20)
+	spinnerBuf.WriteString(pterm.LightCyan(pb.bypassModule))
+	spinnerBuf.WriteString(" | Scanning ")
+	spinnerBuf.WriteString(pterm.FgYellow.Sprint(pb.targetURL))
+	pb.spinner.UpdateText(spinnerBuf.String())
+
+	// Progress bar title
+	if pb.progressbar != nil {
+		titleBuf.Grow(len(pb.bypassModule) + 100) // approximate size for stats
+		titleBuf.WriteString(pterm.LightCyan(pb.bypassModule))
+		titleBuf.WriteString(" | Workers [")
+		titleBuf.WriteString(strconv.FormatInt(activeWorkers, 10))
+		titleBuf.WriteString("/")
+		titleBuf.WriteString(strconv.Itoa(pb.totalWorkers))
+		titleBuf.WriteString("] | Rate [")
+		titleBuf.WriteString(strconv.FormatUint(currentRate, 10))
+		titleBuf.WriteString(" req/s] Avg [")
+		titleBuf.WriteString(strconv.FormatUint(avgRate, 10))
+		titleBuf.WriteString(" req/s]")
+
+		pb.progressbar.UpdateTitle(titleBuf.String())
+	}
 }
 
 func (pb *ProgressBar) SpinnerSuccess(
@@ -140,23 +138,31 @@ func (pb *ProgressBar) SpinnerSuccess(
 	pb.mu.Lock()
 	defer pb.mu.Unlock()
 
-	var buf bytes.Buffer
-	fmt.Fprintf(&buf, "%s - %s: %s | %s %s/%s | %s %s %s | %s %s %s",
-		pb.bypassModule,
-		pterm.White("Complete"),
-		pterm.FgYellow.Sprint(pb.targetURL),
-		pterm.White("Requests:"),
-		pterm.LightGreen(completedTasks),
-		pterm.LightGreen(submittedTasks),
-		pterm.White("Avg:"),
-		pterm.LightBlue(avgRate),
-		pterm.White("req/s"),
-		pterm.White("Peak:"),
-		pterm.LightRed(peakRate),
-		pterm.White("req/s"),
-	)
+	// Spinner completion message
+	var spinnerBuf strings.Builder
+	spinnerBuf.Grow(len(pb.targetURL) + 20)
+	spinnerBuf.WriteString(pterm.White("Complete"))
+	spinnerBuf.WriteString(": ")
+	spinnerBuf.WriteString(pterm.FgYellow.Sprint(pb.targetURL))
+	pb.spinner.Success(spinnerBuf.String())
 
-	pb.spinner.Success(buf.String())
+	// Update final progressbar title
+	if pb.progressbar != nil {
+		var titleBuf strings.Builder
+		titleBuf.Grow(len(pb.bypassModule) + 100)
+		titleBuf.WriteString(pterm.LightCyan(pb.bypassModule))
+		titleBuf.WriteString(" | Requests: ")
+		titleBuf.WriteString(strconv.FormatUint(completedTasks, 10))
+		titleBuf.WriteString("/")
+		titleBuf.WriteString(strconv.FormatUint(submittedTasks, 10))
+		titleBuf.WriteString(" | Avg: [")
+		titleBuf.WriteString(strconv.FormatUint(avgRate, 10))
+		titleBuf.WriteString(" req/s] | Peak: [")
+		titleBuf.WriteString(strconv.FormatUint(peakRate, 10))
+		titleBuf.WriteString(" req/s]")
+
+		pb.progressbar.UpdateTitle(titleBuf.String())
+	}
 }
 
 // UpdateProgressbarTitle updates the progress bar title
@@ -171,14 +177,24 @@ func (pb *ProgressBar) Start() {
 	pb.mu.Lock()
 	defer pb.mu.Unlock()
 
-	// Build spinner text with target URL
-	initialSpinnerText := pb.bypassModule + " - Scanning " + pb.targetURL + " | " +
-		"Workers: " + strconv.Itoa(pb.totalWorkers) +
-		" (0 active) - Requests: 0/" + strconv.Itoa(pb.totalJobs) +
-		" - Rate: 0 req/s - Completed Rate: 0 req/s"
+	// Pre-allocate builders
+	var spinnerBuf strings.Builder
+	var titleBuf strings.Builder
 
-	// Just use the bypass module name as the title
-	progressTitle := pb.bypassModule
+	// Build initial spinner text
+	spinnerBuf.Grow(len(pb.bypassModule) + len(pb.targetURL) + 20) // approximate size
+	spinnerBuf.WriteString(pterm.LightCyan(pb.bypassModule))
+	spinnerBuf.WriteString(" | Scanning ")
+	spinnerBuf.WriteString(pterm.FgYellow.Sprint(pb.targetURL))
+	initialSpinnerText := spinnerBuf.String()
+
+	// Build initial progressbar title
+	titleBuf.Grow(len(pb.bypassModule) + 50) // approximate size for stats
+	titleBuf.WriteString(pterm.LightCyan(pb.bypassModule))
+	titleBuf.WriteString(" | Workers [0/")
+	titleBuf.WriteString(strconv.Itoa(pb.totalWorkers))
+	titleBuf.WriteString("] | Rate [0 req/s] Avg [0 req/s]")
+	progressTitle := titleBuf.String()
 
 	if pb.multiprinter != nil {
 		pb.multiprinter.Start()
@@ -190,7 +206,6 @@ func (pb *ProgressBar) Start() {
 	}
 
 	if pb.progressbar != nil {
-		// Clone existing progressbar config with new title
 		updatedBar := *pb.progressbar
 		updatedBar.Title = progressTitle
 		started, _ := updatedBar.Start()
