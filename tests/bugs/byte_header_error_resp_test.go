@@ -8,7 +8,7 @@ import (
 	"github.com/valyala/fasthttp"
 )
 
-func TestWhitespaceResponseHeaders2(t *testing.T) {
+func TestServerClosedConnectionBeforeReturningTheFirstResponseByte(t *testing.T) {
 	client := &fasthttp.Client{
 		StreamResponseBody:            false,
 		DisablePathNormalizing:        true,
@@ -33,5 +33,4 @@ func TestWhitespaceResponseHeaders2(t *testing.T) {
 	}
 
 	fmt.Println(err)
-
 }
