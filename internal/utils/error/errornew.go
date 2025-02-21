@@ -325,7 +325,7 @@ func (e *ErrorHandler) HandleError(err error, ctx ErrorContext) error {
 // Example usage when error needs to be handled but the code must continue
 // return  errorHandler.HandleErrorAndContinue(err, errCtx)
 func (e *ErrorHandler) HandleErrorAndContinue(err error, ctx ErrorContext) error {
-	if err := e.HandleError(err, ctx); err != nil {
+	if err := e.HandleError(err, ctx); err == nil {
 		return nil
 	}
 	return err
