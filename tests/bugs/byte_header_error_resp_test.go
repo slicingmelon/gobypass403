@@ -24,7 +24,7 @@ func TestServerClosedConnectionBeforeReturningTheFirstResponseByte(t *testing.T)
 	defer fasthttp.ReleaseRequest(req)
 	defer fasthttp.ReleaseResponse(resp)
 
-	req.SetRequestURI("https://localhost/test")
+	req.SetRequestURI("http://localhost/test")
 
 	err := client.Do(req, resp)
 
