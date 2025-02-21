@@ -124,12 +124,12 @@ func (r *RawHTTPResponseDetails) CopyTo(dst *RawHTTPResponseDetails) {
 
 var (
 	rawRequestBuffPool = sync.Pool{
-		New: func() interface{} {
+		New: func() any {
 			return bytes.NewBuffer(make([]byte, 0, 4096))
 		},
 	}
 	rawRequestBuffReaderPool = sync.Pool{
-		New: func() interface{} {
+		New: func() any {
 			return bufio.NewReader(nil)
 		},
 	}
