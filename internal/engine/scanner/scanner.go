@@ -23,6 +23,7 @@ type ScannerOpts struct {
 	MaxRetries                int
 	RetryDelay                int
 	MaxConsecutiveFailedReqs  int
+	AutoThrottle              bool
 	Proxy                     string
 	EnableHTTP2               bool
 	SpoofHeader               string

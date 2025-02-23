@@ -65,6 +65,7 @@ func (r *Runner) Initialize() error {
 		MaxRetries:               r.RunnerOptions.MaxRetries,
 		RetryDelay:               r.RunnerOptions.RetryDelay,
 		MaxConsecutiveFailedReqs: r.RunnerOptions.MaxConsecutiveFailedReqs,
+		AutoThrottle:             r.RunnerOptions.DisableAutoThrottle,
 		Proxy:                    "",
 		EnableHTTP2:              r.RunnerOptions.EnableHTTP2,
 
@@ -128,6 +129,7 @@ func (r *Runner) handleResendRequest() error {
 		RetryDelay:                r.RunnerOptions.RetryDelay,
 		MaxConsecutiveFailedReqs:  r.RunnerOptions.MaxConsecutiveFailedReqs,
 		ResponseBodyPreviewSize:   r.RunnerOptions.ResponseBodyPreviewSize,
+		AutoThrottle:              r.RunnerOptions.DisableAutoThrottle,
 		Proxy:                     r.RunnerOptions.Proxy,
 		OutDir:                    r.RunnerOptions.OutDir,
 		RequestDelay:              r.RunnerOptions.RequestDelay,

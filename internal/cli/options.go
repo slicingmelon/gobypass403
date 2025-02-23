@@ -32,6 +32,7 @@ type CliOptions struct {
 	RetryDelay               int // in milliseconds
 	RequestDelay             int // in milliseconds
 	MaxConsecutiveFailedReqs int
+	DisableAutoThrottle      bool
 	ResponseBodyPreviewSize  int // in bytes, we don't need too much, Response Headers and a small body preview is enough
 
 	// Output options

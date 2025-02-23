@@ -40,12 +40,13 @@ type HTTPClientOptions struct {
 	ResponseBodyPreviewSize  int           // ScannerCliOpts
 	StreamResponseBody       bool          // fasthttp core
 	MatchStatusCodes         []int         // ScannerCliOpts
-	RetryDelay               time.Duration // ScannerCliOpts
 	DisableKeepAlive         bool
 	EnableHTTP2              bool
 	Dialer                   fasthttp.DialFunc
 	RequestDelay             time.Duration // ScannerCliOpts
+	RetryDelay               time.Duration // ScannerCliOpts
 	MaxConsecutiveFailedReqs int           // ScannerCliOpts
+	AutoThrottle             bool          // ScannerCliOpts
 	DisablePathNormalizing   bool
 }
 
