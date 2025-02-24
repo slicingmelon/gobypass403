@@ -65,38 +65,34 @@ func (t *Throttler) GetCurrentThrottleRate() time.Duration {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 
+	// Early return if not throttling
 	if t.config.Load() == nil || !t.isThrottling.Load() {
 		return 0
 	}
 
 	config := t.config.Load()
+
+	// Calculate base delay with exponential backoff
 	baseDelay := config.BaseRequestDelay
-
-	// Apply exponential backoff based on consecutive throttled responses
 	if config.ExponentialRequestDelay > 1.0 {
-		count := float64(t.counter.Load())
-		baseDelay = time.Duration(float64(baseDelay) * math.Pow(config.ExponentialRequestDelay, count))
-
-		// Cap at maxRequestDelay
-		if baseDelay > config.MaxRequestDelay {
-			baseDelay = config.MaxRequestDelay
+		count := t.counter.Load() - 1
+		if count < 0 {
+			count = 0
 		}
+
+		// Calculate exponential factor
+		expFactor := math.Pow(config.ExponentialRequestDelay, float64(count))
+		baseDelay = min(config.MaxRequestDelay,
+			time.Duration(float64(baseDelay)*expFactor),
+		)
 	}
 
-	// Calculate jitter
-	jitterPercent := float64(config.RequestDelayJitter) / 100.0
-	jitterNanos := int64(float64(baseDelay.Nanoseconds()) * jitterPercent)
+	// Calculate jitter with bounds checking
+	jitterPercent := min(max(float64(config.RequestDelayJitter), 0), 100)
+	jitter := time.Duration(rand.Int63n(int64(float64(baseDelay) * jitterPercent / 100)))
 
-	// Only positive jitter
-	jitter := time.Duration(rand.Int63n(jitterNanos))
-
-	// Ensure final delay doesn't exceed maxRequestDelay
-	finalDelay := baseDelay + jitter
-	if finalDelay > config.MaxRequestDelay {
-		finalDelay = config.MaxRequestDelay
-	}
-
-	return finalDelay
+	// Final delay with max cap
+	return min(config.MaxRequestDelay, baseDelay+jitter)
 }
 
 // ThrottleRequest throttles the request based on the current throttle rate
@@ -120,7 +116,7 @@ func (t *Throttler) UpdateThrottlerConfig(config *ThrottleConfig) {
 
 // EnableThrottling enables the throttler
 func (t *Throttler) EnableThrottler() {
-	if t == nil {
+	if t == nil || t.config.Load() == nil {
 		return
 	}
 	t.isThrottling.Store(true)
@@ -144,6 +140,9 @@ func (t *Throttler) DisableThrottler() {
 
 // Reset resets the throttler state
 func (t *Throttler) ResetThrottler() {
+	if t == nil {
+		return
+	}
 	t.counter.Store(0)
 	t.lastDelay.Store(0)
 }

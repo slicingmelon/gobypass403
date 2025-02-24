@@ -165,7 +165,7 @@ func TestHTTPClient_ThrottlerMaxDelay(t *testing.T) {
 	// Update throttler with new config directly
 	client.GetThrottler().UpdateThrottlerConfig(&rawhttp.ThrottleConfig{
 		BaseRequestDelay:        1000 * time.Millisecond,
-		MaxRequestDelay:         2000 * time.Millisecond,
+		MaxRequestDelay:         5000 * time.Millisecond,
 		ExponentialRequestDelay: 2.0,
 		RequestDelayJitter:      20,
 		ThrottleOnStatusCodes:   []int{429, 503, 507},
@@ -201,8 +201,8 @@ func TestHTTPClient_ThrottlerMaxDelay(t *testing.T) {
 
 		// Expected delay with exponential backoff: baseDelay * (2.0 ^ i)
 		expectedBase := time.Duration(float64(1000*time.Millisecond) * math.Pow(2.0, float64(i-1)))
-		if expectedBase > 2000*time.Millisecond {
-			expectedBase = 2000 * time.Millisecond
+		if expectedBase > 5000*time.Millisecond {
+			expectedBase = 5000 * time.Millisecond
 		}
 
 		// Allow for jitter
