@@ -62,10 +62,10 @@ func BenchmarkDoRequest(b *testing.B) {
 			b.ResetTimer()
 			b.RunParallel(func(pb *testing.PB) {
 				// Each goroutine gets its own request and response
-				req := client.AcquireRequest()
-				resp := client.AcquireResponse()
-				defer client.ReleaseRequest(req)
-				defer client.ReleaseResponse(resp)
+				req := fasthttp.AcquireRequest()
+				resp := fasthttp.AcquireResponse()
+				defer fasthttp.ReleaseRequest(req)
+				defer fasthttp.ReleaseResponse(resp)
 
 				req.SetRequestURI("http://localhost")
 				req.SetBody(tt.payload)
@@ -95,10 +95,10 @@ func BenchmarkDoRequestAllocs(b *testing.B) {
 	client := rawhttp.NewHTTPClient(clientOpts)
 	defer client.Close()
 
-	req := client.AcquireRequest()
-	resp := client.AcquireResponse()
-	defer client.ReleaseRequest(req)
-	defer client.ReleaseResponse(resp)
+	req := fasthttp.AcquireRequest()
+	resp := fasthttp.AcquireResponse()
+	defer fasthttp.ReleaseRequest(req)
+	defer fasthttp.ReleaseResponse(resp)
 
 	req.SetRequestURI("http://localhost")
 	req.SetBody([]byte("test"))
@@ -133,11 +133,11 @@ func BenchmarkDoRequestAllocsDetailed(b *testing.B) {
 	b.Run("setup", func(b *testing.B) {
 		b.ReportAllocs()
 		for i := 0; i < b.N; i++ {
-			req := client.AcquireRequest()
-			resp := client.AcquireResponse()
+			req := fasthttp.AcquireRequest()
+			resp := fasthttp.AcquireResponse()
 			req.SetRequestURI("http://localhost")
-			client.ReleaseRequest(req)
-			client.ReleaseResponse(resp)
+			fasthttp.ReleaseRequest(req)
+			fasthttp.ReleaseResponse(resp)
 		}
 	})
 
@@ -149,10 +149,10 @@ func BenchmarkDoRequestAllocsDetailed(b *testing.B) {
 	})
 
 	// Full request with tracing
-	req := client.AcquireRequest()
-	resp := client.AcquireResponse()
-	defer client.ReleaseRequest(req)
-	defer client.ReleaseResponse(resp)
+	req := fasthttp.AcquireRequest()
+	resp := fasthttp.AcquireResponse()
+	defer fasthttp.ReleaseRequest(req)
+	defer fasthttp.ReleaseResponse(resp)
 	req.SetRequestURI("http://localhost")
 	bypassPayload := payload.BypassPayload{}
 
@@ -180,10 +180,10 @@ func BenchmarkRequestComponents(b *testing.B) {
 	client := rawhttp.NewHTTPClient(clientOpts)
 	defer client.Close()
 
-	req := client.AcquireRequest()
-	resp := client.AcquireResponse()
-	defer client.ReleaseRequest(req)
-	defer client.ReleaseResponse(resp)
+	req := fasthttp.AcquireRequest()
+	resp := fasthttp.AcquireResponse()
+	defer fasthttp.ReleaseRequest(req)
+	defer fasthttp.ReleaseResponse(resp)
 	req.SetRequestURI("http://localhost")
 	bypassPayload := payload.BypassPayload{}
 
@@ -260,7 +260,7 @@ func BenchmarkDoRequestWithRetry(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		req := client.AcquireRequest()
+		req := fasthttp.AcquireRequest()
 		req.SetRequestURI("http://localhost")
 
 		_, err := client.DoRequest(req, nil, bypassPayload)
@@ -268,7 +268,7 @@ func BenchmarkDoRequestWithRetry(b *testing.B) {
 			b.Fatal(err)
 		}
 
-		client.ReleaseRequest(req)
+		fasthttp.ReleaseRequest(req)
 	}
 }
 
@@ -293,10 +293,10 @@ func BenchmarkDoRequestWithDifferentMethods(b *testing.B) {
 
 	for _, method := range methods {
 		b.Run(method, func(b *testing.B) {
-			req := client.AcquireRequest()
-			resp := client.AcquireResponse() // Add this
-			defer client.ReleaseRequest(req)
-			defer client.ReleaseResponse(resp) // And this
+			req := fasthttp.AcquireRequest()
+			resp := fasthttp.AcquireResponse()
+			defer fasthttp.ReleaseRequest(req)
+			defer fasthttp.ReleaseResponse(resp)
 
 			req.SetRequestURI("http://localhost")
 			req.Header.SetMethod(method)
@@ -339,8 +339,8 @@ func BenchmarkDoRequestWithHeaders(b *testing.B) {
 
 	for _, tt := range tests {
 		b.Run(tt.name, func(b *testing.B) {
-			req := client.AcquireRequest()
-			defer client.ReleaseRequest(req)
+			req := fasthttp.AcquireRequest()
+			defer fasthttp.ReleaseRequest(req)
 
 			req.SetRequestURI("http://localhost")
 

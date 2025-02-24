@@ -19,6 +19,7 @@ type ProgressBar struct {
 	mu           sync.RWMutex
 	bypassModule string
 	targetURL    string
+	truncatedURL string
 	totalJobs    int
 	totalWorkers int
 }
@@ -62,23 +63,26 @@ func NewProgressBar(bypassModule string, targetURL string, totalJobs int, totalW
 		Writer:                    multi.NewWriter(),
 	}
 
+	scanningText := " | Scanning "
+	offset := len(bypassModule) + len(scanningText)
+
+	truncatedURL := truncateURL(targetURL, termWidth, offset)
+
 	return &ProgressBar{
 		multiprinter: multi,
 		spinner:      spinnerPrinter,
 		progressbar:  progressPrinter,
 		mu:           sync.RWMutex{},
 		bypassModule: bypassModule,
-		targetURL:    truncateURL(targetURL, termWidth),
+		targetURL:    targetURL,    // Keep original URL
+		truncatedURL: truncatedURL, // Store truncated version
 		totalJobs:    totalJobs,
 		totalWorkers: totalWorkers,
 	}
 }
 
-func truncateURL(url string, termWidth int) string {
-	// Reserve space for module name, status text, and some padding
-	// Example: "module_name | Scanning " = ~20 chars
-	reservedSpace := 20
-	maxURLWidth := termWidth - reservedSpace
+func truncateURL(url string, termWidth int, offset int) string {
+	maxURLWidth := termWidth - offset - 10 // Add extra padding for safety
 
 	if len(url) <= maxURLWidth {
 		return url
@@ -92,20 +96,39 @@ func truncateURL(url string, termWidth int) string {
 	}
 
 	remainingWidth := maxURLWidth - len(prefix)
-	if remainingWidth < 10 {
-		remainingWidth = 10
+	if remainingWidth < 20 { // Minimum reasonable width
+		remainingWidth = 20
 	}
-
-	// Split remaining width between start and end of URL
-	startLen := remainingWidth / 2
-	endLen := remainingWidth - startLen - 3 // -3 for "..."
 
 	urlWithoutPrefix := strings.TrimPrefix(url, prefix)
 	if len(urlWithoutPrefix) <= remainingWidth {
 		return url
 	}
 
-	return prefix + urlWithoutPrefix[:startLen] + "..." + urlWithoutPrefix[len(urlWithoutPrefix)-endLen:]
+	// Show domain part (up to first /) and end of path
+	parts := strings.SplitN(urlWithoutPrefix, "/", 2)
+	domain := parts[0]
+
+	// Keep domain up to 30 chars max
+	if len(domain) > 30 {
+		domain = domain[:27] + "..."
+	}
+
+	if len(parts) < 2 {
+		return prefix + domain
+	}
+
+	path := parts[1]
+
+	// Calculate remaining space for the path
+	pathSpace := remainingWidth - len(domain) - 4 // -4 for "/.."
+	if pathSpace < 20 {
+		// If very limited space, just show domain and indicate there's more
+		return prefix + domain + "/..."
+	}
+
+	// Keep the last part of the path
+	return prefix + domain + "/..." + path[len(path)-pathSpace:]
 }
 
 // Increment advances the progress bar by one step
@@ -141,10 +164,9 @@ func (pb *ProgressBar) UpdateSpinnerText(
 	var spinnerBuf, titleBuf strings.Builder
 
 	// Spinner text
-	spinnerBuf.Grow(len(pb.bypassModule) + len(pb.targetURL) + 20)
 	spinnerBuf.WriteString(pterm.LightCyan(pb.bypassModule))
 	spinnerBuf.WriteString(" | Scanning ")
-	spinnerBuf.WriteString(pterm.FgYellow.Sprint(pb.targetURL))
+	spinnerBuf.WriteString(pterm.FgYellow.Sprint(pb.truncatedURL))
 	pb.spinner.UpdateText(spinnerBuf.String())
 
 	// Progress bar title
@@ -174,26 +196,24 @@ func (pb *ProgressBar) SpinnerSuccess(
 	pb.mu.Lock()
 	defer pb.mu.Unlock()
 
-	// Spinner completion message
+	// Success message with truncated URL
 	var spinnerBuf strings.Builder
-	spinnerBuf.Grow(len(pb.targetURL) + 20)
 	spinnerBuf.WriteString(pterm.White("Complete"))
 	spinnerBuf.WriteString(": ")
-	spinnerBuf.WriteString(pterm.FgYellow.Sprint(pb.targetURL))
+	spinnerBuf.WriteString(pterm.FgYellow.Sprint(pb.truncatedURL))
 	pb.spinner.Success(spinnerBuf.String())
 
-	// Update final progressbar title
+	// Update final progressbar title with peak rate
 	if pb.progressbar != nil {
 		var titleBuf strings.Builder
-		titleBuf.Grow(len(pb.bypassModule) + 100)
 		titleBuf.WriteString(pterm.LightCyan(pb.bypassModule))
-		titleBuf.WriteString(" | Requests: ")
-		titleBuf.WriteString(strconv.FormatUint(completedTasks, 10))
+		titleBuf.WriteString(" | Workers [")
+		titleBuf.WriteString(strconv.Itoa(pb.totalWorkers)) // Show total workers instead of active
 		titleBuf.WriteString("/")
-		titleBuf.WriteString(strconv.FormatUint(submittedTasks, 10))
-		titleBuf.WriteString(" | Avg: [")
+		titleBuf.WriteString(strconv.Itoa(pb.totalWorkers))
+		titleBuf.WriteString("] | Rate [")
 		titleBuf.WriteString(strconv.FormatUint(avgRate, 10))
-		titleBuf.WriteString(" req/s] | Peak: [")
+		titleBuf.WriteString(" req/s] Peak [") // Add peak rate
 		titleBuf.WriteString(strconv.FormatUint(peakRate, 10))
 		titleBuf.WriteString(" req/s]")
 

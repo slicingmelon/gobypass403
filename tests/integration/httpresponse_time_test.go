@@ -47,10 +47,10 @@ func TestClientResponseTimeSequential(t *testing.T) {
 	client := rawhttp.NewHTTPClient(opts)
 
 	// Acquire request and response instances from the client.
-	req := client.AcquireRequest()
-	resp := client.AcquireResponse()
-	defer client.ReleaseRequest(req)
-	defer client.ReleaseResponse(resp)
+	req := fasthttp.AcquireRequest()
+	resp := fasthttp.AcquireResponse()
+	defer fasthttp.ReleaseRequest(req)
+	defer fasthttp.ReleaseResponse(resp)
 
 	req.Header.SetMethod("GET")
 	// The URL here is not used by the dialer (it always dials on ln) but still needs to be set.
@@ -126,10 +126,10 @@ func TestClientResponseTimeConcurrent(t *testing.T) {
 		go func(idx int) {
 			defer wg.Done()
 
-			req := client.AcquireRequest()
-			resp := client.AcquireResponse()
-			defer client.ReleaseRequest(req)
-			defer client.ReleaseResponse(resp)
+			req := fasthttp.AcquireRequest()
+			resp := fasthttp.AcquireResponse()
+			defer fasthttp.ReleaseRequest(req)
+			defer fasthttp.ReleaseResponse(resp)
 
 			req.Header.SetMethod("GET")
 			req.SetRequestURI("http://example.com/")

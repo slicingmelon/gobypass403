@@ -74,10 +74,10 @@ func (wp *RequestWorkerPool) ProcessRequests(jobs []payload.BypassPayload) <-cha
 
 // processJob handles a single job: builds request, sends it, and processes response
 func (wp *RequestWorkerPool) processJob(job payload.BypassPayload) *RawHTTPResponseDetails {
-	req := wp.httpClient.AcquireRequest()
-	resp := wp.httpClient.AcquireResponse()
-	defer wp.httpClient.ReleaseRequest(req)
-	defer wp.httpClient.ReleaseResponse(resp)
+	req := fasthttp.AcquireRequest()
+	resp := fasthttp.AcquireResponse()
+	defer fasthttp.ReleaseRequest(req)
+	defer fasthttp.ReleaseResponse(resp)
 
 	fmt.Printf("Processing request for URL: %s\n", payload.BypassPayloadToBaseURL(job))
 

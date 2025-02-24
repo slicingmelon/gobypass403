@@ -329,26 +329,6 @@ func (c *HTTPClient) Close() {
 	c.throttler.ResetThrottler()
 }
 
-// AcquireRequest returns a new Request instance from pool
-func (c *HTTPClient) AcquireRequest() *fasthttp.Request {
-	return fasthttp.AcquireRequest()
-}
-
-// ReleaseRequest returns request to pool
-func (c *HTTPClient) ReleaseRequest(req *fasthttp.Request) {
-	fasthttp.ReleaseRequest(req)
-}
-
-// AcquireResponse returns a new Response instance from pool
-func (c *HTTPClient) AcquireResponse() *fasthttp.Response {
-	return fasthttp.AcquireResponse()
-}
-
-// ReleaseResponse returns response to pool
-func (c *HTTPClient) ReleaseResponse(resp *fasthttp.Response) {
-	fasthttp.ReleaseResponse(resp)
-}
-
 func applyReqFlags(req *fasthttp.Request) {
 	req.URI().DisablePathNormalizing = true
 	req.Header.DisableNormalizing()

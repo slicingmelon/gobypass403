@@ -36,10 +36,10 @@ func TestHTTPClient_Throttler(t *testing.T) {
 
 	// Send multiple requests to the test server
 	for i := 0; i < 5; i++ {
-		req := client.AcquireRequest()
-		resp := client.AcquireResponse()
-		defer client.ReleaseRequest(req)
-		defer client.ReleaseResponse(resp)
+		req := fasthttp.AcquireRequest()
+		resp := fasthttp.AcquireResponse()
+		defer fasthttp.ReleaseRequest(req)
+		defer fasthttp.ReleaseResponse(resp)
 
 		req.SetRequestURI("http://inmemory")
 		req.Header.SetMethod(fasthttp.MethodGet)

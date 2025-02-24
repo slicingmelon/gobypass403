@@ -333,10 +333,10 @@ func TestRequestBuilderHostHeaders(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			req := client.AcquireRequest()
-			resp := client.AcquireResponse()
-			defer client.ReleaseRequest(req)
-			defer client.ReleaseResponse(resp)
+			req := fasthttp.AcquireRequest()
+			resp := fasthttp.AcquireResponse()
+			defer fasthttp.ReleaseRequest(req)
+			defer fasthttp.ReleaseResponse(resp)
 
 			// Create minimal payload job with just Method and FullURL
 			job := payload.BypassPayload{
@@ -462,10 +462,10 @@ func TestResponseProcessingWithSpacedHeaders(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			req := client.AcquireRequest()
-			resp := client.AcquireResponse()
-			defer client.ReleaseRequest(req)
-			defer client.ReleaseResponse(resp)
+			req := fasthttp.AcquireRequest()
+			resp := fasthttp.AcquireResponse()
+			defer fasthttp.ReleaseRequest(req)
+			defer fasthttp.ReleaseResponse(resp)
 
 			req.SetRequestURI("http://testserver/test")
 			req.Header.SetMethod("GET")

@@ -163,19 +163,19 @@ func (wp *RequestWorkerPool) Close() {
 
 // ProcessRequestResponseJob handles a single job: builds request, sends it, and processes response
 func (wp *RequestWorkerPool) ProcessRequestResponseJob(bypassPayload payload.BypassPayload) *RawHTTPResponseDetails {
-	req := wp.httpClient.AcquireRequest()
-	resp := wp.httpClient.AcquireResponse()
+	req := fasthttp.AcquireRequest()
+	resp := fasthttp.AcquireResponse()
 
-	defer wp.httpClient.ReleaseRequest(req)
+	defer fasthttp.ReleaseRequest(req)
 
 	if err := BuildRawHTTPRequest(wp.httpClient, req, bypassPayload); err != nil {
-		wp.httpClient.ReleaseResponse(resp)
+		fasthttp.ReleaseResponse(resp)
 		return nil
 	}
 
 	respTime, err := wp.httpClient.DoRequest(req, resp, bypassPayload)
 	if err != nil {
-		wp.httpClient.ReleaseResponse(resp)
+		fasthttp.ReleaseResponse(resp)
 		if err == ErrReqFailedMaxConsecutiveFails {
 			GB403Logger.Warning().Msgf("Cancelling current bypass module due to max consecutive failures reached for module [%s]\n", wp.httpClient.options.BypassModule)
 			wp.Close()
@@ -186,7 +186,7 @@ func (wp *RequestWorkerPool) ProcessRequestResponseJob(bypassPayload payload.Byp
 
 	// Process response before releasing
 	result := ProcessHTTPResponse(wp.httpClient, resp, bypassPayload)
-	wp.httpClient.ReleaseResponse(resp)
+	fasthttp.ReleaseResponse(resp)
 
 	if result != nil {
 		result.ResponseTime = respTime
