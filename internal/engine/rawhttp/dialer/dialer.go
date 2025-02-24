@@ -26,11 +26,6 @@ type CustomResolver struct {
 	errChan      chan error
 }
 
-// func init() {
-// 	// Initialize DoH client once
-// 	dohClient = doh.Use(doh.Quad9Provider, doh.CloudflareProvider)
-// }
-
 func NewCustomResolver(dnsServers []string) *CustomResolver {
 	// Initialize DoH client with multiple providers for automatic fastest selection
 	dohClient := doh.Use(
