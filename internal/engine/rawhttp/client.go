@@ -135,6 +135,7 @@ func NewHTTPClient(opts *HTTPClientOptions) *HTTPClient {
 		ReadBufferSize:                opts.ReadBufferSize,
 		WriteBufferSize:               opts.WriteBufferSize,
 		ReadTimeout:                   opts.Timeout,
+		WriteTimeout:                  opts.Timeout,
 		StreamResponseBody:            opts.StreamResponseBody,
 		Dial:                          opts.Dialer,
 		TLSConfig: &tls.Config{
