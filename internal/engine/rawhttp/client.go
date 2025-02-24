@@ -184,6 +184,10 @@ func (c *HTTPClient) handleRetries(req *fasthttp.Request, resp *fasthttp.Respons
 		ReqCopyToWithSettings(req, reqCopy)
 		defer fasthttp.ReleaseRequest(reqCopy)
 
+		if c.throttler != nil && c.throttler.IsThrottlerActive() {
+			c.throttler.ThrottleRequest()
+		}
+
 		var start time.Time
 		var err error
 
@@ -242,6 +246,11 @@ func (c *HTTPClient) handleRetries(req *fasthttp.Request, resp *fasthttp.Respons
 // DoRequest performs a HTTP request (raw)
 // Returns the HTTP response time (in ms) and error
 func (c *HTTPClient) DoRequest(req *fasthttp.Request, resp *fasthttp.Response, bypassPayload payload.BypassPayload) (int64, error) {
+	// apply throttler if enabled
+	if c.throttler.IsThrottlerActive() {
+		c.throttler.ThrottleRequest()
+	}
+
 	// Initial request
 	start := time.Now()
 	err := c.client.Do(req, resp)
@@ -315,6 +324,10 @@ func (c *HTTPClient) IsThrottlerActive() bool {
 // DisableThrottler disables the throttler, it does not reset the stats and rates though.
 func (c *HTTPClient) DisableThrottler() {
 	c.throttler.DisableThrottler()
+}
+
+func (c *HTTPClient) GetThrottler() *Throttler {
+	return c.throttler
 }
 
 func (c *HTTPClient) DisableStreamResponseBody() {
