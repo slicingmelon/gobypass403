@@ -354,14 +354,14 @@ func (e *ErrorHandler) PrintErrorStats() {
 
 				// Print error sources
 				buf.WriteString("  Error Sources:\n")
-				stats.ErrorSources.Range(func(key, value interface{}) bool {
+				stats.ErrorSources.Range(func(key, value any) bool {
 					fmt.Fprintf(&buf, "    - %s: %d times\n", key.(string), value.(int64))
 					return true
 				})
 
 				// Print bypass modules
 				buf.WriteString("  Bypass Modules:\n")
-				stats.BypassModules.Range(func(key, value interface{}) bool {
+				stats.BypassModules.Range(func(key, value any) bool {
 					fmt.Fprintf(&buf, "    - %s: %d times\n", key.(string), value.(int64))
 					return true
 				})
@@ -388,7 +388,7 @@ func (e *ErrorHandler) PrintErrorStats() {
 
 func (e *ErrorHandler) getHosts() []string {
 	var hosts []string
-	e.hostSet.Range(func(key, _ interface{}) bool {
+	e.hostSet.Range(func(key, _ any) bool {
 		hosts = append(hosts, key.(string))
 		return true
 	})

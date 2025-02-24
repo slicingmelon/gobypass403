@@ -98,7 +98,7 @@ func Verbose() *Event {
 	return DefaultLogger.newEvent(pterm.Info)
 }
 
-func (e *Event) Msgf(format string, args ...interface{}) {
+func (e *Event) Msgf(format string, args ...any) {
 	if e == nil {
 		return
 	}

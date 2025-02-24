@@ -10,8 +10,8 @@ import (
 type multiFlag struct {
 	name   string
 	usage  string
-	value  interface{}
-	defVal interface{}
+	value  any
+	defVal any
 }
 
 var flags []multiFlag

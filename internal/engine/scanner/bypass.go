@@ -189,7 +189,7 @@ func (s *Scanner) RunAllBypasses(targetURL string) chan *Result {
 }
 
 var resultsBufferPool = sync.Pool{
-	New: func() interface{} {
+	New: func() any {
 		return new(bytes.Buffer)
 	},
 }
