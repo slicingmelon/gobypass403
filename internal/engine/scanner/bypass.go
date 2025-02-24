@@ -246,6 +246,7 @@ func (s *Scanner) RunBypassModule(bypassModule string, targetURL string, results
 			buf := resultsBufferPool.Get().(*bytes.Buffer)
 			buf.Reset()
 
+			// Create Result struct from response
 			result := &Result{
 				TargetURL:           string(response.URL),
 				BypassModule:        string(response.BypassModule),
@@ -270,6 +271,12 @@ func (s *Scanner) RunBypassModule(bypassModule string, targetURL string, results
 
 			results <- result
 			resultsBufferPool.Put(buf)
+
+			// Release the RawHTTPResponseDetails back to its pool
+			rawhttp.ReleaseResponseDetails(response)
+		} else {
+			// Even if we don't use the response, we need to release it
+			rawhttp.ReleaseResponseDetails(response)
 		}
 	}
 
