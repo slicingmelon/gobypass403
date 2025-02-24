@@ -251,7 +251,7 @@ func BuildRawHTTPRequest(httpclient *HTTPClient, req *fasthttp.Request, bypassPa
 }
 
 func ProcessHTTPResponse(httpclient *HTTPClient, resp *fasthttp.Response, bypassPayload payload.BypassPayload) *RawHTTPResponseDetails {
-	// Acquire a single result - no need for temporary anymore
+	// Acquire a single result
 	result := AcquireResponseDetails()
 
 	// 1. Basic response info

@@ -33,7 +33,7 @@ type CliOptions struct {
 	RetryDelay               int // in milliseconds
 	RequestDelay             int // in milliseconds
 	MaxConsecutiveFailedReqs int
-	DisableAutoThrottle      bool
+	AutoThrottle             bool
 	ResponseBodyPreviewSize  int // in bytes, we don't need too much, Response Headers and a small body preview is enough
 
 	// Output options
@@ -137,6 +137,11 @@ func (o *CliOptions) setDefaults() {
 	// Status codes default - accept all codes
 	if o.MatchStatusCodesStr == "" {
 		o.MatchStatusCodes = nil // nil means match all status codes
+	}
+
+	// enable auto throttle by default
+	if !o.AutoThrottle {
+		o.AutoThrottle = true
 	}
 
 	// Output directory default

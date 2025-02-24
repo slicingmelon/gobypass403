@@ -83,6 +83,7 @@ func DefaultHTTPClientOptions() *HTTPClientOptions {
 		MaxRetries:               2,
 		RetryDelay:               500 * time.Millisecond,
 		RequestDelay:             0,
+		AutoThrottle:             false,
 		DisableKeepAlive:         false, // Keep connections alive
 		DisablePathNormalizing:   true,
 		Dialer:                   nil,
@@ -105,10 +106,15 @@ func NewHTTPClient(opts *HTTPClientOptions) *HTTPClient {
 	retryConfig.MaxRetries = opts.MaxRetries
 	retryConfig.RetryDelay = opts.RetryDelay
 
+	var throttler *Throttler
+	if opts.AutoThrottle {
+		throttler = NewThrottler(DefaultThrottleConfig())
+	}
+
 	c := &HTTPClient{
 		options:     opts,
 		retryConfig: retryConfig,
-		throttler:   NewThrottler(DefaultThrottleConfig()),
+		throttler:   throttler,
 	}
 
 	// reset failed consecutive requests

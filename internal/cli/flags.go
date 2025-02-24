@@ -16,6 +16,33 @@ type multiFlag struct {
 
 var flags []multiFlag
 
+type onOffFlag struct {
+	val *bool
+}
+
+func (f *onOffFlag) String() string {
+	if f.val == nil {
+		return "off"
+	}
+	if *f.val {
+		return "on"
+	}
+	return "off"
+}
+
+func (f *onOffFlag) Set(value string) error {
+	value = strings.ToLower(strings.TrimSpace(value))
+	switch value {
+	case "on", "1", "true":
+		*f.val = true
+	case "off", "0", "false":
+		*f.val = false
+	default:
+		return fmt.Errorf("invalid value %q: use on/off, 1/0, or true/false", value)
+	}
+	return nil
+}
+
 func parseFlags() (*CliOptions, error) {
 	opts := &CliOptions{}
 
@@ -31,8 +58,8 @@ func parseFlags() (*CliOptions, error) {
 		{name: "max-retries", usage: "Maximum number of retries for failed requests", value: &opts.MaxRetries, defVal: 2},
 		{name: "retry-delay", usage: "Delay between retries (in milliseconds)", value: &opts.RetryDelay, defVal: 500},
 		{name: "max-cfr,max-consecutive-fails", usage: "Maximum number of consecutive failed requests before cancelling the current bypass module", value: &opts.MaxConsecutiveFailedReqs, defVal: 15},
-		{name: "dat,disable-auto-throttle", usage: "Disable automatic request throttling (enabled by default)", value: &opts.DisableAutoThrottle, defVal: false},
-
+		{name: "at,auto-throttle", usage: "Enable automatic request throttling (on/off, 1/0) (Default: on)",
+			value: &onOffFlag{val: &opts.AutoThrottle}, defVal: "on"},
 		{name: "v,verbose", usage: "Verbose output", value: &opts.Verbose, defVal: false},
 		{name: "d,debug", usage: "Debug mode with request canaries", value: &opts.Debug, defVal: false},
 		{name: "mc,match-status-code", usage: "Filter results by HTTP status codes (example: -mc 200, 301, 500, all). Default: All status codes", value: &opts.MatchStatusCodesStr},
