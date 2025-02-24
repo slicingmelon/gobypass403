@@ -1,11 +1,11 @@
 module github.com/slicingmelon/go-bypass-403
 
-go 1.23.3
+go 1.23.5
 
-toolchain go1.23.4
+toolchain go1.23.6
 
 require (
-	github.com/VictoriaMetrics/VictoriaMetrics v1.109.0
+	github.com/VictoriaMetrics/VictoriaMetrics v1.111.0
 	github.com/VictoriaMetrics/fastcache v1.12.2
 	github.com/alitto/pond/v2 v2.1.6
 	github.com/andybalholm/brotli v1.1.1
@@ -31,7 +31,7 @@ require (
 	atomicgo.dev/keyboard v0.2.9 // indirect
 	atomicgo.dev/schedule v0.1.0 // indirect
 	github.com/VictoriaMetrics/metrics v1.35.1 // indirect
-	github.com/VictoriaMetrics/metricsql v0.81.1 // indirect
+	github.com/VictoriaMetrics/metricsql v0.83.0 // indirect
 	github.com/bytedance/sonic/loader v0.2.2 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/cloudflare/circl v1.3.7 // indirect

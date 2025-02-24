@@ -104,7 +104,6 @@ type BypassWorker struct {
 	opts         *ScannerOpts
 	requestPool  *rawhttp.RequestWorkerPool
 	totalJobs    int
-	progressBar  *ProgressBar
 }
 
 func NewBypassWorker(bypassmodule string, targetURL string, scannerOpts *ScannerOpts, totalJobs int) *BypassWorker {

@@ -28,6 +28,17 @@ type ProgressBar struct {
 func NewProgressBar(bypassModule string, targetURL string, totalJobs int, totalWorkers int) *ProgressBar {
 	termWidth := pterm.GetTerminalWidth()
 
+	scanningText := " | Scanning "
+	offset := len(bypassModule) + len(scanningText)
+	truncatedURL := truncateURL(targetURL, termWidth, offset)
+
+	// Second use: calculate progress bar width based on truncated URL
+	desiredWidth := len(truncatedURL) + len("Complete: ") + 10
+	maxWidth := min(desiredWidth, termWidth)
+	if maxWidth < 80 {
+		maxWidth = min(80, termWidth)
+	}
+
 	multi := &pterm.MultiPrinter{
 		Writer:      os.Stdout,
 		UpdateDelay: time.Millisecond * 200,
@@ -59,14 +70,9 @@ func NewProgressBar(bypassModule string, targetURL string, totalJobs int, totalW
 		ShowPercentage:            true,
 		ShowElapsedTime:           true,
 		BarFiller:                 pterm.Gray("█"),
-		MaxWidth:                  termWidth,
+		MaxWidth:                  maxWidth,
 		Writer:                    multi.NewWriter(),
 	}
-
-	scanningText := " | Scanning "
-	offset := len(bypassModule) + len(scanningText)
-
-	truncatedURL := truncateURL(targetURL, termWidth, offset)
 
 	return &ProgressBar{
 		multiprinter: multi,
@@ -74,8 +80,8 @@ func NewProgressBar(bypassModule string, targetURL string, totalJobs int, totalW
 		progressbar:  progressPrinter,
 		mu:           sync.RWMutex{},
 		bypassModule: bypassModule,
-		targetURL:    targetURL,    // Keep original URL
-		truncatedURL: truncatedURL, // Store truncated version
+		targetURL:    targetURL,
+		truncatedURL: truncatedURL,
 		totalJobs:    totalJobs,
 		totalWorkers: totalWorkers,
 	}

@@ -29,8 +29,8 @@ var (
 	curlCmd []byte
 
 	// Pool for byte buffers
-	curlCmdPool   = &bytesutil.ByteBufferPool{}
-	headerBufPool = &bytesutil.ByteBufferPool{}
+	curlCmdBuffPool bytesutil.ByteBufferPool
+	headerBufPool   bytesutil.ByteBufferPool
 
 	// Pre-computed byte slices for static strings
 	curlFlags         = []byte("-skgi --path-as-is")
@@ -340,50 +340,52 @@ func ReadLimitedResponseBodyStream(stream io.Reader, previewSize int, dest []byt
 // BuildCurlCommandPoc builds a curl command for the payload job
 // Appends the result to dest slice
 func BuildCurlCommandPoc(bypassPayload payload.BypassPayload, dest []byte) []byte {
-	// Reset destination slice
-	dest = dest[:0]
+	cmdBuf := curlCmdBuffPool.Get()
+	defer curlCmdBuffPool.Put(cmdBuf)
+	cmdBuf.Reset()
 
-	// Build command directly into dest
-	dest = append(dest, curlCmd...)
-	dest = append(dest, strSpace...)
-	dest = append(dest, curlFlags...)
+	// Build command into buffer
+	cmdBuf.Write(curlCmd)
+	cmdBuf.Write(strSpace)
+	cmdBuf.Write(curlFlags)
 
 	if bypassPayload.Method != "GET" {
-		dest = append(dest, strSpace...)
-		dest = append(dest, curlMethodX...)
-		dest = append(dest, strSpace...)
-		dest = append(dest, bytesutil.ToUnsafeBytes(bypassPayload.Method)...)
+		cmdBuf.Write(strSpace)
+		cmdBuf.Write(curlMethodX)
+		cmdBuf.Write(strSpace)
+		cmdBuf.Write(bytesutil.ToUnsafeBytes(bypassPayload.Method))
 	}
 
 	// Headers
 	for _, h := range bypassPayload.Headers {
-		dest = append(dest, strSpace...)
-		dest = append(dest, curlHeaderH...)
-		dest = append(dest, strSpace...)
-		dest = append(dest, strSingleQuote...)
-		dest = append(dest, bytesutil.ToUnsafeBytes(h.Header)...)
-		dest = append(dest, strColonSpace...)
-		dest = append(dest, bytesutil.ToUnsafeBytes(h.Value)...)
-		dest = append(dest, strSingleQuote...)
+		cmdBuf.Write(strSpace)
+		cmdBuf.Write(curlHeaderH)
+		cmdBuf.Write(strSpace)
+		cmdBuf.Write(strSingleQuote)
+		cmdBuf.Write(bytesutil.ToUnsafeBytes(h.Header))
+		cmdBuf.Write(strColonSpace)
+		cmdBuf.Write(bytesutil.ToUnsafeBytes(h.Value))
+		cmdBuf.Write(strSingleQuote)
 	}
 
 	// URL construction
-	dest = append(dest, strSpace...)
-	dest = append(dest, strSingleQuote...)
+	cmdBuf.Write(strSpace)
+	cmdBuf.Write(strSingleQuote)
 
 	// Scheme
-	dest = append(dest, bytesutil.ToUnsafeBytes(bypassPayload.Scheme)...)
-	dest = append(dest, strSchemeDelim...)
+	cmdBuf.Write(bytesutil.ToUnsafeBytes(bypassPayload.Scheme))
+	cmdBuf.Write(strSchemeDelim)
 
 	// Host
-	dest = append(dest, bytesutil.ToUnsafeBytes(bypassPayload.Host)...)
+	cmdBuf.Write(bytesutil.ToUnsafeBytes(bypassPayload.Host))
 
 	// RawURI
-	dest = append(dest, bytesutil.ToUnsafeBytes(bypassPayload.RawURI)...)
+	cmdBuf.Write(bytesutil.ToUnsafeBytes(bypassPayload.RawURI))
 
-	dest = append(dest, strSingleQuote...)
+	cmdBuf.Write(strSingleQuote)
 
-	return dest
+	// Append to existing slice instead of creating new one
+	return append(dest[:0], cmdBuf.B...)
 }
 
 // GetResponseHeaders gets all HTTP headers including values from the response
