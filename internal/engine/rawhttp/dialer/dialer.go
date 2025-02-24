@@ -275,11 +275,7 @@ func CreateDialFunc(timeout time.Duration, proxyURL string) fasthttp.DialFunc {
 }
 
 func CreateDialFuncNew(timeout time.Duration, proxyURL string) fasthttp.DialFunc {
-	// Get shared dialer instance
-	// dialer := &fasthttp.TCPDialer{
-	// 	Concurrency:      2048,
-	// 	DNSCacheDuration: 120 * time.Minute,
-	// }
+
 	dialer := GetClientSharedDialer()
 
 	return func(addr string) (net.Conn, error) {
