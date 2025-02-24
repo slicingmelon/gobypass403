@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -305,14 +306,7 @@ func (o *CliOptions) validateModule() error {
 	}
 
 	// Always prepend dumb_check unless explicitly excluded
-	hasDumbCheck := false
-	for _, m := range finalModules {
-		if m == "dumb_check" {
-			hasDumbCheck = true
-			break
-		}
-	}
-	if !hasDumbCheck {
+	if !slices.Contains(finalModules, "dumb_check") {
 		finalModules = append([]string{"dumb_check"}, finalModules...)
 	}
 
