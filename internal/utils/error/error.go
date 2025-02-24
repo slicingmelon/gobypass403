@@ -32,11 +32,11 @@ var (
 	ErrConnForciblyClosedWin = errors.New("wsarecv: An existing connection was forcibly closed by the remote host")
 )
 
-var defaultWhitelistedErrors = []error{
-	ErrBodyTooLarge,
-	ErrInvalidResponseHeader,
-	//ErrConnForciblyClosedWin,
-}
+// var defaultWhitelistedErrors = []error{
+// 	ErrBodyTooLarge,
+// 	ErrInvalidResponseHeader,
+// 	//ErrConnForciblyClosedWin,
+// }
 
 var defaultWhitelistedErrorsStr = []string{
 	ErrBodyTooLarge.Error(),
@@ -159,16 +159,6 @@ func newErrorStats() *ErrorStats {
 	return stats
 }
 
-type ErrorCache struct {
-	count         atomic.Int64
-	firstSeen     time.Time
-	lastSeen      atomic.Pointer[time.Time]
-	bypassModules sync.Map
-	errorSources  sync.Map
-	debugTokens   []string
-	tokensMutex   sync.RWMutex
-}
-
 // NewErrorHandler creates a new ErrorHandler instance
 // cacheSizeMB is the size of the cache in MB
 func NewErrorHandler() *ErrorHandler {
@@ -263,7 +253,7 @@ func (e *ErrorHandler) HandleError(err error, ctx ErrorContext) error {
 		return nil
 	}
 
-	host := "host:" + string(ctx.Host)
+	host := "host:" + ctx.Host
 	e.hostSet.Store(host, struct{}{}) // Track the host
 	errMsg := e.StripErrorMessage(err)
 
@@ -298,7 +288,7 @@ func (e *ErrorHandler) HandleError(err error, ctx ErrorContext) error {
 	now := time.Now()
 	stats.LastSeen.Store(&now)
 
-	if src := string(ctx.ErrorSource); src != "" {
+	if src := ctx.ErrorSource; src != "" {
 		if val, ok := stats.ErrorSources.Load(src); ok {
 			stats.ErrorSources.Store(src, val.(int64)+1)
 		} else {
@@ -306,7 +296,7 @@ func (e *ErrorHandler) HandleError(err error, ctx ErrorContext) error {
 		}
 	}
 
-	if mod := string(ctx.BypassModule); mod != "" {
+	if mod := ctx.BypassModule; mod != "" {
 		if val, ok := stats.BypassModules.Load(mod); ok {
 			stats.BypassModules.Store(mod, val.(int64)+1)
 		} else {
@@ -315,7 +305,7 @@ func (e *ErrorHandler) HandleError(err error, ctx ErrorContext) error {
 	}
 
 	if len(ctx.DebugToken) > 0 {
-		stats.DebugTokens.Add(string(ctx.DebugToken))
+		stats.DebugTokens.Add(ctx.DebugToken)
 	}
 
 	return err
