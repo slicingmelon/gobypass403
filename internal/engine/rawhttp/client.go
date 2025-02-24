@@ -98,8 +98,12 @@ func NewHTTPClient(opts *HTTPClientOptions) *HTTPClient {
 	}
 
 	// Set the default dialer if none is provided
+	// if opts.Dialer == nil {
+	// 	opts.Dialer = dialer.CreateDialFunc(opts.DialTimeout, opts.ProxyURL)
+	// }
+
 	if opts.Dialer == nil {
-		opts.Dialer = dialer.CreateDialFunc(opts.DialTimeout, opts.ProxyURL)
+		opts.Dialer = dialer.CreateDialFuncNew(opts.DialTimeout, opts.ProxyURL)
 	}
 
 	retryConfig := DefaultRetryConfig()

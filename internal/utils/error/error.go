@@ -318,7 +318,7 @@ func (e *ErrorHandler) HandleError(err error, ctx ErrorContext) error {
 		stats.DebugTokens.Add(string(ctx.DebugToken))
 	}
 
-	return nil
+	return err
 }
 
 // HandleErrorAndContinue handles the error and returns nil if it's whitelisted

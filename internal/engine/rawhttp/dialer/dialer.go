@@ -219,7 +219,7 @@ func GetSharedDialer() *fasthttp.TCPDialer {
 				"[2606:4700:4700::1111]:53", // Cloudflare IPv6
 				"[2620:fe::fe]:53",          // Quad9 IPv6
 			}),
-			DisableDNSResolution: true,
+			DisableDNSResolution: false,
 		}
 	})
 	return sharedDialer
@@ -248,7 +248,46 @@ func CreateDialFunc(timeout time.Duration, proxyURL string) fasthttp.DialFunc {
 		}
 
 		// No proxy, use our TCPDialer with timeout
-		conn, err := dialer.DialDualStackTimeout(addr, timeout)
+		conn, err := dialer.DialTimeout(addr, timeout)
+		if err != nil {
+			if handleErr := GB403ErrorHandler.GetErrorHandler().HandleError(err, GB403ErrorHandler.ErrorContext{
+				ErrorSource: "Client.directDial",
+				Host:        addr,
+			}); handleErr != nil {
+				return nil, fmt.Errorf("direct dial error handling failed: %v (original error: %v)", handleErr, err)
+			}
+			return nil, err
+		}
+		return conn, nil
+	}
+}
+
+func CreateDialFuncNew(timeout time.Duration, proxyURL string) fasthttp.DialFunc {
+	// Get shared dialer instance
+	dialer := &fasthttp.TCPDialer{
+		Concurrency:      2048,
+		DNSCacheDuration: 120 * time.Minute,
+	}
+
+	return func(addr string) (net.Conn, error) {
+		// Handle proxy if configured
+		if proxyURL != "" {
+			proxyDialer := fasthttpproxy.FasthttpHTTPDialerTimeout(proxyURL, timeout)
+			conn, err := proxyDialer(addr)
+			if err != nil {
+				if handleErr := GB403ErrorHandler.GetErrorHandler().HandleError(err, GB403ErrorHandler.ErrorContext{
+					ErrorSource: "Client.proxyDial",
+					Host:        addr,
+				}); handleErr != nil {
+					return nil, fmt.Errorf("proxy dial error handling failed: %v (original error: %v)", handleErr, err)
+				}
+				return nil, err
+			}
+			return conn, nil
+		}
+
+		// No proxy, use our TCPDialer with timeout
+		conn, err := dialer.DialTimeout(addr, timeout)
 		if err != nil {
 			if handleErr := GB403ErrorHandler.GetErrorHandler().HandleError(err, GB403ErrorHandler.ErrorContext{
 				ErrorSource: "Client.directDial",

@@ -312,16 +312,16 @@ func (r *ReconService) Run(urls []string) error {
 func (r *ReconService) ProbePort(ip string, port string) (string, bool) {
 	addr := net.JoinHostPort(ip, port)
 
-	// Create a simple dialer without custom resolver for IP probing
-	dialer := &fasthttp.TCPDialer{
-		Concurrency:      2048,
-		DNSCacheDuration: 10 * time.Minute,
-		// Don't set Resolver here since we're dealing with direct IPs
-		DisableDNSResolution: true, // Important: we're dealing with IPs directly
+	// For IP probing, we create a specialized dialer without DNS resolution
+	// This is correct because we're dealing with direct IPs, not hostnames
+	ipProbeDialer := &fasthttp.TCPDialer{
+		Concurrency:          1024,
+		DNSCacheDuration:     10 * time.Minute,
+		DisableDNSResolution: true, // Correct here because we're connecting directly to IPs
 	}
 
 	// Try HTTPS first
-	conn, err := dialer.Dial(addr)
+	conn, err := ipProbeDialer.Dial(addr)
 	if err != nil {
 		GB403Logger.Verbose().Msgf("TLS dial error for %s: %v", addr, err)
 	} else {
@@ -341,7 +341,7 @@ func (r *ReconService) ProbePort(ip string, port string) (string, bool) {
 	}
 
 	// Try HTTP
-	conn2, err := dialer.Dial(addr)
+	conn2, err := ipProbeDialer.Dial(addr)
 	if err != nil {
 		return "", false
 	}
@@ -372,10 +372,20 @@ func (r *ReconService) ResolveDomain(host string) ([]net.IP, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	// Use the dialer's custom LookupIPAddr function which already implements our parallel strategy
+	// Log that we're resolving the domain
+	GB403Logger.Verbose().Msgf("Resolving domain %s using custom parallel resolver", host)
+
+	// Use the dialer's custom LookupIPAddr function which implements our parallel strategy
+	// This will try system resolver, DoH, and multiple DNS servers concurrently
 	ipAddrs, err := r.dialer.Resolver.LookupIPAddr(ctx, host)
 	if err != nil {
-		return nil, err
+		GB403Logger.Error().Msgf("Failed to resolve domain %s: %v", host, err)
+		return nil, fmt.Errorf("DNS resolution failed for %s: %v", host, err)
+	}
+
+	if len(ipAddrs) == 0 {
+		GB403Logger.Error().Msgf("No IP addresses found for domain %s", host)
+		return nil, fmt.Errorf("no IP addresses found for domain %s", host)
 	}
 
 	// Convert IPAddr to IP
