@@ -175,11 +175,11 @@ func (o *CliOptions) validate() error {
 		GB403Logger.PrintYellow("Method: %s\n", data.Method)
 		GB403Logger.PrintYellow("Host: %s\n", data.Host)
 		GB403Logger.PrintYellow("RawURI: %s\n", data.RawURI)
-		GB403Logger.PrintYellow("Headers:")
+		GB403Logger.PrintYellow("Headers:\n")
 		for _, h := range data.Headers {
-			fmt.Printf("  %s: %s\n", h.Header, h.Value)
+			GB403Logger.PrintYellow("  %s: %s\n", h.Header, h.Value)
 		}
-		GB403Logger.PrintYellow("Bypass Module: %s\n", data.BypassModule)
+		GB403Logger.PrintYellow("Bypass Module: %s\n\n", data.BypassModule)
 	}
 
 	// Validate input parameters

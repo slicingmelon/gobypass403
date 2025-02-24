@@ -194,10 +194,22 @@ func PrintGreenLn(format string, args ...any) {
 	pterm.FgGreen.Printfln(format, args...)
 }
 
+func PrintGreen(format string, args ...any) {
+	DefaultLogger.mu.Lock()
+	defer DefaultLogger.mu.Unlock()
+	pterm.FgGreen.Printf(format, args...)
+}
+
 func PrintYellowLn(format string, args ...any) {
 	DefaultLogger.mu.Lock()
 	defer DefaultLogger.mu.Unlock()
 	pterm.FgYellow.Printfln(format, args...)
+}
+
+func PrintYellow(format string, args ...any) {
+	DefaultLogger.mu.Lock()
+	defer DefaultLogger.mu.Unlock()
+	pterm.FgYellow.Printf(format, args...)
 }
 
 func PrintCyanLn(format string, args ...any) {
@@ -206,14 +218,8 @@ func PrintCyanLn(format string, args ...any) {
 	pterm.FgCyan.Printfln(format, args...)
 }
 
-func PrintGreen(format string, args ...any) string {
-	return pterm.FgGreen.Sprintf(format, args...)
-}
-
-func PrintYellow(format string, args ...any) string {
-	return pterm.FgYellow.Sprintf(format, args...)
-}
-
-func PrintCyan(format string, args ...any) string {
-	return pterm.FgCyan.Sprintf(format, args...)
+func PrintCyan(format string, args ...any) {
+	DefaultLogger.mu.Lock()
+	defer DefaultLogger.mu.Unlock()
+	pterm.FgCyan.Printf(format, args...)
 }
