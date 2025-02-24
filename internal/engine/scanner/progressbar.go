@@ -25,6 +25,8 @@ type ProgressBar struct {
 
 // NewProgressBar creates a new progress display for a bypass module
 func NewProgressBar(bypassModule string, targetURL string, totalJobs int, totalWorkers int) *ProgressBar {
+	termWidth := pterm.GetTerminalWidth()
+
 	multi := &pterm.MultiPrinter{
 		Writer:      os.Stdout,
 		UpdateDelay: time.Millisecond * 200,
@@ -56,7 +58,7 @@ func NewProgressBar(bypassModule string, targetURL string, totalJobs int, totalW
 		ShowPercentage:            true,
 		ShowElapsedTime:           true,
 		BarFiller:                 pterm.Gray("█"),
-		MaxWidth:                  120,
+		MaxWidth:                  termWidth,
 		Writer:                    multi.NewWriter(),
 	}
 
@@ -66,10 +68,44 @@ func NewProgressBar(bypassModule string, targetURL string, totalJobs int, totalW
 		progressbar:  progressPrinter,
 		mu:           sync.RWMutex{},
 		bypassModule: bypassModule,
-		targetURL:    targetURL,
+		targetURL:    truncateURL(targetURL, termWidth),
 		totalJobs:    totalJobs,
 		totalWorkers: totalWorkers,
 	}
+}
+
+func truncateURL(url string, termWidth int) string {
+	// Reserve space for module name, status text, and some padding
+	// Example: "module_name | Scanning " = ~20 chars
+	reservedSpace := 20
+	maxURLWidth := termWidth - reservedSpace
+
+	if len(url) <= maxURLWidth {
+		return url
+	}
+
+	prefix := ""
+	if strings.HasPrefix(url, "http://") {
+		prefix = "http://"
+	} else if strings.HasPrefix(url, "https://") {
+		prefix = "https://"
+	}
+
+	remainingWidth := maxURLWidth - len(prefix)
+	if remainingWidth < 10 {
+		remainingWidth = 10
+	}
+
+	// Split remaining width between start and end of URL
+	startLen := remainingWidth / 2
+	endLen := remainingWidth - startLen - 3 // -3 for "..."
+
+	urlWithoutPrefix := strings.TrimPrefix(url, prefix)
+	if len(urlWithoutPrefix) <= remainingWidth {
+		return url
+	}
+
+	return prefix + urlWithoutPrefix[:startLen] + "..." + urlWithoutPrefix[len(urlWithoutPrefix)-endLen:]
 }
 
 // Increment advances the progress bar by one step
