@@ -15,8 +15,10 @@ import (
 )
 
 var (
-	sharedDialer *fasthttp.TCPDialer
-	onceDialer   sync.Once
+	sharedDialer       *fasthttp.TCPDialer
+	onceDialer         sync.Once
+	clientSharedDialer *fasthttp.TCPDialer
+	onceClientDialer   sync.Once
 )
 
 type CustomResolver struct {
@@ -225,6 +227,16 @@ func GetSharedDialer() *fasthttp.TCPDialer {
 	return sharedDialer
 }
 
+func GetClientSharedDialer() *fasthttp.TCPDialer {
+	onceClientDialer.Do(func() {
+		clientSharedDialer = &fasthttp.TCPDialer{
+			Concurrency:      2048,
+			DNSCacheDuration: 120 * time.Minute,
+		}
+	})
+	return clientSharedDialer
+}
+
 // This sets the dialer for the  HTTPClient
 func CreateDialFunc(timeout time.Duration, proxyURL string) fasthttp.DialFunc {
 	// Get shared dialer instance
@@ -264,10 +276,11 @@ func CreateDialFunc(timeout time.Duration, proxyURL string) fasthttp.DialFunc {
 
 func CreateDialFuncNew(timeout time.Duration, proxyURL string) fasthttp.DialFunc {
 	// Get shared dialer instance
-	dialer := &fasthttp.TCPDialer{
-		Concurrency:      2048,
-		DNSCacheDuration: 120 * time.Minute,
-	}
+	// dialer := &fasthttp.TCPDialer{
+	// 	Concurrency:      2048,
+	// 	DNSCacheDuration: 120 * time.Minute,
+	// }
+	dialer := GetClientSharedDialer()
 
 	return func(addr string) (net.Conn, error) {
 		// Handle proxy if configured
