@@ -133,8 +133,13 @@ func truncateURL(url string, termWidth int, offset int) string {
 		return prefix + domain + "/..."
 	}
 
+	// FIX: Check if path is shorter than pathSpace to prevent negative slice index
+	if len(path) <= pathSpace {
+		return prefix + domain + "/" + path
+	}
+
 	// Keep the last part of the path
-	return prefix + domain + "/..." + path[len(path)-pathSpace:]
+	return prefix + domain + "/..." + path[max(0, len(path)-pathSpace):]
 }
 
 // Increment advances the progress bar by one step

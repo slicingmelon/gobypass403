@@ -5,7 +5,6 @@ go 1.23.5
 toolchain go1.23.6
 
 require (
-	atomicgo.dev/assert v0.0.2
 	github.com/VictoriaMetrics/VictoriaMetrics v1.111.0
 	github.com/VictoriaMetrics/fastcache v1.12.2
 	github.com/alitto/pond/v2 v2.1.6
