@@ -219,6 +219,7 @@ func GetSharedDialer() *fasthttp.TCPDialer {
 				"[2606:4700:4700::1111]:53", // Cloudflare IPv6
 				"[2620:fe::fe]:53",          // Quad9 IPv6
 			}),
+			DisableDNSResolution: true,
 		}
 	})
 	return sharedDialer
