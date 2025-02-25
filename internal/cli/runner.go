@@ -17,10 +17,20 @@ type Runner struct {
 	UrlRecon      *URLRecon
 }
 
+var (
+	dbPath string
+)
+
 func NewRunner() *Runner {
 	// Initialize the singleton error handler
+	dbPath = filepath.Join(RunnerOptions.OutDir, "results.db")
 	_ = GB403ErrorHandler.GetErrorHandler()
+	_ = scanner.InitDB(dbPath)
 	return &Runner{}
+}
+
+func (r *Runner) GetDBPath() string {
+	return filepath.Join(r.RunnerOptions.OutDir, "results.db")
 }
 
 func (r *Runner) Initialize() error {
@@ -119,7 +129,7 @@ func (r *Runner) handleResendRequest() error {
 	})
 	GB403Logger.Info().Msgf("Resending request %d times to: %s\n", r.RunnerOptions.ResendNum, targetURL)
 
-	outputFile := filepath.Join(r.RunnerOptions.OutDir, "findings.json")
+	//dbPath := filepath.Join(r.RunnerOptions.OutDir, "results.db")
 
 	// Create scanner with options
 	scannerOpts := &scanner.ScannerOpts{
@@ -154,12 +164,12 @@ func (r *Runner) handleResendRequest() error {
 		scanner.PrintResultsTable(targetURL, findings)
 		fmt.Println()
 
-		// Save findings
-		if err := scanner.AppendResultsToJsonL(outputFile, findings); err != nil {
-			GB403Logger.Error().Msgf("Failed to save findings: %v\n", err)
-		} else {
-			GB403Logger.Success().Msgf("Scan for %s completed. Results saved to %s\n", targetURL, outputFile)
-		}
+		// // Save findings
+		// if err := scanner.AppendResultsToJsonL(outputFile, findings); err != nil {
+		// 	GB403Logger.Error().Msgf("Failed to save findings: %v\n", err)
+		// } else {
+		// 	GB403Logger.Success().Msgf("Scan for %s completed. Results saved to %s\n", targetURL, outputFile)
+		// }
 	} else {
 		GB403Logger.Info().Msgf("No findings detected for %s\n", targetURL)
 	}

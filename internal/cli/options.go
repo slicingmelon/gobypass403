@@ -320,7 +320,7 @@ func (o *CliOptions) validateModule() error {
 	return nil
 }
 
-// setupOutputDir creates the output directory and initializes findings.json
+// setupOutputDir creates the output directory
 func (o *CliOptions) setupOutputDir() error {
 	if err := os.MkdirAll(o.OutDir, 0755); err != nil {
 		return fmt.Errorf("failed to create output directory: %v", err)

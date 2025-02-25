@@ -43,17 +43,20 @@ type Scanner struct {
 	progressBarEnabled atomic.Bool
 }
 
-func InitResultsFile(path string) {
-	resultsFile.Store(path)
+func InitResultsDBFile(path string) {
+	resultsDBFile.Store(path)
 }
 
-func GetResultsFile() string {
-	return resultsFile.Load().(string)
+// GetDBPath returns the current database path
+func GetResultsDBFile() string {
+	return resultsDBFile.Load().(string)
 }
 
 // NewScanner creates a new Scanner instance
 func NewScanner(opts *ScannerOpts, urls []string) *Scanner {
-	InitResultsFile(filepath.Join(opts.OutDir, "findings.json"))
+	// Initialize database path
+	dbPath := filepath.Join(opts.OutDir, "results.db")
+	InitResultsDBFile(dbPath)
 
 	// Initialize bypass modules first
 	InitializeBypassModules()
@@ -62,7 +65,7 @@ func NewScanner(opts *ScannerOpts, urls []string) *Scanner {
 		scannerOpts: opts,
 		urls:        urls,
 	}
-	s.progressBarEnabled.Store(!opts.DisableProgressBar) // Set once
+	s.progressBarEnabled.Store(!opts.DisableProgressBar)
 	return s
 }
 
@@ -103,10 +106,11 @@ func (s *Scanner) scanURL(url string) error {
 	}
 
 	if resultCount > 0 {
-		resultsFile := GetResultsFile()
+		resultsFile := GetResultsDBFile()
 
 		fmt.Println()
-		if err := PrintResultsTableFromJsonL(resultsFile, url, s.scannerOpts.BypassModule); err != nil {
+		// if err := PrintResultsTableFromJsonL(resultsFile, url, s.scannerOpts.BypassModule); err != nil {
+		if err := PrintResultsTableFromDB(url, s.scannerOpts.BypassModule); err != nil {
 			GB403Logger.Error().Msgf("Failed to display results: %v\n", err)
 		} else {
 			fmt.Println()

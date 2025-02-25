@@ -2,8 +2,6 @@ package scanner
 
 import (
 	"fmt"
-	"io"
-	"os"
 	"sort"
 	"strconv"
 	"strings"
@@ -20,22 +18,16 @@ import (
 
 // Make fileLock package level
 var (
-	fileLock    sync.RWMutex
-	db          *sql.DB
-	dbInitOnce  sync.Once
-	resultsFile atomic.Value
+	fileLock      sync.RWMutex
+	db            *sql.DB
+	dbInitOnce    sync.Once
+	resultsDBFile atomic.Value
 )
 
-func init() {
-	if err := InitDB("results.db"); err != nil {
-		GB403Logger.Error().Msgf("Failed to initialize database: %v", err)
-	}
-}
-
-func InitDB(dbPath string) error {
+func InitDB() error {
 	var initErr error
 	dbInitOnce.Do(func() {
-		db, initErr = sql.Open("sqlite3", dbPath+"?_journal_mode=WAL&_sync=NORMAL&_busy_timeout=5000")
+		db, initErr = sql.Open("sqlite3", GetResultsDBFile()+"?_journal_mode=WAL&_sync=NORMAL&_busy_timeout=5000")
 		if initErr != nil {
 			return
 		}
@@ -179,97 +171,6 @@ func PrintResultsTable(targetURL string, results []*Result) {
 	fmt.Println(output)
 }
 
-// PrintResultsTableFromJsonL prints the results table from findings.json instead of directly from the memory
-// func PrintResultsTableFromJsonL(jsonFile, targetURL, bypassModule string) error {
-// 	GB403Logger.Verbose().Msgf("Parsing results from: %s\n", jsonFile)
-
-// 	data, err := os.ReadFile(jsonFile)
-// 	if err != nil {
-// 		return fmt.Errorf("file read error: %v", err)
-// 	}
-
-// 	// Add closing bracket if missing (in case of crash)
-// 	if !bytes.HasSuffix(data, []byte("]")) {
-// 		data = append(data, []byte("\n]")...)
-// 	}
-
-// 	var results []*Result
-// 	if err := jsonAPI.Unmarshal(data, &results); err != nil {
-// 		return fmt.Errorf("failed to parse JSON: %v", err)
-// 	}
-
-// 	var matchedResults []*Result
-// 	queryModules := strings.Split(bypassModule, ",")
-
-// 	// Filter results by URL and modules
-// 	for _, result := range results {
-// 		if result.TargetURL == targetURL && slices.Contains(queryModules, result.BypassModule) {
-// 			matchedResults = append(matchedResults, result)
-// 		}
-// 	}
-
-// 	if len(matchedResults) == 0 {
-// 		return fmt.Errorf("no results found for %s (modules: %s)", targetURL, bypassModule)
-// 	}
-
-// 	// Stable sort: status code asc -> module name asc
-// 	sort.SliceStable(matchedResults, func(i, j int) bool {
-// 		if matchedResults[i].StatusCode == matchedResults[j].StatusCode {
-// 			return matchedResults[i].BypassModule < matchedResults[j].BypassModule
-// 		}
-// 		return matchedResults[i].StatusCode < matchedResults[j].StatusCode
-// 	})
-
-// 	PrintResultsTable(targetURL, matchedResults)
-// 	return nil
-// }
-
-// func AppendResultsToJsonL(outputFile string, findings []*Result) error {
-// 	if len(findings) == 0 {
-// 		return nil
-// 	}
-
-// 	fileLock.Lock()
-// 	defer fileLock.Unlock()
-
-// 	fileInfo, err := os.Stat(outputFile)
-// 	fileExists := !os.IsNotExist(err)
-// 	isEmpty := !fileExists || fileInfo.Size() == 0
-
-// 	file, err := os.OpenFile(outputFile, os.O_RDWR|os.O_CREATE, 0644)
-// 	if err != nil {
-// 		return fmt.Errorf("failed to open JSON file: %v", err)
-// 	}
-// 	defer file.Close()
-
-// 	if isEmpty {
-// 		file.WriteString("[")
-// 	} else {
-// 		if err := removeClosingBracket(file); err != nil {
-// 			return fmt.Errorf("failed to prepare file: %v", err)
-// 		}
-// 		file.WriteString(",")
-// 	}
-
-// 	// Write new results
-// 	for i, result := range findings {
-// 		if i > 0 {
-// 			file.WriteString(",")
-// 		}
-
-// 		data, err := jsonAPI.MarshalIndent(result, "  ", "  ")
-// 		if err != nil {
-// 			return fmt.Errorf("failed to marshal result: %v", err)
-// 		}
-
-// 		file.WriteString("\n  ")
-// 		file.Write(data)
-// 	}
-
-// 	file.WriteString("\n]")
-// 	return nil
-// }
-
 func PrintResultsTableFromDB(targetURL, bypassModule string) error {
 	GB403Logger.Verbose().Msgf("Querying results from database for: %s\n", targetURL)
 
@@ -289,7 +190,7 @@ func PrintResultsTableFromDB(targetURL, bypassModule string) error {
     `, placeholders)
 
 	// Prepare query arguments
-	args := make([]interface{}, len(queryModules)+1)
+	args := make([]any, len(queryModules)+1)
 	args[0] = targetURL
 	for i, module := range queryModules {
 		args[i+1] = module
@@ -388,16 +289,6 @@ func AppendResultsToDB(results []*Result) error {
 	}
 
 	return tx.Commit()
-}
-
-func removeClosingBracket(file *os.File) error {
-	// Seek to end minus 2 bytes (]\n)
-	if _, err := file.Seek(-2, io.SeekEnd); err != nil {
-		return err
-	}
-
-	pos, _ := file.Seek(0, io.SeekCurrent)
-	return file.Truncate(pos)
 }
 
 // Helper functions
