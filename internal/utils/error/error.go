@@ -32,16 +32,9 @@ var (
 	ErrConnForciblyClosedWin = errors.New("wsarecv: An existing connection was forcibly closed by the remote host")
 )
 
-// var defaultWhitelistedErrors = []error{
-// 	ErrBodyTooLarge,
-// 	ErrInvalidResponseHeader,
-// 	//ErrConnForciblyClosedWin,
-// }
-
 var defaultWhitelistedErrorsStr = []string{
 	ErrBodyTooLarge.Error(),
 	ErrInvalidResponseHeader.Error(),
-	ErrConnForciblyClosedWin.Error(),
 }
 
 var (
