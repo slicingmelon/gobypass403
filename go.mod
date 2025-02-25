@@ -14,6 +14,7 @@ require (
 	github.com/golang/snappy v0.0.4
 	github.com/klauspost/compress v1.17.11
 	github.com/likexian/doh v0.7.1
+	github.com/mattn/go-sqlite3 v1.14.24
 	github.com/phuslu/fastdns v0.12.1
 	github.com/pierrec/lz4/v4 v4.1.22
 	github.com/pterm/pterm v0.12.80

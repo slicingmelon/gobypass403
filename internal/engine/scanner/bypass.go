@@ -266,19 +266,19 @@ func (s *Scanner) RunBypassModule(bypassModule string, targetURL string, results
 			}
 
 			// Write to file immediately
-			if err := AppendResultsToJsonL(GetResultsFile(), []*Result{result}); err != nil {
-				GB403Logger.Error().Msgf("Failed to write result: %v\n", err)
+			// if err := AppendResultsToJsonL(GetResultsFile(), []*Result{result}); err != nil {
+			// 	GB403Logger.Error().Msgf("Failed to write result: %v\n", err)
+			// }
+
+			if err := AppendResultsToDB([]*Result{result}); err != nil {
+				GB403Logger.Error().Msgf("Failed to write result to DB: %v\n", err)
 			}
 
 			results <- result
 			resultsBufferPool.Put(buf)
-
-			// Release the RawHTTPResponseDetails back to its pool
-			rawhttp.ReleaseResponseDetails(response)
-		} else {
-			// Release nonetheless
-			rawhttp.ReleaseResponseDetails(response)
 		}
+		// Release the RawHTTPResponseDetails back to its pool
+		rawhttp.ReleaseResponseDetails(response)
 	}
 
 	if progressBar != nil {

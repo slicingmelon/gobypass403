@@ -24,8 +24,6 @@ var (
 	resultsFile atomic.Value // Store the file path
 )
 
-type JSONData map[string]map[string][]*Result // url -> bypassMode -> results
-
 var jsonAPI = sonic.Config{
 	UseNumber:   true,
 	EscapeHTML:  false, // This is key - prevents HTML escaping
