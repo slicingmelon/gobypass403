@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -32,6 +33,7 @@ type CliOptions struct {
 	RetryDelay               int // in milliseconds
 	RequestDelay             int // in milliseconds
 	MaxConsecutiveFailedReqs int
+	AutoThrottle             bool
 	ResponseBodyPreviewSize  int // in bytes, we don't need too much, Response Headers and a small body preview is enough
 
 	// Output options
@@ -137,6 +139,11 @@ func (o *CliOptions) setDefaults() {
 		o.MatchStatusCodes = nil // nil means match all status codes
 	}
 
+	// enable auto throttle by default
+	if !o.AutoThrottle {
+		o.AutoThrottle = true
+	}
+
 	// Output directory default
 	if o.OutDir == "" {
 		o.OutDir = filepath.Join(os.TempDir(), fmt.Sprintf("go-bypass-403-%x", time.Now().UnixNano()))
@@ -173,11 +180,11 @@ func (o *CliOptions) validate() error {
 		GB403Logger.PrintYellow("Method: %s\n", data.Method)
 		GB403Logger.PrintYellow("Host: %s\n", data.Host)
 		GB403Logger.PrintYellow("RawURI: %s\n", data.RawURI)
-		GB403Logger.PrintYellow("Headers:")
+		GB403Logger.PrintYellow("Headers:\n")
 		for _, h := range data.Headers {
-			fmt.Printf("  %s: %s\n", h.Header, h.Value)
+			GB403Logger.PrintYellow("  %s: %s\n", h.Header, h.Value)
 		}
-		GB403Logger.PrintYellow("Bypass Module: %s\n", data.BypassModule)
+		GB403Logger.PrintYellow("Bypass Module: %s\n\n", data.BypassModule)
 	}
 
 	// Validate input parameters
@@ -304,14 +311,7 @@ func (o *CliOptions) validateModule() error {
 	}
 
 	// Always prepend dumb_check unless explicitly excluded
-	hasDumbCheck := false
-	for _, m := range finalModules {
-		if m == "dumb_check" {
-			hasDumbCheck = true
-			break
-		}
-	}
-	if !hasDumbCheck {
+	if !slices.Contains(finalModules, "dumb_check") {
 		finalModules = append([]string{"dumb_check"}, finalModules...)
 	}
 

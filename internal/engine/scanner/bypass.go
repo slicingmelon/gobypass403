@@ -104,7 +104,6 @@ type BypassWorker struct {
 	opts         *ScannerOpts
 	requestPool  *rawhttp.RequestWorkerPool
 	totalJobs    int
-	progressBar  *ProgressBar
 }
 
 func NewBypassWorker(bypassmodule string, targetURL string, scannerOpts *ScannerOpts, totalJobs int) *BypassWorker {
@@ -126,6 +125,8 @@ func NewBypassWorker(bypassmodule string, targetURL string, scannerOpts *Scanner
 	httpClientOpts.MaxRetries = scannerOpts.MaxRetries
 	httpClientOpts.RetryDelay = time.Duration(scannerOpts.RetryDelay) * time.Millisecond
 	httpClientOpts.MaxConsecutiveFailedReqs = scannerOpts.MaxConsecutiveFailedReqs
+
+	httpClientOpts.AutoThrottle = scannerOpts.AutoThrottle
 
 	// Disable streaming of response body if disabled via cli options
 	if scannerOpts.DisableStreamResponseBody {
@@ -189,7 +190,7 @@ func (s *Scanner) RunAllBypasses(targetURL string) chan *Result {
 }
 
 var resultsBufferPool = sync.Pool{
-	New: func() interface{} {
+	New: func() any {
 		return new(bytes.Buffer)
 	},
 }
@@ -246,6 +247,7 @@ func (s *Scanner) RunBypassModule(bypassModule string, targetURL string, results
 			buf := resultsBufferPool.Get().(*bytes.Buffer)
 			buf.Reset()
 
+			// Create Result struct from response
 			result := &Result{
 				TargetURL:           string(response.URL),
 				BypassModule:        string(response.BypassModule),
@@ -270,6 +272,12 @@ func (s *Scanner) RunBypassModule(bypassModule string, targetURL string, results
 
 			results <- result
 			resultsBufferPool.Put(buf)
+
+			// Release the RawHTTPResponseDetails back to its pool
+			rawhttp.ReleaseResponseDetails(response)
+		} else {
+			// Release nonetheless
+			rawhttp.ReleaseResponseDetails(response)
 		}
 	}
 
@@ -330,11 +338,6 @@ func (s *Scanner) ResendRequestFromToken(debugToken string, resendCount int) ([]
 			continue
 		}
 
-		// Ensure release happens even if processing panics
-		defer func(resp *rawhttp.RawHTTPResponseDetails) {
-			rawhttp.ReleaseResponseDetails(resp)
-		}(response)
-
 		// Update progress
 		if progressBar != nil {
 			progressBar.Increment()
@@ -366,13 +369,11 @@ func (s *Scanner) ResendRequestFromToken(debugToken string, resendCount int) ([]
 				DebugToken:          string(response.DebugToken),
 			}
 
-			// Write to file immediately like in RunBypassModule
-			// if err := AppendResultsToJsonL(GetResultsFile(), []*Result{result}); err != nil {
-			// 	GB403Logger.Error().Msgf("Failed to write result: %v\n", err)
-			// }
-
 			results = append(results, result)
 		}
+
+		// Release the response object immediately after processing - for all responses
+		rawhttp.ReleaseResponseDetails(response)
 	}
 
 	// Final progress update

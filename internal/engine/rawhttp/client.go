@@ -40,12 +40,13 @@ type HTTPClientOptions struct {
 	ResponseBodyPreviewSize  int           // ScannerCliOpts
 	StreamResponseBody       bool          // fasthttp core
 	MatchStatusCodes         []int         // ScannerCliOpts
-	RetryDelay               time.Duration // ScannerCliOpts
 	DisableKeepAlive         bool
 	EnableHTTP2              bool
 	Dialer                   fasthttp.DialFunc
 	RequestDelay             time.Duration // ScannerCliOpts
+	RetryDelay               time.Duration // ScannerCliOpts
 	MaxConsecutiveFailedReqs int           // ScannerCliOpts
+	AutoThrottle             bool          // ScannerCliOpts
 	DisablePathNormalizing   bool
 }
 
@@ -75,13 +76,14 @@ func DefaultHTTPClientOptions() *HTTPClientOptions {
 		MaxIdleConnDuration:      1 * time.Minute, // Idle keep-alive connections are closed after this duration.
 		MaxConnWaitTimeout:       1 * time.Second, // Maximum duration for waiting for a free connection.
 		NoDefaultUserAgent:       true,
-		MaxResponseBodySize:      maxBodySize,  //  // 12288 bytes - just body limit
-		ReadBufferSize:           rwBufferSize, // 18432 bytes - total buffer
-		WriteBufferSize:          rwBufferSize, // 18432 bytes - total buffer
+		MaxResponseBodySize:      maxBodySize,  //
+		ReadBufferSize:           rwBufferSize, //
+		WriteBufferSize:          rwBufferSize, //
 		StreamResponseBody:       true,
 		MaxRetries:               2,
 		RetryDelay:               500 * time.Millisecond,
 		RequestDelay:             0,
+		AutoThrottle:             false,
 		DisableKeepAlive:         false, // Keep connections alive
 		DisablePathNormalizing:   true,
 		Dialer:                   nil,
@@ -95,19 +97,23 @@ func NewHTTPClient(opts *HTTPClientOptions) *HTTPClient {
 		opts = DefaultHTTPClientOptions()
 	}
 
-	// Set the default dialer if none is provided
 	if opts.Dialer == nil {
-		opts.Dialer = dialer.CreateDialFunc(opts.DialTimeout, opts.ProxyURL)
+		opts.Dialer = dialer.CreateHTTPClientDialer(opts.DialTimeout, opts.ProxyURL)
 	}
 
 	retryConfig := DefaultRetryConfig()
 	retryConfig.MaxRetries = opts.MaxRetries
 	retryConfig.RetryDelay = opts.RetryDelay
 
+	var throttler *Throttler
+	if opts.AutoThrottle {
+		throttler = NewThrottler(DefaultThrottleConfig())
+	}
+
 	c := &HTTPClient{
 		options:     opts,
 		retryConfig: retryConfig,
-		throttler:   NewThrottler(DefaultThrottleConfig()),
+		throttler:   throttler,
 	}
 
 	// reset failed consecutive requests
@@ -124,6 +130,7 @@ func NewHTTPClient(opts *HTTPClientOptions) *HTTPClient {
 		ReadBufferSize:                opts.ReadBufferSize,
 		WriteBufferSize:               opts.WriteBufferSize,
 		ReadTimeout:                   opts.Timeout,
+		WriteTimeout:                  opts.Timeout,
 		StreamResponseBody:            opts.StreamResponseBody,
 		Dial:                          opts.Dialer,
 		TLSConfig: &tls.Config{
@@ -176,6 +183,10 @@ func (c *HTTPClient) handleRetries(req *fasthttp.Request, resp *fasthttp.Respons
 		reqCopy := fasthttp.AcquireRequest()
 		ReqCopyToWithSettings(req, reqCopy)
 		defer fasthttp.ReleaseRequest(reqCopy)
+
+		if c.throttler != nil && c.throttler.IsThrottlerActive() {
+			c.throttler.ThrottleRequest()
+		}
 
 		var start time.Time
 		var err error
@@ -235,6 +246,15 @@ func (c *HTTPClient) handleRetries(req *fasthttp.Request, resp *fasthttp.Respons
 // DoRequest performs a HTTP request (raw)
 // Returns the HTTP response time (in ms) and error
 func (c *HTTPClient) DoRequest(req *fasthttp.Request, resp *fasthttp.Response, bypassPayload payload.BypassPayload) (int64, error) {
+
+	if c.GetHTTPClientOptions().RequestDelay > 0 {
+		time.Sleep(c.GetHTTPClientOptions().RequestDelay)
+	}
+	// apply throttler if enabled
+	if c.throttler.IsThrottlerActive() {
+		c.throttler.ThrottleRequest()
+	}
+
 	// Initial request
 	start := time.Now()
 	err := c.client.Do(req, resp)
@@ -310,6 +330,10 @@ func (c *HTTPClient) DisableThrottler() {
 	c.throttler.DisableThrottler()
 }
 
+func (c *HTTPClient) GetThrottler() *Throttler {
+	return c.throttler
+}
+
 func (c *HTTPClient) DisableStreamResponseBody() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -326,26 +350,6 @@ func (c *HTTPClient) EnableStreamResponseBody() {
 func (c *HTTPClient) Close() {
 	c.client.CloseIdleConnections()
 	c.throttler.ResetThrottler()
-}
-
-// AcquireRequest returns a new Request instance from pool
-func (c *HTTPClient) AcquireRequest() *fasthttp.Request {
-	return fasthttp.AcquireRequest()
-}
-
-// ReleaseRequest returns request to pool
-func (c *HTTPClient) ReleaseRequest(req *fasthttp.Request) {
-	fasthttp.ReleaseRequest(req)
-}
-
-// AcquireResponse returns a new Response instance from pool
-func (c *HTTPClient) AcquireResponse() *fasthttp.Response {
-	return fasthttp.AcquireResponse()
-}
-
-// ReleaseResponse returns response to pool
-func (c *HTTPClient) ReleaseResponse(resp *fasthttp.Response) {
-	fasthttp.ReleaseResponse(resp)
 }
 
 func applyReqFlags(req *fasthttp.Request) {

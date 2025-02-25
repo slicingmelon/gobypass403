@@ -84,10 +84,10 @@ func TestRetryOnEOF(t *testing.T) {
 	client := rawhttp.NewHTTPClient(opts)
 
 	// Prepare request
-	req := client.AcquireRequest()
-	resp := client.AcquireResponse()
-	defer client.ReleaseRequest(req)
-	defer client.ReleaseResponse(resp)
+	req := fasthttp.AcquireRequest()
+	resp := fasthttp.AcquireResponse()
+	defer fasthttp.ReleaseRequest(req)
+	defer fasthttp.ReleaseResponse(resp)
 
 	req.SetRequestURI("http://test.local/test")
 
@@ -261,10 +261,10 @@ func TestRetryWithPayloads(t *testing.T) {
 			t.Logf("Goroutine %d: Got semaphore, processing payload: %s", idx, p)
 
 			// Each goroutine gets its own request/response objects
-			req := client.AcquireRequest()
-			resp := client.AcquireResponse()
-			defer client.ReleaseRequest(req)
-			defer client.ReleaseResponse(resp)
+			req := fasthttp.AcquireRequest()
+			resp := fasthttp.AcquireResponse()
+			defer fasthttp.ReleaseRequest(req)
+			defer fasthttp.ReleaseResponse(resp)
 
 			fullURL := baseURL + p
 			req.SetRequestURI(fullURL)
@@ -377,10 +377,10 @@ func TestRetryWithLargeResponse(t *testing.T) {
 	defer client.Close()
 
 	// Test with a single request
-	req := client.AcquireRequest()
-	resp := client.AcquireResponse()
-	defer client.ReleaseRequest(req)
-	defer client.ReleaseResponse(resp)
+	req := fasthttp.AcquireRequest()
+	resp := fasthttp.AcquireResponse()
+	defer fasthttp.ReleaseRequest(req)
+	defer fasthttp.ReleaseResponse(resp)
 
 	req.SetRequestURI("http://localhost/test") // The actual URL doesn't matter with our custom dialer
 	t.Log("Sending request...")
@@ -453,10 +453,10 @@ func TestRetryWithConcurrentRequests(t *testing.T) {
 		go func(num int) {
 			defer wg.Done()
 
-			req := client.AcquireRequest()
-			resp := client.AcquireResponse()
-			defer client.ReleaseRequest(req)
-			defer client.ReleaseResponse(resp)
+			req := fasthttp.AcquireRequest()
+			resp := fasthttp.AcquireResponse()
+			defer fasthttp.ReleaseRequest(req)
+			defer fasthttp.ReleaseResponse(resp)
 
 			req.SetRequestURI("http://localhost/test")
 			_, err := client.DoRequest(req, resp, payload.BypassPayload{})
@@ -534,10 +534,10 @@ func TestRetryWhitespaceFirstLine(t *testing.T) {
 	defer client.Close()
 
 	// Prepare request
-	req := client.AcquireRequest()
-	resp := client.AcquireResponse()
-	defer client.ReleaseRequest(req)
-	defer client.ReleaseResponse(resp)
+	req := fasthttp.AcquireRequest()
+	resp := fasthttp.AcquireResponse()
+	defer fasthttp.ReleaseRequest(req)
+	defer fasthttp.ReleaseResponse(resp)
 
 	req.SetRequestURI("http://localhost/test")
 

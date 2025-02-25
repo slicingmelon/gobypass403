@@ -84,10 +84,10 @@ func TestResponseHandlingRaces(t *testing.T) {
 		go func() {
 			defer wg.Done()
 
-			req := client.AcquireRequest()
-			resp := client.AcquireResponse()
-			defer client.ReleaseRequest(req)
-			defer client.ReleaseResponse(resp)
+			req := fasthttp.AcquireRequest()
+			resp := fasthttp.AcquireResponse()
+			defer fasthttp.ReleaseRequest(req)
+			defer fasthttp.ReleaseResponse(resp)
 
 			req.SetRequestURI(ts.URL)
 

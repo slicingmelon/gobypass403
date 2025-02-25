@@ -7,6 +7,7 @@ import (
 
 	"github.com/slicingmelon/go-bypass-403/internal/engine/payload"
 	"github.com/slicingmelon/go-bypass-403/internal/engine/rawhttp"
+	"github.com/valyala/fasthttp"
 )
 
 // 4435408	       280.9 ns/op	       0 B/op	       0 allocs/op
@@ -24,8 +25,8 @@ func BenchmarkBuildRawHTTPRequest(b *testing.B) {
 	b.ResetTimer()
 	b.RunParallel(func(pb *testing.PB) {
 		// Move request acquisition inside the parallel function
-		req := client.AcquireRequest()
-		defer client.ReleaseRequest(req)
+		req := fasthttp.AcquireRequest()
+		defer fasthttp.ReleaseRequest(req)
 
 		for pb.Next() {
 			rawhttp.BuildRawHTTPRequest(client, req, job)
@@ -58,8 +59,8 @@ func BenchmarkProcessHTTPResponseStreamed(b *testing.B) {
 	client := rawhttp.NewHTTPClient(opts)
 
 	// Create test response with realistic data
-	resp := client.AcquireResponse()
-	defer client.ReleaseResponse(resp)
+	resp := fasthttp.AcquireResponse()
+	defer fasthttp.ReleaseResponse(resp)
 
 	// Setup response data
 	resp.SetStatusCode(200)
@@ -129,8 +130,8 @@ func BenchmarkProcessHTTPResponsePerIterationNew(b *testing.B) {
 	client := rawhttp.NewHTTPClient(opts)
 
 	// Setup response once
-	resp := client.AcquireResponse()
-	defer client.ReleaseResponse(resp)
+	resp := fasthttp.AcquireResponse()
+	defer fasthttp.ReleaseResponse(resp)
 
 	resp.SetStatusCode(200)
 	resp.Header.SetContentType("text/html")
@@ -303,8 +304,8 @@ func BenchmarkBuildRawHTTPRequestNew(b *testing.B) {
 			b.ResetTimer()
 			b.RunParallel(func(pb *testing.PB) {
 				// Each goroutine gets its own request object
-				req := client.AcquireRequest()
-				defer client.ReleaseRequest(req)
+				req := fasthttp.AcquireRequest()
+				defer fasthttp.ReleaseRequest(req)
 
 				for pb.Next() {
 					err := rawhttp.BuildRawHTTPRequest(client, req, tt.job)

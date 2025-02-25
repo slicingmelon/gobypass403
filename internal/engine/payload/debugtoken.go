@@ -26,6 +26,8 @@ var (
 	once sync.Once
 	mu   sync.Mutex
 	rnd  = rand.New(rand.NewSource(uint64(time.Now().UnixNano())))
+
+	payloadTokenBuff bytesutil.ByteBufferPool
 )
 
 func initIndices() {
@@ -124,8 +126,14 @@ Final output: base64(snappy(above_bytes))
 */
 func GeneratePayloadToken(job BypassPayload) string {
 	initIndices()
-	bb := &bytesutil.ByteBuffer{}
-	bb.B = append(bb.B, 1) // version
+
+	// Get buffer from pool and ensure it's returned
+	bb := payloadTokenBuff.Get()
+	defer payloadTokenBuff.Put(bb)
+	bb.Reset()
+
+	// version
+	bb.B = append(bb.B, 1)
 
 	// Add nonce
 	bb.B = append(bb.B, 0xFF, 4)
@@ -207,6 +215,7 @@ func GeneratePayloadToken(job BypassPayload) string {
 		}
 	}
 
+	// Compress and encode the buffer contents
 	compressed := snappy.Encode(nil, bb.B)
 	return base64.RawURLEncoding.EncodeToString(compressed)
 }

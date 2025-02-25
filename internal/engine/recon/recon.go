@@ -253,26 +253,95 @@ func (r *ReconService) Run(urls []string) error {
 }
 
 // ProbePort probes a port on an IP address and returns the protocol (http or https)
+// func (r *ReconService) ProbePort(ip string, port string) (string, bool) {
+// 	addr := net.JoinHostPort(ip, port)
+
+// 	// Try HTTPS first
+// 	// conn, err := r.dialer.DialTimeout(addr, 5*time.Second)
+// 	conn, err := r.dialer.Dial(addr)
+// 	if err != nil {
+// 		GB403Logger.Verbose().Msgf("TLS dial error for %s: %v", addr, err)
+// 		// Continue to HTTP check
+// 	} else {
+// 		defer conn.Close()
+
+// 		tlsConfig := &tls.Config{
+// 			InsecureSkipVerify: true,
+// 			MinVersion:         tls.VersionTLS10,
+// 		}
+
+// 		tlsConn := tls.Client(conn, tlsConfig)
+// 		if err := tlsConn.SetDeadline(time.Now().Add(5 * time.Second)); err != nil {
+// 			GB403Logger.Verbose().Msgf("TLS set deadline error for %s: %v", addr, err)
+// 		} else {
+// 			if err := tlsConn.Handshake(); err != nil {
+// 				GB403Logger.Verbose().Msgf("TLS handshake error for %s: %v", addr, err)
+// 			} else {
+// 				tlsConn.Close()
+// 				return "https", true
+// 			}
+// 		}
+// 	}
+
+// 	// Try HTTP
+// 	conn2, err := r.dialer.DialDualStackTimeout(addr, 3*time.Second)
+// 	if err != nil {
+// 		return "", false
+// 	}
+// 	defer conn2.Close()
+
+// 	_, err = fmt.Fprintf(conn2, "HEAD / HTTP/1.1\r\nHost: %s\r\n\r\n", addr)
+// 	if err != nil {
+// 		return "", false // Port is open but not HTTP/HTTPS
+// 	}
+
+// 	buf := make([]byte, 1024)
+// 	conn2.SetReadDeadline(time.Now().Add(3 * time.Second))
+// 	n, err := conn2.Read(buf)
+// 	if err != nil {
+// 		return "", false
+// 	}
+
+// 	if n > 0 && strings.HasPrefix(string(buf), "HTTP") {
+// 		return "http", true
+// 	}
+
+// 	return "", false // Not HTTP/HTTPS
+// }
+
 func (r *ReconService) ProbePort(ip string, port string) (string, bool) {
 	addr := net.JoinHostPort(ip, port)
 
+	// For IP probing, we create a specialized dialer without DNS resolution
+	// This is correct because we're dealing with direct IPs, not hostnames
+	ipProbeDialer := &fasthttp.TCPDialer{
+		Concurrency:          1024,
+		DNSCacheDuration:     10 * time.Minute,
+		DisableDNSResolution: true, // Correct here because we're connecting directly to IPs
+	}
+
 	// Try HTTPS first
-	conn, err := r.dialer.DialDualStackTimeout(addr, 3*time.Second)
-	if err == nil {
-		tlsConn := tls.Client(conn, &tls.Config{
+	conn, err := ipProbeDialer.Dial(addr)
+	if err != nil {
+		GB403Logger.Verbose().Msgf("TLS dial error for %s: %v", addr, err)
+	} else {
+		defer conn.Close()
+		tlsConfig := &tls.Config{
 			InsecureSkipVerify: true,
-			ServerName:         ip,
-		})
-		tlsConn.SetDeadline(time.Now().Add(2 * time.Second))
-		if tlsConn.Handshake() == nil {
-			tlsConn.Close()
-			return "https", true
+			MinVersion:         tls.VersionTLS10,
 		}
-		conn.Close()
+
+		tlsConn := tls.Client(conn, tlsConfig)
+		if err := tlsConn.SetDeadline(time.Now().Add(5 * time.Second)); err == nil {
+			if err := tlsConn.Handshake(); err == nil {
+				tlsConn.Close()
+				return "https", true
+			}
+		}
 	}
 
 	// Try HTTP
-	conn2, err := r.dialer.DialDualStackTimeout(addr, 3*time.Second)
+	conn2, err := ipProbeDialer.Dial(addr)
 	if err != nil {
 		return "", false
 	}
@@ -303,10 +372,20 @@ func (r *ReconService) ResolveDomain(host string) ([]net.IP, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	// Use the dialer's custom LookupIPAddr function which already implements our parallel strategy
+	// Log that we're resolving the domain
+	GB403Logger.Verbose().Msgf("Resolving domain %s using custom parallel resolver", host)
+
+	// Use the dialer's custom LookupIPAddr function which implements our parallel strategy
+	// This will try system resolver, DoH, and multiple DNS servers concurrently
 	ipAddrs, err := r.dialer.Resolver.LookupIPAddr(ctx, host)
 	if err != nil {
-		return nil, err
+		GB403Logger.Error().Msgf("Failed to resolve domain %s: %v", host, err)
+		return nil, fmt.Errorf("DNS resolution failed for %s: %v", host, err)
+	}
+
+	if len(ipAddrs) == 0 {
+		GB403Logger.Error().Msgf("No IP addresses found for domain %s", host)
+		return nil, fmt.Errorf("no IP addresses found for domain %s", host)
 	}
 
 	// Convert IPAddr to IP

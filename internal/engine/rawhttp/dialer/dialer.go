@@ -15,21 +15,16 @@ import (
 )
 
 var (
-	sharedDialer *fasthttp.TCPDialer
-	onceDialer   sync.Once
+	sharedDialer       *fasthttp.TCPDialer
+	onceDialer         sync.Once
+	clientSharedDialer *fasthttp.TCPDialer
+	onceClientDialer   sync.Once
 )
 
 type CustomResolver struct {
-	dohClient    *doh.DoH
-	dnsServers   []string
-	resolverChan chan []net.IPAddr
-	errChan      chan error
+	dohClient  *doh.DoH
+	dnsServers []string
 }
-
-// func init() {
-// 	// Initialize DoH client once
-// 	dohClient = doh.Use(doh.Quad9Provider, doh.CloudflareProvider)
-// }
 
 func NewCustomResolver(dnsServers []string) *CustomResolver {
 	// Initialize DoH client with multiple providers for automatic fastest selection
@@ -43,24 +38,32 @@ func NewCustomResolver(dnsServers []string) *CustomResolver {
 	dohClient.EnableCache(true)
 
 	return &CustomResolver{
-		dohClient:    dohClient,
-		dnsServers:   dnsServers,
-		resolverChan: make(chan []net.IPAddr, 3),
-		errChan:      make(chan error, 3),
+		dohClient:  dohClient,
+		dnsServers: dnsServers,
 	}
 }
 
 // LookupIPAddr resolves a host and returns an array of IP addresses
 // This is the custom resolver that implements parallel DNS resolution strategy
 func (r *CustomResolver) LookupIPAddr(ctx context.Context, host string) ([]net.IPAddr, error) {
-	var ips []net.IPAddr
+	// Create new channels for this call
+	resolverChan := make(chan []net.IPAddr, 3)
+	errChan := make(chan error, 3)
+
+	// Use a WaitGroup to track goroutines
+	var wg sync.WaitGroup
+	defer func() {
+		wg.Wait()
+		close(resolverChan)
+		close(errChan)
+	}()
 
 	expectedResponses := len(r.dnsServers) + 2 // system + DoH + each DNS server
-	r.resolverChan = make(chan []net.IPAddr, expectedResponses)
-	r.errChan = make(chan error, expectedResponses)
 
 	// 1. System resolver (parallel)
+	wg.Add(1)
 	go func() {
+		defer wg.Done()
 		var systemIPs []net.IPAddr
 		if ips4, err := net.DefaultResolver.LookupIP(ctx, "ip4", host); err == nil {
 			for _, ip := range ips4 {
@@ -73,15 +76,23 @@ func (r *CustomResolver) LookupIPAddr(ctx context.Context, host string) ([]net.I
 			}
 		}
 		if len(systemIPs) > 0 {
-			r.resolverChan <- systemIPs
+			select {
+			case resolverChan <- systemIPs:
+			case <-ctx.Done():
+			}
 		} else {
-			r.errChan <- fmt.Errorf("system resolver returned no IPs")
+			select {
+			case errChan <- fmt.Errorf("system resolver returned no IPs"):
+			case <-ctx.Done():
+			}
 		}
 	}()
 
 	// 2. Custom DNS servers (parallel)
 	for _, server := range r.dnsServers {
+		wg.Add(1)
 		go func(server string) {
+			defer wg.Done()
 			resolver := &net.Resolver{
 				PreferGo: true,
 				Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
@@ -101,15 +112,23 @@ func (r *CustomResolver) LookupIPAddr(ctx context.Context, host string) ([]net.I
 				}
 			}
 			if len(dnsIPs) > 0 {
-				r.resolverChan <- dnsIPs
+				select {
+				case resolverChan <- dnsIPs:
+				case <-ctx.Done():
+				}
 			} else {
-				r.errChan <- fmt.Errorf("DNS server %s returned no IPs", server)
+				select {
+				case errChan <- fmt.Errorf("DNS server %s returned no IPs", server):
+				case <-ctx.Done():
+				}
 			}
 		}(server)
 	}
 
 	// 3. DoH resolution (parallel)
+	wg.Add(1)
 	go func() {
+		defer wg.Done()
 		var dohIPs []net.IPAddr
 		domain := dns.Domain(host)
 
@@ -134,20 +153,27 @@ func (r *CustomResolver) LookupIPAddr(ctx context.Context, host string) ([]net.I
 		}
 
 		if len(dohIPs) > 0 {
-			r.resolverChan <- dohIPs
+			select {
+			case resolverChan <- dohIPs:
+			case <-ctx.Done():
+			}
 		} else {
-			r.errChan <- fmt.Errorf("DoH resolution returned no IPs")
+			select {
+			case errChan <- fmt.Errorf("DoH resolution returned no IPs"):
+			case <-ctx.Done():
+			}
 		}
 	}()
 
 	// Collector to aggregate unique IPs
 	seen := make(map[string]struct{})
 	responses := 0
+	var ips []net.IPAddr
 
 	// Wait for results or timeout
 	for {
 		select {
-		case resolvedIPs := <-r.resolverChan:
+		case resolvedIPs := <-resolverChan:
 			responses++
 			for _, ip := range resolvedIPs {
 				key := ip.IP.String()
@@ -156,9 +182,12 @@ func (r *CustomResolver) LookupIPAddr(ctx context.Context, host string) ([]net.I
 					ips = append(ips, ip)
 				}
 			}
-		case <-r.errChan:
+		case <-errChan:
 			responses++
 		case <-ctx.Done():
+			if len(ips) > 0 {
+				return ips, nil
+			}
 			return nil, ctx.Err()
 		}
 
@@ -192,15 +221,26 @@ func GetSharedDialer() *fasthttp.TCPDialer {
 				"[2606:4700:4700::1111]:53", // Cloudflare IPv6
 				"[2620:fe::fe]:53",          // Quad9 IPv6
 			}),
+			DisableDNSResolution: false,
 		}
 	})
 	return sharedDialer
 }
 
-// This sets the dialer for the  HTTPClient
-func CreateDialFunc(timeout time.Duration, proxyURL string) fasthttp.DialFunc {
-	// Get shared dialer instance
-	dialer := GetSharedDialer()
+func GetHTTPClientSharedDialer() *fasthttp.TCPDialer {
+	onceClientDialer.Do(func() {
+		clientSharedDialer = &fasthttp.TCPDialer{
+			Concurrency:      2048,
+			DNSCacheDuration: 120 * time.Minute,
+		}
+	})
+	return clientSharedDialer
+}
+
+// This sets the dialer for the HTTPClient
+func CreateHTTPClientDialer(timeout time.Duration, proxyURL string) fasthttp.DialFunc {
+
+	dialer := GetHTTPClientSharedDialer()
 
 	return func(addr string) (net.Conn, error) {
 		// Handle proxy if configured

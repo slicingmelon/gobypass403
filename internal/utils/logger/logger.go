@@ -98,7 +98,7 @@ func Verbose() *Event {
 	return DefaultLogger.newEvent(pterm.Info)
 }
 
-func (e *Event) Msgf(format string, args ...interface{}) {
+func (e *Event) Msgf(format string, args ...any) {
 	if e == nil {
 		return
 	}
@@ -188,32 +188,38 @@ func IsVerboseEnabled() bool {
 	return DefaultLogger.IsVerboseEnabled()
 }
 
-func PrintGreenLn(format string, args ...interface{}) {
+func PrintGreenLn(format string, args ...any) {
 	DefaultLogger.mu.Lock()
 	defer DefaultLogger.mu.Unlock()
 	pterm.FgGreen.Printfln(format, args...)
 }
 
-func PrintYellowLn(format string, args ...interface{}) {
+func PrintGreen(format string, args ...any) {
+	DefaultLogger.mu.Lock()
+	defer DefaultLogger.mu.Unlock()
+	pterm.FgGreen.Printf(format, args...)
+}
+
+func PrintYellowLn(format string, args ...any) {
 	DefaultLogger.mu.Lock()
 	defer DefaultLogger.mu.Unlock()
 	pterm.FgYellow.Printfln(format, args...)
 }
 
-func PrintCyanLn(format string, args ...interface{}) {
+func PrintYellow(format string, args ...any) {
+	DefaultLogger.mu.Lock()
+	defer DefaultLogger.mu.Unlock()
+	pterm.FgYellow.Printf(format, args...)
+}
+
+func PrintCyanLn(format string, args ...any) {
 	DefaultLogger.mu.Lock()
 	defer DefaultLogger.mu.Unlock()
 	pterm.FgCyan.Printfln(format, args...)
 }
 
-func PrintGreen(format string, args ...interface{}) string {
-	return pterm.FgGreen.Sprintf(format, args...)
-}
-
-func PrintYellow(format string, args ...interface{}) string {
-	return pterm.FgYellow.Sprintf(format, args...)
-}
-
-func PrintCyan(format string, args ...interface{}) string {
-	return pterm.FgCyan.Sprintf(format, args...)
+func PrintCyan(format string, args ...any) {
+	DefaultLogger.mu.Lock()
+	defer DefaultLogger.mu.Unlock()
+	pterm.FgCyan.Printf(format, args...)
 }

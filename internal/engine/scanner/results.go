@@ -22,7 +22,6 @@ import (
 var (
 	fileLock    sync.RWMutex
 	resultsFile atomic.Value // Store the file path
-	jsonStarted atomic.Bool
 )
 
 type JSONData map[string]map[string][]*Result // url -> bypassMode -> results

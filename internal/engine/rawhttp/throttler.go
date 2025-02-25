@@ -1,6 +1,7 @@
 package rawhttp
 
 import (
+	"math"
 	"math/rand"
 	"sync"
 	"sync/atomic"
@@ -8,11 +9,11 @@ import (
 )
 
 type ThrottleConfig struct {
-	baseRequestDelay        time.Duration
-	maxRequestDelay         time.Duration
-	exponentialRequestDelay float64 // Exponential request delay
-	requestDelayJitter      int     // For random delay, percentage of variation (0-100)
-	throttleOnStatusCodes   []int   // Status codes that trigger throttling
+	BaseRequestDelay        time.Duration
+	MaxRequestDelay         time.Duration
+	ExponentialRequestDelay float64 // Exponential request delay
+	RequestDelayJitter      int     // For random delay, percentage of variation (0-100)
+	ThrottleOnStatusCodes   []int   // Status codes that trigger throttling
 }
 
 // Throttler handles request rate limiting
@@ -27,11 +28,11 @@ type Throttler struct {
 // DefaultThrottleConfig returns sensible defaults
 func DefaultThrottleConfig() *ThrottleConfig {
 	return &ThrottleConfig{
-		baseRequestDelay:        200 * time.Millisecond,
-		maxRequestDelay:         5000 * time.Millisecond,
-		requestDelayJitter:      20,  // 20% of the base request delay
-		exponentialRequestDelay: 2.0, // Each throttle doubles the delay
-		throttleOnStatusCodes:   []int{429, 503, 507},
+		BaseRequestDelay:        200 * time.Millisecond,
+		MaxRequestDelay:         5000 * time.Millisecond,
+		RequestDelayJitter:      20,  // 20% of the base request delay
+		ExponentialRequestDelay: 2.0, // Each throttle doubles the delay
+		ThrottleOnStatusCodes:   []int{429, 503, 507},
 	}
 }
 
@@ -52,7 +53,7 @@ func (t *Throttler) IsThrottableRespCode(statusCode int) bool {
 	}
 
 	config := t.config.Load()
-	if matchStatusCodes(statusCode, config.throttleOnStatusCodes) {
+	if matchStatusCodes(statusCode, config.ThrottleOnStatusCodes) {
 		t.counter.Add(1)
 		return true
 	}
@@ -64,33 +65,34 @@ func (t *Throttler) GetCurrentThrottleRate() time.Duration {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 
+	// Early return if not throttling
 	if t.config.Load() == nil || !t.isThrottling.Load() {
 		return 0
 	}
 
 	config := t.config.Load()
-	baseDelay := config.baseRequestDelay
 
-	// Calculate jitter range (20% of base delay)
-	jitterNanos := int64(float64(baseDelay.Nanoseconds()) * 0.2)
+	// Calculate base delay with exponential backoff
+	baseDelay := config.BaseRequestDelay
+	if config.ExponentialRequestDelay > 1.0 {
+		count := t.counter.Load() - 1
+		if count < 0 {
+			count = 0
+		}
 
-	// Ensure jitter range is positive
-	if jitterNanos <= 0 {
-		return baseDelay
+		// Calculate exponential factor
+		expFactor := math.Pow(config.ExponentialRequestDelay, float64(count))
+		baseDelay = min(config.MaxRequestDelay,
+			time.Duration(float64(baseDelay)*expFactor),
+		)
 	}
 
-	// Use math/rand instead of crypto/rand for performance
-	jitter := time.Duration(rand.Int63n(jitterNanos))
-	if rand.Int63n(2) == 1 {
-		jitter = -jitter
-	}
+	// Calculate jitter with bounds checking
+	jitterPercent := min(max(float64(config.RequestDelayJitter), 0), 100)
+	jitter := time.Duration(rand.Int63n(int64(float64(baseDelay) * jitterPercent / 100)))
 
-	adjusted := baseDelay + jitter
-	if adjusted < 0 {
-		adjusted = 0
-	}
-
-	return adjusted
+	// Final delay with max cap
+	return min(config.MaxRequestDelay, baseDelay+jitter)
 }
 
 // ThrottleRequest throttles the request based on the current throttle rate
@@ -114,7 +116,7 @@ func (t *Throttler) UpdateThrottlerConfig(config *ThrottleConfig) {
 
 // EnableThrottling enables the throttler
 func (t *Throttler) EnableThrottler() {
-	if t == nil {
+	if t == nil || t.config.Load() == nil {
 		return
 	}
 	t.isThrottling.Store(true)
@@ -138,6 +140,9 @@ func (t *Throttler) DisableThrottler() {
 
 // Reset resets the throttler state
 func (t *Throttler) ResetThrottler() {
+	if t == nil {
+		return
+	}
 	t.counter.Store(0)
 	t.lastDelay.Store(0)
 }

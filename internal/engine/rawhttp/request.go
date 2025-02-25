@@ -29,8 +29,8 @@ var (
 	curlCmd []byte
 
 	// Pool for byte buffers
-	curlCmdPool   = &bytesutil.ByteBufferPool{}
-	headerBufPool = &bytesutil.ByteBufferPool{}
+	curlCmdBuffPool bytesutil.ByteBufferPool
+	headerBufPool   bytesutil.ByteBufferPool
 
 	// Pre-computed byte slices for static strings
 	curlFlags         = []byte("-skgi --path-as-is")
@@ -124,12 +124,12 @@ func (r *RawHTTPResponseDetails) CopyTo(dst *RawHTTPResponseDetails) {
 
 var (
 	rawRequestBuffPool = sync.Pool{
-		New: func() interface{} {
+		New: func() any {
 			return bytes.NewBuffer(make([]byte, 0, 4096))
 		},
 	}
 	rawRequestBuffReaderPool = sync.Pool{
-		New: func() interface{} {
+		New: func() any {
 			return bufio.NewReader(nil)
 		},
 	}
@@ -211,6 +211,8 @@ func BuildRawHTTPRequest(httpclient *HTTPClient, req *fasthttp.Request, bypassPa
 	buf.Write(CustomUserAgent)
 	buf.WriteString("\r\n")
 
+	buf.WriteString("Accept: */*\r\n")
+
 	// Debug token
 	if GB403Logger.IsDebugEnabled() {
 		buf.WriteString("X-GB403-Token: ")
@@ -251,26 +253,25 @@ func BuildRawHTTPRequest(httpclient *HTTPClient, req *fasthttp.Request, bypassPa
 }
 
 func ProcessHTTPResponse(httpclient *HTTPClient, resp *fasthttp.Response, bypassPayload payload.BypassPayload) *RawHTTPResponseDetails {
-	// Acquire and defer release of temporary result
-	tempResult := AcquireResponseDetails()
-	defer ReleaseResponseDetails(tempResult)
+	// Acquire a single result
+	result := AcquireResponseDetails()
 
 	// 1. Basic response info
-	tempResult.StatusCode = resp.StatusCode()
-	tempResult.ContentLength = int64(resp.Header.ContentLength())
-	tempResult.URL = append(tempResult.URL, bypassPayload.OriginalURL...)
-	tempResult.BypassModule = append(tempResult.BypassModule, bypassPayload.BypassModule...)
-	tempResult.DebugToken = append(tempResult.DebugToken, bypassPayload.PayloadToken...)
+	result.StatusCode = resp.StatusCode()
+	result.ContentLength = int64(resp.Header.ContentLength())
+	result.URL = append(result.URL, bypassPayload.OriginalURL...)
+	result.BypassModule = append(result.BypassModule, bypassPayload.BypassModule...)
+	result.DebugToken = append(result.DebugToken, bypassPayload.PayloadToken...)
 
 	// 2. Headers
-	tempResult.ResponseHeaders = GetResponseHeaders(&resp.Header, tempResult.StatusCode, tempResult.ResponseHeaders)
-	tempResult.ContentType = append(tempResult.ContentType, resp.Header.ContentType()...)
-	tempResult.ServerInfo = append(tempResult.ServerInfo, resp.Header.Server()...)
+	result.ResponseHeaders = GetResponseHeaders(&resp.Header, result.StatusCode, result.ResponseHeaders)
+	result.ContentType = append(result.ContentType, resp.Header.ContentType()...)
+	result.ServerInfo = append(result.ServerInfo, resp.Header.Server()...)
 
 	// 3. Handle redirects
-	if fasthttp.StatusCodeIsRedirect(tempResult.StatusCode) {
+	if fasthttp.StatusCodeIsRedirect(result.StatusCode) {
 		if location := PeekResponseHeaderKeyCaseInsensitive(resp, strLocationHeader); len(location) > 0 {
-			tempResult.RedirectURL = append(tempResult.RedirectURL, location...)
+			result.RedirectURL = append(result.RedirectURL, location...)
 		}
 	}
 
@@ -281,34 +282,31 @@ func ProcessHTTPResponse(httpclient *HTTPClient, resp *fasthttp.Response, bypass
 
 		if httpClientOpts.StreamResponseBody {
 			if stream := resp.BodyStream(); stream != nil {
-				tempResult.ResponsePreview = ReadLimitedResponseBodyStream(stream, previewSize, tempResult.ResponsePreview)
+				result.ResponsePreview = ReadLimitedResponseBodyStream(stream, previewSize, result.ResponsePreview)
 				resp.CloseBodyStream()
-				tempResult.ResponseBytes = len(tempResult.ResponsePreview)
+				result.ResponseBytes = len(result.ResponsePreview)
 			}
 		} else {
 			if body := resp.Body(); len(body) > 0 {
 				if len(body) > previewSize {
-					tempResult.ResponsePreview = append(tempResult.ResponsePreview, body[:previewSize]...)
+					result.ResponsePreview = append(result.ResponsePreview, body[:previewSize]...)
 				} else {
-					tempResult.ResponsePreview = append(tempResult.ResponsePreview, body...)
+					result.ResponsePreview = append(result.ResponsePreview, body...)
 				}
-				tempResult.ResponseBytes = len(body)
+				result.ResponseBytes = len(body)
 			}
 		}
 	}
 
 	// 5. Extract title if HTML
-	if len(tempResult.ResponsePreview) > 0 && bytes.Contains(tempResult.ContentType, strHTML) {
-		tempResult.Title = ExtractTitle(tempResult.ResponsePreview, tempResult.Title)
+	if len(result.ResponsePreview) > 0 && bytes.Contains(result.ContentType, strHTML) {
+		result.Title = ExtractTitle(result.ResponsePreview, result.Title)
 	}
 
 	// 6. Build curl command
-	tempResult.CurlCommand = BuildCurlCommandPoc(bypassPayload, tempResult.CurlCommand)
+	result.CurlCommand = BuildCurlCommandPoc(bypassPayload, result.CurlCommand)
 
-	// Create final result and copy data
-	finalResult := AcquireResponseDetails()
-	tempResult.CopyTo(finalResult)
-	return finalResult
+	return result
 }
 
 // String2Byte converts string to a byte slice without memory allocation.
@@ -344,50 +342,52 @@ func ReadLimitedResponseBodyStream(stream io.Reader, previewSize int, dest []byt
 // BuildCurlCommandPoc builds a curl command for the payload job
 // Appends the result to dest slice
 func BuildCurlCommandPoc(bypassPayload payload.BypassPayload, dest []byte) []byte {
-	// Reset destination slice
-	dest = dest[:0]
+	cmdBuf := curlCmdBuffPool.Get()
+	defer curlCmdBuffPool.Put(cmdBuf)
+	cmdBuf.Reset()
 
-	// Build command directly into dest
-	dest = append(dest, curlCmd...)
-	dest = append(dest, strSpace...)
-	dest = append(dest, curlFlags...)
+	// Build command into buffer
+	cmdBuf.Write(curlCmd)
+	cmdBuf.Write(strSpace)
+	cmdBuf.Write(curlFlags)
 
 	if bypassPayload.Method != "GET" {
-		dest = append(dest, strSpace...)
-		dest = append(dest, curlMethodX...)
-		dest = append(dest, strSpace...)
-		dest = append(dest, bytesutil.ToUnsafeBytes(bypassPayload.Method)...)
+		cmdBuf.Write(strSpace)
+		cmdBuf.Write(curlMethodX)
+		cmdBuf.Write(strSpace)
+		cmdBuf.Write(bytesutil.ToUnsafeBytes(bypassPayload.Method))
 	}
 
 	// Headers
 	for _, h := range bypassPayload.Headers {
-		dest = append(dest, strSpace...)
-		dest = append(dest, curlHeaderH...)
-		dest = append(dest, strSpace...)
-		dest = append(dest, strSingleQuote...)
-		dest = append(dest, bytesutil.ToUnsafeBytes(h.Header)...)
-		dest = append(dest, strColonSpace...)
-		dest = append(dest, bytesutil.ToUnsafeBytes(h.Value)...)
-		dest = append(dest, strSingleQuote...)
+		cmdBuf.Write(strSpace)
+		cmdBuf.Write(curlHeaderH)
+		cmdBuf.Write(strSpace)
+		cmdBuf.Write(strSingleQuote)
+		cmdBuf.Write(bytesutil.ToUnsafeBytes(h.Header))
+		cmdBuf.Write(strColonSpace)
+		cmdBuf.Write(bytesutil.ToUnsafeBytes(h.Value))
+		cmdBuf.Write(strSingleQuote)
 	}
 
 	// URL construction
-	dest = append(dest, strSpace...)
-	dest = append(dest, strSingleQuote...)
+	cmdBuf.Write(strSpace)
+	cmdBuf.Write(strSingleQuote)
 
 	// Scheme
-	dest = append(dest, bytesutil.ToUnsafeBytes(bypassPayload.Scheme)...)
-	dest = append(dest, strSchemeDelim...)
+	cmdBuf.Write(bytesutil.ToUnsafeBytes(bypassPayload.Scheme))
+	cmdBuf.Write(strSchemeDelim)
 
 	// Host
-	dest = append(dest, bytesutil.ToUnsafeBytes(bypassPayload.Host)...)
+	cmdBuf.Write(bytesutil.ToUnsafeBytes(bypassPayload.Host))
 
 	// RawURI
-	dest = append(dest, bytesutil.ToUnsafeBytes(bypassPayload.RawURI)...)
+	cmdBuf.Write(bytesutil.ToUnsafeBytes(bypassPayload.RawURI))
 
-	dest = append(dest, strSingleQuote...)
+	cmdBuf.Write(strSingleQuote)
 
-	return dest
+	// Append to existing slice instead of creating new one
+	return append(dest[:0], cmdBuf.B...)
 }
 
 // GetResponseHeaders gets all HTTP headers including values from the response
