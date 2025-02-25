@@ -76,9 +76,9 @@ func DefaultHTTPClientOptions() *HTTPClientOptions {
 		MaxIdleConnDuration:      1 * time.Minute, // Idle keep-alive connections are closed after this duration.
 		MaxConnWaitTimeout:       1 * time.Second, // Maximum duration for waiting for a free connection.
 		NoDefaultUserAgent:       true,
-		MaxResponseBodySize:      maxBodySize,  //  // 12288 bytes - just body limit
-		ReadBufferSize:           rwBufferSize, // 18432 bytes - total buffer
-		WriteBufferSize:          rwBufferSize, // 18432 bytes - total buffer
+		MaxResponseBodySize:      maxBodySize,  //
+		ReadBufferSize:           rwBufferSize, //
+		WriteBufferSize:          rwBufferSize, //
 		StreamResponseBody:       true,
 		MaxRetries:               2,
 		RetryDelay:               500 * time.Millisecond,
@@ -97,13 +97,8 @@ func NewHTTPClient(opts *HTTPClientOptions) *HTTPClient {
 		opts = DefaultHTTPClientOptions()
 	}
 
-	// Set the default dialer if none is provided
-	// if opts.Dialer == nil {
-	// 	opts.Dialer = dialer.CreateDialFunc(opts.DialTimeout, opts.ProxyURL)
-	// }
-
 	if opts.Dialer == nil {
-		opts.Dialer = dialer.CreateDialFuncNew(opts.DialTimeout, opts.ProxyURL)
+		opts.Dialer = dialer.CreateHTTPClientDialer(opts.DialTimeout, opts.ProxyURL)
 	}
 
 	retryConfig := DefaultRetryConfig()

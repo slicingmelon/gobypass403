@@ -276,7 +276,7 @@ func (s *Scanner) RunBypassModule(bypassModule string, targetURL string, results
 			// Release the RawHTTPResponseDetails back to its pool
 			rawhttp.ReleaseResponseDetails(response)
 		} else {
-			// Even if we don't use the response, we need to release it
+			// Release nonetheless
 			rawhttp.ReleaseResponseDetails(response)
 		}
 	}
@@ -338,11 +338,6 @@ func (s *Scanner) ResendRequestFromToken(debugToken string, resendCount int) ([]
 			continue
 		}
 
-		// Ensure release happens even if processing panics
-		defer func(resp *rawhttp.RawHTTPResponseDetails) {
-			rawhttp.ReleaseResponseDetails(resp)
-		}(response)
-
 		// Update progress
 		if progressBar != nil {
 			progressBar.Increment()
@@ -374,13 +369,11 @@ func (s *Scanner) ResendRequestFromToken(debugToken string, resendCount int) ([]
 				DebugToken:          string(response.DebugToken),
 			}
 
-			// Write to file immediately like in RunBypassModule
-			// if err := AppendResultsToJsonL(GetResultsFile(), []*Result{result}); err != nil {
-			// 	GB403Logger.Error().Msgf("Failed to write result: %v\n", err)
-			// }
-
 			results = append(results, result)
 		}
+
+		// Release the response object immediately after processing - for all responses
+		rawhttp.ReleaseResponseDetails(response)
 	}
 
 	// Final progress update

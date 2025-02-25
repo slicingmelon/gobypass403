@@ -135,7 +135,7 @@ func TestRawHTTPClientBuildAndSendRequestDirectLocalhost(t *testing.T) {
 	client := rawhttp.NewHTTPClient(rawhttp.DefaultHTTPClientOptions())
 
 	opts := rawhttp.DefaultHTTPClientOptions()
-	opts.Dialer = dialer.CreateDialFunc(opts.DialTimeout, opts.ProxyURL)
+	opts.Dialer = dialer.CreateHTTPClientDialer(opts.DialTimeout, opts.ProxyURL)
 	client.SetHTTPClientOptions(opts)
 
 	// Create a PayloadJob with Unicode in the path and headers
