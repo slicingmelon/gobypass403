@@ -1,285 +1,335 @@
 package scanner
 
-// import (
-// 	"bytes"
-// 	"fmt"
-// 	"io"
-// 	"os"
-// 	"slices"
-// 	"sort"
-// 	"strconv"
-// 	"strings"
-// 	"sync"
-// 	"sync/atomic"
-// 	"time"
+import (
+	"fmt"
+	"sort"
+	"strconv"
+	"strings"
+	"sync"
+	"sync/atomic"
+	"time"
 
-// 	"github.com/bytedance/sonic"
-// 	"github.com/pterm/pterm"
-// 	GB403Logger "github.com/slicingmelon/go-bypass-403/internal/utils/logger"
-// )
+	"database/sql"
 
-// // Make fileLock package level
-// var (
-// 	fileLock    sync.RWMutex
-// 	resultsFile atomic.Value // Store the file path
-// )
+	_ "github.com/mattn/go-sqlite3"
+	"github.com/pterm/pterm"
+	GB403Logger "github.com/slicingmelon/go-bypass-403/internal/utils/logger"
+)
 
-// var jsonAPI = sonic.Config{
-// 	UseNumber:   true,
-// 	EscapeHTML:  false, // This is key - prevents HTML escaping
-// 	SortMapKeys: false,
-// }.Froze()
+// Make fileLock package level
+var (
+	fileLock      sync.RWMutex
+	db            *sql.DB
+	dbInitOnce    sync.Once
+	resultsDBFile atomic.Value
+)
 
-// type Result struct {
-// 	TargetURL           string `json:"target_url"`
-// 	BypassModule        string `json:"bypass_module"`
-// 	CurlCMD             string `json:"curl_cmd"`
-// 	ResponseHeaders     string `json:"response_headers"`
-// 	ResponseBodyPreview string `json:"response_body_preview"`
-// 	StatusCode          int    `json:"status_code"`
-// 	ContentType         string `json:"content_type"`
-// 	ContentLength       int64  `json:"content_length"`
-// 	ResponseBodyBytes   int    `json:"response_body_bytes"`
-// 	Title               string `json:"title"`
-// 	ServerInfo          string `json:"server_info"`
-// 	RedirectURL         string `json:"redirect_url"`
-// 	ResponseTime        int64  `json:"response_time"`
-// 	DebugToken          string `json:"debug_token"`
-// }
+func InitDB(dbPath string) error {
+	var initErr error
+	dbInitOnce.Do(func() {
+		db, initErr = sql.Open("sqlite3", dbPath+"?_journal_mode=WAL&_sync=NORMAL&_busy_timeout=5000")
+		if initErr != nil {
+			return
+		}
 
-// // ScanResult represents results for a single URL scan
-// type ScanResult struct {
-// 	URL         string    `json:"url"`
-// 	BypassModes string    `json:"bypass_modes"`
-// 	ResultsPath string    `json:"results_path"`
-// 	Results     []*Result `json:"results"`
-// }
+		// Create tables and indexes
+		_, initErr = db.Exec(`
+            CREATE TABLE IF NOT EXISTS scan_results (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                target_url TEXT NOT NULL,
+                bypass_module TEXT NOT NULL,
+                curl_cmd TEXT,
+                response_headers TEXT,
+                response_body_preview TEXT,
+                status_code INTEGER,
+                content_type TEXT,
+                content_length INTEGER,
+                response_body_bytes INTEGER,
+                title TEXT,
+                server_info TEXT,
+                redirect_url TEXT,
+                response_time INTEGER,
+                debug_token TEXT,
+                scan_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
 
-// // getTableHeader returns the header row for the results table
-// func getTableHeader() []string {
-// 	return []string{
-// 		"Module",
-// 		"Curl CMD",
-// 		"Status",
-// 		"Length",
-// 		"Type",
-// 		"Title",
-// 		"Server",
-// 	}
-// }
+            CREATE INDEX IF NOT EXISTS idx_target_url ON scan_results(target_url);
+            CREATE INDEX IF NOT EXISTS idx_bypass_module ON scan_results(bypass_module);
+            CREATE INDEX IF NOT EXISTS idx_status_code ON scan_results(status_code);
+        `)
+	})
+	return initErr
+}
 
-// // getTableRows converts results to table rows, sorted by status code
-// func getTableRows(results []*Result) [][]string {
-// 	// Create a copy of results to avoid races during sorting
-// 	resultsCopy := make([]*Result, len(results))
-// 	for i, r := range results {
-// 		// Deep copy each result's fields
-// 		resultsCopy[i] = &Result{
-// 			BypassModule:      r.BypassModule,
-// 			CurlCMD:           r.CurlCMD,
-// 			StatusCode:        r.StatusCode,
-// 			ResponseBodyBytes: r.ResponseBodyBytes,
-// 			ContentType:       r.ContentType,
-// 			Title:             r.Title,
-// 			ServerInfo:        r.ServerInfo,
-// 		}
-// 	}
+type Result struct {
+	TargetURL           string `json:"target_url"`
+	BypassModule        string `json:"bypass_module"`
+	CurlCMD             string `json:"curl_cmd"`
+	ResponseHeaders     string `json:"response_headers"`
+	ResponseBodyPreview string `json:"response_body_preview"`
+	StatusCode          int    `json:"status_code"`
+	ContentType         string `json:"content_type"`
+	ContentLength       int64  `json:"content_length"`
+	ResponseBodyBytes   int    `json:"response_body_bytes"`
+	Title               string `json:"title"`
+	ServerInfo          string `json:"server_info"`
+	RedirectURL         string `json:"redirect_url"`
+	ResponseTime        int64  `json:"response_time"`
+	DebugToken          string `json:"debug_token"`
+}
 
-// 	// Sort the copy
-// 	sort.Slice(resultsCopy, func(i, j int) bool {
-// 		if resultsCopy[i].StatusCode != resultsCopy[j].StatusCode {
-// 			return resultsCopy[i].StatusCode < resultsCopy[j].StatusCode
-// 		}
-// 		return string(resultsCopy[i].BypassModule) < string(resultsCopy[j].BypassModule)
-// 	})
+// ScanResult represents results for a single URL scan
+type ScanResult struct {
+	URL         string    `json:"url"`
+	BypassModes string    `json:"bypass_modes"`
+	ResultsPath string    `json:"results_path"`
+	Results     []*Result `json:"results"`
+}
 
-// 	// Convert to table rows using the copied data
-// 	rows := make([][]string, len(resultsCopy))
-// 	for i, result := range resultsCopy {
-// 		rows[i] = []string{
-// 			string(result.BypassModule),
-// 			string(result.CurlCMD),
-// 			strconv.Itoa(result.StatusCode),
-// 			formatBytes(int64(result.ResponseBodyBytes)),
-// 			formatContentType(string(result.ContentType)),
-// 			formatValue(string(result.Title)),
-// 			formatValue(string(result.ServerInfo)),
-// 		}
-// 	}
+// getTableHeader returns the header row for the results table
+func getTableHeader() []string {
+	return []string{
+		"Module",
+		"Curl CMD",
+		"Status",
+		"Length",
+		"Type",
+		"Title",
+		"Server",
+	}
+}
 
-// 	return rows
-// }
+// getTableRows converts results to table rows, sorted by status code
+func getTableRows(results []*Result) [][]string {
+	// Create a copy of results to avoid races during sorting
+	resultsCopy := make([]*Result, len(results))
+	for i, r := range results {
+		// Deep copy each result's fields
+		resultsCopy[i] = &Result{
+			BypassModule:      r.BypassModule,
+			CurlCMD:           r.CurlCMD,
+			StatusCode:        r.StatusCode,
+			ResponseBodyBytes: r.ResponseBodyBytes,
+			ContentType:       r.ContentType,
+			Title:             r.Title,
+			ServerInfo:        r.ServerInfo,
+		}
+	}
 
-// func PrintResultsTable(targetURL string, results []*Result) {
-// 	if len(results) == 0 {
-// 		return
-// 	}
+	// Sort the copy
+	sort.Slice(resultsCopy, func(i, j int) bool {
+		if resultsCopy[i].StatusCode != resultsCopy[j].StatusCode {
+			return resultsCopy[i].StatusCode < resultsCopy[j].StatusCode
+		}
+		return string(resultsCopy[i].BypassModule) < string(resultsCopy[j].BypassModule)
+	})
 
-// 	// fancy table title
-// 	pterm.DefaultHeader.WithBackgroundStyle(pterm.NewStyle(pterm.BgGreen)).
-// 		Println("Results for " + targetURL)
+	// Convert to table rows using the copied data
+	rows := make([][]string, len(resultsCopy))
+	for i, result := range resultsCopy {
+		rows[i] = []string{
+			string(result.BypassModule),
+			string(result.CurlCMD),
+			strconv.Itoa(result.StatusCode),
+			formatBytes(int64(result.ResponseBodyBytes)),
+			formatContentType(string(result.ContentType)),
+			formatValue(string(result.Title)),
+			formatValue(string(result.ServerInfo)),
+		}
+	}
 
-// 	tableData := pterm.TableData{getTableHeader()}
-// 	for _, row := range getTableRows(results) {
-// 		tableData = append(tableData, row)
-// 	}
+	return rows
+}
 
-// 	// Render table
-// 	time.Sleep(500 * time.Millisecond)
-// 	table := pterm.DefaultTable.
-// 		WithHasHeader().
-// 		WithBoxed().
-// 		WithData(tableData)
+func PrintResultsTable(targetURL string, results []*Result) {
+	if len(results) == 0 {
+		return
+	}
 
-// 	output, err := table.Srender()
-// 	if err != nil {
-// 		return
-// 	}
+	// fancy table title
+	pterm.DefaultHeader.WithBackgroundStyle(pterm.NewStyle(pterm.BgGreen)).
+		Println("Results for " + targetURL)
 
-// 	// Print the rendered table
-// 	fmt.Println(output)
-// }
+	tableData := pterm.TableData{getTableHeader()}
+	for _, row := range getTableRows(results) {
+		tableData = append(tableData, row)
+	}
 
-// // PrintResultsTableFromJsonL prints the results table from findings.json instead of directly from the memory
-// func PrintResultsTableFromJsonL(jsonFile, targetURL, bypassModule string) error {
-// 	GB403Logger.Verbose().Msgf("Parsing results from: %s\n", jsonFile)
+	// Render table
+	time.Sleep(500 * time.Millisecond)
+	table := pterm.DefaultTable.
+		WithHasHeader().
+		WithBoxed().
+		WithData(tableData)
 
-// 	data, err := os.ReadFile(jsonFile)
-// 	if err != nil {
-// 		return fmt.Errorf("file read error: %v", err)
-// 	}
+	output, err := table.Srender()
+	if err != nil {
+		return
+	}
 
-// 	// Add closing bracket if missing (in case of crash)
-// 	if !bytes.HasSuffix(data, []byte("]")) {
-// 		data = append(data, []byte("\n]")...)
-// 	}
+	// Print the rendered table
+	fmt.Println(output)
+}
 
-// 	var results []*Result
-// 	if err := jsonAPI.Unmarshal(data, &results); err != nil {
-// 		return fmt.Errorf("failed to parse JSON: %v", err)
-// 	}
+func PrintResultsTableFromDB(targetURL, bypassModule string) error {
+	GB403Logger.Verbose().Msgf("Querying results from database for: %s\n", targetURL)
 
-// 	var matchedResults []*Result
-// 	queryModules := strings.Split(bypassModule, ",")
+	queryModules := strings.Split(bypassModule, ",")
+	placeholders := strings.Repeat("?,", len(queryModules))
+	placeholders = placeholders[:len(placeholders)-1] // Remove trailing comma
 
-// 	// Filter results by URL and modules
-// 	for _, result := range results {
-// 		if result.TargetURL == targetURL && slices.Contains(queryModules, result.BypassModule) {
-// 			matchedResults = append(matchedResults, result)
-// 		}
-// 	}
+	query := fmt.Sprintf(`
+        SELECT 
+            target_url, bypass_module, curl_cmd, response_headers,
+            response_body_preview, status_code, content_type, content_length,
+            response_body_bytes, title, server_info, redirect_url,
+            response_time, debug_token
+        FROM scan_results
+        WHERE target_url = ? AND bypass_module IN (%s)
+        ORDER BY status_code ASC, bypass_module ASC
+    `, placeholders)
 
-// 	if len(matchedResults) == 0 {
-// 		return fmt.Errorf("no results found for %s (modules: %s)", targetURL, bypassModule)
-// 	}
+	// Prepare query arguments
+	args := make([]any, len(queryModules)+1)
+	args[0] = targetURL
+	for i, module := range queryModules {
+		args[i+1] = module
+	}
 
-// 	// Stable sort: status code asc -> module name asc
-// 	sort.SliceStable(matchedResults, func(i, j int) bool {
-// 		if matchedResults[i].StatusCode == matchedResults[j].StatusCode {
-// 			return matchedResults[i].BypassModule < matchedResults[j].BypassModule
-// 		}
-// 		return matchedResults[i].StatusCode < matchedResults[j].StatusCode
-// 	})
+	rows, err := db.Query(query, args...)
+	if err != nil {
+		return fmt.Errorf("database query error: %v", err)
+	}
+	defer rows.Close()
 
-// 	PrintResultsTable(targetURL, matchedResults)
-// 	return nil
-// }
+	var matchedResults []*Result
+	for rows.Next() {
+		var result Result
+		err := rows.Scan(
+			&result.TargetURL,
+			&result.BypassModule,
+			&result.CurlCMD,
+			&result.ResponseHeaders,
+			&result.ResponseBodyPreview,
+			&result.StatusCode,
+			&result.ContentType,
+			&result.ContentLength,
+			&result.ResponseBodyBytes,
+			&result.Title,
+			&result.ServerInfo,
+			&result.RedirectURL,
+			&result.ResponseTime,
+			&result.DebugToken,
+		)
+		if err != nil {
+			return fmt.Errorf("failed to scan row: %v", err)
+		}
+		matchedResults = append(matchedResults, &result)
+	}
 
-// func AppendResultsToJsonL(outputFile string, findings []*Result) error {
-// 	if len(findings) == 0 {
-// 		return nil
-// 	}
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("row iteration error: %v", err)
+	}
 
-// 	fileLock.Lock()
-// 	defer fileLock.Unlock()
+	if len(matchedResults) == 0 {
+		return fmt.Errorf("no results found for %s (modules: %s)", targetURL, bypassModule)
+	}
 
-// 	fileInfo, err := os.Stat(outputFile)
-// 	fileExists := !os.IsNotExist(err)
-// 	isEmpty := !fileExists || fileInfo.Size() == 0
+	PrintResultsTable(targetURL, matchedResults)
+	return nil
+}
 
-// 	file, err := os.OpenFile(outputFile, os.O_RDWR|os.O_CREATE, 0644)
-// 	if err != nil {
-// 		return fmt.Errorf("failed to open JSON file: %v", err)
-// 	}
-// 	defer file.Close()
+func AppendResultsToDB(results []*Result) error {
+	if len(results) == 0 {
+		return nil
+	}
 
-// 	if isEmpty {
-// 		file.WriteString("[")
-// 	} else {
-// 		if err := removeClosingBracket(file); err != nil {
-// 			return fmt.Errorf("failed to prepare file: %v", err)
-// 		}
-// 		file.WriteString(",")
-// 	}
+	fileLock.Lock()
+	defer fileLock.Unlock()
 
-// 	// Write new results
-// 	for i, result := range findings {
-// 		if i > 0 {
-// 			file.WriteString(",")
-// 		}
+	tx, err := db.Begin()
+	if err != nil {
+		return fmt.Errorf("failed to begin transaction: %v", err)
+	}
+	defer tx.Rollback()
 
-// 		data, err := jsonAPI.MarshalIndent(result, "  ", "  ")
-// 		if err != nil {
-// 			return fmt.Errorf("failed to marshal result: %v", err)
-// 		}
+	stmt, err := tx.Prepare(`
+        INSERT INTO scan_results (
+            target_url, bypass_module, curl_cmd, response_headers,
+            response_body_preview, status_code, content_type, content_length,
+            response_body_bytes, title, server_info, redirect_url,
+            response_time, debug_token
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `)
+	if err != nil {
+		return fmt.Errorf("failed to prepare statement: %v", err)
+	}
+	defer stmt.Close()
 
-// 		file.WriteString("\n  ")
-// 		file.Write(data)
-// 	}
+	for _, result := range results {
+		_, err := stmt.Exec(
+			result.TargetURL,
+			result.BypassModule,
+			result.CurlCMD,
+			result.ResponseHeaders,
+			result.ResponseBodyPreview,
+			result.StatusCode,
+			result.ContentType,
+			result.ContentLength,
+			result.ResponseBodyBytes,
+			result.Title,
+			result.ServerInfo,
+			result.RedirectURL,
+			result.ResponseTime,
+			result.DebugToken,
+		)
+		if err != nil {
+			return fmt.Errorf("failed to insert result: %v", err)
+		}
+	}
 
-// 	file.WriteString("\n]")
-// 	return nil
-// }
+	return tx.Commit()
+}
 
-// func removeClosingBracket(file *os.File) error {
-// 	// Seek to end minus 2 bytes (]\n)
-// 	if _, err := file.Seek(-2, io.SeekEnd); err != nil {
-// 		return err
-// 	}
+// Helper functions
+func formatValue(val string) string {
+	if val == "" {
+		return "[-]"
+	}
+	return val
+}
 
-// 	pos, _ := file.Seek(0, io.SeekCurrent)
-// 	return file.Truncate(pos)
-// }
+func formatContentType(contentType string) string {
+	if contentType == "" {
+		return "[-]"
+	}
+	if strings.Contains(contentType, ";") {
+		return strings.TrimSpace(strings.Split(contentType, ";")[0])
+	}
+	return contentType
+}
 
-// // Helper functions
-// func formatValue(val string) string {
-// 	if val == "" {
-// 		return "[-]"
-// 	}
-// 	return val
-// }
+func formatBytes(bytes int64) string {
+	if bytes <= 0 {
+		return "[-]"
+	}
+	return strconv.FormatInt(bytes, 10) // + " B"
+}
 
-// func formatContentType(contentType string) string {
-// 	if contentType == "" {
-// 		return "[-]"
-// 	}
-// 	if strings.Contains(contentType, ";") {
-// 		return strings.TrimSpace(strings.Split(contentType, ";")[0])
-// 	}
-// 	return contentType
-// }
+func FormatBytesH(bytes int64) string {
+	if bytes <= 0 {
+		return "[-]"
+	}
 
-// func formatBytes(bytes int64) string {
-// 	if bytes <= 0 {
-// 		return "[-]"
-// 	}
-// 	return strconv.FormatInt(bytes, 10) // + " B"
-// }
+	const unit = 1024
+	if bytes < unit {
+		return fmt.Sprintf("%d B", bytes)
+	}
 
-// func FormatBytesH(bytes int64) string {
-// 	if bytes <= 0 {
-// 		return "[-]"
-// 	}
-
-// 	const unit = 1024
-// 	if bytes < unit {
-// 		return fmt.Sprintf("%d B", bytes)
-// 	}
-
-// 	div, exp := int64(unit), 0
-// 	for n := bytes / unit; n >= unit; n /= unit {
-// 		div *= unit
-// 		exp++
-// 	}
-// 	return fmt.Sprintf("%.1f%cB", float64(bytes)/float64(div), "KMGTPE"[exp])
-// }
+	div, exp := int64(unit), 0
+	for n := bytes / unit; n >= unit; n /= unit {
+		div *= unit
+		exp++
+	}
+	return fmt.Sprintf("%.1f%cB", float64(bytes)/float64(div), "KMGTPE"[exp])
+}
