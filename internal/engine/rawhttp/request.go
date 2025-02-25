@@ -211,6 +211,8 @@ func BuildRawHTTPRequest(httpclient *HTTPClient, req *fasthttp.Request, bypassPa
 	buf.Write(CustomUserAgent)
 	buf.WriteString("\r\n")
 
+	buf.WriteString("Accept: */*\r\n")
+
 	// Debug token
 	if GB403Logger.IsDebugEnabled() {
 		buf.WriteString("X-GB403-Token: ")
