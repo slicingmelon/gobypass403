@@ -2,7 +2,6 @@ package scanner
 
 import (
 	"fmt"
-	"path/filepath"
 	"sync/atomic"
 
 	"github.com/slicingmelon/go-bypass-403/internal/engine/recon"
@@ -19,6 +18,7 @@ type ScannerOpts struct {
 	Verbose                   bool
 	BypassModule              string
 	OutDir                    string
+	ResultsDBFile             string
 	RequestDelay              int
 	MaxRetries                int
 	RetryDelay                int
@@ -43,21 +43,8 @@ type Scanner struct {
 	progressBarEnabled atomic.Bool
 }
 
-func InitResultsDBFile(path string) {
-	resultsDBFile.Store(path)
-}
-
-// GetDBPath returns the current database path
-func GetResultsDBFile() string {
-	return resultsDBFile.Load().(string)
-}
-
 // NewScanner creates a new Scanner instance
 func NewScanner(opts *ScannerOpts, urls []string) *Scanner {
-	// Initialize database path
-	dbPath := filepath.Join(opts.OutDir, "results.db")
-	InitResultsDBFile(dbPath)
-
 	// Initialize bypass modules first
 	InitializeBypassModules()
 
@@ -106,7 +93,7 @@ func (s *Scanner) scanURL(url string) error {
 	}
 
 	if resultCount > 0 {
-		resultsFile := GetResultsDBFile()
+		resultsFile := s.scannerOpts.ResultsDBFile
 
 		fmt.Println()
 		// if err := PrintResultsTableFromJsonL(resultsFile, url, s.scannerOpts.BypassModule); err != nil {

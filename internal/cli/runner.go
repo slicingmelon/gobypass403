@@ -17,20 +17,10 @@ type Runner struct {
 	UrlRecon      *URLRecon
 }
 
-var (
-	dbPath string
-)
-
 func NewRunner() *Runner {
 	// Initialize the singleton error handler
-	dbPath = filepath.Join(RunnerOptions.OutDir, "results.db")
 	_ = GB403ErrorHandler.GetErrorHandler()
-	_ = scanner.InitDB(dbPath)
 	return &Runner{}
-}
-
-func (r *Runner) GetDBPath() string {
-	return filepath.Join(r.RunnerOptions.OutDir, "results.db")
 }
 
 func (r *Runner) Initialize() error {
@@ -40,6 +30,16 @@ func (r *Runner) Initialize() error {
 		return err
 	}
 	r.RunnerOptions = opts
+
+	// Set ResultsDBFile if not already set
+	if r.RunnerOptions.ResultsDBFile == "" {
+		r.RunnerOptions.ResultsDBFile = filepath.Join(r.RunnerOptions.OutDir, "results.db")
+	}
+
+	// Initialize database to save results
+	if err := scanner.InitDB(r.RunnerOptions.ResultsDBFile); err != nil {
+		GB403Logger.Error().Msgf("Failed to initialize database: %v", err)
+	}
 
 	if opts.Verbose {
 		GB403Logger.DefaultLogger.EnableVerbose()
@@ -69,6 +69,7 @@ func (r *Runner) Initialize() error {
 	scannerOpts := &scanner.ScannerOpts{
 		BypassModule:             r.RunnerOptions.Module,
 		OutDir:                   r.RunnerOptions.OutDir,
+		ResultsDBFile:            r.RunnerOptions.ResultsDBFile,
 		Timeout:                  r.RunnerOptions.Timeout,
 		Threads:                  r.RunnerOptions.Threads,
 		RequestDelay:             r.RunnerOptions.Delay,
@@ -142,6 +143,7 @@ func (r *Runner) handleResendRequest() error {
 		AutoThrottle:              r.RunnerOptions.AutoThrottle,
 		Proxy:                     r.RunnerOptions.Proxy,
 		OutDir:                    r.RunnerOptions.OutDir,
+		ResultsDBFile:             r.RunnerOptions.ResultsDBFile,
 		RequestDelay:              r.RunnerOptions.RequestDelay,
 		MatchStatusCodes:          r.RunnerOptions.MatchStatusCodes,
 		EnableHTTP2:               r.RunnerOptions.EnableHTTP2,
@@ -165,11 +167,11 @@ func (r *Runner) handleResendRequest() error {
 		fmt.Println()
 
 		// // Save findings
-		// if err := scanner.AppendResultsToJsonL(outputFile, findings); err != nil {
-		// 	GB403Logger.Error().Msgf("Failed to save findings: %v\n", err)
-		// } else {
-		// 	GB403Logger.Success().Msgf("Scan for %s completed. Results saved to %s\n", targetURL, outputFile)
-		// }
+		if err := scanner.AppendResultsToDB(findings); err != nil {
+			GB403Logger.Error().Msgf("Failed to save findings: %v\n", err)
+		} else {
+			GB403Logger.Success().Msgf("Scan for %s completed. Results saved to %s\n", targetURL, r.RunnerOptions.ResultsDBFile)
+		}
 	} else {
 		GB403Logger.Info().Msgf("No findings detected for %s\n", targetURL)
 	}

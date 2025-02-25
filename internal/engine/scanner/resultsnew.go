@@ -24,10 +24,10 @@ var (
 	resultsDBFile atomic.Value
 )
 
-func InitDB() error {
+func InitDB(dbPath string) error {
 	var initErr error
 	dbInitOnce.Do(func() {
-		db, initErr = sql.Open("sqlite3", GetResultsDBFile()+"?_journal_mode=WAL&_sync=NORMAL&_busy_timeout=5000")
+		db, initErr = sql.Open("sqlite3", dbPath+"?_journal_mode=WAL&_sync=NORMAL&_busy_timeout=5000")
 		if initErr != nil {
 			return
 		}
