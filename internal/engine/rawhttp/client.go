@@ -246,6 +246,10 @@ func (c *HTTPClient) handleRetries(req *fasthttp.Request, resp *fasthttp.Respons
 // DoRequest performs a HTTP request (raw)
 // Returns the HTTP response time (in ms) and error
 func (c *HTTPClient) DoRequest(req *fasthttp.Request, resp *fasthttp.Response, bypassPayload payload.BypassPayload) (int64, error) {
+
+	if c.GetHTTPClientOptions().RequestDelay > 0 {
+		time.Sleep(c.GetHTTPClientOptions().RequestDelay)
+	}
 	// apply throttler if enabled
 	if c.throttler.IsThrottlerActive() {
 		c.throttler.ThrottleRequest()
