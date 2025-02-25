@@ -2,7 +2,66 @@
 
 This document will track the performance progress of the project, based on the pprof data.
 
-# 2024-12-27
+# 25 February 2025
+
+## Error Handler
+
+### Core Error Handler Operations
+
+1.  Whitelist Checking: 14.36 ns/op, 0 B/op
+- Incredibly fast with zero allocations
+- This is the first check in the error path, so it's critical that it's efficient
+    
+
+1.  Error Stripping: 66.18 ns/op, 256 B/op, 1 alloc/op
+- Very efficient considering it's handling string operations
+- Only one allocation even for very long error messages
+    
+
+1.  Cache Operations: 820.8 ns/op, 223 B/op, 11 allocs/op
+- 3.3x faster than before (was 2716 ns/op)
+- 27% less memory (was 304 B/op)
+- 15% fewer allocations (was 13 allocs/op)
+    
+
+1.  Full Error Handling: 830.5 ns/op, 224 B/op, 11 allocs/op
+- 2.9x faster than before (was 2408 ns/op)
+- 26% less memory (was 304 B/op)
+- 15% fewer allocations (was 13 allocs/op)
+    
+
+### New Benchmarks
+
+1.  HandleErrorAndContinue: 839.5 ns/op, 231 B/op, 11 allocs/op
+- Nearly identical performance to HandleError
+- Shows consistent performance across the API
+    
+1.  Multi-Host Errors: 1048 ns/op, 272 B/op, 13 allocs/op
+- Only 26% slower despite dynamic host handling
+- Great news for high-traffic scenarios with many hosts
+    
+
+1.  Print Error Stats: 14.16ms/op
+- Slower, but this is expected for a debug function
+- Not in the critical path, so the performance is acceptable
+    
+
+### Impact
+
+These improvements have significant real-world implications:
+1.  Higher Throughput: Your client can now process errors ~3x faster, which will help maintain the desired 100-1000 req/s throughput.
+2.  Lower Memory Pressure: The reduced allocations (15% fewer) will decrease GC overhead, reducing latency spikes.
+3.  Consistent Performance: The small variance between different error handling paths suggests stable performance under varying conditions.
+4.  Better Scaling: The multi-host benchmark shows the error handler can efficiently handle errors from many different hosts simultaneously.
+    
+
+The optimization strategy of:
+1.  Performing error message stripping only once
+2.  Eliminating unnecessary wait calls
+3.  Reducing lock scope
+4.  Improving whitelist checking
+
+# 27 December 2024
 
 Performance Characteristics (from profiles)
 
