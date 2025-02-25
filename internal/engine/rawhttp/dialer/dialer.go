@@ -260,7 +260,7 @@ func CreateHTTPClientDialer(timeout time.Duration, proxyURL string) fasthttp.Dia
 		}
 
 		// No proxy, use our TCPDialer with timeout
-		conn, err := dialer.DialTimeout(addr, timeout)
+		conn, err := dialer.DialDualStackTimeout(addr, timeout)
 		if err != nil {
 			if handleErr := GB403ErrorHandler.GetErrorHandler().HandleError(err, GB403ErrorHandler.ErrorContext{
 				ErrorSource: "Client.directDial",
