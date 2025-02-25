@@ -16,6 +16,9 @@ import (
 	GB403Logger "github.com/slicingmelon/go-bypass-403/internal/utils/logger"
 )
 
+// to optimize
+// https://turriate.com/articles/making-sqlite-faster-in-go
+
 // Make fileLock package level
 var (
 	fileLock      sync.RWMutex
