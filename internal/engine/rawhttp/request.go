@@ -50,7 +50,7 @@ var (
 	strSchemeDelim    = []byte("://")
 	strUserAgent      = []byte("User-Agent")
 
-	strErrorReadingPreview = []byte("Error reading reponse preview")
+	strErrorReadingPreview = []byte("Error reading response preview")
 )
 
 var responseDetailsPool = sync.Pool{
@@ -211,7 +211,7 @@ func BuildRawHTTPRequest(httpclient *HTTPClient, req *fasthttp.Request, bypassPa
 	buf.Write(CustomUserAgent)
 	buf.WriteString("\r\n")
 
-	buf.WriteString("Accept: */*\r\n")
+	//buf.WriteString("Accept: */*\r\n")
 
 	// Debug token
 	if GB403Logger.IsDebugEnabled() {
@@ -222,7 +222,8 @@ func BuildRawHTTPRequest(httpclient *HTTPClient, req *fasthttp.Request, bypassPa
 
 	// Connection handling
 	if shouldCloseConn {
-		buf.WriteString("Connection: close\r\n")
+		//buf.WriteString("Connection: close\r\n")
+		buf.WriteString("Connection: keep-alive\r\n")
 	} else {
 		buf.WriteString("Connection: keep-alive\r\n")
 	}
@@ -251,6 +252,63 @@ func BuildRawHTTPRequest(httpclient *HTTPClient, req *fasthttp.Request, bypassPa
 
 	return nil
 }
+
+// func ProcessHTTPResponse(httpclient *HTTPClient, resp *fasthttp.Response, bypassPayload payload.BypassPayload) *RawHTTPResponseDetails {
+// 	// Acquire a single result
+// 	result := AcquireResponseDetails()
+
+// 	// 1. Basic response info
+// 	result.StatusCode = resp.StatusCode()
+// 	result.ContentLength = int64(resp.Header.ContentLength())
+// 	result.URL = append(result.URL, bypassPayload.OriginalURL...)
+// 	result.BypassModule = append(result.BypassModule, bypassPayload.BypassModule...)
+// 	result.DebugToken = append(result.DebugToken, bypassPayload.PayloadToken...)
+
+// 	// 2. Headers
+// 	result.ResponseHeaders = GetResponseHeaders(&resp.Header, result.StatusCode, result.ResponseHeaders)
+// 	result.ContentType = append(result.ContentType, resp.Header.ContentType()...)
+// 	result.ServerInfo = append(result.ServerInfo, resp.Header.Server()...)
+
+// 	// 3. Handle redirects
+// 	if fasthttp.StatusCodeIsRedirect(result.StatusCode) {
+// 		if location := PeekResponseHeaderKeyCaseInsensitive(resp, strLocationHeader); len(location) > 0 {
+// 			result.RedirectURL = append(result.RedirectURL, location...)
+// 		}
+// 	}
+
+// 	// 4. Body preview
+// 	httpClientOpts := httpclient.GetHTTPClientOptions()
+// 	if httpClientOpts.MaxResponseBodySize > 0 && httpClientOpts.ResponseBodyPreviewSize > 0 {
+// 		previewSize := httpClientOpts.ResponseBodyPreviewSize
+
+// 		if httpClientOpts.StreamResponseBody {
+// 			if stream := resp.BodyStream(); stream != nil {
+// 				result.ResponsePreview = ReadLimitedResponseBodyStream(stream, previewSize, result.ResponsePreview)
+// 				resp.CloseBodyStream()
+// 				result.ResponseBytes = len(result.ResponsePreview)
+// 			}
+// 		} else {
+// 			if body := resp.Body(); len(body) > 0 {
+// 				if len(body) > previewSize {
+// 					result.ResponsePreview = append(result.ResponsePreview, body[:previewSize]...)
+// 				} else {
+// 					result.ResponsePreview = append(result.ResponsePreview, body...)
+// 				}
+// 				result.ResponseBytes = len(body)
+// 			}
+// 		}
+// 	}
+
+// 	// 5. Extract title if HTML
+// 	if len(result.ResponsePreview) > 0 && bytes.Contains(result.ContentType, strHTML) {
+// 		result.Title = ExtractTitle(result.ResponsePreview, result.Title)
+// 	}
+
+// 	// 6. Build curl command
+// 	result.CurlCommand = BuildCurlCommandPoc(bypassPayload, result.CurlCommand)
+
+// 	return result
+// }
 
 func ProcessHTTPResponse(httpclient *HTTPClient, resp *fasthttp.Response, bypassPayload payload.BypassPayload) *RawHTTPResponseDetails {
 	// Acquire a single result
@@ -281,10 +339,28 @@ func ProcessHTTPResponse(httpclient *HTTPClient, resp *fasthttp.Response, bypass
 		previewSize := httpClientOpts.ResponseBodyPreviewSize
 
 		if httpClientOpts.StreamResponseBody {
-			if stream := resp.BodyStream(); stream != nil {
-				result.ResponsePreview = ReadLimitedResponseBodyStream(stream, previewSize, result.ResponsePreview)
-				resp.CloseBodyStream()
-				result.ResponseBytes = len(result.ResponsePreview)
+			// Handle streaming response
+			stream := resp.BodyStream()
+			if stream != nil {
+				// Read from stream with limited size
+				previewBuf := make([]byte, previewSize)
+				n, err := io.ReadFull(stream, previewBuf)
+
+				// Handle partial reads
+				if err != nil && err != io.EOF && err != io.ErrUnexpectedEOF {
+					GB403Logger.Debug().Msgf("Error reading body stream: %v", err)
+					result.ResponsePreview = append(result.ResponsePreview[:0], strErrorReadingPreview...)
+				} else {
+					// We got data, use what we read
+					result.ResponsePreview = append(result.ResponsePreview[:0], previewBuf[:n]...)
+				}
+
+				// Always close the stream after reading
+				if err := resp.CloseBodyStream(); err != nil {
+					GB403Logger.Debug().Msgf("Error closing body stream: %v", err)
+				}
+
+				result.ResponseBytes = n
 			}
 		} else {
 			if body := resp.Body(); len(body) > 0 {
