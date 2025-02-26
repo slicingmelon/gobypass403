@@ -265,11 +265,7 @@ func (s *Scanner) RunBypassModule(bypassModule string, targetURL string, results
 				DebugToken:          string(response.DebugToken),
 			}
 
-			// Write to file immediately
-			// if err := AppendResultsToJsonL(GetResultsFile(), []*Result{result}); err != nil {
-			// 	GB403Logger.Error().Msgf("Failed to write result: %v\n", err)
-			// }
-
+			// Write to DB immediately
 			if err := AppendResultsToDB([]*Result{result}); err != nil {
 				GB403Logger.Error().Msgf("Failed to write result to DB: %v\n", err)
 			}
