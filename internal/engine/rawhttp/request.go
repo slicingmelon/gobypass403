@@ -211,7 +211,8 @@ func BuildRawHTTPRequest(httpclient *HTTPClient, req *fasthttp.Request, bypassPa
 	buf.Write(CustomUserAgent)
 	buf.WriteString("\r\n")
 
-	buf.WriteString("Accept: */*\r\n")
+	buf.WriteString("Accept: */*")
+	buf.WriteString("\r\n")
 
 	// Debug token
 	if GB403Logger.IsDebugEnabled() {
@@ -222,13 +223,13 @@ func BuildRawHTTPRequest(httpclient *HTTPClient, req *fasthttp.Request, bypassPa
 
 	// Connection handling
 	if shouldCloseConn {
-		buf.WriteString("Connection: close\r\n")
+		buf.WriteString("Connection: close\r\n") // Remove extra \r\n
 	} else {
-		buf.WriteString("Connection: keep-alive\r\n")
+		buf.WriteString("Connection: keep-alive\r\n") // Remove extra \r\n
 	}
 
 	// End of headers
-	buf.WriteString("\r\n")
+	buf.WriteString("\r\n") // Keep this as it marks the end of headers
 
 	// Parse back into fasthttp.Request
 	br := rawRequestBuffReaderPool.Get().(*bufio.Reader)
