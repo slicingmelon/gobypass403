@@ -108,11 +108,6 @@ func NewReconService() *ReconService {
 			"1.1.1.1:53",                // Cloudflare
 			"9.9.9.9:53",                // Quad9
 			"208.67.222.222:53",         // OpenDNS
-			"8.8.4.4:53",                // Google Secondary
-			"1.0.0.1:53",                // Cloudflare Secondary
-			"149.112.112.112:53",        // Quad9 Secondary
-			"208.67.220.220:53",         // OpenDNS Secondary
-			"[2001:4860:4860::8888]:53", // Google IPv6
 			"[2606:4700:4700::1111]:53", // Cloudflare IPv6
 			"[2620:fe::fe]:53",          // Quad9 IPv6
 		},
@@ -162,7 +157,10 @@ func (r *ReconService) ProcessHost(input string) (*ReconResult, error) {
 		ports = append(ports, customPort)
 	}
 
-	// Single probing pass
+	// Create a wait group for parallel port probing
+	var wg sync.WaitGroup
+	var mu sync.Mutex // To protect services maps
+
 	for _, ip := range ips {
 		ipStr := ip.String()
 		services := result.IPv4Services
@@ -171,20 +169,28 @@ func (r *ReconService) ProcessHost(input string) (*ReconResult, error) {
 		}
 
 		for _, port := range ports {
-			protocol, ok := r.ProbePort(ipStr, port)
-			if !ok {
-				continue
-			}
+			wg.Add(1)
+			go func(ip string, port string, services map[string]map[string][]string) {
+				defer wg.Done()
+				protocol, ok := r.ProbePort(ip, port)
+				if !ok {
+					return
+				}
 
-			// Print successful probe
-			GB403Logger.Verbose().Msgf("%s://%s:%s [%s]", protocol, host, port, ipStr)
+				// Print successful probe
+				GB403Logger.Verbose().Msgf("%s://%s:%s [%s]", protocol, host, port, ip)
 
-			if services[protocol] == nil {
-				services[protocol] = make(map[string][]string)
-			}
-			services[protocol][ipStr] = append(services[protocol][ipStr], port)
+				mu.Lock()
+				if services[protocol] == nil {
+					services[protocol] = make(map[string][]string)
+				}
+				services[protocol][ip] = append(services[protocol][ip], port)
+				mu.Unlock()
+			}(ipStr, port, services)
 		}
 	}
+
+	wg.Wait() // Wait for all port probes to complete
 
 	// Cache result
 	if err := r.cache.Set(host, result); err != nil {
@@ -253,62 +259,6 @@ func (r *ReconService) Run(urls []string) error {
 }
 
 // ProbePort probes a port on an IP address and returns the protocol (http or https)
-// func (r *ReconService) ProbePort(ip string, port string) (string, bool) {
-// 	addr := net.JoinHostPort(ip, port)
-
-// 	// Try HTTPS first
-// 	// conn, err := r.dialer.DialTimeout(addr, 5*time.Second)
-// 	conn, err := r.dialer.Dial(addr)
-// 	if err != nil {
-// 		GB403Logger.Verbose().Msgf("TLS dial error for %s: %v", addr, err)
-// 		// Continue to HTTP check
-// 	} else {
-// 		defer conn.Close()
-
-// 		tlsConfig := &tls.Config{
-// 			InsecureSkipVerify: true,
-// 			MinVersion:         tls.VersionTLS10,
-// 		}
-
-// 		tlsConn := tls.Client(conn, tlsConfig)
-// 		if err := tlsConn.SetDeadline(time.Now().Add(5 * time.Second)); err != nil {
-// 			GB403Logger.Verbose().Msgf("TLS set deadline error for %s: %v", addr, err)
-// 		} else {
-// 			if err := tlsConn.Handshake(); err != nil {
-// 				GB403Logger.Verbose().Msgf("TLS handshake error for %s: %v", addr, err)
-// 			} else {
-// 				tlsConn.Close()
-// 				return "https", true
-// 			}
-// 		}
-// 	}
-
-// 	// Try HTTP
-// 	conn2, err := r.dialer.DialDualStackTimeout(addr, 3*time.Second)
-// 	if err != nil {
-// 		return "", false
-// 	}
-// 	defer conn2.Close()
-
-// 	_, err = fmt.Fprintf(conn2, "HEAD / HTTP/1.1\r\nHost: %s\r\n\r\n", addr)
-// 	if err != nil {
-// 		return "", false // Port is open but not HTTP/HTTPS
-// 	}
-
-// 	buf := make([]byte, 1024)
-// 	conn2.SetReadDeadline(time.Now().Add(3 * time.Second))
-// 	n, err := conn2.Read(buf)
-// 	if err != nil {
-// 		return "", false
-// 	}
-
-// 	if n > 0 && strings.HasPrefix(string(buf), "HTTP") {
-// 		return "http", true
-// 	}
-
-// 	return "", false // Not HTTP/HTTPS
-// }
-
 func (r *ReconService) ProbePort(ip string, port string) (string, bool) {
 	addr := net.JoinHostPort(ip, port)
 
@@ -332,7 +282,7 @@ func (r *ReconService) ProbePort(ip string, port string) (string, bool) {
 		}
 
 		tlsConn := tls.Client(conn, tlsConfig)
-		if err := tlsConn.SetDeadline(time.Now().Add(5 * time.Second)); err == nil {
+		if err := tlsConn.SetDeadline(time.Now().Add(3 * time.Second)); err == nil {
 			if err := tlsConn.Handshake(); err == nil {
 				tlsConn.Close()
 				return "https", true

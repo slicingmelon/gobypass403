@@ -213,11 +213,6 @@ func GetSharedDialer() *fasthttp.TCPDialer {
 				"1.1.1.1:53",                // Cloudflare
 				"9.9.9.9:53",                // Quad9
 				"208.67.222.222:53",         // OpenDNS
-				"8.8.4.4:53",                // Google Secondary
-				"1.0.0.1:53",                // Cloudflare Secondary
-				"149.112.112.112:53",        // Quad9 Secondary
-				"208.67.220.220:53",         // OpenDNS Secondary
-				"[2001:4860:4860::8888]:53", // Google IPv6
 				"[2606:4700:4700::1111]:53", // Cloudflare IPv6
 				"[2620:fe::fe]:53",          // Quad9 IPv6
 			}),
