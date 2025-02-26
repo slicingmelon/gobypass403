@@ -229,7 +229,7 @@ func BuildRawHTTPRequest(httpclient *HTTPClient, req *fasthttp.Request, bypassPa
 	}
 
 	// End of headers
-	buf.WriteString("\r\n") // Keep this as it marks the end of headers
+	buf.WriteString("\r\n")
 
 	// Parse back into fasthttp.Request
 	br := rawRequestBuffReaderPool.Get().(*bufio.Reader)
