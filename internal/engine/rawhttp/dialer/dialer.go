@@ -248,12 +248,15 @@ func CreateHTTPClientDialer(timeout time.Duration, proxyURL string) fasthttp.Dia
 			proxyDialer := fasthttpproxy.FasthttpHTTPDialerTimeout(proxyURL, timeout)
 			conn, err := proxyDialer(addr)
 			if err != nil {
-				if handleErr := GB403ErrorHandler.GetErrorHandler().HandleError(err, GB403ErrorHandler.ErrorContext{
+				// If it's a whitelisted error, HandleError returns nil
+				if handledErr := GB403ErrorHandler.GetErrorHandler().HandleError(err, GB403ErrorHandler.ErrorContext{
 					ErrorSource: "Client.proxyDial",
 					Host:        addr,
-				}); handleErr != nil {
-					return nil, fmt.Errorf("proxy dial error handling failed: %v (original error: %v)", handleErr, err)
+				}); handledErr == nil {
+					// This was a whitelisted error, we can ignore it
+					return nil, nil
 				}
+				// Not whitelisted, return just the original error
 				return nil, err
 			}
 			return conn, nil
@@ -262,12 +265,15 @@ func CreateHTTPClientDialer(timeout time.Duration, proxyURL string) fasthttp.Dia
 		// No proxy, use our TCPDialer with timeout
 		conn, err := dialer.DialDualStackTimeout(addr, timeout)
 		if err != nil {
-			if handleErr := GB403ErrorHandler.GetErrorHandler().HandleError(err, GB403ErrorHandler.ErrorContext{
+			// If it's a whitelisted error, HandleError returns nil
+			if handledErr := GB403ErrorHandler.GetErrorHandler().HandleError(err, GB403ErrorHandler.ErrorContext{
 				ErrorSource: "Client.directDial",
 				Host:        addr,
-			}); handleErr != nil {
-				return nil, fmt.Errorf("direct dial error handling failed: %v (original error: %v)", handleErr, err)
+			}); handledErr == nil {
+				// This was a whitelisted error, we can ignore it
+				return nil, nil
 			}
+			// Not whitelisted, return just the original error
 			return nil, err
 		}
 		return conn, nil
