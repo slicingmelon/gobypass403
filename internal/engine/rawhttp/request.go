@@ -233,7 +233,7 @@ func BuildRawHTTPRequest(httpclient *HTTPClient, req *fasthttp.Request, bypassPa
 
 	// Parse back into fasthttp.Request
 	br := rawRequestBuffReaderPool.Get().(*bufio.Reader)
-	br.Reset(bytes.NewReader([]byte(sb.String())))
+	br.Reset(bytes.NewReader(bytesutil.ToUnsafeBytes(sb.String())))
 	defer rawRequestBuffReaderPool.Put(br)
 
 	if err := req.ReadLimitBody(br, 0); err != nil {
