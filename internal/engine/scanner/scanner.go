@@ -111,6 +111,9 @@ func (s *Scanner) scanURL(url string) error {
 
 // Close the scanner instance
 func (s *Scanner) Close() {
-	// Close error handler
-	//
+	// Reset error handler instance (this will also close ristretto caches)
+	GB403ErrorHandler.ResetInstance()
+
+	// Cleanup sqlite db (findings db)
+	CleanupFindingsDB()
 }

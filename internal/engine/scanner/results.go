@@ -11,6 +11,7 @@ import (
 
 	"database/sql"
 
+	"github.com/VictoriaMetrics/VictoriaMetrics/lib/bytesutil"
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/pterm/pterm"
 	GB403Logger "github.com/slicingmelon/go-bypass-403/internal/utils/logger"
@@ -25,17 +26,19 @@ var (
 	db            *sql.DB
 	dbInitOnce    sync.Once
 	resultsDBFile atomic.Value
+	stmtPool      chan *sql.Stmt
 )
 
 func InitDB(dbPath string) error {
 	var initErr error
 	dbInitOnce.Do(func() {
-		db, initErr = sql.Open("sqlite3", dbPath+"?_journal_mode=WAL&_sync=NORMAL&_busy_timeout=5000")
+		// Enhanced connection string with shared cache and WAL
+		db, initErr = sql.Open("sqlite3", dbPath+"?_journal_mode=WAL&_sync=NORMAL&_busy_timeout=5000&cache=shared&mode=rwc")
 		if initErr != nil {
 			return
 		}
 
-		// Create tables and indexes
+		// Create tables and indexes first
 		_, initErr = db.Exec(`
             CREATE TABLE IF NOT EXISTS scan_results (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -60,6 +63,30 @@ func InitDB(dbPath string) error {
             CREATE INDEX IF NOT EXISTS idx_bypass_module ON scan_results(bypass_module);
             CREATE INDEX IF NOT EXISTS idx_status_code ON scan_results(status_code);
         `)
+		if initErr != nil {
+			return
+		}
+
+		// Initialize statement pool
+		const maxConns = 20 // Adjust based on your workerpool size
+		stmtPool = make(chan *sql.Stmt, maxConns)
+
+		// Pre-prepare statements for the pool
+		for i := 0; i < maxConns; i++ {
+			stmt, err := db.Prepare(`
+                INSERT INTO scan_results (
+                    target_url, bypass_module, curl_cmd, response_headers,
+                    response_body_preview, status_code, content_type, content_length,
+                    response_body_bytes, title, server_info, redirect_url,
+                    response_time, debug_token
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            `)
+			if err != nil {
+				initErr = fmt.Errorf("failed to prepare statement: %v", err)
+				return
+			}
+			stmtPool <- stmt
+		}
 	})
 	return initErr
 }
@@ -133,7 +160,7 @@ func getTableRows(results []*Result) [][]string {
 		rows[i] = []string{
 			string(result.BypassModule),
 			string(result.CurlCMD),
-			strconv.Itoa(result.StatusCode),
+			bytesutil.Itoa(result.StatusCode),
 			formatBytes(int64(result.ResponseBodyBytes)),
 			formatContentType(string(result.ContentType)),
 			formatValue(string(result.Title)),
@@ -247,30 +274,25 @@ func AppendResultsToDB(results []*Result) error {
 		return nil
 	}
 
-	fileLock.Lock()
-	defer fileLock.Unlock()
+	// Get prepared statement from pool
+	stmt := <-stmtPool
+	defer func() {
+		stmtPool <- stmt // Return statement to pool
+	}()
 
+	// Start transaction
 	tx, err := db.Begin()
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %v", err)
 	}
 	defer tx.Rollback()
 
-	stmt, err := tx.Prepare(`
-        INSERT INTO scan_results (
-            target_url, bypass_module, curl_cmd, response_headers,
-            response_body_preview, status_code, content_type, content_length,
-            response_body_bytes, title, server_info, redirect_url,
-            response_time, debug_token
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `)
-	if err != nil {
-		return fmt.Errorf("failed to prepare statement: %v", err)
-	}
-	defer stmt.Close()
+	// Use the prepared statement from pool
+	txStmt := tx.Stmt(stmt)
+	defer txStmt.Close()
 
 	for _, result := range results {
-		_, err := stmt.Exec(
+		_, err := txStmt.Exec(
 			result.TargetURL,
 			result.BypassModule,
 			result.CurlCMD,
@@ -292,6 +314,17 @@ func AppendResultsToDB(results []*Result) error {
 	}
 
 	return tx.Commit()
+}
+
+func CleanupFindingsDB() {
+	if db != nil {
+		// Drain and close all prepared statements in the pool
+		close(stmtPool)
+		for stmt := range stmtPool {
+			stmt.Close()
+		}
+		db.Close()
+	}
 }
 
 // Helper functions

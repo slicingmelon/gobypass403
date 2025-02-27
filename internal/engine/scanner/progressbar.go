@@ -3,11 +3,11 @@ package scanner
 import (
 	"fmt"
 	"os"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/VictoriaMetrics/VictoriaMetrics/lib/bytesutil"
 	"github.com/pterm/pterm"
 )
 
@@ -185,13 +185,13 @@ func (pb *ProgressBar) UpdateSpinnerText(
 		titleBuf.Grow(len(pb.bypassModule) + 100) // approximate size for stats
 		titleBuf.WriteString(pterm.LightCyan(pb.bypassModule))
 		titleBuf.WriteString(" | Workers [")
-		titleBuf.WriteString(strconv.FormatInt(activeWorkers, 10))
+		titleBuf.WriteString(bytesutil.Itoa(int(activeWorkers)))
 		titleBuf.WriteString("/")
-		titleBuf.WriteString(strconv.Itoa(pb.totalWorkers))
+		titleBuf.WriteString(bytesutil.Itoa(pb.totalWorkers))
 		titleBuf.WriteString("] | Rate [")
-		titleBuf.WriteString(strconv.FormatUint(currentRate, 10))
+		titleBuf.WriteString(bytesutil.Itoa(int(currentRate)))
 		titleBuf.WriteString(" req/s] Avg [")
-		titleBuf.WriteString(strconv.FormatUint(avgRate, 10))
+		titleBuf.WriteString(bytesutil.Itoa(int(avgRate)))
 		titleBuf.WriteString(" req/s]")
 
 		pb.progressbar.UpdateTitle(titleBuf.String())
@@ -219,13 +219,13 @@ func (pb *ProgressBar) SpinnerSuccess(
 		var titleBuf strings.Builder
 		titleBuf.WriteString(pterm.LightCyan(pb.bypassModule))
 		titleBuf.WriteString(" | Workers [")
-		titleBuf.WriteString(strconv.Itoa(pb.totalWorkers)) // Show total workers instead of active
+		titleBuf.WriteString(bytesutil.Itoa(pb.totalWorkers)) // Show total workers instead of active
 		titleBuf.WriteString("/")
-		titleBuf.WriteString(strconv.Itoa(pb.totalWorkers))
+		titleBuf.WriteString(bytesutil.Itoa(pb.totalWorkers))
 		titleBuf.WriteString("] | Rate [")
-		titleBuf.WriteString(strconv.FormatUint(avgRate, 10))
+		titleBuf.WriteString(bytesutil.Itoa(int(avgRate)))
 		titleBuf.WriteString(" req/s] Peak [") // Add peak rate
-		titleBuf.WriteString(strconv.FormatUint(peakRate, 10))
+		titleBuf.WriteString(bytesutil.Itoa(int(peakRate)))
 		titleBuf.WriteString(" req/s]")
 
 		pb.progressbar.UpdateTitle(titleBuf.String())
@@ -259,7 +259,7 @@ func (pb *ProgressBar) Start() {
 	titleBuf.Grow(len(pb.bypassModule) + 50) // approximate size for stats
 	titleBuf.WriteString(pterm.LightCyan(pb.bypassModule))
 	titleBuf.WriteString(" | Workers [0/")
-	titleBuf.WriteString(strconv.Itoa(pb.totalWorkers))
+	titleBuf.WriteString(bytesutil.Itoa(pb.totalWorkers))
 	titleBuf.WriteString("] | Rate [0 req/s] Avg [0 req/s]")
 	progressTitle := titleBuf.String()
 

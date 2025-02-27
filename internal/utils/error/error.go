@@ -191,7 +191,12 @@ func GetErrorHandler() *ErrorHandler {
 }
 
 func ResetInstance() {
-	instance = nil
+	if instance != nil {
+		// Close ristretto caches before nullifying the instance
+		instance.cache.Close()
+		instance.hostsIndex.Close()
+		instance = nil
+	}
 	once = sync.Once{}
 }
 
