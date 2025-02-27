@@ -20,7 +20,6 @@ import (
 // to optimize
 // https://turriate.com/articles/making-sqlite-faster-in-go
 
-// Make fileLock package level
 var (
 	fileLock      sync.RWMutex
 	db            *sql.DB
@@ -29,7 +28,7 @@ var (
 	stmtPool      chan *sql.Stmt
 )
 
-func InitDB(dbPath string) error {
+func InitDB(dbPath string, workers int) error {
 	var initErr error
 	dbInitOnce.Do(func() {
 		// Enhanced connection string with shared cache and WAL
@@ -68,7 +67,7 @@ func InitDB(dbPath string) error {
 		}
 
 		// Initialize statement pool
-		const maxConns = 20 // Adjust based on your workerpool size
+		maxConns := workers + (workers / 10)
 		stmtPool = make(chan *sql.Stmt, maxConns)
 
 		// Pre-prepare statements for the pool
@@ -92,28 +91,20 @@ func InitDB(dbPath string) error {
 }
 
 type Result struct {
-	TargetURL           string `json:"target_url"`
-	BypassModule        string `json:"bypass_module"`
-	CurlCMD             string `json:"curl_cmd"`
-	ResponseHeaders     string `json:"response_headers"`
-	ResponseBodyPreview string `json:"response_body_preview"`
-	StatusCode          int    `json:"status_code"`
-	ContentType         string `json:"content_type"`
-	ContentLength       int64  `json:"content_length"`
-	ResponseBodyBytes   int    `json:"response_body_bytes"`
-	Title               string `json:"title"`
-	ServerInfo          string `json:"server_info"`
-	RedirectURL         string `json:"redirect_url"`
-	ResponseTime        int64  `json:"response_time"`
-	DebugToken          string `json:"debug_token"`
-}
-
-// ScanResult represents results for a single URL scan
-type ScanResult struct {
-	URL         string    `json:"url"`
-	BypassModes string    `json:"bypass_modes"`
-	ResultsPath string    `json:"results_path"`
-	Results     []*Result `json:"results"`
+	TargetURL           string
+	BypassModule        string
+	CurlCMD             string
+	ResponseHeaders     string
+	ResponseBodyPreview string
+	StatusCode          int
+	ContentType         string
+	ContentLength       int64
+	ResponseBodyBytes   int
+	Title               string
+	ServerInfo          string
+	RedirectURL         string
+	ResponseTime        int64
+	DebugToken          string
 }
 
 // getTableHeader returns the header row for the results table

@@ -37,7 +37,7 @@ func (r *Runner) Initialize() error {
 	}
 
 	// Initialize database to save results
-	if err := scanner.InitDB(r.RunnerOptions.ResultsDBFile); err != nil {
+	if err := scanner.InitDB(r.RunnerOptions.ResultsDBFile, r.RunnerOptions.Threads); err != nil {
 		GB403Logger.Error().Msgf("Failed to initialize database: %v", err)
 	}
 
