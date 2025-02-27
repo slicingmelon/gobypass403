@@ -101,9 +101,12 @@ func NewHTTPClient(opts *HTTPClientOptions) *HTTPClient {
 		opts.Dialer = dialer.CreateHTTPClientDialer(opts.DialTimeout, opts.ProxyURL)
 	}
 
-	retryConfig := DefaultRetryConfig()
-	retryConfig.MaxRetries = opts.MaxRetries
-	retryConfig.RetryDelay = opts.RetryDelay
+	var retryConfig *RetryConfig
+	if opts.MaxRetries > 0 {
+		retryConfig = DefaultRetryConfig()
+		retryConfig.MaxRetries = opts.MaxRetries
+		retryConfig.RetryDelay = opts.RetryDelay
+	}
 
 	var throttler *Throttler
 	if opts.AutoThrottle {

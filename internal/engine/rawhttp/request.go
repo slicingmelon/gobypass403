@@ -253,7 +253,7 @@ func BuildRawHTTPRequest(httpclient *HTTPClient, req *fasthttp.Request, bypassPa
 	return nil
 }
 
-func ProcessHTTPResponse(httpclient *HTTPClient, resp *fasthttp.Response, bypassPayload payload.BypassPayload) *RawHTTPResponseDetails {
+func ProcessHTTPResponseOld(httpclient *HTTPClient, resp *fasthttp.Response, bypassPayload payload.BypassPayload) *RawHTTPResponseDetails {
 	// Acquire a single result
 	result := AcquireResponseDetails()
 
@@ -302,6 +302,75 @@ func ProcessHTTPResponse(httpclient *HTTPClient, resp *fasthttp.Response, bypass
 				}
 				result.ResponseBytes = len(body)
 			}
+		}
+	}
+
+	// 5. Extract title if HTML
+	if len(result.ResponsePreview) > 0 && bytes.Contains(result.ContentType, strHTML) {
+		result.Title = ExtractTitle(result.ResponsePreview, result.Title)
+	}
+
+	// 6. Build curl command
+	result.CurlCommand = BuildCurlCommandPoc(bypassPayload, result.CurlCommand)
+
+	return result
+}
+
+type LimitedWriter struct {
+	W io.Writer // Underlying writer
+	N int64     // Max bytes remaining
+}
+
+func (l *LimitedWriter) Write(p []byte) (n int, err error) {
+	if l.N <= 0 {
+		return 0, io.EOF
+	}
+	if int64(len(p)) > l.N {
+		p = p[0:l.N]
+	}
+	n, err = l.W.Write(p)
+	l.N -= int64(n)
+	return
+}
+
+func ProcessHTTPResponse(httpclient *HTTPClient, resp *fasthttp.Response, bypassPayload payload.BypassPayload) *RawHTTPResponseDetails {
+	// Acquire a single result
+	result := AcquireResponseDetails()
+
+	// 1. Basic response info
+	result.StatusCode = resp.StatusCode()
+	result.ContentLength = int64(resp.Header.ContentLength())
+	result.URL = append(result.URL, bypassPayload.OriginalURL...)
+	result.BypassModule = append(result.BypassModule, bypassPayload.BypassModule...)
+	result.DebugToken = append(result.DebugToken, bypassPayload.PayloadToken...)
+
+	// 2. Headers
+	result.ResponseHeaders = GetResponseHeaders(&resp.Header, result.StatusCode, result.ResponseHeaders)
+	result.ContentType = append(result.ContentType, resp.Header.ContentType()...)
+	result.ServerInfo = append(result.ServerInfo, resp.Header.Server()...)
+
+	// 3. Handle redirects
+	if fasthttp.StatusCodeIsRedirect(result.StatusCode) {
+		if location := PeekResponseHeaderKeyCaseInsensitive(resp, strLocationHeader); len(location) > 0 {
+			result.RedirectURL = append(result.RedirectURL, location...)
+		}
+	}
+
+	// 4. Body preview
+	httpClientOpts := httpclient.GetHTTPClientOptions()
+	if httpClientOpts.MaxResponseBodySize > 0 && httpClientOpts.ResponseBodyPreviewSize > 0 {
+		previewSize := httpClientOpts.ResponseBodyPreviewSize
+
+		buf := &bytes.Buffer{}
+		limitedWriter := &LimitedWriter{W: buf, N: int64(previewSize)}
+
+		if err := resp.BodyWriteTo(limitedWriter); err != nil && err != io.EOF {
+			GB403Logger.Debug().Msgf("Error reading body: %v", err)
+		}
+
+		if buf.Len() > 0 {
+			result.ResponsePreview = append(result.ResponsePreview, buf.Bytes()...)
+			result.ResponseBytes = buf.Len()
 		}
 	}
 

@@ -238,6 +238,8 @@ func CreateHTTPClientDialer(timeout time.Duration, proxyURL string) fasthttp.Dia
 	dialer := GetHTTPClientSharedDialer()
 
 	return func(addr string) (net.Conn, error) {
+		//GB403Logger.Debug().Msgf("[CreateHTTPClientDialer] Attempting to dial address: %s\n", addr)
+
 		// Handle proxy if configured
 		if proxyURL != "" {
 			proxyDialer := fasthttpproxy.FasthttpHTTPDialerTimeout(proxyURL, timeout)
