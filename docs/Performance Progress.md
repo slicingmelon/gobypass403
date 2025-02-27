@@ -2,6 +2,14 @@
 
 This document will track the performance progress of the project, based on the pprof data.
 
+
+# 27 Feburary 2025
+
+## strings builder vs bytes buffer
+
+https://brandur.org/fragments/bytes-buffer-vs-strings-builder
+https://golangnote.com/golang/golang-stringsbuilder-vs-bytesbuffer
+
 # 25 February 2025
 
 ## Error Handler

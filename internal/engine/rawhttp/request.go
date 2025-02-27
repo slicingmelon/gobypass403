@@ -6,6 +6,7 @@ import (
 	"io"
 	"runtime"
 	"slices"
+	"strings"
 	"sync"
 	"unsafe"
 
@@ -27,6 +28,8 @@ func init() {
 
 var (
 	curlCmd []byte
+
+	strUserAgentHeader = "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
 
 	// Pool for byte buffers
 	curlCmdBuffPool bytesutil.ByteBufferPool
@@ -123,9 +126,9 @@ func (r *RawHTTPResponseDetails) CopyTo(dst *RawHTTPResponseDetails) {
 }
 
 var (
-	rawRequestBuffPool = sync.Pool{
+	rawRequestBuilderPool = sync.Pool{
 		New: func() any {
-			return bytes.NewBuffer(make([]byte, 0, 4096))
+			return &strings.Builder{}
 		},
 	}
 	rawRequestBuffReaderPool = sync.Pool{
@@ -135,15 +138,15 @@ var (
 	}
 )
 
-// AcquireRawRequest gets a buffer from the pool
-func AcquireRawRequest() *bytes.Buffer {
-	return rawRequestBuffPool.Get().(*bytes.Buffer)
+// AcquireRawRequest gets a builder from the pool
+func AcquireRawRequest() *strings.Builder {
+	return rawRequestBuilderPool.Get().(*strings.Builder)
 }
 
-// ReleaseRawRequest returns a buffer to the pool
-func ReleaseRawRequest(buf *bytes.Buffer) {
-	buf.Reset()
-	rawRequestBuffPool.Put(buf)
+// ReleaseRawRequest returns a builder to the pool
+func ReleaseRawRequest(sb *strings.Builder) {
+	sb.Reset()
+	rawRequestBuilderPool.Put(sb)
 }
 
 /*
@@ -177,16 +180,15 @@ func BuildRawHTTPRequest(httpclient *HTTPClient, req *fasthttp.Request, bypassPa
 		httpclient.GetHTTPClientOptions().DisableKeepAlive ||
 		httpclient.GetHTTPClientOptions().ProxyURL != ""
 
-	// Get raw request buffer from pool
-	buf := AcquireRawRequest()
-	defer ReleaseRawRequest(buf)
+	// Get raw request builder from pool
+	sb := AcquireRawRequest()
+	defer ReleaseRawRequest(sb)
 
 	// Build request line
-	buf.WriteString(bypassPayload.Method)
-	buf.WriteString(" ")
-	buf.WriteString(bypassPayload.RawURI)
-	buf.WriteString(" HTTP/1.1") // Add HTTP version
-	buf.WriteString("\r\n")      // Important newline after request line
+	sb.WriteString(bypassPayload.Method)
+	sb.WriteString(" ")
+	sb.WriteString(bypassPayload.RawURI)
+	sb.WriteString(" HTTP/1.1\r\n")
 
 	hasHostHeader := false
 	for _, h := range bypassPayload.Headers {
@@ -194,51 +196,47 @@ func BuildRawHTTPRequest(httpclient *HTTPClient, req *fasthttp.Request, bypassPa
 			hasHostHeader = true
 			shouldCloseConn = true
 		}
-		buf.WriteString(h.Header)
-		buf.WriteString(": ")
-		buf.WriteString(h.Value)
-		buf.WriteString("\r\n")
+		sb.WriteString(h.Header)
+		sb.WriteString(": ")
+		sb.WriteString(h.Value)
+		sb.WriteString("\r\n")
 	}
 
-	// Add Host header if not present in job.Headers
+	// Add Host header if not present
 	if !hasHostHeader {
-		buf.WriteString("Host: ")
-		buf.WriteString(bypassPayload.Host)
-		buf.WriteString("\r\n")
+		sb.WriteString("Host: ")
+		sb.WriteString(bypassPayload.Host)
+		sb.WriteString("\r\n")
 	}
 
-	buf.WriteString("User-Agent: ") // Note the space after colon
-	buf.Write(CustomUserAgent)
-	buf.WriteString("\r\n")
+	sb.WriteString(strUserAgentHeader)
+	sb.WriteString("\r\n")
 
-	buf.WriteString("Accept: */*")
-	buf.WriteString("\r\n")
+	sb.WriteString("Accept: */*\r\n")
 
 	// Debug token
 	if GB403Logger.IsDebugEnabled() {
-		buf.WriteString("X-GB403-Token: ")
-		buf.WriteString(bypassPayload.PayloadToken)
-		buf.WriteString("\r\n")
+		sb.WriteString("X-GB403-Token: ")
+		sb.WriteString(bypassPayload.PayloadToken)
+		sb.WriteString("\r\n")
 	}
 
 	// Connection handling
 	if shouldCloseConn {
-		buf.WriteString("Connection: close\r\n") // Remove extra \r\n
+		sb.WriteString("Connection: close\r\n")
 	} else {
-		buf.WriteString("Connection: keep-alive\r\n") // Remove extra \r\n
+		sb.WriteString("Connection: keep-alive\r\n")
 	}
 
 	// End of headers
-	buf.WriteString("\r\n")
+	sb.WriteString("\r\n")
 
 	// Parse back into fasthttp.Request
 	br := rawRequestBuffReaderPool.Get().(*bufio.Reader)
-	br.Reset(bytes.NewReader(buf.Bytes()))
+	br.Reset(bytes.NewReader([]byte(sb.String())))
 	defer rawRequestBuffReaderPool.Put(br)
 
 	if err := req.ReadLimitBody(br, 0); err != nil {
-		GB403Logger.Debug().Msgf("Raw request being parsed:\n%s", buf.String())
-		GB403Logger.Error().Msgf("Failed to parse raw request: %v\n", err)
 		return err
 	}
 
