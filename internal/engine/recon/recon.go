@@ -329,12 +329,12 @@ func (r *ReconService) ResolveDomain(host string) ([]net.IP, error) {
 	// This will try system resolver, DoH, and multiple DNS servers concurrently
 	ipAddrs, err := r.dialer.Resolver.LookupIPAddr(ctx, host)
 	if err != nil {
-		GB403Logger.Error().Msgf("Failed to resolve domain %s: %v", host, err)
+		GB403Logger.Debug().Msgf("Failed to resolve domain %s: %v", host, err)
 		return nil, fmt.Errorf("DNS resolution failed for %s: %v", host, err)
 	}
 
 	if len(ipAddrs) == 0 {
-		GB403Logger.Error().Msgf("No IP addresses found for domain %s", host)
+		GB403Logger.Debug().Msgf("No IP addresses found for domain %s", host)
 		return nil, fmt.Errorf("no IP addresses found for domain %s", host)
 	}
 
@@ -345,14 +345,6 @@ func (r *ReconService) ResolveDomain(host string) ([]net.IP, error) {
 	}
 
 	return ips, nil
-}
-
-func convertIPAddrs(ipAddrs []net.IPAddr) []net.IP {
-	ips := make([]net.IP, len(ipAddrs))
-	for i, addr := range ipAddrs {
-		ips[i] = addr.IP
-	}
-	return ips
 }
 
 func extractHostAndPort(input string) (host string, port string, err error) {

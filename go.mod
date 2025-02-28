@@ -1,17 +1,15 @@
 module github.com/slicingmelon/go-bypass-403
 
-go 1.23.5
-
-toolchain go1.23.6
+go 1.23.6
 
 require (
-	github.com/VictoriaMetrics/VictoriaMetrics v1.111.0
+	github.com/VictoriaMetrics/VictoriaMetrics v1.112.0
 	github.com/VictoriaMetrics/fastcache v1.12.2
-	github.com/alitto/pond/v2 v2.1.6
+	github.com/alitto/pond/v2 v2.2.0
 	github.com/andybalholm/brotli v1.1.1
 	github.com/dgraph-io/ristretto/v2 v2.1.0
 	github.com/golang/snappy v0.0.4
-	github.com/klauspost/compress v1.17.11
+	github.com/klauspost/compress v1.18.0
 	github.com/likexian/doh v0.7.1
 	github.com/mattn/go-sqlite3 v1.14.24
 	github.com/phuslu/fastdns v0.12.1
@@ -22,7 +20,7 @@ require (
 	github.com/stretchr/testify v1.10.0
 	github.com/valyala/fasthttp v1.59.0
 	github.com/vmihailenco/msgpack/v5 v5.4.1
-	golang.org/x/exp v0.0.0-20250106191152-7588d65b2ba8
+	golang.org/x/exp v0.0.0-20250218142911-aa4b98e5adaa
 	golang.org/x/text v0.22.0
 )
 
@@ -30,8 +28,8 @@ require (
 	atomicgo.dev/cursor v0.2.0 // indirect
 	atomicgo.dev/keyboard v0.2.9 // indirect
 	atomicgo.dev/schedule v0.1.0 // indirect
-	github.com/VictoriaMetrics/metrics v1.35.1 // indirect
-	github.com/VictoriaMetrics/metricsql v0.83.0 // indirect
+	github.com/VictoriaMetrics/metrics v1.35.2 // indirect
+	github.com/VictoriaMetrics/metricsql v0.83.1 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/cloudflare/circl v1.3.7 // indirect
 	github.com/containerd/console v1.0.3 // indirect

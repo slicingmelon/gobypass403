@@ -124,7 +124,8 @@ func (p *URLRecon) processWithSubstituteHosts(targetURL string) ([]string, error
 		return nil, fmt.Errorf("failed to read substitute hosts file: %v", err)
 	}
 
-	var validHosts []string
+	// Collect all hosts first
+	var hosts []string
 	for _, host := range strings.Split(string(data), "\n") {
 		if host = strings.TrimSpace(host); host != "" {
 			cleanHost := host
@@ -136,22 +137,37 @@ func (p *URLRecon) processWithSubstituteHosts(targetURL string) ([]string, error
 				}
 				cleanHost = parsed.Host
 			}
+			hosts = append(hosts, cleanHost)
+		}
+	}
 
-			// Only add hosts that pass recon
-			if err := p.reconService.Run([]string{cleanHost}); err == nil {
-				validHosts = append(validHosts, cleanHost)
-			} else {
-				GB403Logger.Error().Msgf("Failed recon for host %s: %v - skipping", cleanHost, err)
-				continue // Skip this host entirely
-			}
+	if len(hosts) == 0 {
+		return nil, fmt.Errorf("no valid hosts found in substitute hosts file")
+	}
+
+	// Process all hosts in a single Run call to utilize parallelism
+	GB403Logger.Info().Msgf("Processing %d substitute hosts in parallel", len(hosts))
+	if err := p.reconService.Run(hosts); err != nil {
+		GB403Logger.Error().Msgf("Some errors occurred during host recon: %v", err)
+		// Continue anyway, we'll filter valid hosts below
+	}
+
+	// Now check which hosts passed recon
+	var validHosts []string
+	for _, host := range hosts {
+		result, err := p.reconService.GetReconCache().Get(host)
+		if err == nil && result != nil && (len(result.IPv4Services) > 0 || len(result.IPv6Services) > 0) {
+			validHosts = append(validHosts, host)
+		} else {
+			GB403Logger.Verbose().Msgf("Host %s failed recon or has no services - skipping", host)
 		}
 	}
 
 	if len(validHosts) == 0 {
-		return nil, fmt.Errorf("no valid hosts found in substitute hosts file")
+		return nil, fmt.Errorf("no hosts passed recon checks")
 	}
 
-	// Now we only process validated hosts
+	// The rest of your code remains the same
 	var urls []string
 	parsedURL, err := rawurlparser.RawURLParse(targetURL)
 	if err != nil {
