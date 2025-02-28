@@ -6,7 +6,6 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"database/sql"
@@ -21,11 +20,9 @@ import (
 // https://turriate.com/articles/making-sqlite-faster-in-go
 
 var (
-	fileLock      sync.RWMutex
-	db            *sql.DB
-	dbInitOnce    sync.Once
-	resultsDBFile atomic.Value
-	stmtPool      chan *sql.Stmt
+	db         *sql.DB
+	dbInitOnce sync.Once
+	stmtPool   chan *sql.Stmt
 )
 
 func InitDB(dbPath string, workers int) error {

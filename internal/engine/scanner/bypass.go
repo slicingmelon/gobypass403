@@ -1,7 +1,6 @@
 package scanner
 
 import (
-	"bytes"
 	"fmt"
 	"slices"
 	"strings"
@@ -189,9 +188,9 @@ func (s *Scanner) RunAllBypasses(targetURL string) chan *Result {
 	return results
 }
 
-var resultsBufferPool = sync.Pool{
+var resultPool = sync.Pool{
 	New: func() any {
-		return new(bytes.Buffer)
+		return new(Result)
 	},
 }
 
@@ -244,8 +243,6 @@ func (s *Scanner) RunBypassModule(bypassModule string, targetURL string, results
 		}
 
 		if matchStatusCodes(response.StatusCode, s.scannerOpts.MatchStatusCodes) {
-			buf := resultsBufferPool.Get().(*bytes.Buffer)
-			buf.Reset()
 
 			// Create Result struct from response
 			result := &Result{
@@ -271,7 +268,6 @@ func (s *Scanner) RunBypassModule(bypassModule string, targetURL string, results
 			}
 
 			results <- result
-			resultsBufferPool.Put(buf)
 		}
 		// Release the RawHTTPResponseDetails back to its pool
 		rawhttp.ReleaseResponseDetails(response)
