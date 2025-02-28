@@ -180,7 +180,10 @@ func TestRequestWorkerPoolRaces(t *testing.T) {
 		wg.Add(1)
 		go func(j payload.BypassPayload) {
 			defer wg.Done()
-			result := pool.ProcessRequestResponseJob(j)
+			result, err := pool.ProcessRequestResponseJob(j)
+			if err != nil {
+				return
+			}
 			if result != nil {
 				results <- result
 			}
@@ -242,7 +245,10 @@ func TestMidPathsWorkerPool(t *testing.T) {
 		wg.Add(1)
 		go func(j payload.BypassPayload) {
 			defer wg.Done()
-			result := pool.ProcessRequestResponseJob(j)
+			result, err := pool.ProcessRequestResponseJob(j)
+			if err != nil {
+				return
+			}
 			if result != nil {
 				results <- result
 			}
@@ -302,7 +308,10 @@ func TestEndPathsWorkerPool(t *testing.T) {
 		wg.Add(1)
 		go func(j payload.BypassPayload) {
 			defer wg.Done()
-			result := pool.ProcessRequestResponseJob(j)
+			result, err := pool.ProcessRequestResponseJob(j)
+			if err != nil {
+				return
+			}
 			if result != nil {
 				results <- result
 			}

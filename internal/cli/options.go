@@ -37,9 +37,10 @@ type CliOptions struct {
 	ResponseBodyPreviewSize  int // in bytes, we don't need too much, Response Headers and a small body preview is enough
 
 	// Output options
-	OutDir  string
-	Verbose bool
-	Debug   bool
+	OutDir        string
+	ResultsDBFile string
+	Verbose       bool
+	Debug         bool
 
 	// Network options
 	Proxy           string
@@ -147,6 +148,10 @@ func (o *CliOptions) setDefaults() {
 	// Output directory default
 	if o.OutDir == "" {
 		o.OutDir = filepath.Join(os.TempDir(), fmt.Sprintf("go-bypass-403-%x", time.Now().UnixNano()))
+	}
+
+	if o.ResultsDBFile == "" {
+		o.ResultsDBFile = filepath.Join(o.OutDir, "results.db")
 	}
 
 	// Max response body size default
@@ -320,7 +325,7 @@ func (o *CliOptions) validateModule() error {
 	return nil
 }
 
-// setupOutputDir creates the output directory and initializes findings.json
+// setupOutputDir creates the output directory
 func (o *CliOptions) setupOutputDir() error {
 	if err := os.MkdirAll(o.OutDir, 0755); err != nil {
 		return fmt.Errorf("failed to create output directory: %v", err)

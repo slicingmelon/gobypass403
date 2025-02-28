@@ -6,6 +6,7 @@ import (
 	"io"
 	"runtime"
 	"slices"
+	"strings"
 	"sync"
 	"unsafe"
 
@@ -28,9 +29,12 @@ func init() {
 var (
 	curlCmd []byte
 
+	strUserAgentHeader = "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+
 	// Pool for byte buffers
-	curlCmdBuffPool bytesutil.ByteBufferPool
-	headerBufPool   bytesutil.ByteBufferPool
+	curlCmdBuffPool    bytesutil.ByteBufferPool
+	headerBufPool      bytesutil.ByteBufferPool
+	respPreviewBufPool bytesutil.ByteBufferPool
 
 	// Pre-computed byte slices for static strings
 	curlFlags         = []byte("-skgi --path-as-is")
@@ -50,7 +54,7 @@ var (
 	strSchemeDelim    = []byte("://")
 	strUserAgent      = []byte("User-Agent")
 
-	strErrorReadingPreview = []byte("Error reading reponse preview")
+	strErrorReadingPreview = []byte("Error reading response preview")
 )
 
 var responseDetailsPool = sync.Pool{
@@ -123,11 +127,14 @@ func (r *RawHTTPResponseDetails) CopyTo(dst *RawHTTPResponseDetails) {
 }
 
 var (
-	rawRequestBuffPool = sync.Pool{
+	rawRequestBuilderPool = sync.Pool{
 		New: func() any {
-			return bytes.NewBuffer(make([]byte, 0, 4096))
+			return &strings.Builder{}
 		},
 	}
+
+	rawRequestBytesPool bytesutil.ByteBufferPool
+
 	rawRequestBuffReaderPool = sync.Pool{
 		New: func() any {
 			return bufio.NewReader(nil)
@@ -135,15 +142,15 @@ var (
 	}
 )
 
-// AcquireRawRequest gets a buffer from the pool
-func AcquireRawRequest() *bytes.Buffer {
-	return rawRequestBuffPool.Get().(*bytes.Buffer)
+// AcquireRawRequest gets a builder from the pool
+func AcquireRawRequest() *strings.Builder {
+	return rawRequestBuilderPool.Get().(*strings.Builder)
 }
 
-// ReleaseRawRequest returns a buffer to the pool
-func ReleaseRawRequest(buf *bytes.Buffer) {
-	buf.Reset()
-	rawRequestBuffPool.Put(buf)
+// ReleaseRawRequest returns a builder to the pool
+func ReleaseRawRequest(sb *strings.Builder) {
+	sb.Reset()
+	rawRequestBuilderPool.Put(sb)
 }
 
 /*
@@ -177,16 +184,15 @@ func BuildRawHTTPRequest(httpclient *HTTPClient, req *fasthttp.Request, bypassPa
 		httpclient.GetHTTPClientOptions().DisableKeepAlive ||
 		httpclient.GetHTTPClientOptions().ProxyURL != ""
 
-	// Get raw request buffer from pool
-	buf := AcquireRawRequest()
-	defer ReleaseRawRequest(buf)
+	// Get raw request builder from pool
+	sb := AcquireRawRequest()
+	defer ReleaseRawRequest(sb)
 
 	// Build request line
-	buf.WriteString(bypassPayload.Method)
-	buf.WriteString(" ")
-	buf.WriteString(bypassPayload.RawURI)
-	buf.WriteString(" HTTP/1.1") // Add HTTP version
-	buf.WriteString("\r\n")      // Important newline after request line
+	sb.WriteString(bypassPayload.Method)
+	sb.WriteString(" ")
+	sb.WriteString(bypassPayload.RawURI)
+	sb.WriteString(" HTTP/1.1\r\n")
 
 	hasHostHeader := false
 	for _, h := range bypassPayload.Headers {
@@ -194,50 +200,47 @@ func BuildRawHTTPRequest(httpclient *HTTPClient, req *fasthttp.Request, bypassPa
 			hasHostHeader = true
 			shouldCloseConn = true
 		}
-		buf.WriteString(h.Header)
-		buf.WriteString(": ")
-		buf.WriteString(h.Value)
-		buf.WriteString("\r\n")
+		sb.WriteString(h.Header)
+		sb.WriteString(": ")
+		sb.WriteString(h.Value)
+		sb.WriteString("\r\n")
 	}
 
-	// Add Host header if not present in job.Headers
+	// Add Host header if not present
 	if !hasHostHeader {
-		buf.WriteString("Host: ")
-		buf.WriteString(bypassPayload.Host)
-		buf.WriteString("\r\n")
+		sb.WriteString("Host: ")
+		sb.WriteString(bypassPayload.Host)
+		sb.WriteString("\r\n")
 	}
 
-	buf.WriteString("User-Agent: ") // Note the space after colon
-	buf.Write(CustomUserAgent)
-	buf.WriteString("\r\n")
+	sb.WriteString(strUserAgentHeader)
+	sb.WriteString("\r\n")
 
-	buf.WriteString("Accept: */*\r\n")
+	sb.WriteString("Accept: */*\r\n")
 
 	// Debug token
 	if GB403Logger.IsDebugEnabled() {
-		buf.WriteString("X-GB403-Token: ")
-		buf.WriteString(bypassPayload.PayloadToken)
-		buf.WriteString("\r\n")
+		sb.WriteString("X-GB403-Token: ")
+		sb.WriteString(bypassPayload.PayloadToken)
+		sb.WriteString("\r\n")
 	}
 
 	// Connection handling
 	if shouldCloseConn {
-		buf.WriteString("Connection: close\r\n")
+		sb.WriteString("Connection: close\r\n")
 	} else {
-		buf.WriteString("Connection: keep-alive\r\n")
+		sb.WriteString("Connection: keep-alive\r\n")
 	}
 
 	// End of headers
-	buf.WriteString("\r\n")
+	sb.WriteString("\r\n")
 
 	// Parse back into fasthttp.Request
 	br := rawRequestBuffReaderPool.Get().(*bufio.Reader)
-	br.Reset(bytes.NewReader(buf.Bytes()))
+	br.Reset(bytes.NewReader(bytesutil.ToUnsafeBytes(sb.String())))
 	defer rawRequestBuffReaderPool.Put(br)
 
 	if err := req.ReadLimitBody(br, 0); err != nil {
-		GB403Logger.Debug().Msgf("Raw request being parsed:\n%s", buf.String())
-		GB403Logger.Error().Msgf("Failed to parse raw request: %v\n", err)
 		return err
 	}
 
@@ -251,6 +254,96 @@ func BuildRawHTTPRequest(httpclient *HTTPClient, req *fasthttp.Request, bypassPa
 
 	return nil
 }
+
+type LimitedWriter struct {
+	W io.Writer // Underlying writer
+	N int64     // Max bytes remaining
+}
+
+func (l *LimitedWriter) Write(p []byte) (n int, err error) {
+	if l.N <= 0 {
+		return 0, io.EOF
+	}
+	if int64(len(p)) > l.N {
+		p = p[0:l.N]
+	}
+	n, err = l.W.Write(p)
+	l.N -= int64(n)
+	return
+}
+
+var (
+	limitedWriterPool = sync.Pool{
+		New: func() any {
+			return &LimitedWriter{}
+		},
+	}
+)
+
+func AcquireLimitedWriter(w io.Writer, n int64) *LimitedWriter {
+	lw := limitedWriterPool.Get().(*LimitedWriter)
+	lw.W = w
+	lw.N = n
+	return lw
+}
+
+func ReleaseLimitedWriter(lw *LimitedWriter) {
+	lw.W = nil
+	lw.N = 0
+	limitedWriterPool.Put(lw)
+}
+
+// func ProcessHTTPResponse(httpclient *HTTPClient, resp *fasthttp.Response, bypassPayload payload.BypassPayload) *RawHTTPResponseDetails {
+// 	// Acquire a single result
+// 	result := AcquireResponseDetails()
+
+// 	// 1. Basic response info
+// 	result.StatusCode = resp.StatusCode()
+// 	result.ContentLength = int64(resp.Header.ContentLength())
+// 	result.URL = append(result.URL, bypassPayload.OriginalURL...)
+// 	result.BypassModule = append(result.BypassModule, bypassPayload.BypassModule...)
+// 	result.DebugToken = append(result.DebugToken, bypassPayload.PayloadToken...)
+
+// 	// 2. Headers
+// 	result.ResponseHeaders = GetResponseHeaders(&resp.Header, result.StatusCode, result.ResponseHeaders)
+// 	result.ContentType = append(result.ContentType, resp.Header.ContentType()...)
+// 	result.ServerInfo = append(result.ServerInfo, resp.Header.Server()...)
+
+// 	// 3. Handle redirects
+// 	if fasthttp.StatusCodeIsRedirect(result.StatusCode) {
+// 		if location := PeekResponseHeaderKeyCaseInsensitive(resp, strLocationHeader); len(location) > 0 {
+// 			result.RedirectURL = append(result.RedirectURL, location...)
+// 		}
+// 	}
+
+// 	// 4. Body preview
+// 	httpClientOpts := httpclient.GetHTTPClientOptions()
+// 	if httpClientOpts.MaxResponseBodySize > 0 && httpClientOpts.ResponseBodyPreviewSize > 0 {
+// 		previewSize := httpClientOpts.ResponseBodyPreviewSize
+
+// 		buf := &bytes.Buffer{}
+// 		limitedWriter := &LimitedWriter{W: buf, N: int64(previewSize)}
+
+// 		if err := resp.BodyWriteTo(limitedWriter); err != nil && err != io.EOF {
+// 			GB403Logger.Debug().Msgf("Error reading body: %v", err)
+// 		}
+
+// 		if buf.Len() > 0 {
+// 			result.ResponsePreview = append(result.ResponsePreview, buf.Bytes()...)
+// 			result.ResponseBytes = buf.Len()
+// 		}
+// 	}
+
+// 	// 5. Extract title if HTML
+// 	if len(result.ResponsePreview) > 0 && bytes.Contains(result.ContentType, strHTML) {
+// 		result.Title = ExtractTitle(result.ResponsePreview, result.Title)
+// 	}
+
+// 	// 6. Build curl command
+// 	result.CurlCommand = BuildCurlCommandPoc(bypassPayload, result.CurlCommand)
+
+// 	return result
+// }
 
 func ProcessHTTPResponse(httpclient *HTTPClient, resp *fasthttp.Response, bypassPayload payload.BypassPayload) *RawHTTPResponseDetails {
 	// Acquire a single result
@@ -280,22 +373,22 @@ func ProcessHTTPResponse(httpclient *HTTPClient, resp *fasthttp.Response, bypass
 	if httpClientOpts.MaxResponseBodySize > 0 && httpClientOpts.ResponseBodyPreviewSize > 0 {
 		previewSize := httpClientOpts.ResponseBodyPreviewSize
 
-		if httpClientOpts.StreamResponseBody {
-			if stream := resp.BodyStream(); stream != nil {
-				result.ResponsePreview = ReadLimitedResponseBodyStream(stream, previewSize, result.ResponsePreview)
-				resp.CloseBodyStream()
-				result.ResponseBytes = len(result.ResponsePreview)
-			}
-		} else {
-			if body := resp.Body(); len(body) > 0 {
-				if len(body) > previewSize {
-					result.ResponsePreview = append(result.ResponsePreview, body[:previewSize]...)
-				} else {
-					result.ResponsePreview = append(result.ResponsePreview, body...)
-				}
-				result.ResponseBytes = len(body)
-			}
+		buf := respPreviewBufPool.Get()
+
+		limitedWriter := AcquireLimitedWriter(buf, int64(previewSize))
+
+		if err := resp.BodyWriteTo(limitedWriter); err != nil && err != io.EOF {
+			GB403Logger.Debug().Msgf("Error reading body: %v", err)
 		}
+
+		ReleaseLimitedWriter(limitedWriter)
+
+		if len(buf.B) > 0 {
+			result.ResponsePreview = append(result.ResponsePreview, buf.B...)
+			result.ResponseBytes = len(buf.B)
+		}
+
+		respPreviewBufPool.Put(buf)
 	}
 
 	// 5. Extract title if HTML

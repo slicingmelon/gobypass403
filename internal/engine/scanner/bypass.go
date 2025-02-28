@@ -1,7 +1,6 @@
 package scanner
 
 import (
-	"bytes"
 	"fmt"
 	"slices"
 	"strings"
@@ -189,9 +188,9 @@ func (s *Scanner) RunAllBypasses(targetURL string) chan *Result {
 	return results
 }
 
-var resultsBufferPool = sync.Pool{
+var resultPool = sync.Pool{
 	New: func() any {
-		return new(bytes.Buffer)
+		return new(Result)
 	},
 }
 
@@ -219,11 +218,12 @@ func (s *Scanner) RunBypassModule(bypassModule string, targetURL string, results
 	if s.progressBarEnabled.Load() {
 		progressBar = NewProgressBar(bypassModule, targetURL, len(allJobs), s.scannerOpts.Threads)
 		progressBar.Start()
-		//progressBar.UpdateCurrentURL(targetURL)
 		defer progressBar.Stop()
 	}
 
 	responses := worker.requestPool.ProcessRequests(allJobs)
+
+	var dbWg sync.WaitGroup
 
 	// Process responses and update progress based on pool metrics
 	for response := range responses {
@@ -244,9 +244,6 @@ func (s *Scanner) RunBypassModule(bypassModule string, targetURL string, results
 		}
 
 		if matchStatusCodes(response.StatusCode, s.scannerOpts.MatchStatusCodes) {
-			buf := resultsBufferPool.Get().(*bytes.Buffer)
-			buf.Reset()
-
 			// Create Result struct from response
 			result := &Result{
 				TargetURL:           string(response.URL),
@@ -265,23 +262,37 @@ func (s *Scanner) RunBypassModule(bypassModule string, targetURL string, results
 				DebugToken:          string(response.DebugToken),
 			}
 
-			// Write to file immediately
-			if err := AppendResultsToJsonL(GetResultsFile(), []*Result{result}); err != nil {
-				GB403Logger.Error().Msgf("Failed to write result: %v\n", err)
-			}
+			// Write to DB in a separate goroutine
+			dbWg.Add(1)
+			go func(res *Result) {
+				defer dbWg.Done()
+				if err := AppendResultsToDB([]*Result{res}); err != nil {
+					GB403Logger.Error().Msgf("Failed to write result to DB: %v\n\n", err)
+				}
+			}(result)
 
+			// Send to results channel immediately
 			results <- result
-			resultsBufferPool.Put(buf)
-
-			// Release the RawHTTPResponseDetails back to its pool
-			rawhttp.ReleaseResponseDetails(response)
-		} else {
-			// Release nonetheless
-			rawhttp.ReleaseResponseDetails(response)
 		}
+
+		// Release the RawHTTPResponseDetails back to its pool
+		rawhttp.ReleaseResponseDetails(response)
 	}
 
+	// Before function returns, wait for all DB operations to complete
+	dbWg.Wait()
+
 	if progressBar != nil {
+		// Prepare and synchronize progress display before success message
+		progressBar.PrepareForCompletion(
+			worker.requestPool.GetPeakRequestRate(),
+			worker.requestPool.GetAverageRequestRate(),
+		)
+
+		// Small delay to ensure terminal updates properly
+		time.Sleep(50 * time.Millisecond)
+
+		// Now show the success spinner
 		progressBar.SpinnerSuccess(
 			worker.requestPool.GetReqWPCompletedTasks(),
 			worker.requestPool.GetReqWPSubmittedTasks(),

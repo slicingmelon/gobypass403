@@ -51,7 +51,6 @@ func initIndices() {
 }
 
 type SeedData struct {
-	OriginalURL  string // Keep for reference
 	Method       string
 	Scheme       string // Add separate scheme
 	Host         string // Add separate host

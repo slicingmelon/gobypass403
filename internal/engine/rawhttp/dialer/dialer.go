@@ -213,11 +213,6 @@ func GetSharedDialer() *fasthttp.TCPDialer {
 				"1.1.1.1:53",                // Cloudflare
 				"9.9.9.9:53",                // Quad9
 				"208.67.222.222:53",         // OpenDNS
-				"8.8.4.4:53",                // Google Secondary
-				"1.0.0.1:53",                // Cloudflare Secondary
-				"149.112.112.112:53",        // Quad9 Secondary
-				"208.67.220.220:53",         // OpenDNS Secondary
-				"[2001:4860:4860::8888]:53", // Google IPv6
 				"[2606:4700:4700::1111]:53", // Cloudflare IPv6
 				"[2620:fe::fe]:53",          // Quad9 IPv6
 			}),
@@ -243,17 +238,22 @@ func CreateHTTPClientDialer(timeout time.Duration, proxyURL string) fasthttp.Dia
 	dialer := GetHTTPClientSharedDialer()
 
 	return func(addr string) (net.Conn, error) {
+		//GB403Logger.Debug().Msgf("[CreateHTTPClientDialer] Attempting to dial address: %s\n", addr)
+
 		// Handle proxy if configured
 		if proxyURL != "" {
 			proxyDialer := fasthttpproxy.FasthttpHTTPDialerTimeout(proxyURL, timeout)
 			conn, err := proxyDialer(addr)
 			if err != nil {
-				if handleErr := GB403ErrorHandler.GetErrorHandler().HandleError(err, GB403ErrorHandler.ErrorContext{
+				// If it's a whitelisted error, HandleError returns nil
+				if handledErr := GB403ErrorHandler.GetErrorHandler().HandleError(err, GB403ErrorHandler.ErrorContext{
 					ErrorSource: "Client.proxyDial",
 					Host:        addr,
-				}); handleErr != nil {
-					return nil, fmt.Errorf("proxy dial error handling failed: %v (original error: %v)", handleErr, err)
+				}); handledErr == nil {
+					// This was a whitelisted error, we can ignore it
+					return nil, nil
 				}
+				// Not whitelisted, return just the original error
 				return nil, err
 			}
 			return conn, nil
@@ -262,12 +262,15 @@ func CreateHTTPClientDialer(timeout time.Duration, proxyURL string) fasthttp.Dia
 		// No proxy, use our TCPDialer with timeout
 		conn, err := dialer.DialDualStackTimeout(addr, timeout)
 		if err != nil {
-			if handleErr := GB403ErrorHandler.GetErrorHandler().HandleError(err, GB403ErrorHandler.ErrorContext{
+			// If it's a whitelisted error, HandleError returns nil
+			if handledErr := GB403ErrorHandler.GetErrorHandler().HandleError(err, GB403ErrorHandler.ErrorContext{
 				ErrorSource: "Client.directDial",
 				Host:        addr,
-			}); handleErr != nil {
-				return nil, fmt.Errorf("direct dial error handling failed: %v (original error: %v)", handleErr, err)
+			}); handledErr == nil {
+				// This was a whitelisted error, we can ignore it
+				return nil, nil
 			}
+			// Not whitelisted, return just the original error
 			return nil, err
 		}
 		return conn, nil

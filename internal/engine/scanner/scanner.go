@@ -2,7 +2,6 @@ package scanner
 
 import (
 	"fmt"
-	"path/filepath"
 	"sync/atomic"
 
 	"github.com/slicingmelon/go-bypass-403/internal/engine/recon"
@@ -19,6 +18,7 @@ type ScannerOpts struct {
 	Verbose                   bool
 	BypassModule              string
 	OutDir                    string
+	ResultsDBFile             string
 	RequestDelay              int
 	MaxRetries                int
 	RetryDelay                int
@@ -43,18 +43,8 @@ type Scanner struct {
 	progressBarEnabled atomic.Bool
 }
 
-func InitResultsFile(path string) {
-	resultsFile.Store(path)
-}
-
-func GetResultsFile() string {
-	return resultsFile.Load().(string)
-}
-
 // NewScanner creates a new Scanner instance
 func NewScanner(opts *ScannerOpts, urls []string) *Scanner {
-	InitResultsFile(filepath.Join(opts.OutDir, "findings.json"))
-
 	// Initialize bypass modules first
 	InitializeBypassModules()
 
@@ -62,7 +52,7 @@ func NewScanner(opts *ScannerOpts, urls []string) *Scanner {
 		scannerOpts: opts,
 		urls:        urls,
 	}
-	s.progressBarEnabled.Store(!opts.DisableProgressBar) // Set once
+	s.progressBarEnabled.Store(!opts.DisableProgressBar)
 	return s
 }
 
@@ -103,10 +93,11 @@ func (s *Scanner) scanURL(url string) error {
 	}
 
 	if resultCount > 0 {
-		resultsFile := GetResultsFile()
+		resultsFile := s.scannerOpts.ResultsDBFile
 
 		fmt.Println()
-		if err := PrintResultsTableFromJsonL(resultsFile, url, s.scannerOpts.BypassModule); err != nil {
+		// if err := PrintResultsTableFromJsonL(resultsFile, url, s.scannerOpts.BypassModule); err != nil {
+		if err := PrintResultsTableFromDB(url, s.scannerOpts.BypassModule); err != nil {
 			GB403Logger.Error().Msgf("Failed to display results: %v\n", err)
 		} else {
 			fmt.Println()
@@ -120,6 +111,9 @@ func (s *Scanner) scanURL(url string) error {
 
 // Close the scanner instance
 func (s *Scanner) Close() {
-	// Close error handler
-	//
+	// Reset error handler instance (this will also close ristretto caches)
+	GB403ErrorHandler.ResetInstance()
+
+	// Cleanup sqlite db (findings db)
+	CleanupFindingsDB()
 }

@@ -1,18 +1,17 @@
 package tests
 
 import (
-	"encoding/json"
 	"fmt"
 	"testing"
-	"time"
 
 	"github.com/slicingmelon/go-bypass-403/internal/engine/payload"
 	GB403ErrorHandler "github.com/slicingmelon/go-bypass-403/internal/utils/error"
 )
 
-func BenchmarkErrorHandler(b *testing.B) {
+func BenchmarkErrorHandlerNew(b *testing.B) {
 	handler := GB403ErrorHandler.GetErrorHandler()
 	testErr := fmt.Errorf("test error")
+	longTestErr := fmt.Errorf("this is a very long error message that exceeds the maximum length limit and should be truncated to make sure we don't store excessively long error messages in our error tracking system which could lead to memory issues if we have many errors with very long messages that repeat frequently in high-traffic scenarios with lots of bypass modules and various error sources")
 	bypassPayload := payload.BypassPayload{
 		BypassModule: "test-module",
 		PayloadToken: "test-token",
@@ -32,14 +31,23 @@ func BenchmarkErrorHandler(b *testing.B) {
 		}
 	})
 
-	// Just the error key generation
-	b.Run("generate_error_key", func(b *testing.B) {
+	// Error message stripping
+	b.Run("strip_error_message", func(b *testing.B) {
 		b.ReportAllocs()
-		host := "test.com"
-		errMsg := "test error"
 		for i := 0; i < b.N; i++ {
-			key := []byte(fmt.Sprintf("h:%s:e:%s", host, errMsg))
-			_ = key
+			stripped := handler.StripErrorMessage(longTestErr)
+			_ = stripped
+		}
+	})
+
+	// Whitelist checking
+	b.Run("whitelist_checking", func(b *testing.B) {
+		b.ReportAllocs()
+		handler.AddWhitelistedErrors("whitelisted error")
+		whitelistedErr := fmt.Errorf("whitelisted error")
+		for i := 0; i < b.N; i++ {
+			isWhitelisted := handler.IsWhitelistedErrNew(whitelistedErr)
+			_ = isWhitelisted
 		}
 	})
 
@@ -57,21 +65,6 @@ func BenchmarkErrorHandler(b *testing.B) {
 		}
 	})
 
-	// JSON marshaling/unmarshaling
-	b.Run("json_operations", func(b *testing.B) {
-		b.ReportAllocs()
-		stats := &GB403ErrorHandler.ErrorStats{}
-		stats.Count.Store(1)
-		now := time.Now()
-		stats.FirstSeen = now
-		stats.LastSeen.Store(&now)
-		for i := 0; i < b.N; i++ {
-			data, _ := json.Marshal(stats)
-			var newStats GB403ErrorHandler.ErrorStats
-			_ = json.Unmarshal(data, &newStats)
-		}
-	})
-
 	// Full error handling path with index updates
 	b.Run("full_error_handling", func(b *testing.B) {
 		b.ReportAllocs()
@@ -82,6 +75,39 @@ func BenchmarkErrorHandler(b *testing.B) {
 				Host:         "test.com",
 				BypassModule: "test-module",
 				DebugToken:   "test-token",
+			}
+			handler.HandleError(testErr, errCtx)
+		}
+	})
+
+	// HandleErrorAndContinue
+	b.Run("handle_error_and_continue", func(b *testing.B) {
+		b.ReportAllocs()
+		errCtx := GB403ErrorHandler.ErrorContext{
+			ErrorSource:  "execFunc3",
+			Host:         "different-test.com",
+			BypassModule: "test-module-2",
+			DebugToken:   "different-token",
+		}
+		for i := 0; i < b.N; i++ {
+			handler.HandleErrorAndContinue(testErr, errCtx)
+		}
+	})
+
+	// Multi-host scenario
+	b.Run("multi_host_errors", func(b *testing.B) {
+		b.ReportAllocs()
+		hosts := []string{"host1.com", "host2.com", "host3.com", "host4.com"}
+		handler.Reset() // Clear previous state
+
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			host := hosts[i%len(hosts)]
+			errCtx := GB403ErrorHandler.ErrorContext{
+				ErrorSource:  "execFunc-" + host,
+				Host:         host,
+				BypassModule: "test-module",
+				DebugToken:   "test-token-" + host,
 			}
 			handler.HandleError(testErr, errCtx)
 		}

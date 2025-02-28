@@ -31,6 +31,16 @@ func (r *Runner) Initialize() error {
 	}
 	r.RunnerOptions = opts
 
+	// Set ResultsDBFile if not already set
+	if r.RunnerOptions.ResultsDBFile == "" {
+		r.RunnerOptions.ResultsDBFile = filepath.Join(r.RunnerOptions.OutDir, "results.db")
+	}
+
+	// Initialize database to save results
+	if err := scanner.InitDB(r.RunnerOptions.ResultsDBFile, r.RunnerOptions.Threads); err != nil {
+		GB403Logger.Error().Msgf("Failed to initialize database: %v", err)
+	}
+
 	if opts.Verbose {
 		GB403Logger.DefaultLogger.EnableVerbose()
 	}
@@ -59,6 +69,7 @@ func (r *Runner) Initialize() error {
 	scannerOpts := &scanner.ScannerOpts{
 		BypassModule:             r.RunnerOptions.Module,
 		OutDir:                   r.RunnerOptions.OutDir,
+		ResultsDBFile:            r.RunnerOptions.ResultsDBFile,
 		Timeout:                  r.RunnerOptions.Timeout,
 		Threads:                  r.RunnerOptions.Threads,
 		RequestDelay:             r.RunnerOptions.Delay,
@@ -119,7 +130,7 @@ func (r *Runner) handleResendRequest() error {
 	})
 	GB403Logger.Info().Msgf("Resending request %d times to: %s\n", r.RunnerOptions.ResendNum, targetURL)
 
-	outputFile := filepath.Join(r.RunnerOptions.OutDir, "findings.json")
+	//dbPath := filepath.Join(r.RunnerOptions.OutDir, "results.db")
 
 	// Create scanner with options
 	scannerOpts := &scanner.ScannerOpts{
@@ -132,6 +143,7 @@ func (r *Runner) handleResendRequest() error {
 		AutoThrottle:              r.RunnerOptions.AutoThrottle,
 		Proxy:                     r.RunnerOptions.Proxy,
 		OutDir:                    r.RunnerOptions.OutDir,
+		ResultsDBFile:             r.RunnerOptions.ResultsDBFile,
 		RequestDelay:              r.RunnerOptions.RequestDelay,
 		MatchStatusCodes:          r.RunnerOptions.MatchStatusCodes,
 		EnableHTTP2:               r.RunnerOptions.EnableHTTP2,
@@ -149,16 +161,20 @@ func (r *Runner) handleResendRequest() error {
 		return fmt.Errorf("failed to process resend request: %w", err)
 	}
 
-	// Print results
+	// Process results
 	if len(findings) > 0 {
-		scanner.PrintResultsTable(targetURL, findings)
-		fmt.Println()
-
-		// Save findings
-		if err := scanner.AppendResultsToJsonL(outputFile, findings); err != nil {
+		// First save findings to DB
+		if err := scanner.AppendResultsToDB(findings); err != nil {
 			GB403Logger.Error().Msgf("Failed to save findings: %v\n", err)
 		} else {
-			GB403Logger.Success().Msgf("Scan for %s completed. Results saved to %s\n", targetURL, outputFile)
+			GB403Logger.Success().Msgf("%d findings saved to %s\n",
+				len(findings), r.RunnerOptions.ResultsDBFile)
+
+			// Then print results from DB
+			if err := scanner.PrintResultsTableFromDB(targetURL, tokenData.BypassModule); err != nil {
+				GB403Logger.Error().Msgf("Failed to display results: %v\n", err)
+			}
+			fmt.Println()
 		}
 	} else {
 		GB403Logger.Info().Msgf("No findings detected for %s\n", targetURL)

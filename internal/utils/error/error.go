@@ -191,7 +191,12 @@ func GetErrorHandler() *ErrorHandler {
 }
 
 func ResetInstance() {
-	instance = nil
+	if instance != nil {
+		// Close ristretto caches before nullifying the instance
+		instance.cache.Close()
+		instance.hostsIndex.Close()
+		instance = nil
+	}
 	once = sync.Once{}
 }
 
@@ -210,7 +215,16 @@ func (e *ErrorHandler) IsWhitelistedErrNew(err error) bool {
 	if err == nil {
 		return true
 	}
-	errMsg := e.StripErrorMessage(err)
+	errMsg := err.Error()
+	whitelistMutex.RLock()
+	_, exists := whitelistErrors[errMsg]
+	whitelistMutex.RUnlock()
+	return exists
+}
+
+// IsWhitelistedMsg checks if a pre-stripped error message is whitelisted
+// This variant is used internally for performance optimization
+func (e *ErrorHandler) IsWhitelistedErrMsg(errMsg string) bool {
 	whitelistMutex.RLock()
 	_, exists := whitelistErrors[errMsg]
 	whitelistMutex.RUnlock()
@@ -242,20 +256,27 @@ func (e *ErrorHandler) StripErrorMessage(err error) string {
 //	    return fmt.Errorf("custom handling: %v", handledErr)
 //	}
 func (e *ErrorHandler) HandleError(err error, ctx ErrorContext) error {
-	if err == nil || e.IsWhitelistedErrNew(err) {
+	// Early return for nil errors
+	if err == nil {
+		return nil
+	}
+
+	// First strip the error message once
+	strippedErrMsg := e.StripErrorMessage(err)
+
+	// Then check if it's whitelisted using the stripped message
+	if e.IsWhitelistedErrMsg(strippedErrMsg) {
 		return nil
 	}
 
 	host := "host:" + ctx.Host
 	e.hostSet.Store(host, struct{}{}) // Track the host
-	errMsg := e.StripErrorMessage(err)
 
-	// Add to hosts index
+	// Add to hosts index (no need to wait)
 	e.hostsIndex.Set(host, struct{}{}, 1)
-	e.hostsIndex.Wait()
 
+	// Use shorter lock scope
 	e.statsLock.Lock()
-	defer e.statsLock.Unlock()
 
 	// Get or create host entry
 	var hostStats map[string]*ErrorStats
@@ -264,19 +285,20 @@ func (e *ErrorHandler) HandleError(err error, ctx ErrorContext) error {
 	} else {
 		hostStats = make(map[string]*ErrorStats)
 		e.cache.Set(host, hostStats, 1)
-		e.cache.Wait()
 	}
 
 	// Get or create error stats
-	stats, exists := hostStats[errMsg]
+	stats, exists := hostStats[strippedErrMsg]
 	if !exists {
 		stats = newErrorStats()
-		hostStats[errMsg] = stats
+		hostStats[strippedErrMsg] = stats
 		e.cache.Set(host, hostStats, 1)
-		e.cache.Wait()
 	}
 
-	// Rest of the code remains the same since ErrorStats has its own sync primitives
+	// Release lock before updating stats since the rest is thread-safe
+	e.statsLock.Unlock()
+
+	// Thread-safe operations (using atomics/sync primitives)
 	stats.Count.Add(1)
 	now := time.Now()
 	stats.LastSeen.Store(&now)

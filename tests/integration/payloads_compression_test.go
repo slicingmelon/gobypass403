@@ -468,3 +468,164 @@ func TestStringVsBytes(t *testing.T) {
 	t.Logf("  Serialized size: %d bytes", len(bb2.B))
 	t.Logf("  Base64 length: %d", len(base64.RawURLEncoding.EncodeToString(bb2.B)))
 }
+
+/*
+go test -v -run ^TestSnappyVsZstdCompression$ github.com/slicingmelon/go-bypass-403/tests/integration -v
+=== RUN   TestSnappyVsZstdCompression
+
+	payloads_compression_test.go:566:
+	    Snappy vs. zstd Compression Comparison:
+	payloads_compression_test.go:567: Original serialized data: 129 bytes
+	payloads_compression_test.go:568:
+	    Snappy compression:
+	payloads_compression_test.go:569:   Compressed size: 131 bytes
+	payloads_compression_test.go:570:   Base64 token length: 175 chars
+	payloads_compression_test.go:571:   Token: gQHwTwH_BKvN7xIBAQECF2Nkbi5wcm9qZWN0MXNlcnZpY2UuY29tAzQvdmlkZW9zLzIwMjQwMS8yNi80NDcxODcyMjEvNzIwUF80MDAwS180NDcxBRWsLm1wNAQBAAUBDlgtT3JpZ2luYWwtVVJMAS8GEGh0dHBfaGVhZGVyc191cmw
+	payloads_compression_test.go:573:
+	    zstd compression:
+	payloads_compression_test.go:574:   Compressed size: 142 bytes
+	payloads_compression_test.go:575:   Base64 token length: 190 chars
+	payloads_compression_test.go:576:   Token: KLUv_QQACQQAAf8Eq83vEgEBAQIXY2RuLnByb2plY3Qxc2VydmljZS5jb20DNC92aWRlb3MvMjAyNDAxLzI2LzQ0NzE4NzIyMS83MjBQXzQwMDBLXzQ0NzE4NzIyMS5tcDQEAQAFAQ5YLU9yaWdpbmFsLVVSTAEvBhBodHRwX2hlYWRlcnNfdXJspoMaLA
+	payloads_compression_test.go:578:
+	    Comparison:
+	payloads_compression_test.go:580:   zstd is -8.57% smaller than Snappy for this payload
+	payloads_compression_test.go:603: ✓ zstd round-trip verified - decompressed data matches original
+
+--- PASS: TestSnappyVsZstdCompression (0.01s)
+PASS
+ok      github.com/slicingmelon/go-bypass-403/tests/integration 2.382
+*/
+func TestSnappyVsZstdCompression(t *testing.T) {
+	// Create a realistic bypass payload similar to a production example
+	testPayload := payload.BypassPayload{
+		OriginalURL:  "https://getmysmth.com/afffff/2024sdf01/26/4fsdf47187221/720dsfsdf/1234234/fwsfsdf/sdfsd",
+		Scheme:       "https",
+		Method:       "GET",
+		Host:         "getmysmth.com",
+		RawURI:       "/afffff/2024sdf01/26/4fsdf47187221/720dsfsdf/1234234/fwsfsdf/sdfsd",
+		BypassModule: "http_headers_url",
+		Headers: []payload.Headers{{
+			Header: "X-Original-URL",
+			Value:  "/",
+		}},
+	}
+
+	// Serializing the payload (replicating what GeneratePayloadToken does)
+	bb := &bytesutil.ByteBuffer{}
+
+	// version
+	bb.B = append(bb.B, 1)
+
+	// Add nonce
+	bb.B = append(bb.B, 0xFF, 4)
+	nonce := []byte{0xAB, 0xCD, 0xEF, 0x12} // Fixed nonce for test consistency
+	bb.Write(nonce)
+
+	// Write Scheme
+	if testPayload.Scheme != "" {
+		bb.B = append(bb.B, 1) // field type for scheme
+		if testPayload.Scheme == "https" {
+			bb.B = append(bb.B, 1, 1) // length=1, index for https
+		} else {
+			bb.B = append(bb.B, byte(len(testPayload.Scheme)))
+			bb.Write(bytesutil.ToUnsafeBytes(testPayload.Scheme))
+		}
+	}
+
+	// Write Host
+	if testPayload.Host != "" {
+		bb.B = append(bb.B, 2) // field type for host
+		bb.B = append(bb.B, byte(len(testPayload.Host)))
+		bb.Write(bytesutil.ToUnsafeBytes(testPayload.Host))
+	}
+
+	// Write RawURI
+	if testPayload.RawURI != "" {
+		bb.B = append(bb.B, 3) // field type for RawURI
+		bb.B = append(bb.B, byte(len(testPayload.RawURI)))
+		bb.Write(bytesutil.ToUnsafeBytes(testPayload.RawURI))
+	}
+
+	// Write Method
+	if testPayload.Method != "" {
+		bb.B = append(bb.B, 4) // field type for method
+		if testPayload.Method == "GET" {
+			bb.B = append(bb.B, 1, 0) // length=1, index for GET
+		} else {
+			bb.B = append(bb.B, byte(len(testPayload.Method)))
+			bb.Write(bytesutil.ToUnsafeBytes(testPayload.Method))
+		}
+	}
+
+	// Write Headers
+	if len(testPayload.Headers) > 0 {
+		bb.B = append(bb.B, 5) // field type for headers
+		bb.B = append(bb.B, byte(len(testPayload.Headers)))
+		for _, h := range testPayload.Headers {
+			bb.B = append(bb.B, byte(len(h.Header)))
+			bb.Write(bytesutil.ToUnsafeBytes(h.Header))
+			bb.B = append(bb.B, byte(len(h.Value)))
+			bb.Write(bytesutil.ToUnsafeBytes(h.Value))
+		}
+	}
+
+	// Write BypassModule
+	if testPayload.BypassModule != "" {
+		bb.B = append(bb.B, 6) // field type for bypass module
+		bb.B = append(bb.B, byte(len(testPayload.BypassModule)))
+		bb.Write(bytesutil.ToUnsafeBytes(testPayload.BypassModule))
+	}
+
+	// Get current implementation result with Snappy
+	snappyCompressed := snappy.Encode(nil, bb.B)
+	snappyToken := base64.RawURLEncoding.EncodeToString(snappyCompressed)
+
+	// Try zstd compression
+	encoder, err := zstd.NewWriter(nil, zstd.WithEncoderLevel(zstd.SpeedBestCompression))
+	if err != nil {
+		t.Fatalf("Failed to create zstd encoder: %v", err)
+	}
+	zstdCompressed := encoder.EncodeAll(bb.B, nil)
+	zstdToken := base64.RawURLEncoding.EncodeToString(zstdCompressed)
+
+	// Output comparison results
+	t.Logf("\nSnappy vs. zstd Compression Comparison:")
+	t.Logf("Original serialized data: %d bytes", len(bb.B))
+	t.Logf("\nSnappy compression:")
+	t.Logf("  Compressed size: %d bytes", len(snappyCompressed))
+	t.Logf("  Base64 token length: %d chars", len(snappyToken))
+	t.Logf("  Token: %s", snappyToken)
+
+	t.Logf("\nzstd compression:")
+	t.Logf("  Compressed size: %d bytes", len(zstdCompressed))
+	t.Logf("  Base64 token length: %d chars", len(zstdToken))
+	t.Logf("  Token: %s", zstdToken)
+
+	t.Logf("\nComparison:")
+	percentImprovement := 100 * (1 - float64(len(zstdToken))/float64(len(snappyToken)))
+	t.Logf("  zstd is %.2f%% smaller than Snappy for this payload", percentImprovement)
+
+	// Try a mock decoding of the zstd version
+	decoder, err := zstd.NewReader(nil)
+	if err != nil {
+		t.Fatalf("Failed to create zstd decoder: %v", err)
+	}
+
+	// Verify we can decompress zstd correctly
+	zstdBytes, err := base64.RawURLEncoding.DecodeString(zstdToken)
+	if err != nil {
+		t.Fatalf("Failed to decode zstd base64: %v", err)
+	}
+
+	decompressed, err := decoder.DecodeAll(zstdBytes, nil)
+	if err != nil {
+		t.Fatalf("Failed to decompress zstd data: %v", err)
+	}
+
+	// Verify decompression was correct by comparing to original
+	if !bytes.Equal(decompressed, bb.B) {
+		t.Error("zstd decompression produced different data than original")
+	} else {
+		t.Logf("✓ zstd round-trip verified - decompressed data matches original")
+	}
+}

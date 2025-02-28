@@ -81,7 +81,8 @@ func IsRetryableError(err error) RetryDecision {
 		errors.Is(err, fasthttp.ErrTimeout) ||
 		strings.Contains(err.Error(), "timeout") ||
 		strings.Contains(err.Error(), "existing connection was forcibly closed") ||
-		strings.Contains(err.Error(), "Only one usage of each socket address") {
+		strings.Contains(err.Error(), "Only one usage of each socket address") ||
+		strings.Contains(err.Error(), "A connection attempt failed because the connected party did not properly respond") {
 		return RetryDecision{true, RetryWithConnectionClose}
 	}
 
