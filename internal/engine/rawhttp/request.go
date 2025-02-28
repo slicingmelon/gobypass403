@@ -32,8 +32,9 @@ var (
 	strUserAgentHeader = "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
 
 	// Pool for byte buffers
-	curlCmdBuffPool bytesutil.ByteBufferPool
-	headerBufPool   bytesutil.ByteBufferPool
+	curlCmdBuffPool    bytesutil.ByteBufferPool
+	headerBufPool      bytesutil.ByteBufferPool
+	respPreviewBufPool bytesutil.ByteBufferPool
 
 	// Pre-computed byte slices for static strings
 	curlFlags         = []byte("-skgi --path-as-is")
@@ -131,6 +132,9 @@ var (
 			return &strings.Builder{}
 		},
 	}
+
+	rawRequestBytesPool bytesutil.ByteBufferPool
+
 	rawRequestBuffReaderPool = sync.Pool{
 		New: func() any {
 			return bufio.NewReader(nil)
@@ -274,11 +278,6 @@ var (
 			return &LimitedWriter{}
 		},
 	}
-	previewBufferPool = sync.Pool{
-		New: func() any {
-			return bytes.NewBuffer(make([]byte, 0, 4096))
-		},
-	}
 )
 
 func AcquireLimitedWriter(w io.Writer, n int64) *LimitedWriter {
@@ -374,21 +373,22 @@ func ProcessHTTPResponse(httpclient *HTTPClient, resp *fasthttp.Response, bypass
 	if httpClientOpts.MaxResponseBodySize > 0 && httpClientOpts.ResponseBodyPreviewSize > 0 {
 		previewSize := httpClientOpts.ResponseBodyPreviewSize
 
-		buf := previewBufferPool.Get().(*bytes.Buffer)
-		buf.Reset()
-		defer previewBufferPool.Put(buf)
+		buf := respPreviewBufPool.Get()
 
 		limitedWriter := AcquireLimitedWriter(buf, int64(previewSize))
-		defer ReleaseLimitedWriter(limitedWriter)
 
 		if err := resp.BodyWriteTo(limitedWriter); err != nil && err != io.EOF {
 			GB403Logger.Debug().Msgf("Error reading body: %v", err)
 		}
 
-		if buf.Len() > 0 {
-			result.ResponsePreview = append(result.ResponsePreview, buf.Bytes()...)
-			result.ResponseBytes = buf.Len()
+		ReleaseLimitedWriter(limitedWriter)
+
+		if len(buf.B) > 0 {
+			result.ResponsePreview = append(result.ResponsePreview, buf.B...)
+			result.ResponseBytes = len(buf.B)
 		}
+
+		respPreviewBufPool.Put(buf)
 	}
 
 	// 5. Extract title if HTML
