@@ -274,6 +274,16 @@ func (s *Scanner) RunBypassModule(bypassModule string, targetURL string, results
 	}
 
 	if progressBar != nil {
+		// Prepare and synchronize progress display before success message
+		progressBar.PrepareForCompletion(
+			worker.requestPool.GetPeakRequestRate(),
+			worker.requestPool.GetAverageRequestRate(),
+		)
+
+		// Small delay to ensure terminal updates properly
+		time.Sleep(50 * time.Millisecond)
+
+		// Now show the success spinner
 		progressBar.SpinnerSuccess(
 			worker.requestPool.GetReqWPCompletedTasks(),
 			worker.requestPool.GetReqWPSubmittedTasks(),
