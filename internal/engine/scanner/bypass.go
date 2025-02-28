@@ -224,6 +224,8 @@ func (s *Scanner) RunBypassModule(bypassModule string, targetURL string, results
 
 	responses := worker.requestPool.ProcessRequests(allJobs)
 
+	var dbWg sync.WaitGroup
+
 	// Process responses and update progress based on pool metrics
 	for response := range responses {
 		if response == nil {
@@ -243,7 +245,6 @@ func (s *Scanner) RunBypassModule(bypassModule string, targetURL string, results
 		}
 
 		if matchStatusCodes(response.StatusCode, s.scannerOpts.MatchStatusCodes) {
-
 			// Create Result struct from response
 			result := &Result{
 				TargetURL:           string(response.URL),
@@ -262,16 +263,25 @@ func (s *Scanner) RunBypassModule(bypassModule string, targetURL string, results
 				DebugToken:          string(response.DebugToken),
 			}
 
-			// Write to DB immediately
-			if err := AppendResultsToDB([]*Result{result}); err != nil {
-				GB403Logger.Error().Msgf("Failed to write result to DB: %v\n", err)
-			}
+			// Write to DB in a separate goroutine
+			dbWg.Add(1)
+			go func(res *Result) {
+				defer dbWg.Done()
+				if err := AppendResultsToDB([]*Result{res}); err != nil {
+					GB403Logger.Error().Msgf("Failed to write result to DB: %v\n\n", err)
+				}
+			}(result)
 
+			// Send to results channel immediately
 			results <- result
 		}
+
 		// Release the RawHTTPResponseDetails back to its pool
 		rawhttp.ReleaseResponseDetails(response)
 	}
+
+	// Before function returns, wait for all DB operations to complete
+	dbWg.Wait()
 
 	if progressBar != nil {
 		// Prepare and synchronize progress display before success message

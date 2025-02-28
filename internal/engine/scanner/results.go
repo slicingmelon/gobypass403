@@ -29,7 +29,7 @@ func InitDB(dbPath string, workers int) error {
 	var initErr error
 	dbInitOnce.Do(func() {
 		// Enhanced connection string with shared cache and WAL
-		db, initErr = sql.Open("sqlite3", dbPath+"?_journal_mode=WAL&_sync=NORMAL&_busy_timeout=5000&cache=shared&mode=rwc")
+		db, initErr = sql.Open("sqlite3", dbPath+"?_journal_mode=WAL&_sync=NORMAL&_busy_timeout=5000&_locking_mode=NORMAL&cache=shared&mode=rwc")
 		if initErr != nil {
 			return
 		}
