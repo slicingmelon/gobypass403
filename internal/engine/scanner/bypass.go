@@ -218,7 +218,6 @@ func (s *Scanner) RunBypassModule(bypassModule string, targetURL string, results
 	if s.progressBarEnabled.Load() {
 		progressBar = NewProgressBar(bypassModule, targetURL, len(allJobs), s.scannerOpts.Threads)
 		progressBar.Start()
-		//progressBar.UpdateCurrentURL(targetURL)
 		defer progressBar.Stop()
 	}
 
