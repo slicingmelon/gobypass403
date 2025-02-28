@@ -161,16 +161,20 @@ func (r *Runner) handleResendRequest() error {
 		return fmt.Errorf("failed to process resend request: %w", err)
 	}
 
-	// Print results
+	// Process results
 	if len(findings) > 0 {
-		scanner.PrintResultsTable(targetURL, findings)
-		fmt.Println()
-
-		// // Save findings
+		// First save findings to DB
 		if err := scanner.AppendResultsToDB(findings); err != nil {
 			GB403Logger.Error().Msgf("Failed to save findings: %v\n", err)
 		} else {
-			GB403Logger.Success().Msgf("Scan for %s completed. Results saved to %s\n", targetURL, r.RunnerOptions.ResultsDBFile)
+			GB403Logger.Success().Msgf("%d findings saved to %s\n",
+				len(findings), r.RunnerOptions.ResultsDBFile)
+
+			// Then print results from DB
+			if err := scanner.PrintResultsTableFromDB(targetURL, tokenData.BypassModule); err != nil {
+				GB403Logger.Error().Msgf("Failed to display results: %v\n", err)
+			}
+			fmt.Println()
 		}
 	} else {
 		GB403Logger.Info().Msgf("No findings detected for %s\n", targetURL)

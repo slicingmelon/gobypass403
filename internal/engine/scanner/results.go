@@ -2,18 +2,15 @@ package scanner
 
 import (
 	"fmt"
-	"sort"
 	"strconv"
 	"strings"
 	"sync"
-	"time"
 
 	"database/sql"
 
 	"github.com/VictoriaMetrics/VictoriaMetrics/lib/bytesutil"
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/pterm/pterm"
-	GB403Logger "github.com/slicingmelon/go-bypass-403/internal/utils/logger"
 )
 
 // to optimize
@@ -117,91 +114,31 @@ func getTableHeader() []string {
 	}
 }
 
-// getTableRows converts results to table rows, sorted by status code
-func getTableRows(results []*Result) [][]string {
-	// Create a copy of results to avoid races during sorting
-	resultsCopy := make([]*Result, len(results))
-	for i, r := range results {
-		// Deep copy each result's fields
-		resultsCopy[i] = &Result{
-			BypassModule:      r.BypassModule,
-			CurlCMD:           r.CurlCMD,
-			StatusCode:        r.StatusCode,
-			ResponseBodyBytes: r.ResponseBodyBytes,
-			ContentType:       r.ContentType,
-			Title:             r.Title,
-			ServerInfo:        r.ServerInfo,
-		}
-	}
-
-	// Sort the copy
-	sort.Slice(resultsCopy, func(i, j int) bool {
-		if resultsCopy[i].StatusCode != resultsCopy[j].StatusCode {
-			return resultsCopy[i].StatusCode < resultsCopy[j].StatusCode
-		}
-		return string(resultsCopy[i].BypassModule) < string(resultsCopy[j].BypassModule)
-	})
-
-	// Convert to table rows using the copied data
-	rows := make([][]string, len(resultsCopy))
-	for i, result := range resultsCopy {
-		rows[i] = []string{
-			string(result.BypassModule),
-			string(result.CurlCMD),
-			bytesutil.Itoa(result.StatusCode),
-			formatBytes(int64(result.ResponseBodyBytes)),
-			formatContentType(string(result.ContentType)),
-			formatValue(string(result.Title)),
-			formatValue(string(result.ServerInfo)),
-		}
-	}
-
-	return rows
+var terminalStringBuilderPool = sync.Pool{
+	New: func() any {
+		return &strings.Builder{}
+	},
 }
 
-func PrintResultsTable(targetURL string, results []*Result) {
-	if len(results) == 0 {
-		return
-	}
+func getTerminalStringBuilder() *strings.Builder {
+	return terminalStringBuilderPool.Get().(*strings.Builder)
+}
 
-	// fancy table title
-	pterm.DefaultHeader.WithBackgroundStyle(pterm.NewStyle(pterm.BgGreen)).
-		Println("Results for " + targetURL)
-
-	tableData := pterm.TableData{getTableHeader()}
-	for _, row := range getTableRows(results) {
-		tableData = append(tableData, row)
-	}
-
-	// Render table
-	time.Sleep(500 * time.Millisecond)
-	table := pterm.DefaultTable.
-		WithHasHeader().
-		WithBoxed().
-		WithData(tableData)
-
-	output, err := table.Srender()
-	if err != nil {
-		return
-	}
-
-	// Print the rendered table
-	fmt.Println(output)
+func putTerminalStringBuilder(sb *strings.Builder) {
+	sb.Reset()
+	terminalStringBuilderPool.Put(sb)
 }
 
 func PrintResultsTableFromDB(targetURL, bypassModule string) error {
-	GB403Logger.Verbose().Msgf("Querying results from database for: %s\n", targetURL)
-
 	queryModules := strings.Split(bypassModule, ",")
 	placeholders := strings.Repeat("?,", len(queryModules))
 	placeholders = placeholders[:len(placeholders)-1] // Remove trailing comma
 
+	// Optimized query - only fetch columns needed for display
 	query := fmt.Sprintf(`
         SELECT 
-            target_url, bypass_module, curl_cmd, response_headers,
-            response_body_preview, status_code, content_type, content_length,
-            response_body_bytes, title, server_info, redirect_url,
-            response_time, debug_token
+            bypass_module, curl_cmd, status_code, 
+            response_body_bytes, content_type, title, server_info
         FROM scan_results
         WHERE target_url = ? AND bypass_module IN (%s)
         ORDER BY status_code ASC, bypass_module ASC
@@ -220,40 +157,69 @@ func PrintResultsTableFromDB(targetURL, bypassModule string) error {
 	}
 	defer rows.Close()
 
-	var matchedResults []*Result
+	// Build table rows from query results
+	var tableData pterm.TableData
+	tableData = append(tableData, getTableHeader())
+
+	rowCount := 0
 	for rows.Next() {
-		var result Result
+		rowCount++
+		var module, curlCmd, contentType, title, serverInfo string
+		var statusCode, responseBodyBytes int
+
 		err := rows.Scan(
-			&result.TargetURL,
-			&result.BypassModule,
-			&result.CurlCMD,
-			&result.ResponseHeaders,
-			&result.ResponseBodyPreview,
-			&result.StatusCode,
-			&result.ContentType,
-			&result.ContentLength,
-			&result.ResponseBodyBytes,
-			&result.Title,
-			&result.ServerInfo,
-			&result.RedirectURL,
-			&result.ResponseTime,
-			&result.DebugToken,
+			&module,
+			&curlCmd,
+			&statusCode,
+			&responseBodyBytes,
+			&contentType,
+			&title,
+			&serverInfo,
 		)
 		if err != nil {
 			return fmt.Errorf("failed to scan row: %v", err)
 		}
-		matchedResults = append(matchedResults, &result)
+
+		tableData = append(tableData, []string{
+			module,
+			curlCmd,
+			bytesutil.Itoa(statusCode),
+			formatBytes(int64(responseBodyBytes)),
+			formatContentType(contentType),
+			formatValue(title),
+			formatValue(serverInfo),
+		})
 	}
 
 	if err := rows.Err(); err != nil {
 		return fmt.Errorf("row iteration error: %v", err)
 	}
 
-	if len(matchedResults) == 0 {
+	if rowCount == 0 {
 		return fmt.Errorf("no results found for %s (modules: %s)", targetURL, bypassModule)
 	}
 
-	PrintResultsTable(targetURL, matchedResults)
+	// Display header
+	pterm.DefaultHeader.WithBackgroundStyle(pterm.NewStyle(pterm.BgGreen)).
+		Println("Results for " + targetURL)
+
+	// Configure the table
+	table := pterm.DefaultTable.
+		WithHasHeader().
+		WithBoxed().
+		WithData(tableData)
+
+	tableStr, err := table.Srender()
+	if err != nil {
+		return fmt.Errorf("failed to render table: %v", err)
+	}
+	// Get a preallocated buffer from the pool
+	sb := getTerminalStringBuilder()
+	defer putTerminalStringBuilder(sb)
+
+	sb.WriteString(tableStr)
+
+	fmt.Print(sb.String())
 	return nil
 }
 
