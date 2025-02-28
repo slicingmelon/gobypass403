@@ -6,9 +6,10 @@ import (
 	"sync"
 	"time"
 
+	"math/rand/v2"
+
 	"github.com/VictoriaMetrics/VictoriaMetrics/lib/bytesutil"
 	"github.com/golang/snappy"
-	"golang.org/x/exp/rand"
 )
 
 var (
@@ -25,7 +26,7 @@ var (
 
 	once sync.Once
 	mu   sync.Mutex
-	rnd  = rand.New(rand.NewSource(uint64(time.Now().UnixNano())))
+	rnd  = rand.New(rand.NewPCG(uint64(time.Now().UnixNano()), uint64(time.Now().UnixNano())))
 
 	payloadTokenBuff bytesutil.ByteBufferPool
 )
@@ -129,7 +130,6 @@ func GeneratePayloadToken(job BypassPayload) string {
 	// Get buffer from pool and ensure it's returned
 	bb := payloadTokenBuff.Get()
 	defer payloadTokenBuff.Put(bb)
-	bb.Reset()
 
 	// version
 	bb.B = append(bb.B, 1)
@@ -138,7 +138,9 @@ func GeneratePayloadToken(job BypassPayload) string {
 	bb.B = append(bb.B, 0xFF, 4)
 	nonce := make([]byte, 4)
 	mu.Lock()
-	rnd.Read(nonce)
+	for i := range nonce {
+		nonce[i] = byte(rnd.Uint32N(256))
+	}
 	mu.Unlock()
 	bb.Write(nonce)
 

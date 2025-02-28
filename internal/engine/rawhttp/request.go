@@ -437,7 +437,6 @@ func ReadLimitedResponseBodyStream(stream io.Reader, previewSize int, dest []byt
 func BuildCurlCommandPoc(bypassPayload payload.BypassPayload, dest []byte) []byte {
 	cmdBuf := curlCmdBuffPool.Get()
 	defer curlCmdBuffPool.Put(cmdBuf)
-	cmdBuf.Reset()
 
 	// Build command into buffer
 	cmdBuf.Write(curlCmd)
@@ -488,7 +487,6 @@ func BuildCurlCommandPoc(bypassPayload payload.BypassPayload, dest []byte) []byt
 func GetResponseHeaders(h *fasthttp.ResponseHeader, statusCode int, dest []byte) []byte {
 	headerBuf := headerBufPool.Get()
 	defer headerBufPool.Put(headerBuf)
-	headerBuf.Reset()
 
 	// Write status line
 	headerBuf.Write(h.Protocol())
