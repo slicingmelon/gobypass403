@@ -52,6 +52,7 @@ var (
 	strCloseTitle     = []byte("</title>")
 	strLocationHeader = []byte("Location")
 	strSchemeDelim    = []byte("://")
+	strHostHeader     = []byte("Host")
 	strUserAgent      = []byte("User-Agent")
 
 	strErrorReadingPreview = []byte("Error reading response preview")

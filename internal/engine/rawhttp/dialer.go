@@ -5,7 +5,9 @@ import (
 	"sync"
 	"time"
 
+	tls "github.com/refraction-networking/utls"
 	GB403ErrorHandler "github.com/slicingmelon/go-bypass-403/internal/utils/error"
+	GB403Logger "github.com/slicingmelon/go-bypass-403/internal/utils/logger"
 	"github.com/valyala/fasthttp"
 	"github.com/valyala/fasthttp/fasthttpproxy"
 )
@@ -23,6 +25,64 @@ func GetHTTPClientSharedDialer() *fasthttp.TCPDialer {
 		}
 	})
 	return clientSharedDialer
+}
+
+// Define limited set of HelloIDs for browser fingerprinting
+var (
+	helloIDs = []tls.ClientHelloID{
+		tls.HelloChrome_Auto,
+		tls.HelloFirefox_Auto,
+		tls.HelloSafari_Auto,
+	}
+)
+
+func GetRandomHelloID() tls.ClientHelloID {
+	return helloIDs[time.Now().UnixNano()%int64(len(helloIDs))]
+}
+
+// CreateUTLSDialer creates a dialer that uses uTLS for TLS connections
+func CreateUTLSDialer(timeout time.Duration, proxyURL string) fasthttp.DialFunc {
+	baseDialer := &fasthttp.TCPDialer{
+		Concurrency:      4096,
+		DNSCacheDuration: time.Hour,
+	}
+
+	return func(addr string) (net.Conn, error) {
+		// First, establish a TCP connection
+		tcpConn, err := baseDialer.Dial(addr)
+		//tcpConn, err := net.Dial("tcp", addr)
+		if err != nil {
+			GB403Logger.Error().Msgf("[CreateUTLSDialer] TCP connection failed: %v\n\n", err)
+			return nil, err
+		}
+
+		// For non-TLS connections, return the TCP connection as is
+		// if !strings.Contains(addr, ":443") {
+		// 	return tcpConn, nil
+		// }
+
+		// For TLS connections, wrap with uTLS
+		//serverName := strings.Split(addr, ":")[0]
+		helloID := GetRandomHelloID()
+
+		// Create a uTLS connection with the TCP connection
+		tlsConn := tls.UClient(tcpConn, &tls.Config{
+			//ServerName:         serverName,
+			InsecureSkipVerify: true, // Skip certificate verification for pentest purposes
+			//MinVersion:         tls.VersionTLS10,
+			//MaxVersion:         tls.VersionTLS13,
+			OmitEmptyPsk: true,
+		}, helloID)
+
+		// Perform TLS handshake
+		if err := tlsConn.Handshake(); err != nil {
+			GB403Logger.Error().Msgf("[CreateUTLSDialer] TLS handshake failed: %v\n\n", err)
+			tcpConn.Close()
+			return nil, err
+		}
+
+		return tlsConn, nil
+	}
 }
 
 // This sets the dialer for the HTTPClient

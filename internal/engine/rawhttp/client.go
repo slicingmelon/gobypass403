@@ -1,7 +1,6 @@
 package rawhttp
 
 import (
-	"crypto/tls"
 	"errors"
 	"fmt"
 	"sync"
@@ -96,8 +95,12 @@ func NewHTTPClient(opts *HTTPClientOptions) *HTTPClient {
 		opts = DefaultHTTPClientOptions()
 	}
 
+	// if opts.Dialer == nil {
+	// 	opts.Dialer = CreateHTTPClientDialer(opts.DialTimeout, opts.ProxyURL)
+	// }
+
 	if opts.Dialer == nil {
-		opts.Dialer = CreateHTTPClientDialer(opts.DialTimeout, opts.ProxyURL)
+		opts.Dialer = CreateUTLSDialer(opts.DialTimeout, opts.ProxyURL)
 	}
 
 	retryConfig := DefaultRetryConfig()
@@ -132,14 +135,14 @@ func NewHTTPClient(opts *HTTPClientOptions) *HTTPClient {
 		WriteTimeout:                  opts.Timeout,
 		StreamResponseBody:            opts.StreamResponseBody,
 		Dial:                          opts.Dialer,
-		TLSConfig: &tls.Config{
-			InsecureSkipVerify: true,
-			MinVersion:         tls.VersionTLS10,
-			MaxVersion:         tls.VersionTLS13,
-			Renegotiation:      tls.RenegotiateOnceAsClient,
-			//ClientSessionCache: tls.NewLRUClientSessionCache(1024), // Session cache to resume sessions
-			//SessionTicketsDisabled: true,
-		},
+		// TLSConfig: &tls.Config{
+		// 	InsecureSkipVerify: true,
+		// 	MinVersion:         tls.VersionTLS10,
+		// 	MaxVersion:         tls.VersionTLS13,
+		// 	Renegotiation:      tls.RenegotiateOnceAsClient,
+		//ClientSessionCache: tls.NewLRUClientSessionCache(1024), // Session cache to resume sessions
+		//SessionTicketsDisabled: true,
+		//},
 	}
 
 	c.client = client
@@ -382,8 +385,7 @@ func ReqCopyToWithSettings(src *fasthttp.Request, dst *fasthttp.Request) *fastht
 	dst.URI().SetHostBytes(originalHost)
 
 	// Check if Host header exists using case-insensitive lookup
-	hostKey := []byte("Host")
-	if len(PeekRequestHeaderKeyCaseInsensitive(dst, hostKey)) == 0 {
+	if len(PeekRequestHeaderKeyCaseInsensitive(dst, strHostHeader)) == 0 {
 		//GB403Logger.Debug().Msgf("No Host header found, setting from URI.Host: %s", originalHost)
 		dst.Header.SetHostBytes(originalHost)
 	}

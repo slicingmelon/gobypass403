@@ -7,7 +7,6 @@ import (
 
 	"github.com/slicingmelon/go-bypass-403/internal/engine/payload"
 	"github.com/slicingmelon/go-bypass-403/internal/engine/rawhttp"
-	"github.com/slicingmelon/go-bypass-403/internal/engine/rawhttp/dialer"
 	"github.com/stretchr/testify/assert"
 	"github.com/valyala/fasthttp"
 	"github.com/valyala/fasthttp/fasthttputil"
@@ -135,7 +134,7 @@ func TestRawHTTPClientBuildAndSendRequestDirectLocalhost(t *testing.T) {
 	client := rawhttp.NewHTTPClient(rawhttp.DefaultHTTPClientOptions())
 
 	opts := rawhttp.DefaultHTTPClientOptions()
-	opts.Dialer = dialer.CreateHTTPClientDialer(opts.DialTimeout, opts.ProxyURL)
+	opts.Dialer = rawhttp.CreateHTTPClientDialer(opts.DialTimeout, opts.ProxyURL)
 	client.SetHTTPClientOptions(opts)
 
 	// Create a PayloadJob with Unicode in the path and headers

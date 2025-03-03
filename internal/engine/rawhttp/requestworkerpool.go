@@ -132,8 +132,8 @@ func (wp *RequestWorkerPool) ProcessRequests(bypassPayloads []payload.BypassPayl
 
 			// Check for the critical error that should cancel everything
 			if err == ErrReqFailedMaxConsecutiveFails {
-				GB403Logger.Warning().Msgf("Cancelling current bypass module due to max consecutive failures reached for module [%s]\n",
-					wp.httpClient.options.BypassModule)
+				//GB403Logger.Warning().Msgf("Cancelling current bypass module due to max consecutive failures reached for module [%s]\n",
+				//	wp.httpClient.options.BypassModule)
 				wp.cancel() // Cancel context to stop all other jobs
 				return
 			}

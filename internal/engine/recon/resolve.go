@@ -39,6 +39,25 @@ func NewCustomResolver(dnsServers []string) *CustomResolver {
 	}
 }
 
+// This gets the core dialer instance
+func GetSharedDialer() *fasthttp.TCPDialer {
+	onceDialer.Do(func() {
+		sharedDialer = &fasthttp.TCPDialer{
+			Concurrency:      2048,
+			DNSCacheDuration: 120 * time.Minute,
+			Resolver: NewCustomResolver([]string{
+				"1.1.1.1:53",                // Cloudflare
+				"9.9.9.9:53",                // Quad9
+				"208.67.222.222:53",         // OpenDNS
+				"[2606:4700:4700::1111]:53", // Cloudflare IPv6
+				"[2620:fe::fe]:53",          // Quad9 IPv6
+			}),
+			DisableDNSResolution: false,
+		}
+	})
+	return sharedDialer
+}
+
 // LookupIPAddr resolves a host and returns an array of IP addresses
 // This is the custom resolver that implements parallel DNS resolution strategy
 func (r *CustomResolver) LookupIPAddr(ctx context.Context, host string) ([]net.IPAddr, error) {
@@ -197,23 +216,4 @@ func (r *CustomResolver) LookupIPAddr(ctx context.Context, host string) ([]net.I
 		return ips, nil
 	}
 	return nil, fmt.Errorf("all DNS resolution attempts failed")
-}
-
-// This gets the core dialer instance
-func GetSharedDialer() *fasthttp.TCPDialer {
-	onceDialer.Do(func() {
-		sharedDialer = &fasthttp.TCPDialer{
-			Concurrency:      2048,
-			DNSCacheDuration: 120 * time.Minute,
-			Resolver: NewCustomResolver([]string{
-				"1.1.1.1:53",                // Cloudflare
-				"9.9.9.9:53",                // Quad9
-				"208.67.222.222:53",         // OpenDNS
-				"[2606:4700:4700::1111]:53", // Cloudflare IPv6
-				"[2620:fe::fe]:53",          // Quad9 IPv6
-			}),
-			DisableDNSResolution: false,
-		}
-	})
-	return sharedDialer
 }
