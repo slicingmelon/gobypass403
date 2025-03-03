@@ -63,16 +63,24 @@ func CreateUTLSDialer(timeout time.Duration, proxyURL string) fasthttp.DialFunc 
 
 		// For TLS connections, wrap with uTLS
 		//serverName := strings.Split(addr, ":")[0]
-		helloID := GetRandomHelloID()
+		//helloID := GetRandomHelloID()
 
 		// Create a uTLS connection with the TCP connection
+		// tlsConn := tls.UClient(tcpConn, &tls.Config{
+		// 	//ServerName:         serverName,
+		// 	InsecureSkipVerify: true, // Skip certificate verification for pentest purposes
+		// 	//MinVersion:         tls.VersionTLS10,
+		// 	//MaxVersion:         tls.VersionTLS13,
+		// 	OmitEmptyPsk: true,
+		// }, helloID)
+
 		tlsConn := tls.UClient(tcpConn, &tls.Config{
 			//ServerName:         serverName,
 			InsecureSkipVerify: true, // Skip certificate verification for pentest purposes
 			//MinVersion:         tls.VersionTLS10,
 			//MaxVersion:         tls.VersionTLS13,
 			OmitEmptyPsk: true,
-		}, helloID)
+		}, tls.HelloRandomized)
 
 		// Perform TLS handshake
 		if err := tlsConn.Handshake(); err != nil {
