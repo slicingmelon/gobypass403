@@ -10,7 +10,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/slicingmelon/go-bypass-403/internal/engine/rawhttp/dialer"
 	GB403Logger "github.com/slicingmelon/go-bypass-403/internal/utils/logger"
 	"github.com/slicingmelon/go-rawurlparser"
 	"github.com/valyala/fasthttp"
@@ -100,7 +99,7 @@ type ReconResult struct {
 
 func NewReconService() *ReconService {
 	// Get the shared dialer that already has our custom resolver
-	dialer := dialer.GetSharedDialer()
+	dialer := GetSharedDialer()
 
 	return &ReconService{
 		dialer: dialer,

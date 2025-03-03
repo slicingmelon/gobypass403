@@ -133,7 +133,7 @@ var (
 		},
 	}
 
-	rawRequestBytesPool bytesutil.ByteBufferPool
+	//rawRequestBytesPool bytesutil.ByteBufferPool
 
 	rawRequestBuffReaderPool = sync.Pool{
 		New: func() any {

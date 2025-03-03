@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/slicingmelon/go-bypass-403/internal/engine/payload"
-	"github.com/slicingmelon/go-bypass-403/internal/engine/rawhttp/dialer"
 	GB403ErrorHandler "github.com/slicingmelon/go-bypass-403/internal/utils/error"
 	"github.com/valyala/fasthttp"
 )
@@ -98,7 +97,7 @@ func NewHTTPClient(opts *HTTPClientOptions) *HTTPClient {
 	}
 
 	if opts.Dialer == nil {
-		opts.Dialer = dialer.CreateHTTPClientDialer(opts.DialTimeout, opts.ProxyURL)
+		opts.Dialer = CreateHTTPClientDialer(opts.DialTimeout, opts.ProxyURL)
 	}
 
 	retryConfig := DefaultRetryConfig()
@@ -207,7 +206,7 @@ func (c *HTTPClient) handleRetries(req *fasthttp.Request, resp *fasthttp.Respons
 			reqCopy.SetConnectionClose()
 			start = time.Now()
 			err = tempClient.client.Do(reqCopy, resp)
-			tempClient.client.CloseIdleConnections()
+			//tempClient.client.CloseIdleConnections()
 
 		default:
 			start = time.Now()
