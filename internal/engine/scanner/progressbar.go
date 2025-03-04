@@ -122,22 +122,6 @@ func (pb *ProgressBar) Increment() {
 	}
 }
 
-var stringBuilderPool = sync.Pool{
-	New: func() any {
-		return &strings.Builder{}
-	},
-}
-
-func getStringBuilder() *strings.Builder {
-	return stringBuilderPool.Get().(*strings.Builder)
-}
-
-func putStringBuilder(sb *strings.Builder) {
-	sb.Reset()
-	stringBuilderPool.Put(sb)
-}
-
-// UpdateSpinnerText
 func (pb *ProgressBar) UpdateSpinnerText(
 	activeWorkers int64,
 	completedTasks uint64,
@@ -148,32 +132,28 @@ func (pb *ProgressBar) UpdateSpinnerText(
 	pb.mu.Lock()
 	defer pb.mu.Unlock()
 
-	spinnerBuf := getStringBuilder()
-	defer putStringBuilder(spinnerBuf)
+	var spinnerBuilder strings.Builder
+	var titleBuilder strings.Builder
 
-	titleBuf := getStringBuilder()
-	defer putStringBuilder(titleBuf)
+	// Build spinner text
+	spinnerBuilder.WriteString(pb.coloredModule)
+	spinnerBuilder.WriteString(" | Workers [")
+	spinnerBuilder.WriteString(bytesutil.Itoa(int(activeWorkers)))
+	spinnerBuilder.WriteString("/")
+	spinnerBuilder.WriteString(bytesutil.Itoa(pb.totalWorkers))
+	spinnerBuilder.WriteString("] | Rate [")
+	spinnerBuilder.WriteString(bytesutil.Itoa(int(currentRate)))
+	spinnerBuilder.WriteString(" req/s] Avg [")
+	spinnerBuilder.WriteString(bytesutil.Itoa(int(avgRate)))
+	spinnerBuilder.WriteString(" req/s]")
+	pb.spinner.UpdateText(spinnerBuilder.String())
 
-	// Spinner now shows statistics instead of URL
-	spinnerBuf.WriteString(pb.coloredModule)
-	spinnerBuf.WriteString(" | Workers [")
-	spinnerBuf.WriteString(bytesutil.Itoa(int(activeWorkers)))
-	spinnerBuf.WriteString("/")
-	spinnerBuf.WriteString(bytesutil.Itoa(pb.totalWorkers))
-	spinnerBuf.WriteString("] | Rate [")
-	spinnerBuf.WriteString(bytesutil.Itoa(int(currentRate)))
-	spinnerBuf.WriteString(" req/s] Avg [")
-	spinnerBuf.WriteString(bytesutil.Itoa(int(avgRate)))
-	spinnerBuf.WriteString(" req/s]")
-	pb.spinner.UpdateText(spinnerBuf.String())
-
-	// Progress bar title now shows module and URL
+	// Build progress bar title
 	if pb.progressbar != nil {
-		titleBuf.WriteString(pb.coloredModule)
-		titleBuf.WriteString(" | ")
-		titleBuf.WriteString(pb.coloredURL)
-
-		pb.progressbar.UpdateTitle(titleBuf.String())
+		titleBuilder.WriteString(pb.coloredModule)
+		titleBuilder.WriteString(" | ")
+		titleBuilder.WriteString(pb.coloredURL)
+		pb.progressbar.UpdateTitle(titleBuilder.String())
 	}
 }
 
@@ -186,43 +166,41 @@ func (pb *ProgressBar) SpinnerSuccess(
 	pb.mu.Lock()
 	defer pb.mu.Unlock()
 
-	// First ensure progress bar is at 100% complete
+	// Ensure progress bar is 100% complete
 	if pb.progressbar != nil && pb.progressbar.Current < pb.progressbar.Total {
 		pb.progressbar.Current = pb.progressbar.Total
 	}
 
-	spinnerBuf := getStringBuilder()
-	defer putStringBuilder(spinnerBuf)
-	titleBuf := getStringBuilder()
-	defer putStringBuilder(titleBuf)
+	var spinnerBuilder strings.Builder
+	var titleBuilder strings.Builder
 
-	// Success spinner message shows module and stats
-	spinnerBuf.WriteString(pb.coloredModule)
-	spinnerBuf.WriteString(" | Workers [")
-	spinnerBuf.WriteString(bytesutil.Itoa(pb.totalWorkers))
-	spinnerBuf.WriteString("/")
-	spinnerBuf.WriteString(bytesutil.Itoa(pb.totalWorkers))
-	spinnerBuf.WriteString("] | Rate [")
-	spinnerBuf.WriteString(bytesutil.Itoa(int(avgRate)))
-	spinnerBuf.WriteString(" req/s] Peak [")
-	spinnerBuf.WriteString(bytesutil.Itoa(int(peakRate)))
-	spinnerBuf.WriteString(" req/s]")
+	// Build success spinner message showing module and stats
+	spinnerBuilder.WriteString(pb.coloredModule)
+	spinnerBuilder.WriteString(" | Workers [")
+	spinnerBuilder.WriteString(bytesutil.Itoa(pb.totalWorkers))
+	spinnerBuilder.WriteString("/")
+	spinnerBuilder.WriteString(bytesutil.Itoa(pb.totalWorkers))
+	spinnerBuilder.WriteString("] | Rate [")
+	spinnerBuilder.WriteString(bytesutil.Itoa(int(avgRate)))
+	spinnerBuilder.WriteString(" req/s] Peak [")
+	spinnerBuilder.WriteString(bytesutil.Itoa(int(peakRate)))
+	spinnerBuilder.WriteString(" req/s]")
 
-	// Progress bar title remains with module and URL
+	// Update progress bar title to remain with module and URL
 	if pb.progressbar != nil {
-		titleBuf.WriteString(pb.coloredModule)
-		titleBuf.WriteString(" | ")
-		titleBuf.WriteString(pb.coloredURL)
-		pb.progressbar.UpdateTitle(titleBuf.String())
+		titleBuilder.WriteString(pb.coloredModule)
+		titleBuilder.WriteString(" | ")
+		titleBuilder.WriteString(pb.coloredURL)
+		pb.progressbar.UpdateTitle(titleBuilder.String())
 	}
 
-	// Final progressbar update to ensure display is correct
+	// Ensure a final update of the progress bar title if needed
 	if pb.progressbar != nil {
 		pb.progressbar.UpdateTitle(pb.progressbar.Title)
 	}
 
-	// Now show success message - this should be the last operation
-	pb.spinner.Success(spinnerBuf.String())
+	// Show success spinner message
+	pb.spinner.Success(spinnerBuilder.String())
 }
 
 // UpdateProgressbarTitle updates the progress bar title
@@ -237,38 +215,34 @@ func (pb *ProgressBar) Start() {
 	pb.mu.Lock()
 	defer pb.mu.Unlock()
 
-	// Pre-allocate builders
-	spinnerBuf := getStringBuilder()
-	defer putStringBuilder(spinnerBuf)
+	var spinnerBuilder strings.Builder
+	var titleBuilder strings.Builder
 
-	titleBuf := getStringBuilder()
-	defer putStringBuilder(titleBuf)
+	// Build initial spinner text showing module and initial stats
+	spinnerBuilder.WriteString(pb.coloredModule)
+	spinnerBuilder.WriteString(" | Workers [0/")
+	spinnerBuilder.WriteString(bytesutil.Itoa(pb.totalWorkers))
+	spinnerBuilder.WriteString("] | Rate [0 req/s] Avg [0 req/s]")
+	initialSpinnerText := spinnerBuilder.String()
 
-	// Build initial spinner text - now shows module and initial stats
-	spinnerBuf.WriteString(pb.coloredModule)
-	spinnerBuf.WriteString(" | Workers [0/")
-	spinnerBuf.WriteString(bytesutil.Itoa(pb.totalWorkers))
-	spinnerBuf.WriteString("] | Rate [0 req/s] Avg [0 req/s]")
-	initialSpinnerText := spinnerBuf.String()
-
-	// Build initial progressbar title - now shows module and URL
-	titleBuf.WriteString(pb.coloredModule)
-	titleBuf.WriteString(" | ")
-	titleBuf.WriteString(pb.coloredURL)
-	progressTitle := titleBuf.String()
+	// Build initial progress bar title showing module and URL
+	titleBuilder.WriteString(pb.coloredModule)
+	titleBuilder.WriteString(" | ")
+	titleBuilder.WriteString(pb.coloredURL)
+	progressTitle := titleBuilder.String()
 
 	// Start multiprinter first
 	if pb.multiprinter != nil {
 		pb.multiprinter.Start()
 	}
 
-	// Start spinner with small delay to ensure terminal is ready
+	// Start spinner with a slight delay for terminal readiness
 	if pb.spinner != nil {
 		started, _ := pb.spinner.Start(initialSpinnerText)
 		pb.spinner = started
 	}
 
-	// Now start progressbar
+	// Now start the progress bar
 	if pb.progressbar != nil {
 		updatedBar := *pb.progressbar
 		updatedBar.Title = progressTitle

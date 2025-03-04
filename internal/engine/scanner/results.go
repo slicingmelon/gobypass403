@@ -1,6 +1,7 @@
 package scanner
 
 import (
+	"context"
 	"fmt"
 	"strconv"
 	"strings"
@@ -23,16 +24,24 @@ var (
 	db         *sql.DB
 	dbInitOnce sync.Once
 	stmtPool   chan *sql.Stmt
+	dbPath     string
 )
 
-func InitDB(dbPath string, workers int) error {
+func InitDB(dbFilePath string, workers int) error {
 	var initErr error
 	dbInitOnce.Do(func() {
-		// Enhanced connection string with shared cache and WAL
-		db, initErr = sql.Open("sqlite3", dbPath+"?_journal_mode=WAL&_synchronous=NORMAL&_busy_timeout=10000&_locking_mode=NORMAL&_txlock=immediate&cache=shared&mode=rwc")
+		dbPath = dbFilePath
+
+		// Enhanced connection string with WAL mode and immediate transactions
+		db, initErr = sql.Open("sqlite3", "file:"+dbPath+"?_journal_mode=WAL&_synchronous=NORMAL&_busy_timeout=10000&_txlock=immediate&mode=rwc")
 		if initErr != nil {
 			return
 		}
+
+		// Set connection limits
+		db.SetMaxOpenConns(1) // Only one writer connection
+		db.SetMaxIdleConns(1)
+		db.SetConnMaxLifetime(0)
 
 		// Create tables and indexes first
 		_, initErr = db.Exec(`
@@ -64,25 +73,22 @@ func InitDB(dbPath string, workers int) error {
 		}
 
 		// Initialize statement pool
-		maxConns := workers + (workers / 3)
-		stmtPool = make(chan *sql.Stmt, maxConns)
+		stmtPool = make(chan *sql.Stmt, 1) // Only need one prepared statement since we're using a single connection
 
-		// Pre-prepare statements for the pool
-		for i := 0; i < maxConns; i++ {
-			stmt, err := db.Prepare(`
-                INSERT INTO scan_results (
-                    target_url, bypass_module, curl_cmd, response_headers,
-                    response_body_preview, status_code, content_type, content_length,
-                    response_body_bytes, title, server_info, redirect_url,
-                    response_time, debug_token
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            `)
-			if err != nil {
-				initErr = fmt.Errorf("failed to prepare statement: %v", err)
-				return
-			}
-			stmtPool <- stmt
+		// Pre-prepare the single statement with correct SQL syntax
+		stmt, err := db.Prepare(`
+            INSERT INTO scan_results (
+                target_url, bypass_module, curl_cmd, response_headers,
+                response_body_preview, status_code, content_type, content_length,
+                response_body_bytes, title, server_info, redirect_url,
+                response_time, debug_token
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `)
+		if err != nil {
+			initErr = fmt.Errorf("failed to prepare statement: %v", err)
+			return
 		}
+		stmtPool <- stmt
 	})
 	return initErr
 }
@@ -117,22 +123,18 @@ func getTableHeader() []string {
 	}
 }
 
-var terminalStringBuilderPool = sync.Pool{
-	New: func() any {
-		return &strings.Builder{}
-	},
-}
-
-func getTerminalStringBuilder() *strings.Builder {
-	return terminalStringBuilderPool.Get().(*strings.Builder)
-}
-
-func putTerminalStringBuilder(sb *strings.Builder) {
-	sb.Reset()
-	terminalStringBuilderPool.Put(sb)
-}
-
 func PrintResultsTableFromDB(targetURL, bypassModule string) error {
+	// Extract dbPath from existing connection
+	roDb, err := sql.Open("sqlite3", "file:"+dbPath+"?_journal_mode=WAL&_synchronous=NORMAL&_busy_timeout=10000&cache=shared&mode=ro")
+	if err != nil {
+		return fmt.Errorf("failed to open read-only database: %v", err)
+	}
+	defer roDb.Close()
+
+	// Configure read-only connection for optimal performance
+	roDb.SetMaxOpenConns(10)
+	roDb.SetMaxIdleConns(5)
+
 	queryModules := strings.Split(bypassModule, ",")
 	placeholders := strings.Repeat("?,", len(queryModules))
 	placeholders = placeholders[:len(placeholders)-1] // Remove trailing comma
@@ -154,7 +156,15 @@ func PrintResultsTableFromDB(targetURL, bypassModule string) error {
 		args[i+1] = module
 	}
 
-	rows, err := db.Query(query, args...)
+	// Prepare the statement with the actual query
+	stmt, err := roDb.Prepare(query)
+	if err != nil {
+		return fmt.Errorf("failed to prepare query: %v", err)
+	}
+	defer stmt.Close()
+
+	// Execute the query
+	rows, err := stmt.Query(args...)
 	if err != nil {
 		return fmt.Errorf("database query error: %v", err)
 	}
@@ -202,7 +212,7 @@ func PrintResultsTableFromDB(targetURL, bypassModule string) error {
 		return fmt.Errorf("no results found for %s (modules: %s)", targetURL, bypassModule)
 	}
 
-	// Display header
+	// Display header directly to avoid an allocation
 	pterm.DefaultHeader.WithBackgroundStyle(pterm.NewStyle(pterm.BgGreen)).
 		Println("Results for " + targetURL)
 
@@ -212,17 +222,15 @@ func PrintResultsTableFromDB(targetURL, bypassModule string) error {
 		WithBoxed().
 		WithData(tableData)
 
+	// Render table directly into a string (avoiding the extra allocation)
 	tableStr, err := table.Srender()
 	if err != nil {
 		return fmt.Errorf("failed to render table: %v", err)
 	}
-	// Get a preallocated buffer from the pool
-	sb := getTerminalStringBuilder()
-	defer putTerminalStringBuilder(sb)
 
-	sb.WriteString(tableStr)
+	// Print the rendered table directly
+	fmt.Println(tableStr)
 
-	fmt.Print(sb.String())
 	return nil
 }
 
@@ -237,8 +245,8 @@ func AppendResultsToDB(results []*Result) error {
 		stmtPool <- stmt // Return statement to pool
 	}()
 
-	// Start transaction
-	tx, err := db.Begin()
+	// Start immediate transaction
+	tx, err := db.BeginTx(context.Background(), &sql.TxOptions{Isolation: sql.LevelSerializable})
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %v", err)
 	}
@@ -248,6 +256,7 @@ func AppendResultsToDB(results []*Result) error {
 	txStmt := tx.Stmt(stmt)
 	defer txStmt.Close()
 
+	// Batch insert all results in a single transaction
 	for _, result := range results {
 		_, err := txStmt.Exec(
 			result.TargetURL,
