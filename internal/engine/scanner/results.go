@@ -15,6 +15,9 @@ import (
 
 // to optimize
 // https://turriate.com/articles/making-sqlite-faster-in-go
+// https://use.expensify.com/blog/scaling-sqlite-to-4m-qps-on-a-single-server
+// https://github.com/mattn/go-sqlite3/issues/1022#issuecomment-1067353980
+// https://github.com/zzxgzgz/SQLite_Multithreading_Go/blob/5eebf73f8b5b9ab09981b37456c72349983be2d1/worker_pool/woker_pool.go#L97-L107
 
 var (
 	db         *sql.DB
@@ -26,7 +29,7 @@ func InitDB(dbPath string, workers int) error {
 	var initErr error
 	dbInitOnce.Do(func() {
 		// Enhanced connection string with shared cache and WAL
-		db, initErr = sql.Open("sqlite3", dbPath+"?_journal_mode=WAL&_sync=NORMAL&_busy_timeout=10000&_locking_mode=NORMAL&cache=shared&mode=rwc")
+		db, initErr = sql.Open("sqlite3", dbPath+"?_journal_mode=WAL&_synchronous=NORMAL&_busy_timeout=10000&_locking_mode=NORMAL&_txlock=immediate&cache=shared&mode=rwc")
 		if initErr != nil {
 			return
 		}
