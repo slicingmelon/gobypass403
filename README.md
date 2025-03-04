@@ -65,9 +65,9 @@ Usage:
   -T, -timeout
         Total timeout (in milliseconds) (Default: 20000)
   -delay
-        Delay between requests (in milliseconds) (Default: 0)
+        Delay between requests (in milliseconds) (0 means no delay) (Default: 0)
   -max-retries
-        Maximum number of retries for failed requests (Default: 2)
+        Maximum number of retries for failed requests (0 means no retries) (Default: 2)
   -retry-delay
         Delay between retries (in milliseconds) (Default: 500)
   -max-cfr, -max-consecutive-fails
@@ -92,11 +92,11 @@ Usage:
         Follow HTTP redirects
   -rbps, -response-body-preview-size
         Maximum number of bytes to retrieve from response body (Default: 1024)
-  -disable-response-body-streaming
+  -drbs, -disable-response-body-streaming
         Disables streaming of response body (default: False) (Default: false)
   -update-payloads
         Update payload files to latest version (Default: false)
-  -dpg, -disable-progress-bar
+  -dpb, -disable-progress-bar
         Disable progress bar (Default: false)
   -r, -resend
         Resend the exact request using the debug token (example: -r xyzdebugtoken)

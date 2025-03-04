@@ -192,7 +192,7 @@ func (s *Scanner) RunBypassModule(bypassModule string, targetURL string) int {
 		return 0
 	}
 
-	GB403Logger.Verbose().Msgf("[%s] Generated %d payloads for %s\n", bypassModule, len(allJobs), targetURL)
+	GB403Logger.Info().Msgf("[%s] Generated %d payloads for %s\n", bypassModule, len(allJobs), targetURL)
 
 	worker := NewBypassWorker(bypassModule, targetURL, s.scannerOpts, len(allJobs))
 	defer worker.Stop()
@@ -266,16 +266,7 @@ func (s *Scanner) RunBypassModule(bypassModule string, targetURL string) int {
 	dbWg.Wait()
 
 	if progressBar != nil {
-		// Prepare and synchronize progress display before success message
-		progressBar.PrepareForCompletion(
-			worker.requestPool.GetPeakRequestRate(),
-			worker.requestPool.GetAverageRequestRate(),
-		)
-
-		// Small delay to ensure terminal updates properly
-		time.Sleep(50 * time.Millisecond)
-
-		// Now show the success spinner
+		// Now show the success spinner - this directly handles completion tasks
 		progressBar.SpinnerSuccess(
 			worker.requestPool.GetReqWPCompletedTasks(),
 			worker.requestPool.GetReqWPSubmittedTasks(),
@@ -349,7 +340,7 @@ func (s *Scanner) ResendRequestFromToken(debugToken string, resendCount int) ([]
 		// Only add to results if status code matches
 		if matchStatusCodes(response.StatusCode, s.scannerOpts.MatchStatusCodes) {
 			result := &Result{
-				TargetURL:           targetURL, // Using displayURL for consistent logging
+				TargetURL:           targetURL,
 				BypassModule:        string(response.BypassModule),
 				StatusCode:          response.StatusCode,
 				ResponseHeaders:     string(response.ResponseHeaders),
