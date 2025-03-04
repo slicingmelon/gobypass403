@@ -145,3 +145,44 @@ func BuildRawHTTPRequest(httpclient *HTTPClient, req *fasthttp.Request, bypassPa
 
 	return nil
 }
+
+func applyReqFlags(req *fasthttp.Request) {
+	req.URI().DisablePathNormalizing = true
+	req.Header.DisableNormalizing()
+	req.Header.SetNoDefaultContentType(true)
+	req.UseHostHeader = true
+}
+
+func ReqCopyToWithSettings(src *fasthttp.Request, dst *fasthttp.Request) *fasthttp.Request {
+	// Copy basic request data
+	src.CopyTo(dst)
+
+	// Log initial state after copy
+	//GB403Logger.Debug().Msgf("After CopyTo - scheme=%s host=%s",
+	//	src.URI().Scheme(), src.URI().Host()) // Use bytes directly in logging
+
+	applyReqFlags(dst)
+
+	// Store original values as []byte
+	originalScheme := src.URI().Scheme()
+	originalHost := src.URI().Host()
+
+	//GB403Logger.Debug().Msgf("Original values - scheme=%s host=%s",
+	//	originalScheme, originalHost) // Use bytes directly in logging
+
+	// Use byte variants to avoid allocations
+	dst.URI().SetSchemeBytes(originalScheme)
+	dst.URI().SetHostBytes(originalHost)
+
+	// Check if Host header exists using case-insensitive lookup
+	if len(PeekRequestHeaderKeyCaseInsensitive(dst, strHostHeader)) == 0 {
+		//GB403Logger.Debug().Msgf("No Host header found, setting from URI.Host: %s", originalHost)
+		dst.Header.SetHostBytes(originalHost)
+	}
+
+	// GB403Logger.Debug().Msgf("After SetScheme/SetHost - scheme=%s host=%s header_host=%s",
+	// 	dst.URI().Scheme(), dst.URI().Host(),
+	// 	PeekRequestHeaderKeyCaseInsensitive(dst, hostKey))
+
+	return dst
+}

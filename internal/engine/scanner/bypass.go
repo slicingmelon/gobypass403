@@ -179,13 +179,7 @@ func (s *Scanner) RunAllBypasses(targetURL string) int {
 	return totalFindings
 }
 
-var resultPool = sync.Pool{
-	New: func() any {
-		return new(Result)
-	},
-}
-
-// Run a specific Bypass Module
+// Run a specific Bypass Module and return the number of findings
 func (s *Scanner) RunBypassModule(bypassModule string, targetURL string) int {
 	moduleInstance, exists := bypassModules[bypassModule]
 	if !exists {

@@ -9,6 +9,7 @@ import (
 
 	"github.com/VictoriaMetrics/VictoriaMetrics/lib/bytesutil"
 	"github.com/pterm/pterm"
+	"github.com/slicingmelon/go-rawurlparser"
 )
 
 // ProgressBar manages a combined spinner and progress bar display
@@ -30,20 +31,14 @@ type ProgressBar struct {
 
 // NewProgressBar creates a new progress display for a bypass module
 func NewProgressBar(bypassModule string, targetURL string, totalJobs int, totalWorkers int) *ProgressBar {
-	termWidth := pterm.GetTerminalWidth()
+	//termWidth := pterm.GetTerminalWidth()
 
 	// Simple URL truncation - consistent for all displays
-	truncatedURL := simpleTruncateURL(targetURL, 40)
+	truncatedURL := simpleTruncateURL(targetURL)
 
 	// Fixed width progress bar that works well in most terminals
-	progressBarWidth := min(90, termWidth-10)
-
-	// // Second use: calculate progress bar width based on truncated URL
-	// desiredWidth := len(truncatedURL) + len("Complete: ") + 10
-	// maxWidth := min(desiredWidth, termWidth)
-	// if maxWidth < 80 {
-	// 	maxWidth = min(80, termWidth)
-	// }
+	// Fixed width progress bar for better terminal compatibility
+	progressBarWidth := 80
 
 	multi := &pterm.MultiPrinter{
 		Writer:      os.Stdout,
@@ -53,7 +48,7 @@ func NewProgressBar(bypassModule string, targetURL string, totalJobs int, totalW
 	spinnerPrinter := &pterm.SpinnerPrinter{
 		Sequence:            []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"},
 		Style:               &pterm.ThemeDefault.SpinnerStyle,
-		Delay:               time.Millisecond * 500,
+		Delay:               time.Millisecond * 200,
 		MessageStyle:        &pterm.ThemeDefault.SpinnerTextStyle,
 		SuccessPrinter:      &pterm.Success,
 		FailPrinter:         &pterm.Error,
@@ -81,62 +76,31 @@ func NewProgressBar(bypassModule string, targetURL string, totalJobs int, totalW
 	}
 
 	coloredModule := pterm.LightCyan(bypassModule)
-	coloredURL := pterm.FgYellow.Sprint(simpleTruncateURL(targetURL, 40))
+	coloredURL := pterm.FgYellow.Sprint(truncatedURL)
 
 	return &ProgressBar{
-		multiprinter: multi,
-		spinner:      spinnerPrinter,
-		progressbar:  progressPrinter,
-		mu:           sync.RWMutex{},
-		bypassModule: bypassModule,
-		targetURL:    targetURL,
-		truncatedURL: truncatedURL,
-		totalJobs:    totalJobs,
-		totalWorkers: totalWorkers,
-
+		multiprinter:  multi,
+		spinner:       spinnerPrinter,
+		progressbar:   progressPrinter,
+		mu:            sync.RWMutex{},
+		bypassModule:  bypassModule,
+		targetURL:     targetURL,
+		truncatedURL:  truncatedURL,
+		totalJobs:     totalJobs,
+		totalWorkers:  totalWorkers,
 		coloredModule: coloredModule,
 		coloredURL:    coloredURL,
 	}
 }
 
-func simpleTruncateURL(url string, maxLength int) string {
-	if len(url) <= maxLength {
-		return url
+func simpleTruncateURL(url string) string {
+	// Use the rawurlparser to get just scheme://host
+	if parsedURL, err := rawurlparser.RawURLParse(url); err == nil {
+		// Return scheme://host... format
+		return fmt.Sprintf("%s://%s ...", parsedURL.Scheme, parsedURL.Host)
 	}
-
-	// Extract scheme
-	scheme := ""
-	if strings.HasPrefix(url, "http://") {
-		scheme = "http://"
-	} else if strings.HasPrefix(url, "https://") {
-		scheme = "https://"
-	}
-
-	urlBody := strings.TrimPrefix(url, scheme)
-
-	// We want to keep the domain part at minimum
-	parts := strings.SplitN(urlBody, "/", 2)
-	domain := parts[0]
-
-	// If domain is already too long, truncate it
-	if len(domain) > maxLength-5 {
-		return scheme + domain[:maxLength-5] + "..."
-	}
-
-	// If there's no path, just return domain
-	if len(parts) < 2 || parts[1] == "" {
-		return scheme + domain
-	}
-
-	// Calculate how much space we have for the path
-	remainingSpace := maxLength - len(scheme) - len(domain) - 4 // -4 for "/..."
-
-	// If not enough space, just show domain
-	if remainingSpace < 5 {
-		return scheme + domain + "/..."
-	}
-
-	return scheme + domain + "/..." + parts[1][max(0, len(parts[1])-remainingSpace):]
+	// Simple fallback if parsing completely fails
+	return url
 }
 
 // Increment advances the progress bar by one step
@@ -190,25 +154,24 @@ func (pb *ProgressBar) UpdateSpinnerText(
 	titleBuf := getStringBuilder()
 	defer putStringBuilder(titleBuf)
 
-	// Spinner text
+	// Spinner now shows statistics instead of URL
 	spinnerBuf.WriteString(pb.coloredModule)
-	spinnerBuf.WriteString(" | Scanning ")
-	spinnerBuf.WriteString(pb.coloredURL)
+	spinnerBuf.WriteString(" | Workers [")
+	spinnerBuf.WriteString(bytesutil.Itoa(int(activeWorkers)))
+	spinnerBuf.WriteString("/")
+	spinnerBuf.WriteString(bytesutil.Itoa(pb.totalWorkers))
+	spinnerBuf.WriteString("] | Rate [")
+	spinnerBuf.WriteString(bytesutil.Itoa(int(currentRate)))
+	spinnerBuf.WriteString(" req/s] Avg [")
+	spinnerBuf.WriteString(bytesutil.Itoa(int(avgRate)))
+	spinnerBuf.WriteString(" req/s]")
 	pb.spinner.UpdateText(spinnerBuf.String())
 
-	// Progress bar title
+	// Progress bar title now shows module and URL
 	if pb.progressbar != nil {
-		titleBuf.Grow(len(pb.bypassModule) + 100) // approximate size for stats
 		titleBuf.WriteString(pb.coloredModule)
-		titleBuf.WriteString(" | Workers [")
-		titleBuf.WriteString(bytesutil.Itoa(int(activeWorkers)))
-		titleBuf.WriteString("/")
-		titleBuf.WriteString(bytesutil.Itoa(pb.totalWorkers))
-		titleBuf.WriteString("] | Rate [")
-		titleBuf.WriteString(bytesutil.Itoa(int(currentRate)))
-		titleBuf.WriteString(" req/s] Avg [")
-		titleBuf.WriteString(bytesutil.Itoa(int(avgRate)))
-		titleBuf.WriteString(" req/s]")
+		titleBuf.WriteString(" | ")
+		titleBuf.WriteString(pb.coloredURL)
 
 		pb.progressbar.UpdateTitle(titleBuf.String())
 	}
@@ -223,31 +186,43 @@ func (pb *ProgressBar) SpinnerSuccess(
 	pb.mu.Lock()
 	defer pb.mu.Unlock()
 
+	// First ensure progress bar is at 100% complete
+	if pb.progressbar != nil && pb.progressbar.Current < pb.progressbar.Total {
+		pb.progressbar.Current = pb.progressbar.Total
+	}
+
 	spinnerBuf := getStringBuilder()
 	defer putStringBuilder(spinnerBuf)
 	titleBuf := getStringBuilder()
 	defer putStringBuilder(titleBuf)
 
-	spinnerBuf.WriteString(pterm.White("Complete"))
-	spinnerBuf.WriteString(": ")
-	spinnerBuf.WriteString(pb.coloredURL)
-	pb.spinner.Success(spinnerBuf.String())
+	// Success spinner message shows module and stats
+	spinnerBuf.WriteString(pb.coloredModule)
+	spinnerBuf.WriteString(" | Workers [")
+	spinnerBuf.WriteString(bytesutil.Itoa(pb.totalWorkers))
+	spinnerBuf.WriteString("/")
+	spinnerBuf.WriteString(bytesutil.Itoa(pb.totalWorkers))
+	spinnerBuf.WriteString("] | Rate [")
+	spinnerBuf.WriteString(bytesutil.Itoa(int(avgRate)))
+	spinnerBuf.WriteString(" req/s] Peak [")
+	spinnerBuf.WriteString(bytesutil.Itoa(int(peakRate)))
+	spinnerBuf.WriteString(" req/s]")
 
-	// Update final progressbar title with peak rate
+	// Progress bar title remains with module and URL
 	if pb.progressbar != nil {
 		titleBuf.WriteString(pb.coloredModule)
-		titleBuf.WriteString(" | Workers [")
-		titleBuf.WriteString(bytesutil.Itoa(pb.totalWorkers)) // Show total workers instead of active
-		titleBuf.WriteString("/")
-		titleBuf.WriteString(bytesutil.Itoa(pb.totalWorkers))
-		titleBuf.WriteString("] | Rate [")
-		titleBuf.WriteString(bytesutil.Itoa(int(avgRate)))
-		titleBuf.WriteString(" req/s] Peak [") // Add peak rate
-		titleBuf.WriteString(bytesutil.Itoa(int(peakRate)))
-		titleBuf.WriteString(" req/s]")
-
+		titleBuf.WriteString(" | ")
+		titleBuf.WriteString(pb.coloredURL)
 		pb.progressbar.UpdateTitle(titleBuf.String())
 	}
+
+	// Final progressbar update to ensure display is correct
+	if pb.progressbar != nil {
+		pb.progressbar.UpdateTitle(pb.progressbar.Title)
+	}
+
+	// Now show success message - this should be the last operation
+	pb.spinner.Success(spinnerBuf.String())
 }
 
 // UpdateProgressbarTitle updates the progress bar title
@@ -269,19 +244,17 @@ func (pb *ProgressBar) Start() {
 	titleBuf := getStringBuilder()
 	defer putStringBuilder(titleBuf)
 
-	// Build initial spinner text - using truncatedURL for consistency
-	spinnerBuf.Grow(len(pb.bypassModule) + len(pb.truncatedURL) + 20) // approximate size
+	// Build initial spinner text - now shows module and initial stats
 	spinnerBuf.WriteString(pb.coloredModule)
-	spinnerBuf.WriteString(" | Scanning ")
-	spinnerBuf.WriteString(pb.coloredURL)
+	spinnerBuf.WriteString(" | Workers [0/")
+	spinnerBuf.WriteString(bytesutil.Itoa(pb.totalWorkers))
+	spinnerBuf.WriteString("] | Rate [0 req/s] Avg [0 req/s]")
 	initialSpinnerText := spinnerBuf.String()
 
-	// Build initial progressbar title
-	titleBuf.Grow(len(pb.bypassModule) + 50) // approximate size for stats
+	// Build initial progressbar title - now shows module and URL
 	titleBuf.WriteString(pb.coloredModule)
-	titleBuf.WriteString(" | Workers [0/")
-	titleBuf.WriteString(bytesutil.Itoa(pb.totalWorkers))
-	titleBuf.WriteString("] | Rate [0 req/s] Avg [0 req/s]")
+	titleBuf.WriteString(" | ")
+	titleBuf.WriteString(pb.coloredURL)
 	progressTitle := titleBuf.String()
 
 	// Start multiprinter first
@@ -294,9 +267,6 @@ func (pb *ProgressBar) Start() {
 		started, _ := pb.spinner.Start(initialSpinnerText)
 		pb.spinner = started
 	}
-
-	// Add a tiny sleep to prevent visual glitches
-	time.Sleep(50 * time.Millisecond)
 
 	// Now start progressbar
 	if pb.progressbar != nil {
@@ -316,7 +286,7 @@ func (pb *ProgressBar) Stop() {
 	if pb.spinner != nil {
 		pb.spinner.Stop()
 		// Small delay to let terminal update
-		time.Sleep(50 * time.Millisecond)
+		//time.Sleep(50 * time.Millisecond)
 	}
 
 	// Then stop progressbar
@@ -341,44 +311,4 @@ func (pb *ProgressBar) Stop() {
 	// Print newlines to ensure proper spacing
 	fmt.Fprintln(os.Stdout)
 	fmt.Fprintln(os.Stdout)
-}
-
-// This new method should be called before the spinner success to make sure
-// the progress bar and worker counts are properly synchronized
-func (pb *ProgressBar) PrepareForCompletion(
-	peakRate uint64,
-	avgRate uint64,
-) {
-	pb.mu.Lock()
-	defer pb.mu.Unlock()
-
-	// Force progress bar to 100% complete
-	if pb.progressbar != nil && pb.progressbar.Current < pb.progressbar.Total {
-		pb.progressbar.Current = pb.progressbar.Total
-	}
-
-	// Update title to show all workers active for visual consistency
-	if pb.progressbar != nil {
-		titleBuf := getStringBuilder()
-		defer putStringBuilder(titleBuf)
-
-		titleBuf.Grow(len(pb.bypassModule) + 100)
-		titleBuf.WriteString(pb.coloredModule)
-		titleBuf.WriteString(" | Workers [")
-		titleBuf.WriteString(bytesutil.Itoa(pb.totalWorkers)) // Show full worker count
-		titleBuf.WriteString("/")
-		titleBuf.WriteString(bytesutil.Itoa(pb.totalWorkers))
-		titleBuf.WriteString("] | Rate [")
-		titleBuf.WriteString(bytesutil.Itoa(int(avgRate)))
-		titleBuf.WriteString(" req/s] Peak [")
-		titleBuf.WriteString(bytesutil.Itoa(int(peakRate)))
-		titleBuf.WriteString(" req/s]")
-
-		pb.progressbar.UpdateTitle(titleBuf.String())
-	}
-
-	// Force update to ensure display is correct
-	if pb.progressbar != nil {
-		pb.progressbar.UpdateTitle(pb.progressbar.Title)
-	}
 }
