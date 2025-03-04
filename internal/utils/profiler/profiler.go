@@ -73,6 +73,7 @@ func (p *Profiler) Stop() {
 
 		if err := p.GenerateVisualization(profType); err != nil {
 			GB403Logger.Error().Msgf("Failed to generate %s visualization: %v", profType, err)
+			GB403Logger.Error().Msgf("Please make sure that you have graphviz installed and available in your PATH\n")
 			continue
 		}
 

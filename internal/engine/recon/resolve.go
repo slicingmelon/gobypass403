@@ -1,4 +1,4 @@
-package dialer
+package recon
 
 import (
 	"context"
@@ -9,16 +9,12 @@ import (
 
 	"github.com/likexian/doh"
 	"github.com/likexian/doh/dns"
-	GB403ErrorHandler "github.com/slicingmelon/go-bypass-403/internal/utils/error"
 	"github.com/valyala/fasthttp"
-	"github.com/valyala/fasthttp/fasthttpproxy"
 )
 
 var (
-	sharedDialer       *fasthttp.TCPDialer
-	onceDialer         sync.Once
-	clientSharedDialer *fasthttp.TCPDialer
-	onceClientDialer   sync.Once
+	sharedDialer *fasthttp.TCPDialer
+	onceDialer   sync.Once
 )
 
 type CustomResolver struct {
@@ -41,6 +37,25 @@ func NewCustomResolver(dnsServers []string) *CustomResolver {
 		dohClient:  dohClient,
 		dnsServers: dnsServers,
 	}
+}
+
+// This gets the core dialer instance
+func GetSharedDialer() *fasthttp.TCPDialer {
+	onceDialer.Do(func() {
+		sharedDialer = &fasthttp.TCPDialer{
+			Concurrency:      2048,
+			DNSCacheDuration: 120 * time.Minute,
+			Resolver: NewCustomResolver([]string{
+				"1.1.1.1:53",                // Cloudflare
+				"9.9.9.9:53",                // Quad9
+				"208.67.222.222:53",         // OpenDNS
+				"[2606:4700:4700::1111]:53", // Cloudflare IPv6
+				"[2620:fe::fe]:53",          // Quad9 IPv6
+			}),
+			DisableDNSResolution: false,
+		}
+	})
+	return sharedDialer
 }
 
 // LookupIPAddr resolves a host and returns an array of IP addresses
@@ -201,75 +216,4 @@ func (r *CustomResolver) LookupIPAddr(ctx context.Context, host string) ([]net.I
 		return ips, nil
 	}
 	return nil, fmt.Errorf("all DNS resolution attempts failed")
-}
-
-// This gets the core dialer instance
-func GetSharedDialer() *fasthttp.TCPDialer {
-	onceDialer.Do(func() {
-		sharedDialer = &fasthttp.TCPDialer{
-			Concurrency:      2048,
-			DNSCacheDuration: 120 * time.Minute,
-			Resolver: NewCustomResolver([]string{
-				"1.1.1.1:53",                // Cloudflare
-				"9.9.9.9:53",                // Quad9
-				"208.67.222.222:53",         // OpenDNS
-				"8.8.4.4:53",                // Google Secondary
-				"1.0.0.1:53",                // Cloudflare Secondary
-				"149.112.112.112:53",        // Quad9 Secondary
-				"208.67.220.220:53",         // OpenDNS Secondary
-				"[2001:4860:4860::8888]:53", // Google IPv6
-				"[2606:4700:4700::1111]:53", // Cloudflare IPv6
-				"[2620:fe::fe]:53",          // Quad9 IPv6
-			}),
-			DisableDNSResolution: false,
-		}
-	})
-	return sharedDialer
-}
-
-func GetHTTPClientSharedDialer() *fasthttp.TCPDialer {
-	onceClientDialer.Do(func() {
-		clientSharedDialer = &fasthttp.TCPDialer{
-			Concurrency:      2048,
-			DNSCacheDuration: 120 * time.Minute,
-		}
-	})
-	return clientSharedDialer
-}
-
-// This sets the dialer for the HTTPClient
-func CreateHTTPClientDialer(timeout time.Duration, proxyURL string) fasthttp.DialFunc {
-
-	dialer := GetHTTPClientSharedDialer()
-
-	return func(addr string) (net.Conn, error) {
-		// Handle proxy if configured
-		if proxyURL != "" {
-			proxyDialer := fasthttpproxy.FasthttpHTTPDialerTimeout(proxyURL, timeout)
-			conn, err := proxyDialer(addr)
-			if err != nil {
-				if handleErr := GB403ErrorHandler.GetErrorHandler().HandleError(err, GB403ErrorHandler.ErrorContext{
-					ErrorSource: "Client.proxyDial",
-					Host:        addr,
-				}); handleErr != nil {
-					return nil, fmt.Errorf("proxy dial error handling failed: %v (original error: %v)", handleErr, err)
-				}
-				return nil, err
-			}
-			return conn, nil
-		}
-
-		// No proxy, use our TCPDialer with timeout
-		conn, err := dialer.DialDualStackTimeout(addr, timeout)
-		if err != nil {
-			if handleErr := GB403ErrorHandler.GetErrorHandler().HandleError(err, GB403ErrorHandler.ErrorContext{
-				ErrorSource: "Client.directDial",
-				Host:        addr,
-			}); handleErr != nil {
-				return nil, fmt.Errorf("direct dial error handling failed: %v (original error: %v)", handleErr, err)
-			}
-			return nil, err
-		}
-		return conn, nil
-	}
 }

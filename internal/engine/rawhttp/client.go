@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/slicingmelon/go-bypass-403/internal/engine/payload"
-	"github.com/slicingmelon/go-bypass-403/internal/engine/rawhttp/dialer"
 	GB403ErrorHandler "github.com/slicingmelon/go-bypass-403/internal/utils/error"
 	"github.com/valyala/fasthttp"
 )
@@ -98,7 +97,7 @@ func NewHTTPClient(opts *HTTPClientOptions) *HTTPClient {
 	}
 
 	if opts.Dialer == nil {
-		opts.Dialer = dialer.CreateHTTPClientDialer(opts.DialTimeout, opts.ProxyURL)
+		opts.Dialer = CreateHTTPClientDialer(opts.DialTimeout, opts.ProxyURL)
 	}
 
 	retryConfig := DefaultRetryConfig()
@@ -137,7 +136,9 @@ func NewHTTPClient(opts *HTTPClientOptions) *HTTPClient {
 			InsecureSkipVerify: true,
 			MinVersion:         tls.VersionTLS10,
 			MaxVersion:         tls.VersionTLS13,
-			ClientSessionCache: tls.NewLRUClientSessionCache(1024), // Session cache to resume sessions
+			Renegotiation:      tls.RenegotiateOnceAsClient,
+			//ClientSessionCache:     tls.NewLRUClientSessionCache(1024), // Session cache to resume sessions
+			//SessionTicketsDisabled: true,
 		},
 	}
 
@@ -205,7 +206,7 @@ func (c *HTTPClient) handleRetries(req *fasthttp.Request, resp *fasthttp.Respons
 			reqCopy.SetConnectionClose()
 			start = time.Now()
 			err = tempClient.client.Do(reqCopy, resp)
-			tempClient.client.CloseIdleConnections()
+			//tempClient.client.CloseIdleConnections()
 
 		default:
 			start = time.Now()
@@ -243,8 +244,25 @@ func (c *HTTPClient) handleRetries(req *fasthttp.Request, resp *fasthttp.Respons
 	return 0, ErrReqFailedMaxRetries
 }
 
+/*
 // DoRequest performs a HTTP request (raw)
 // Returns the HTTP response time (in ms) and error
+
+To remember!
+ErrNoFreeConns is returned when no free connections available
+to the given host.
+
+Increase the allowed number of connections per host if you
+see this error.
+
+ErrNoFreeConns ErrConnectionClosed may be returned from client methods if the server
+closes connection before returning the first response byte.
+
+If you see this error, then either fix the server by returning
+'Connection: close' response header before closing the connection
+or add 'Connection: close' request header before sending requests
+to broken server.
+*/
 func (c *HTTPClient) DoRequest(req *fasthttp.Request, resp *fasthttp.Response, bypassPayload payload.BypassPayload) (int64, error) {
 
 	if c.GetHTTPClientOptions().RequestDelay > 0 {
@@ -350,46 +368,4 @@ func (c *HTTPClient) EnableStreamResponseBody() {
 func (c *HTTPClient) Close() {
 	c.client.CloseIdleConnections()
 	c.throttler.ResetThrottler()
-}
-
-func applyReqFlags(req *fasthttp.Request) {
-	req.URI().DisablePathNormalizing = true
-	req.Header.DisableNormalizing()
-	req.Header.SetNoDefaultContentType(true)
-	req.UseHostHeader = true
-}
-
-func ReqCopyToWithSettings(src *fasthttp.Request, dst *fasthttp.Request) *fasthttp.Request {
-	// Copy basic request data
-	src.CopyTo(dst)
-
-	// Log initial state after copy
-	//GB403Logger.Debug().Msgf("After CopyTo - scheme=%s host=%s",
-	//	src.URI().Scheme(), src.URI().Host()) // Use bytes directly in logging
-
-	applyReqFlags(dst)
-
-	// Store original values as []byte
-	originalScheme := src.URI().Scheme() // Returns []byte
-	originalHost := src.URI().Host()     // Returns []byte
-
-	//GB403Logger.Debug().Msgf("Original values - scheme=%s host=%s",
-	//	originalScheme, originalHost) // Use bytes directly in logging
-
-	// Use byte variants to avoid allocations
-	dst.URI().SetSchemeBytes(originalScheme)
-	dst.URI().SetHostBytes(originalHost)
-
-	// Check if Host header exists using case-insensitive lookup
-	hostKey := []byte("Host")
-	if len(PeekRequestHeaderKeyCaseInsensitive(dst, hostKey)) == 0 {
-		//GB403Logger.Debug().Msgf("No Host header found, setting from URI.Host: %s", originalHost)
-		dst.Header.SetHostBytes(originalHost)
-	}
-
-	// GB403Logger.Debug().Msgf("After SetScheme/SetHost - scheme=%s host=%s header_host=%s",
-	// 	dst.URI().Scheme(), dst.URI().Host(),
-	// 	PeekRequestHeaderKeyCaseInsensitive(dst, hostKey))
-
-	return dst
 }

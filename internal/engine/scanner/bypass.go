@@ -1,11 +1,11 @@
 package scanner
 
 import (
-	"bytes"
 	"fmt"
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/slicingmelon/go-bypass-403/internal/engine/payload"
@@ -161,56 +161,38 @@ func (w *BypassWorker) Stop() {
 }
 
 // Core Function
-func (s *Scanner) RunAllBypasses(targetURL string) chan *Result {
-	results := make(chan *Result)
+func (s *Scanner) RunAllBypasses(targetURL string) int {
+	totalFindings := 0
 
-	go func() {
-		defer close(results)
-
-		modules := strings.Split(s.scannerOpts.BypassModule, ",")
-		for _, module := range modules {
-			module = strings.TrimSpace(module)
-			if module == "" {
-				continue
-			}
-
-			modResults := make(chan *Result)
-			go s.RunBypassModule(module, targetURL, modResults)
-
-			// Just forward results for progress tracking
-			for res := range modResults {
-				if res != nil {
-					results <- res
-				}
-			}
+	modules := strings.Split(s.scannerOpts.BypassModule, ",")
+	for _, module := range modules {
+		module = strings.TrimSpace(module)
+		if module == "" {
+			continue
 		}
-	}()
 
-	return results
+		// Now RunBypassModule returns count instead of using channels
+		findings := s.RunBypassModule(module, targetURL)
+		totalFindings += findings
+	}
+
+	return totalFindings
 }
 
-var resultsBufferPool = sync.Pool{
-	New: func() any {
-		return new(bytes.Buffer)
-	},
-}
-
-// Run a specific Bypass Module
-func (s *Scanner) RunBypassModule(bypassModule string, targetURL string, results chan<- *Result) {
-	defer close(results)
-
+// Run a specific Bypass Module and return the number of findings
+func (s *Scanner) RunBypassModule(bypassModule string, targetURL string) int {
 	moduleInstance, exists := bypassModules[bypassModule]
 	if !exists {
-		return
+		return 0
 	}
 
 	allJobs := moduleInstance.GenerateJobs(targetURL, bypassModule, s.scannerOpts)
 	if len(allJobs) == 0 {
 		GB403Logger.Warning().Msgf("No jobs generated for bypass module: %s\n", bypassModule)
-		return
+		return 0
 	}
 
-	GB403Logger.Verbose().Msgf("[%s] Generated %d payloads for %s\n", bypassModule, len(allJobs), targetURL)
+	GB403Logger.Info().Msgf("[%s] Generated %d payloads for %s\n", bypassModule, len(allJobs), targetURL)
 
 	worker := NewBypassWorker(bypassModule, targetURL, s.scannerOpts, len(allJobs))
 	defer worker.Stop()
@@ -219,11 +201,13 @@ func (s *Scanner) RunBypassModule(bypassModule string, targetURL string, results
 	if s.progressBarEnabled.Load() {
 		progressBar = NewProgressBar(bypassModule, targetURL, len(allJobs), s.scannerOpts.Threads)
 		progressBar.Start()
-		//progressBar.UpdateCurrentURL(targetURL)
 		defer progressBar.Stop()
 	}
 
 	responses := worker.requestPool.ProcessRequests(allJobs)
+
+	var dbWg sync.WaitGroup
+	resultCount := atomic.Int32{}
 
 	// Process responses and update progress based on pool metrics
 	for response := range responses {
@@ -244,9 +228,6 @@ func (s *Scanner) RunBypassModule(bypassModule string, targetURL string, results
 		}
 
 		if matchStatusCodes(response.StatusCode, s.scannerOpts.MatchStatusCodes) {
-			buf := resultsBufferPool.Get().(*bytes.Buffer)
-			buf.Reset()
-
 			// Create Result struct from response
 			result := &Result{
 				TargetURL:           string(response.URL),
@@ -265,23 +246,27 @@ func (s *Scanner) RunBypassModule(bypassModule string, targetURL string, results
 				DebugToken:          string(response.DebugToken),
 			}
 
-			// Write to file immediately
-			if err := AppendResultsToJsonL(GetResultsFile(), []*Result{result}); err != nil {
-				GB403Logger.Error().Msgf("Failed to write result: %v\n", err)
-			}
-
-			results <- result
-			resultsBufferPool.Put(buf)
-
-			// Release the RawHTTPResponseDetails back to its pool
-			rawhttp.ReleaseResponseDetails(response)
-		} else {
-			// Release nonetheless
-			rawhttp.ReleaseResponseDetails(response)
+			// Write to DB in a separate goroutine
+			dbWg.Add(1)
+			go func(res *Result) {
+				defer dbWg.Done()
+				if err := AppendResultsToDB([]*Result{res}); err != nil {
+					GB403Logger.Error().Msgf("Failed to write result to DB: %v\n\n", err)
+				} else {
+					resultCount.Add(1) // Only increment on successful DB write
+				}
+			}(result)
 		}
+
+		// Release the RawHTTPResponseDetails back to its pool
+		rawhttp.ReleaseResponseDetails(response)
 	}
 
+	// Before function returns, wait for all DB operations to complete
+	dbWg.Wait()
+
 	if progressBar != nil {
+		// Now show the success spinner - this directly handles completion tasks
 		progressBar.SpinnerSuccess(
 			worker.requestPool.GetReqWPCompletedTasks(),
 			worker.requestPool.GetReqWPSubmittedTasks(),
@@ -289,6 +274,8 @@ func (s *Scanner) RunBypassModule(bypassModule string, targetURL string, results
 			worker.requestPool.GetPeakRequestRate(),
 		)
 	}
+
+	return int(resultCount.Load())
 }
 
 // ResendRequestFromToken
@@ -353,7 +340,7 @@ func (s *Scanner) ResendRequestFromToken(debugToken string, resendCount int) ([]
 		// Only add to results if status code matches
 		if matchStatusCodes(response.StatusCode, s.scannerOpts.MatchStatusCodes) {
 			result := &Result{
-				TargetURL:           targetURL, // Using displayURL for consistent logging
+				TargetURL:           targetURL,
 				BypassModule:        string(response.BypassModule),
 				StatusCode:          response.StatusCode,
 				ResponseHeaders:     string(response.ResponseHeaders),

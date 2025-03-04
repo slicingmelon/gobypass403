@@ -128,7 +128,16 @@ func (wp *RequestWorkerPool) ProcessRequests(bypassPayloads []payload.BypassPayl
 	for _, bypassPayload := range bypassPayloads {
 		bypassPayload := bypassPayload // Capture for closure
 		group.Submit(func() {
-			if resp := wp.ProcessRequestResponseJob(bypassPayload); resp != nil {
+			resp, err := wp.ProcessRequestResponseJob(bypassPayload)
+
+			// Check for the critical error that should cancel everything
+			if err == ErrReqFailedMaxConsecutiveFails {
+				wp.cancel() // Cancel context to stop all other jobs
+				return
+			}
+
+			// Only send valid responses to the results channel
+			if resp != nil {
 				select {
 				case <-wp.ctx.Done():
 					return
@@ -143,7 +152,8 @@ func (wp *RequestWorkerPool) ProcessRequests(bypassPayloads []payload.BypassPayl
 		select {
 		case <-wp.ctx.Done():
 			// Context was cancelled (due to max consecutive failures)
-			GB403Logger.Warning().Msgf("Worker pool cancelled: max consecutive failures reached for module [%s]\n", wp.httpClient.options.BypassModule)
+			GB403Logger.Warning().Msgf("Worker pool cancelled: max consecutive failures reached for module [%s]\n",
+				wp.httpClient.options.BypassModule)
 			wp.pool.StopAndWait() // Ensure all workers are stopped
 			return
 		case <-group.Done():
@@ -162,7 +172,7 @@ func (wp *RequestWorkerPool) Close() {
 }
 
 // ProcessRequestResponseJob handles a single job: builds request, sends it, and processes response
-func (wp *RequestWorkerPool) ProcessRequestResponseJob(bypassPayload payload.BypassPayload) *RawHTTPResponseDetails {
+func (wp *RequestWorkerPool) ProcessRequestResponseJob(bypassPayload payload.BypassPayload) (*RawHTTPResponseDetails, error) {
 	req := fasthttp.AcquireRequest()
 	resp := fasthttp.AcquireResponse()
 
@@ -173,17 +183,16 @@ func (wp *RequestWorkerPool) ProcessRequestResponseJob(bypassPayload payload.Byp
 	}()
 
 	if err := BuildRawHTTPRequest(wp.httpClient, req, bypassPayload); err != nil {
-		return nil
+		return nil, err
 	}
 
 	respTime, err := wp.httpClient.DoRequest(req, resp, bypassPayload)
 	if err != nil {
+		// Pass through the critical error for handling at higher level
 		if err == ErrReqFailedMaxConsecutiveFails {
-			GB403Logger.Warning().Msgf("Cancelling current bypass module due to max consecutive failures reached for module [%s]\n", wp.httpClient.options.BypassModule)
-			wp.Close()
-			return nil
+			return nil, ErrReqFailedMaxConsecutiveFails
 		}
-		return nil
+		return nil, err
 	}
 
 	// Process response and get result
@@ -192,10 +201,10 @@ func (wp *RequestWorkerPool) ProcessRequestResponseJob(bypassPayload payload.Byp
 		result.ResponseTime = respTime
 	}
 
-	return result
+	return result, nil
 }
 
-// buildRequest constructs the HTTP request
+// buildRequest constructs the raw HTTP request
 func (wp *RequestWorkerPool) BuildRawRequestTask(req *fasthttp.Request, bypassPayload payload.BypassPayload) error {
 	if err := BuildRawHTTPRequest(wp.httpClient, req, bypassPayload); err != nil {
 		return GB403ErrorHandler.GetErrorHandler().HandleErrorAndContinue(err, GB403ErrorHandler.ErrorContext{
@@ -209,20 +218,6 @@ func (wp *RequestWorkerPool) BuildRawRequestTask(req *fasthttp.Request, bypassPa
 }
 
 // SendRequest sends the HTTP request
-// To remember!
-// ErrNoFreeConns is returned when no free connections available
-// to the given host.
-//
-// Increase the allowed number of connections per host if you
-// see this error.
-//
-// ErrNoFreeConns ErrConnectionClosed may be returned from client methods if the server
-// closes connection before returning the first response byte.
-//
-// If you see this error, then either fix the server by returning
-// 'Connection: close' response header before closing the connection
-// or add 'Connection: close' request header before sending requests
-// to broken server.
 func (wp *RequestWorkerPool) SendRequestTask(req *fasthttp.Request, resp *fasthttp.Response, bypassPayload payload.BypassPayload) (int64, error) {
 	return wp.httpClient.DoRequest(req, resp, bypassPayload)
 }

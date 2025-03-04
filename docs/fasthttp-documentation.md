@@ -1411,7 +1411,7 @@ func AppendInflateBytes(dst, src []byte) ([]byte, error)
 AppendInflateBytes appends inflated src to dst and returns the resulting dst.
 
 <a name="AppendNormalizedHeaderKey"></a>
-## func [AppendNormalizedHeaderKey](<https://github.com/valyala/fasthttp/blob/master/header.go#L3610>)
+## func [AppendNormalizedHeaderKey](<https://github.com/valyala/fasthttp/blob/master/header.go#L3551>)
 
 ```go
 func AppendNormalizedHeaderKey(dst []byte, key string) []byte
@@ -1426,7 +1426,7 @@ Normalized header key starts with uppercase letter. The first letters after dash
 - foo\-bar\-baz \-\> Foo\-Bar\-Baz
 
 <a name="AppendNormalizedHeaderKeyBytes"></a>
-## func [AppendNormalizedHeaderKeyBytes](<https://github.com/valyala/fasthttp/blob/master/header.go#L3626>)
+## func [AppendNormalizedHeaderKeyBytes](<https://github.com/valyala/fasthttp/blob/master/header.go#L3567>)
 
 ```go
 func AppendNormalizedHeaderKeyBytes(dst, key []byte) []byte
@@ -2230,7 +2230,7 @@ func StatusMessage(statusCode int) string
 StatusMessage returns HTTP status message for the given status code.
 
 <a name="VisitHeaderParams"></a>
-## func [VisitHeaderParams](<https://github.com/valyala/fasthttp/blob/master/header.go#L578>)
+## func [VisitHeaderParams](<https://github.com/valyala/fasthttp/blob/master/header.go#L548>)
 
 ```go
 func VisitHeaderParams(b []byte, f func(key, value []byte) bool)
@@ -3137,7 +3137,7 @@ const (
 ```
 
 <a name="ConnState"></a>
-## type [ConnState](<https://github.com/valyala/fasthttp/blob/master/server.go#L2937>)
+## type [ConnState](<https://github.com/valyala/fasthttp/blob/master/server.go#L2929>)
 
 A ConnState represents the state of a client connection to a server. It's used by the optional Server.ConnState hook.
 
@@ -3186,7 +3186,7 @@ const (
 ```
 
 <a name="ConnState.String"></a>
-### func \(ConnState\) [String](<https://github.com/valyala/fasthttp/blob/master/server.go#L2983>)
+### func \(ConnState\) [String](<https://github.com/valyala/fasthttp/blob/master/server.go#L2975>)
 
 ```go
 func (c ConnState) String() string
@@ -3652,7 +3652,7 @@ func (e *ErrDialWithUpstream) Unwrap() error
 
 
 <a name="ErrNothingRead"></a>
-## type [ErrNothingRead](<https://github.com/valyala/fasthttp/blob/master/header.go#L3662-L3664>)
+## type [ErrNothingRead](<https://github.com/valyala/fasthttp/blob/master/header.go#L3603-L3605>)
 
 ErrNothingRead is returned when a keep\-alive connection is closed, either because the remote closed it or because of a read timeout.
 
@@ -3663,7 +3663,7 @@ type ErrNothingRead struct {
 ```
 
 <a name="ErrSmallBuffer"></a>
-## type [ErrSmallBuffer](<https://github.com/valyala/fasthttp/blob/master/header.go#L3671-L3673>)
+## type [ErrSmallBuffer](<https://github.com/valyala/fasthttp/blob/master/header.go#L3612-L3614>)
 
 ErrSmallBuffer is returned when the provided buffer size is too small for reading request and/or response headers.
 
@@ -5466,7 +5466,7 @@ func (ctx *RequestCtx) ConnTime() time.Time
 ConnTime returns the time the server started serving the connection the current request came from.
 
 <a name="RequestCtx.Deadline"></a>
-### func \(\*RequestCtx\) [Deadline](<https://github.com/valyala/fasthttp/blob/master/server.go#L2736>)
+### func \(\*RequestCtx\) [Deadline](<https://github.com/valyala/fasthttp/blob/master/server.go#L2728>)
 
 ```go
 func (ctx *RequestCtx) Deadline() (deadline time.Time, ok bool)
@@ -5477,7 +5477,7 @@ Deadline returns the time when work done on behalf of this context should be can
 This method always returns 0, false and is only present to make RequestCtx implement the context interface.
 
 <a name="RequestCtx.Done"></a>
-### func \(\*RequestCtx\) [Done](<https://github.com/valyala/fasthttp/blob/master/server.go#L2746>)
+### func \(\*RequestCtx\) [Done](<https://github.com/valyala/fasthttp/blob/master/server.go#L2738>)
 
 ```go
 func (ctx *RequestCtx) Done() <-chan struct{}
@@ -5488,7 +5488,7 @@ Done returns a channel that's closed when work done on behalf of this context sh
 Note: Because creating a new channel for every request is just too expensive, so RequestCtx.s.done is only closed when the server is shutting down.
 
 <a name="RequestCtx.Err"></a>
-### func \(\*RequestCtx\) [Err](<https://github.com/valyala/fasthttp/blob/master/server.go#L2759>)
+### func \(\*RequestCtx\) [Err](<https://github.com/valyala/fasthttp/blob/master/server.go#L2751>)
 
 ```go
 func (ctx *RequestCtx) Err() error
@@ -5683,7 +5683,7 @@ IfModifiedSince returns true if lastModified exceeds 'If\-Modified\-Since' value
 The function returns true also 'If\-Modified\-Since' request header is missing.
 
 <a name="RequestCtx.Init"></a>
-### func \(\*RequestCtx\) [Init](<https://github.com/valyala/fasthttp/blob/master/server.go#L2715>)
+### func \(\*RequestCtx\) [Init](<https://github.com/valyala/fasthttp/blob/master/server.go#L2707>)
 
 ```go
 func (ctx *RequestCtx) Init(req *Request, remoteAddr net.Addr, logger Logger)
@@ -5696,7 +5696,7 @@ remoteAddr and logger are optional. They are used by RequestCtx.Logger\(\).
 This function is intended for custom Server implementations.
 
 <a name="RequestCtx.Init2"></a>
-### func \(\*RequestCtx\) [Init2](<https://github.com/valyala/fasthttp/blob/master/server.go#L2696>)
+### func \(\*RequestCtx\) [Init2](<https://github.com/valyala/fasthttp/blob/master/server.go#L2688>)
 
 ```go
 func (ctx *RequestCtx) Init2(conn net.Conn, logger Logger, reduceMemoryUsage bool)
@@ -5810,7 +5810,7 @@ func (ctx *RequestCtx) IsTrace() bool
 IsTrace returns true if request method is TRACE.
 
 <a name="RequestCtx.LastTimeoutErrorResponse"></a>
-### func \(\*RequestCtx\) [LastTimeoutErrorResponse](<https://github.com/valyala/fasthttp/blob/master/server.go#L2582>)
+### func \(\*RequestCtx\) [LastTimeoutErrorResponse](<https://github.com/valyala/fasthttp/blob/master/server.go#L2574>)
 
 ```go
 func (ctx *RequestCtx) LastTimeoutErrorResponse() *Response
@@ -6540,7 +6540,7 @@ func (ctx *RequestCtx) UserValueBytes(key []byte) any
 UserValueBytes returns the value stored via SetUserValue\* under the given key.
 
 <a name="RequestCtx.Value"></a>
-### func \(\*RequestCtx\) [Value](<https://github.com/valyala/fasthttp/blob/master/server.go#L2774>)
+### func \(\*RequestCtx\) [Value](<https://github.com/valyala/fasthttp/blob/master/server.go#L2766>)
 
 ```go
 func (ctx *RequestCtx) Value(key any) any
@@ -6768,7 +6768,7 @@ type RequestHeader struct {
 ```
 
 <a name="RequestHeader.Add"></a>
-### func \(\*RequestHeader\) [Add](<https://github.com/valyala/fasthttp/blob/master/header.go#L1768>)
+### func \(\*RequestHeader\) [Add](<https://github.com/valyala/fasthttp/blob/master/header.go#L1708>)
 
 ```go
 func (h *RequestHeader) Add(key, value string)
@@ -6781,7 +6781,7 @@ Multiple headers with the same key may be added with this function. Use Set for 
 If the header is set as a Trailer \(forbidden trailers will not be set, see AddTrailer for more details\), it will be sent after the chunked request body.
 
 <a name="RequestHeader.AddBytesK"></a>
-### func \(\*RequestHeader\) [AddBytesK](<https://github.com/valyala/fasthttp/blob/master/header.go#L1779>)
+### func \(\*RequestHeader\) [AddBytesK](<https://github.com/valyala/fasthttp/blob/master/header.go#L1719>)
 
 ```go
 func (h *RequestHeader) AddBytesK(key []byte, value string)
@@ -6794,7 +6794,7 @@ Multiple headers with the same key may be added with this function. Use SetBytes
 If the header is set as a Trailer \(forbidden trailers will not be set, see AddTrailer for more details\), it will be sent after the chunked request body.
 
 <a name="RequestHeader.AddBytesKV"></a>
-### func \(\*RequestHeader\) [AddBytesKV](<https://github.com/valyala/fasthttp/blob/master/header.go#L1805>)
+### func \(\*RequestHeader\) [AddBytesKV](<https://github.com/valyala/fasthttp/blob/master/header.go#L1745>)
 
 ```go
 func (h *RequestHeader) AddBytesKV(key, value []byte)
@@ -6809,7 +6809,7 @@ the Content\-Type, Content\-Length, Connection, Transfer\-Encoding, Host and Use
 If the header is set as a Trailer \(forbidden trailers will not be set, see AddTrailer for more details\), it will be sent after the chunked request body.
 
 <a name="RequestHeader.AddBytesV"></a>
-### func \(\*RequestHeader\) [AddBytesV](<https://github.com/valyala/fasthttp/blob/master/header.go#L1790>)
+### func \(\*RequestHeader\) [AddBytesV](<https://github.com/valyala/fasthttp/blob/master/header.go#L1730>)
 
 ```go
 func (h *RequestHeader) AddBytesV(key string, value []byte)
@@ -6822,7 +6822,7 @@ Multiple headers with the same key may be added with this function. Use SetBytes
 If the header is set as a Trailer \(forbidden trailers will not be set, see AddTrailer for more details\), it will be sent after the chunked request body.
 
 <a name="RequestHeader.AddTrailer"></a>
-### func \(\*RequestHeader\) [AddTrailer](<https://github.com/valyala/fasthttp/blob/master/header.go#L857>)
+### func \(\*RequestHeader\) [AddTrailer](<https://github.com/valyala/fasthttp/blob/master/header.go#L827>)
 
 ```go
 func (h *RequestHeader) AddTrailer(trailer string) error
@@ -6839,10 +6839,10 @@ The following trailers are forbidden: 1. necessary for message framing \(e.g., T
 Return ErrBadTrailer if contain any forbidden trailers.
 
 <a name="RequestHeader.AddTrailerBytes"></a>
-### func \(\*RequestHeader\) [AddTrailerBytes](<https://github.com/valyala/fasthttp/blob/master/header.go#L878>)
+### func \(\*RequestHeader\) [AddTrailerBytes](<https://github.com/valyala/fasthttp/blob/master/header.go#L848>)
 
 ```go
-func (h *RequestHeader) AddTrailerBytes(trailer []byte) error
+func (h *RequestHeader) AddTrailerBytes(trailer []byte) (err error)
 ```
 
 AddTrailerBytes add Trailer header value for chunked request to indicate which headers will be sent after the body.
@@ -6856,7 +6856,7 @@ The following trailers are forbidden: 1. necessary for message framing \(e.g., T
 Return ErrBadTrailer if contain any forbidden trailers.
 
 <a name="RequestHeader.AppendBytes"></a>
-### func \(\*RequestHeader\) [AppendBytes](<https://github.com/valyala/fasthttp/blob/master/header.go#L2644>)
+### func \(\*RequestHeader\) [AppendBytes](<https://github.com/valyala/fasthttp/blob/master/header.go#L2586>)
 
 ```go
 func (h *RequestHeader) AppendBytes(dst []byte) []byte
@@ -6912,7 +6912,7 @@ func (h *RequestHeader) ContentType() []byte
 ContentType returns Content\-Type header value.
 
 <a name="RequestHeader.Cookie"></a>
-### func \(\*RequestHeader\) [Cookie](<https://github.com/valyala/fasthttp/blob/master/header.go#L2121>)
+### func \(\*RequestHeader\) [Cookie](<https://github.com/valyala/fasthttp/blob/master/header.go#L2061>)
 
 ```go
 func (h *RequestHeader) Cookie(key string) []byte
@@ -6921,7 +6921,7 @@ func (h *RequestHeader) Cookie(key string) []byte
 Cookie returns cookie for the given key.
 
 <a name="RequestHeader.CookieBytes"></a>
-### func \(\*RequestHeader\) [CookieBytes](<https://github.com/valyala/fasthttp/blob/master/header.go#L2127>)
+### func \(\*RequestHeader\) [CookieBytes](<https://github.com/valyala/fasthttp/blob/master/header.go#L2067>)
 
 ```go
 func (h *RequestHeader) CookieBytes(key []byte) []byte
@@ -6930,7 +6930,7 @@ func (h *RequestHeader) CookieBytes(key []byte) []byte
 CookieBytes returns cookie for the given key.
 
 <a name="RequestHeader.CopyTo"></a>
-### func \(\*RequestHeader\) [CopyTo](<https://github.com/valyala/fasthttp/blob/master/header.go#L1183>)
+### func \(\*RequestHeader\) [CopyTo](<https://github.com/valyala/fasthttp/blob/master/header.go#L1123>)
 
 ```go
 func (h *RequestHeader) CopyTo(dst *RequestHeader)
@@ -6939,7 +6939,7 @@ func (h *RequestHeader) CopyTo(dst *RequestHeader)
 CopyTo copies all the headers to dst.
 
 <a name="RequestHeader.Del"></a>
-### func \(\*RequestHeader\) [Del](<https://github.com/valyala/fasthttp/blob/master/header.go#L1367>)
+### func \(\*RequestHeader\) [Del](<https://github.com/valyala/fasthttp/blob/master/header.go#L1307>)
 
 ```go
 func (h *RequestHeader) Del(key string)
@@ -6948,7 +6948,7 @@ func (h *RequestHeader) Del(key string)
 Del deletes header with the given key.
 
 <a name="RequestHeader.DelAllCookies"></a>
-### func \(\*RequestHeader\) [DelAllCookies](<https://github.com/valyala/fasthttp/blob/master/header.go#L1756>)
+### func \(\*RequestHeader\) [DelAllCookies](<https://github.com/valyala/fasthttp/blob/master/header.go#L1696>)
 
 ```go
 func (h *RequestHeader) DelAllCookies()
@@ -6957,7 +6957,7 @@ func (h *RequestHeader) DelAllCookies()
 DelAllCookies removes all the cookies from request headers.
 
 <a name="RequestHeader.DelBytes"></a>
-### func \(\*RequestHeader\) [DelBytes](<https://github.com/valyala/fasthttp/blob/master/header.go#L1373>)
+### func \(\*RequestHeader\) [DelBytes](<https://github.com/valyala/fasthttp/blob/master/header.go#L1313>)
 
 ```go
 func (h *RequestHeader) DelBytes(key []byte)
@@ -6966,7 +6966,7 @@ func (h *RequestHeader) DelBytes(key []byte)
 DelBytes deletes header with the given key.
 
 <a name="RequestHeader.DelCookie"></a>
-### func \(\*RequestHeader\) [DelCookie](<https://github.com/valyala/fasthttp/blob/master/header.go#L1740>)
+### func \(\*RequestHeader\) [DelCookie](<https://github.com/valyala/fasthttp/blob/master/header.go#L1680>)
 
 ```go
 func (h *RequestHeader) DelCookie(key string)
@@ -6975,7 +6975,7 @@ func (h *RequestHeader) DelCookie(key string)
 DelCookie removes cookie under the given key.
 
 <a name="RequestHeader.DelCookieBytes"></a>
-### func \(\*RequestHeader\) [DelCookieBytes](<https://github.com/valyala/fasthttp/blob/master/header.go#L1746>)
+### func \(\*RequestHeader\) [DelCookieBytes](<https://github.com/valyala/fasthttp/blob/master/header.go#L1686>)
 
 ```go
 func (h *RequestHeader) DelCookieBytes(key []byte)
@@ -6984,7 +6984,7 @@ func (h *RequestHeader) DelCookieBytes(key []byte)
 DelCookieBytes removes cookie under the given key.
 
 <a name="RequestHeader.DisableNormalizing"></a>
-### func \(\*RequestHeader\) [DisableNormalizing](<https://github.com/valyala/fasthttp/blob/master/header.go#L1038>)
+### func \(\*RequestHeader\) [DisableNormalizing](<https://github.com/valyala/fasthttp/blob/master/header.go#L978>)
 
 ```go
 func (h *RequestHeader) DisableNormalizing()
@@ -7001,7 +7001,7 @@ By default all the header names are normalized by uppercasing the first letter a
 Disable header names' normalization only if know what are you doing.
 
 <a name="RequestHeader.DisableSpecialHeader"></a>
-### func \(\*RequestHeader\) [DisableSpecialHeader](<https://github.com/valyala/fasthttp/blob/master/header.go#L1015>)
+### func \(\*RequestHeader\) [DisableSpecialHeader](<https://github.com/valyala/fasthttp/blob/master/header.go#L955>)
 
 ```go
 func (h *RequestHeader) DisableSpecialHeader()
@@ -7010,7 +7010,7 @@ func (h *RequestHeader) DisableSpecialHeader()
 DisableSpecialHeader disables special header processing. fasthttp will not set any special headers for you, such as Host, Content\-Type, User\-Agent, etc. You must set everything yourself. If RequestHeader.Read\(\) is called, special headers will be ignored. This can be used to control case and order of special headers. This is generally not recommended.
 
 <a name="RequestHeader.EnableNormalizing"></a>
-### func \(\*RequestHeader\) [EnableNormalizing](<https://github.com/valyala/fasthttp/blob/master/header.go#L1054>)
+### func \(\*RequestHeader\) [EnableNormalizing](<https://github.com/valyala/fasthttp/blob/master/header.go#L994>)
 
 ```go
 func (h *RequestHeader) EnableNormalizing()
@@ -7027,7 +7027,7 @@ Header names are normalized by uppercasing the first letter and all the first le
 This is enabled by default unless disabled using DisableNormalizing\(\).
 
 <a name="RequestHeader.EnableSpecialHeader"></a>
-### func \(\*RequestHeader\) [EnableSpecialHeader](<https://github.com/valyala/fasthttp/blob/master/header.go#L1022>)
+### func \(\*RequestHeader\) [EnableSpecialHeader](<https://github.com/valyala/fasthttp/blob/master/header.go#L962>)
 
 ```go
 func (h *RequestHeader) EnableSpecialHeader()
@@ -7036,7 +7036,7 @@ func (h *RequestHeader) EnableSpecialHeader()
 EnableSpecialHeader enables special header processing. fasthttp will send Host, Content\-Type, User\-Agent, etc headers for you. This is suggested and enabled by default.
 
 <a name="RequestHeader.HasAcceptEncoding"></a>
-### func \(\*RequestHeader\) [HasAcceptEncoding](<https://github.com/valyala/fasthttp/blob/master/header.go#L970>)
+### func \(\*RequestHeader\) [HasAcceptEncoding](<https://github.com/valyala/fasthttp/blob/master/header.go#L910>)
 
 ```go
 func (h *RequestHeader) HasAcceptEncoding(acceptEncoding string) bool
@@ -7045,7 +7045,7 @@ func (h *RequestHeader) HasAcceptEncoding(acceptEncoding string) bool
 HasAcceptEncoding returns true if the header contains the given Accept\-Encoding value.
 
 <a name="RequestHeader.HasAcceptEncodingBytes"></a>
-### func \(\*RequestHeader\) [HasAcceptEncodingBytes](<https://github.com/valyala/fasthttp/blob/master/header.go#L977>)
+### func \(\*RequestHeader\) [HasAcceptEncodingBytes](<https://github.com/valyala/fasthttp/blob/master/header.go#L917>)
 
 ```go
 func (h *RequestHeader) HasAcceptEncodingBytes(acceptEncoding []byte) bool
@@ -7054,7 +7054,7 @@ func (h *RequestHeader) HasAcceptEncodingBytes(acceptEncoding []byte) bool
 HasAcceptEncodingBytes returns true if the header contains the given Accept\-Encoding value.
 
 <a name="RequestHeader.Header"></a>
-### func \(\*RequestHeader\) [Header](<https://github.com/valyala/fasthttp/blob/master/header.go#L2595>)
+### func \(\*RequestHeader\) [Header](<https://github.com/valyala/fasthttp/blob/master/header.go#L2537>)
 
 ```go
 func (h *RequestHeader) Header() []byte
@@ -7067,7 +7067,7 @@ Headers that set as Trailer will not represent. Use TrailerHeader for trailers.
 The returned value is valid until the request is released, either though ReleaseRequest or your request handler returning. Do not store references to returned value. Make copies instead.
 
 <a name="RequestHeader.Host"></a>
-### func \(\*RequestHeader\) [Host](<https://github.com/valyala/fasthttp/blob/master/header.go#L686>)
+### func \(\*RequestHeader\) [Host](<https://github.com/valyala/fasthttp/blob/master/header.go#L656>)
 
 ```go
 func (h *RequestHeader) Host() []byte
@@ -7076,7 +7076,7 @@ func (h *RequestHeader) Host() []byte
 Host returns Host header value.
 
 <a name="RequestHeader.IsConnect"></a>
-### func \(\*RequestHeader\) [IsConnect](<https://github.com/valyala/fasthttp/blob/master/header.go#L939>)
+### func \(\*RequestHeader\) [IsConnect](<https://github.com/valyala/fasthttp/blob/master/header.go#L879>)
 
 ```go
 func (h *RequestHeader) IsConnect() bool
@@ -7085,7 +7085,7 @@ func (h *RequestHeader) IsConnect() bool
 IsConnect returns true if request method is CONNECT.
 
 <a name="RequestHeader.IsDelete"></a>
-### func \(\*RequestHeader\) [IsDelete](<https://github.com/valyala/fasthttp/blob/master/header.go#L934>)
+### func \(\*RequestHeader\) [IsDelete](<https://github.com/valyala/fasthttp/blob/master/header.go#L874>)
 
 ```go
 func (h *RequestHeader) IsDelete() bool
@@ -7094,7 +7094,7 @@ func (h *RequestHeader) IsDelete() bool
 IsDelete returns true if request method is DELETE.
 
 <a name="RequestHeader.IsGet"></a>
-### func \(\*RequestHeader\) [IsGet](<https://github.com/valyala/fasthttp/blob/master/header.go#L914>)
+### func \(\*RequestHeader\) [IsGet](<https://github.com/valyala/fasthttp/blob/master/header.go#L854>)
 
 ```go
 func (h *RequestHeader) IsGet() bool
@@ -7103,7 +7103,7 @@ func (h *RequestHeader) IsGet() bool
 IsGet returns true if request method is GET.
 
 <a name="RequestHeader.IsHTTP11"></a>
-### func \(\*RequestHeader\) [IsHTTP11](<https://github.com/valyala/fasthttp/blob/master/header.go#L959>)
+### func \(\*RequestHeader\) [IsHTTP11](<https://github.com/valyala/fasthttp/blob/master/header.go#L899>)
 
 ```go
 func (h *RequestHeader) IsHTTP11() bool
@@ -7112,7 +7112,7 @@ func (h *RequestHeader) IsHTTP11() bool
 IsHTTP11 returns true if the request is HTTP/1.1.
 
 <a name="RequestHeader.IsHead"></a>
-### func \(\*RequestHeader\) [IsHead](<https://github.com/valyala/fasthttp/blob/master/header.go#L929>)
+### func \(\*RequestHeader\) [IsHead](<https://github.com/valyala/fasthttp/blob/master/header.go#L869>)
 
 ```go
 func (h *RequestHeader) IsHead() bool
@@ -7121,7 +7121,7 @@ func (h *RequestHeader) IsHead() bool
 IsHead returns true if request method is HEAD.
 
 <a name="RequestHeader.IsOptions"></a>
-### func \(\*RequestHeader\) [IsOptions](<https://github.com/valyala/fasthttp/blob/master/header.go#L944>)
+### func \(\*RequestHeader\) [IsOptions](<https://github.com/valyala/fasthttp/blob/master/header.go#L884>)
 
 ```go
 func (h *RequestHeader) IsOptions() bool
@@ -7130,7 +7130,7 @@ func (h *RequestHeader) IsOptions() bool
 IsOptions returns true if request method is OPTIONS.
 
 <a name="RequestHeader.IsPatch"></a>
-### func \(\*RequestHeader\) [IsPatch](<https://github.com/valyala/fasthttp/blob/master/header.go#L954>)
+### func \(\*RequestHeader\) [IsPatch](<https://github.com/valyala/fasthttp/blob/master/header.go#L894>)
 
 ```go
 func (h *RequestHeader) IsPatch() bool
@@ -7139,7 +7139,7 @@ func (h *RequestHeader) IsPatch() bool
 IsPatch returns true if request method is PATCH.
 
 <a name="RequestHeader.IsPost"></a>
-### func \(\*RequestHeader\) [IsPost](<https://github.com/valyala/fasthttp/blob/master/header.go#L919>)
+### func \(\*RequestHeader\) [IsPost](<https://github.com/valyala/fasthttp/blob/master/header.go#L859>)
 
 ```go
 func (h *RequestHeader) IsPost() bool
@@ -7148,7 +7148,7 @@ func (h *RequestHeader) IsPost() bool
 IsPost returns true if request method is POST.
 
 <a name="RequestHeader.IsPut"></a>
-### func \(\*RequestHeader\) [IsPut](<https://github.com/valyala/fasthttp/blob/master/header.go#L924>)
+### func \(\*RequestHeader\) [IsPut](<https://github.com/valyala/fasthttp/blob/master/header.go#L864>)
 
 ```go
 func (h *RequestHeader) IsPut() bool
@@ -7157,7 +7157,7 @@ func (h *RequestHeader) IsPut() bool
 IsPut returns true if request method is PUT.
 
 <a name="RequestHeader.IsTrace"></a>
-### func \(\*RequestHeader\) [IsTrace](<https://github.com/valyala/fasthttp/blob/master/header.go#L949>)
+### func \(\*RequestHeader\) [IsTrace](<https://github.com/valyala/fasthttp/blob/master/header.go#L889>)
 
 ```go
 func (h *RequestHeader) IsTrace() bool
@@ -7166,7 +7166,7 @@ func (h *RequestHeader) IsTrace() bool
 IsTrace returns true if request method is TRACE.
 
 <a name="RequestHeader.Len"></a>
-### func \(\*RequestHeader\) [Len](<https://github.com/valyala/fasthttp/blob/master/header.go#L1003>)
+### func \(\*RequestHeader\) [Len](<https://github.com/valyala/fasthttp/blob/master/header.go#L943>)
 
 ```go
 func (h *RequestHeader) Len() int
@@ -7175,7 +7175,7 @@ func (h *RequestHeader) Len() int
 Len returns the number of headers set, i.e. the number of times f is called in VisitAll.
 
 <a name="RequestHeader.Method"></a>
-### func \(\*RequestHeader\) [Method](<https://github.com/valyala/fasthttp/blob/master/header.go#L737>)
+### func \(\*RequestHeader\) [Method](<https://github.com/valyala/fasthttp/blob/master/header.go#L707>)
 
 ```go
 func (h *RequestHeader) Method() []byte
@@ -7184,7 +7184,7 @@ func (h *RequestHeader) Method() []byte
 Method returns HTTP request method.
 
 <a name="RequestHeader.MultipartFormBoundary"></a>
-### func \(\*RequestHeader\) [MultipartFormBoundary](<https://github.com/valyala/fasthttp/blob/master/header.go#L645>)
+### func \(\*RequestHeader\) [MultipartFormBoundary](<https://github.com/valyala/fasthttp/blob/master/header.go#L615>)
 
 ```go
 func (h *RequestHeader) MultipartFormBoundary() []byte
@@ -7193,7 +7193,7 @@ func (h *RequestHeader) MultipartFormBoundary() []byte
 MultipartFormBoundary returns boundary part from 'multipart/form\-data; boundary=...' Content\-Type.
 
 <a name="RequestHeader.Peek"></a>
-### func \(\*RequestHeader\) [Peek](<https://github.com/valyala/fasthttp/blob/master/header.go#L1912>)
+### func \(\*RequestHeader\) [Peek](<https://github.com/valyala/fasthttp/blob/master/header.go#L1852>)
 
 ```go
 func (h *RequestHeader) Peek(key string) []byte
@@ -7204,7 +7204,7 @@ Peek returns header value for the given key.
 The returned value is valid until the request is released, either though ReleaseRequest or your request handler returning. Do not store references to returned value. Make copies instead.
 
 <a name="RequestHeader.PeekAll"></a>
-### func \(\*RequestHeader\) [PeekAll](<https://github.com/valyala/fasthttp/blob/master/header.go#L1985>)
+### func \(\*RequestHeader\) [PeekAll](<https://github.com/valyala/fasthttp/blob/master/header.go#L1925>)
 
 ```go
 func (h *RequestHeader) PeekAll(key string) [][]byte
@@ -7215,7 +7215,7 @@ PeekAll returns all header value for the given key.
 The returned value is valid until the request is released, either though ReleaseRequest or your request handler returning. Any future calls to the Peek\* will modify the returned value. Do not store references to returned value. Make copies instead.
 
 <a name="RequestHeader.PeekBytes"></a>
-### func \(\*RequestHeader\) [PeekBytes](<https://github.com/valyala/fasthttp/blob/master/header.go#L1922>)
+### func \(\*RequestHeader\) [PeekBytes](<https://github.com/valyala/fasthttp/blob/master/header.go#L1862>)
 
 ```go
 func (h *RequestHeader) PeekBytes(key []byte) []byte
@@ -7226,7 +7226,7 @@ PeekBytes returns header value for the given key.
 The returned value is valid until the request is released, either though ReleaseRequest or your request handler returning. Do not store references to returned value. Make copies instead.
 
 <a name="RequestHeader.PeekKeys"></a>
-### func \(\*RequestHeader\) [PeekKeys](<https://github.com/valyala/fasthttp/blob/master/header.go#L2077>)
+### func \(\*RequestHeader\) [PeekKeys](<https://github.com/valyala/fasthttp/blob/master/header.go#L2017>)
 
 ```go
 func (h *RequestHeader) PeekKeys() [][]byte
@@ -7237,7 +7237,7 @@ PeekKeys return all header keys.
 The returned value is valid until the request is released, either though ReleaseRequest or your request handler returning. Any future calls to the Peek\* will modify the returned value. Do not store references to returned value. Make copies instead.
 
 <a name="RequestHeader.PeekTrailerKeys"></a>
-### func \(\*RequestHeader\) [PeekTrailerKeys](<https://github.com/valyala/fasthttp/blob/master/header.go#L2089>)
+### func \(\*RequestHeader\) [PeekTrailerKeys](<https://github.com/valyala/fasthttp/blob/master/header.go#L2029>)
 
 ```go
 func (h *RequestHeader) PeekTrailerKeys() [][]byte
@@ -7248,7 +7248,7 @@ PeekTrailerKeys return all trailer keys.
 The returned value is valid until the request is released, either though ReleaseRequest or your request handler returning. Any future calls to the Peek\* will modify the returned value. Do not store references to returned value. Make copies instead.
 
 <a name="RequestHeader.Protocol"></a>
-### func \(\*RequestHeader\) [Protocol](<https://github.com/valyala/fasthttp/blob/master/header.go#L755>)
+### func \(\*RequestHeader\) [Protocol](<https://github.com/valyala/fasthttp/blob/master/header.go#L725>)
 
 ```go
 func (h *RequestHeader) Protocol() []byte
@@ -7257,7 +7257,7 @@ func (h *RequestHeader) Protocol() []byte
 Protocol returns HTTP protocol.
 
 <a name="RequestHeader.RawHeaders"></a>
-### func \(\*RequestHeader\) [RawHeaders](<https://github.com/valyala/fasthttp/blob/master/header.go#L2633>)
+### func \(\*RequestHeader\) [RawHeaders](<https://github.com/valyala/fasthttp/blob/master/header.go#L2575>)
 
 ```go
 func (h *RequestHeader) RawHeaders() []byte
@@ -7272,7 +7272,7 @@ This copy is set aside during parsing, so empty slice is returned for all cases 
 The slice is not safe to use after the handler returns.
 
 <a name="RequestHeader.Read"></a>
-### func \(\*RequestHeader\) [Read](<https://github.com/valyala/fasthttp/blob/master/header.go#L2285>)
+### func \(\*RequestHeader\) [Read](<https://github.com/valyala/fasthttp/blob/master/header.go#L2226>)
 
 ```go
 func (h *RequestHeader) Read(r *bufio.Reader) error
@@ -7283,7 +7283,7 @@ Read reads request header from r.
 io.EOF is returned if r is closed before reading the first header byte.
 
 <a name="RequestHeader.ReadTrailer"></a>
-### func \(\*RequestHeader\) [ReadTrailer](<https://github.com/valyala/fasthttp/blob/master/header.go#L2310>)
+### func \(\*RequestHeader\) [ReadTrailer](<https://github.com/valyala/fasthttp/blob/master/header.go#L2251>)
 
 ```go
 func (h *RequestHeader) ReadTrailer(r *bufio.Reader) error
@@ -7294,7 +7294,7 @@ ReadTrailer reads request trailer header from r.
 io.EOF is returned if r is closed before reading the first byte.
 
 <a name="RequestHeader.Referer"></a>
-### func \(\*RequestHeader\) [Referer](<https://github.com/valyala/fasthttp/blob/master/header.go#L722>)
+### func \(\*RequestHeader\) [Referer](<https://github.com/valyala/fasthttp/blob/master/header.go#L692>)
 
 ```go
 func (h *RequestHeader) Referer() []byte
@@ -7303,7 +7303,7 @@ func (h *RequestHeader) Referer() []byte
 Referer returns Referer header value.
 
 <a name="RequestHeader.RequestURI"></a>
-### func \(\*RequestHeader\) [RequestURI](<https://github.com/valyala/fasthttp/blob/master/header.go#L775>)
+### func \(\*RequestHeader\) [RequestURI](<https://github.com/valyala/fasthttp/blob/master/header.go#L745>)
 
 ```go
 func (h *RequestHeader) RequestURI() []byte
@@ -7312,7 +7312,7 @@ func (h *RequestHeader) RequestURI() []byte
 RequestURI returns RequestURI from the first HTTP request line.
 
 <a name="RequestHeader.Reset"></a>
-### func \(\*RequestHeader\) [Reset](<https://github.com/valyala/fasthttp/blob/master/header.go#L1129>)
+### func \(\*RequestHeader\) [Reset](<https://github.com/valyala/fasthttp/blob/master/header.go#L1069>)
 
 ```go
 func (h *RequestHeader) Reset()
@@ -7330,7 +7330,7 @@ func (h *RequestHeader) ResetConnectionClose()
 ResetConnectionClose clears 'Connection: close' header if it exists.
 
 <a name="RequestHeader.Set"></a>
-### func \(\*RequestHeader\) [Set](<https://github.com/valyala/fasthttp/blob/master/header.go#L1823>)
+### func \(\*RequestHeader\) [Set](<https://github.com/valyala/fasthttp/blob/master/header.go#L1763>)
 
 ```go
 func (h *RequestHeader) Set(key, value string)
@@ -7357,7 +7357,7 @@ SetByteRange sets 'Range: bytes=startPos\-endPos' header.
 - If endPos is negative, then 'bytes=startPos\-' value is set.
 
 <a name="RequestHeader.SetBytesK"></a>
-### func \(\*RequestHeader\) [SetBytesK](<https://github.com/valyala/fasthttp/blob/master/header.go#L1837>)
+### func \(\*RequestHeader\) [SetBytesK](<https://github.com/valyala/fasthttp/blob/master/header.go#L1777>)
 
 ```go
 func (h *RequestHeader) SetBytesK(key []byte, value string)
@@ -7372,7 +7372,7 @@ If the header is set as a Trailer \(forbidden trailers will not be set, see SetT
 Use AddBytesK for setting multiple header values under the same key.
 
 <a name="RequestHeader.SetBytesKV"></a>
-### func \(\*RequestHeader\) [SetBytesKV](<https://github.com/valyala/fasthttp/blob/master/header.go#L1865>)
+### func \(\*RequestHeader\) [SetBytesKV](<https://github.com/valyala/fasthttp/blob/master/header.go#L1805>)
 
 ```go
 func (h *RequestHeader) SetBytesKV(key, value []byte)
@@ -7387,7 +7387,7 @@ If the header is set as a Trailer \(forbidden trailers will not be set, see SetT
 Use AddBytesKV for setting multiple header values under the same key.
 
 <a name="RequestHeader.SetBytesV"></a>
-### func \(\*RequestHeader\) [SetBytesV](<https://github.com/valyala/fasthttp/blob/master/header.go#L1851>)
+### func \(\*RequestHeader\) [SetBytesV](<https://github.com/valyala/fasthttp/blob/master/header.go#L1791>)
 
 ```go
 func (h *RequestHeader) SetBytesV(key string, value []byte)
@@ -7402,7 +7402,7 @@ If the header is set as a Trailer \(forbidden trailers will not be set, see SetT
 Use AddBytesV for setting multiple header values under the same key.
 
 <a name="RequestHeader.SetCanonical"></a>
-### func \(\*RequestHeader\) [SetCanonical](<https://github.com/valyala/fasthttp/blob/master/header.go#L1879>)
+### func \(\*RequestHeader\) [SetCanonical](<https://github.com/valyala/fasthttp/blob/master/header.go#L1819>)
 
 ```go
 func (h *RequestHeader) SetCanonical(key, value []byte)
@@ -7471,7 +7471,7 @@ func (h *RequestHeader) SetContentTypeBytes(contentType []byte)
 SetContentTypeBytes sets Content\-Type header value.
 
 <a name="RequestHeader.SetCookie"></a>
-### func \(\*RequestHeader\) [SetCookie](<https://github.com/valyala/fasthttp/blob/master/header.go#L1668>)
+### func \(\*RequestHeader\) [SetCookie](<https://github.com/valyala/fasthttp/blob/master/header.go#L1608>)
 
 ```go
 func (h *RequestHeader) SetCookie(key, value string)
@@ -7480,7 +7480,7 @@ func (h *RequestHeader) SetCookie(key, value string)
 SetCookie sets 'key: value' cookies.
 
 <a name="RequestHeader.SetCookieBytesK"></a>
-### func \(\*RequestHeader\) [SetCookieBytesK](<https://github.com/valyala/fasthttp/blob/master/header.go#L1674>)
+### func \(\*RequestHeader\) [SetCookieBytesK](<https://github.com/valyala/fasthttp/blob/master/header.go#L1614>)
 
 ```go
 func (h *RequestHeader) SetCookieBytesK(key []byte, value string)
@@ -7489,7 +7489,7 @@ func (h *RequestHeader) SetCookieBytesK(key []byte, value string)
 SetCookieBytesK sets 'key: value' cookies.
 
 <a name="RequestHeader.SetCookieBytesKV"></a>
-### func \(\*RequestHeader\) [SetCookieBytesKV](<https://github.com/valyala/fasthttp/blob/master/header.go#L1679>)
+### func \(\*RequestHeader\) [SetCookieBytesKV](<https://github.com/valyala/fasthttp/blob/master/header.go#L1619>)
 
 ```go
 func (h *RequestHeader) SetCookieBytesKV(key, value []byte)
@@ -7498,7 +7498,7 @@ func (h *RequestHeader) SetCookieBytesKV(key, value []byte)
 SetCookieBytesKV sets 'key: value' cookies.
 
 <a name="RequestHeader.SetHost"></a>
-### func \(\*RequestHeader\) [SetHost](<https://github.com/valyala/fasthttp/blob/master/header.go#L694>)
+### func \(\*RequestHeader\) [SetHost](<https://github.com/valyala/fasthttp/blob/master/header.go#L664>)
 
 ```go
 func (h *RequestHeader) SetHost(host string)
@@ -7507,7 +7507,7 @@ func (h *RequestHeader) SetHost(host string)
 SetHost sets Host header value.
 
 <a name="RequestHeader.SetHostBytes"></a>
-### func \(\*RequestHeader\) [SetHostBytes](<https://github.com/valyala/fasthttp/blob/master/header.go#L699>)
+### func \(\*RequestHeader\) [SetHostBytes](<https://github.com/valyala/fasthttp/blob/master/header.go#L669>)
 
 ```go
 func (h *RequestHeader) SetHostBytes(host []byte)
@@ -7516,7 +7516,7 @@ func (h *RequestHeader) SetHostBytes(host []byte)
 SetHostBytes sets Host header value.
 
 <a name="RequestHeader.SetMethod"></a>
-### func \(\*RequestHeader\) [SetMethod](<https://github.com/valyala/fasthttp/blob/master/header.go#L745>)
+### func \(\*RequestHeader\) [SetMethod](<https://github.com/valyala/fasthttp/blob/master/header.go#L715>)
 
 ```go
 func (h *RequestHeader) SetMethod(method string)
@@ -7525,7 +7525,7 @@ func (h *RequestHeader) SetMethod(method string)
 SetMethod sets HTTP request method.
 
 <a name="RequestHeader.SetMethodBytes"></a>
-### func \(\*RequestHeader\) [SetMethodBytes](<https://github.com/valyala/fasthttp/blob/master/header.go#L750>)
+### func \(\*RequestHeader\) [SetMethodBytes](<https://github.com/valyala/fasthttp/blob/master/header.go#L720>)
 
 ```go
 func (h *RequestHeader) SetMethodBytes(method []byte)
@@ -7552,7 +7552,7 @@ func (h *RequestHeader) SetMultipartFormBoundaryBytes(boundary []byte)
 SetMultipartFormBoundaryBytes sets the following Content\-Type: 'multipart/form\-data; boundary=...' where ... is substituted by the given boundary.
 
 <a name="RequestHeader.SetNoDefaultContentType"></a>
-### func \(\*RequestHeader\) [SetNoDefaultContentType](<https://github.com/valyala/fasthttp/blob/master/header.go#L1124>)
+### func \(\*RequestHeader\) [SetNoDefaultContentType](<https://github.com/valyala/fasthttp/blob/master/header.go#L1064>)
 
 ```go
 func (h *RequestHeader) SetNoDefaultContentType(noDefaultContentType bool)
@@ -7561,7 +7561,7 @@ func (h *RequestHeader) SetNoDefaultContentType(noDefaultContentType bool)
 SetNoDefaultContentType allows you to control if a default Content\-Type header will be set \(false\) or not \(true\).
 
 <a name="RequestHeader.SetProtocol"></a>
-### func \(\*RequestHeader\) [SetProtocol](<https://github.com/valyala/fasthttp/blob/master/header.go#L763>)
+### func \(\*RequestHeader\) [SetProtocol](<https://github.com/valyala/fasthttp/blob/master/header.go#L733>)
 
 ```go
 func (h *RequestHeader) SetProtocol(method string)
@@ -7570,7 +7570,7 @@ func (h *RequestHeader) SetProtocol(method string)
 SetProtocol sets HTTP request protocol.
 
 <a name="RequestHeader.SetProtocolBytes"></a>
-### func \(\*RequestHeader\) [SetProtocolBytes](<https://github.com/valyala/fasthttp/blob/master/header.go#L769>)
+### func \(\*RequestHeader\) [SetProtocolBytes](<https://github.com/valyala/fasthttp/blob/master/header.go#L739>)
 
 ```go
 func (h *RequestHeader) SetProtocolBytes(method []byte)
@@ -7579,7 +7579,7 @@ func (h *RequestHeader) SetProtocolBytes(method []byte)
 SetProtocolBytes sets HTTP request protocol.
 
 <a name="RequestHeader.SetReferer"></a>
-### func \(\*RequestHeader\) [SetReferer](<https://github.com/valyala/fasthttp/blob/master/header.go#L727>)
+### func \(\*RequestHeader\) [SetReferer](<https://github.com/valyala/fasthttp/blob/master/header.go#L697>)
 
 ```go
 func (h *RequestHeader) SetReferer(referer string)
@@ -7588,7 +7588,7 @@ func (h *RequestHeader) SetReferer(referer string)
 SetReferer sets Referer header value.
 
 <a name="RequestHeader.SetRefererBytes"></a>
-### func \(\*RequestHeader\) [SetRefererBytes](<https://github.com/valyala/fasthttp/blob/master/header.go#L732>)
+### func \(\*RequestHeader\) [SetRefererBytes](<https://github.com/valyala/fasthttp/blob/master/header.go#L702>)
 
 ```go
 func (h *RequestHeader) SetRefererBytes(referer []byte)
@@ -7597,7 +7597,7 @@ func (h *RequestHeader) SetRefererBytes(referer []byte)
 SetRefererBytes sets Referer header value.
 
 <a name="RequestHeader.SetRequestURI"></a>
-### func \(\*RequestHeader\) [SetRequestURI](<https://github.com/valyala/fasthttp/blob/master/header.go#L786>)
+### func \(\*RequestHeader\) [SetRequestURI](<https://github.com/valyala/fasthttp/blob/master/header.go#L756>)
 
 ```go
 func (h *RequestHeader) SetRequestURI(requestURI string)
@@ -7606,7 +7606,7 @@ func (h *RequestHeader) SetRequestURI(requestURI string)
 SetRequestURI sets RequestURI for the first HTTP request line. RequestURI must be properly encoded. Use URI.RequestURI for constructing proper RequestURI if unsure.
 
 <a name="RequestHeader.SetRequestURIBytes"></a>
-### func \(\*RequestHeader\) [SetRequestURIBytes](<https://github.com/valyala/fasthttp/blob/master/header.go#L793>)
+### func \(\*RequestHeader\) [SetRequestURIBytes](<https://github.com/valyala/fasthttp/blob/master/header.go#L763>)
 
 ```go
 func (h *RequestHeader) SetRequestURIBytes(requestURI []byte)
@@ -7615,7 +7615,7 @@ func (h *RequestHeader) SetRequestURIBytes(requestURI []byte)
 SetRequestURIBytes sets RequestURI for the first HTTP request line. RequestURI must be properly encoded. Use URI.RequestURI for constructing proper RequestURI if unsure.
 
 <a name="RequestHeader.SetTrailer"></a>
-### func \(\*RequestHeader\) [SetTrailer](<https://github.com/valyala/fasthttp/blob/master/header.go#L814>)
+### func \(\*RequestHeader\) [SetTrailer](<https://github.com/valyala/fasthttp/blob/master/header.go#L784>)
 
 ```go
 func (h *RequestHeader) SetTrailer(trailer string) error
@@ -7632,7 +7632,7 @@ The following trailers are forbidden: 1. necessary for message framing \(e.g., T
 Return ErrBadTrailer if contain any forbidden trailers.
 
 <a name="RequestHeader.SetTrailerBytes"></a>
-### func \(\*RequestHeader\) [SetTrailerBytes](<https://github.com/valyala/fasthttp/blob/master/header.go#L835>)
+### func \(\*RequestHeader\) [SetTrailerBytes](<https://github.com/valyala/fasthttp/blob/master/header.go#L805>)
 
 ```go
 func (h *RequestHeader) SetTrailerBytes(trailer []byte) error
@@ -7649,7 +7649,7 @@ The following trailers are forbidden: 1. necessary for message framing \(e.g., T
 Return ErrBadTrailer if contain any forbidden trailers.
 
 <a name="RequestHeader.SetUserAgent"></a>
-### func \(\*RequestHeader\) [SetUserAgent](<https://github.com/valyala/fasthttp/blob/master/header.go#L712>)
+### func \(\*RequestHeader\) [SetUserAgent](<https://github.com/valyala/fasthttp/blob/master/header.go#L682>)
 
 ```go
 func (h *RequestHeader) SetUserAgent(userAgent string)
@@ -7658,7 +7658,7 @@ func (h *RequestHeader) SetUserAgent(userAgent string)
 SetUserAgent sets User\-Agent header value.
 
 <a name="RequestHeader.SetUserAgentBytes"></a>
-### func \(\*RequestHeader\) [SetUserAgentBytes](<https://github.com/valyala/fasthttp/blob/master/header.go#L717>)
+### func \(\*RequestHeader\) [SetUserAgentBytes](<https://github.com/valyala/fasthttp/blob/master/header.go#L687>)
 
 ```go
 func (h *RequestHeader) SetUserAgentBytes(userAgent []byte)
@@ -7667,7 +7667,7 @@ func (h *RequestHeader) SetUserAgentBytes(userAgent []byte)
 SetUserAgentBytes sets User\-Agent header value.
 
 <a name="RequestHeader.String"></a>
-### func \(\*RequestHeader\) [String](<https://github.com/valyala/fasthttp/blob/master/header.go#L2638>)
+### func \(\*RequestHeader\) [String](<https://github.com/valyala/fasthttp/blob/master/header.go#L2580>)
 
 ```go
 func (h *RequestHeader) String() string
@@ -7676,7 +7676,7 @@ func (h *RequestHeader) String() string
 String returns request header representation.
 
 <a name="RequestHeader.TrailerHeader"></a>
-### func \(\*RequestHeader\) [TrailerHeader](<https://github.com/valyala/fasthttp/blob/master/header.go#L2613>)
+### func \(\*RequestHeader\) [TrailerHeader](<https://github.com/valyala/fasthttp/blob/master/header.go#L2555>)
 
 ```go
 func (h *RequestHeader) TrailerHeader() []byte
@@ -7689,7 +7689,7 @@ Trailers will only be received with chunked transfer.
 The returned value is valid until the request is released, either though ReleaseRequest or your request handler returning. Do not store references to returned value. Make copies instead.
 
 <a name="RequestHeader.UserAgent"></a>
-### func \(\*RequestHeader\) [UserAgent](<https://github.com/valyala/fasthttp/blob/master/header.go#L704>)
+### func \(\*RequestHeader\) [UserAgent](<https://github.com/valyala/fasthttp/blob/master/header.go#L674>)
 
 ```go
 func (h *RequestHeader) UserAgent() []byte
@@ -7698,7 +7698,7 @@ func (h *RequestHeader) UserAgent() []byte
 UserAgent returns User\-Agent header value.
 
 <a name="RequestHeader.VisitAll"></a>
-### func \(\*RequestHeader\) [VisitAll](<https://github.com/valyala/fasthttp/blob/master/header.go#L1283>)
+### func \(\*RequestHeader\) [VisitAll](<https://github.com/valyala/fasthttp/blob/master/header.go#L1223>)
 
 ```go
 func (h *RequestHeader) VisitAll(f func(key, value []byte))
@@ -7711,7 +7711,7 @@ f must not retain references to key and/or value after returning. Copy key and/o
 To get the headers in order they were received use VisitAllInOrder.
 
 <a name="RequestHeader.VisitAllCookie"></a>
-### func \(\*RequestHeader\) [VisitAllCookie](<https://github.com/valyala/fasthttp/blob/master/header.go#L1272>)
+### func \(\*RequestHeader\) [VisitAllCookie](<https://github.com/valyala/fasthttp/blob/master/header.go#L1212>)
 
 ```go
 func (h *RequestHeader) VisitAllCookie(f func(key, value []byte))
@@ -7722,7 +7722,7 @@ VisitAllCookie calls f for each request cookie.
 f must not retain references to key and/or value after returning.
 
 <a name="RequestHeader.VisitAllInOrder"></a>
-### func \(\*RequestHeader\) [VisitAllInOrder](<https://github.com/valyala/fasthttp/blob/master/header.go#L1321>)
+### func \(\*RequestHeader\) [VisitAllInOrder](<https://github.com/valyala/fasthttp/blob/master/header.go#L1261>)
 
 ```go
 func (h *RequestHeader) VisitAllInOrder(f func(key, value []byte))
@@ -7735,7 +7735,7 @@ f must not retain references to key and/or value after returning. Copy key and/o
 This function is slightly slower than VisitAll because it has to reparse the raw headers to get the order.
 
 <a name="RequestHeader.VisitAllTrailer"></a>
-### func \(\*RequestHeader\) [VisitAllTrailer](<https://github.com/valyala/fasthttp/blob/master/header.go#L1252>)
+### func \(\*RequestHeader\) [VisitAllTrailer](<https://github.com/valyala/fasthttp/blob/master/header.go#L1192>)
 
 ```go
 func (h *RequestHeader) VisitAllTrailer(f func(value []byte))
@@ -7746,7 +7746,7 @@ VisitAllTrailer calls f for each request Trailer.
 f must not retain references to value after returning.
 
 <a name="RequestHeader.Write"></a>
-### func \(\*RequestHeader\) [Write](<https://github.com/valyala/fasthttp/blob/master/header.go#L2575>)
+### func \(\*RequestHeader\) [Write](<https://github.com/valyala/fasthttp/blob/master/header.go#L2517>)
 
 ```go
 func (h *RequestHeader) Write(w *bufio.Writer) error
@@ -7755,7 +7755,7 @@ func (h *RequestHeader) Write(w *bufio.Writer) error
 Write writes request header to w.
 
 <a name="RequestHeader.WriteTo"></a>
-### func \(\*RequestHeader\) [WriteTo](<https://github.com/valyala/fasthttp/blob/master/header.go#L2583>)
+### func \(\*RequestHeader\) [WriteTo](<https://github.com/valyala/fasthttp/blob/master/header.go#L2525>)
 
 ```go
 func (h *RequestHeader) WriteTo(w io.Writer) (int64, error)
@@ -8301,7 +8301,7 @@ type ResponseHeader struct {
 ```
 
 <a name="ResponseHeader.Add"></a>
-### func \(\*ResponseHeader\) [Add](<https://github.com/valyala/fasthttp/blob/master/header.go#L1534>)
+### func \(\*ResponseHeader\) [Add](<https://github.com/valyala/fasthttp/blob/master/header.go#L1474>)
 
 ```go
 func (h *ResponseHeader) Add(key, value string)
@@ -8316,7 +8316,7 @@ the Content\-Type, Content\-Length, Connection, Server, Transfer\-Encoding and D
 If the header is set as a Trailer \(forbidden trailers will not be set, see AddTrailer for more details\), it will be sent after the chunked response body.
 
 <a name="ResponseHeader.AddBytesK"></a>
-### func \(\*ResponseHeader\) [AddBytesK](<https://github.com/valyala/fasthttp/blob/master/header.go#L1549>)
+### func \(\*ResponseHeader\) [AddBytesK](<https://github.com/valyala/fasthttp/blob/master/header.go#L1489>)
 
 ```go
 func (h *ResponseHeader) AddBytesK(key []byte, value string)
@@ -8331,7 +8331,7 @@ the Content\-Type, Content\-Length, Connection, Server, Transfer\-Encoding and D
 If the header is set as a Trailer \(forbidden trailers will not be set, see AddTrailer for more details\), it will be sent after the chunked response body.
 
 <a name="ResponseHeader.AddBytesKV"></a>
-### func \(\*ResponseHeader\) [AddBytesKV](<https://github.com/valyala/fasthttp/blob/master/header.go#L1579>)
+### func \(\*ResponseHeader\) [AddBytesKV](<https://github.com/valyala/fasthttp/blob/master/header.go#L1519>)
 
 ```go
 func (h *ResponseHeader) AddBytesKV(key, value []byte)
@@ -8346,7 +8346,7 @@ the Content\-Type, Content\-Length, Connection, Server, Transfer\-Encoding and D
 If the header is set as a Trailer \(forbidden trailers will not be set, see AddTrailer for more details\), it will be sent after the chunked response body.
 
 <a name="ResponseHeader.AddBytesV"></a>
-### func \(\*ResponseHeader\) [AddBytesV](<https://github.com/valyala/fasthttp/blob/master/header.go#L1564>)
+### func \(\*ResponseHeader\) [AddBytesV](<https://github.com/valyala/fasthttp/blob/master/header.go#L1504>)
 
 ```go
 func (h *ResponseHeader) AddBytesV(key string, value []byte)
@@ -8381,7 +8381,7 @@ Return ErrBadTrailer if contain any forbidden trailers.
 ### func \(\*ResponseHeader\) [AddTrailerBytes](<https://github.com/valyala/fasthttp/blob/master/header.go#L523>)
 
 ```go
-func (h *ResponseHeader) AddTrailerBytes(trailer []byte) error
+func (h *ResponseHeader) AddTrailerBytes(trailer []byte) (err error)
 ```
 
 AddTrailerBytes add Trailer header value for chunked response to indicate which headers will be sent after the body.
@@ -8395,7 +8395,7 @@ The following trailers are forbidden: 1. necessary for message framing \(e.g., T
 Return ErrBadTrailer if contain any forbidden trailers.
 
 <a name="ResponseHeader.AppendBytes"></a>
-### func \(\*ResponseHeader\) [AppendBytes](<https://github.com/valyala/fasthttp/blob/master/header.go#L2508>)
+### func \(\*ResponseHeader\) [AppendBytes](<https://github.com/valyala/fasthttp/blob/master/header.go#L2450>)
 
 ```go
 func (h *ResponseHeader) AppendBytes(dst []byte) []byte
@@ -8451,7 +8451,7 @@ func (h *ResponseHeader) ContentType() []byte
 ContentType returns Content\-Type header value.
 
 <a name="ResponseHeader.Cookie"></a>
-### func \(\*ResponseHeader\) [Cookie](<https://github.com/valyala/fasthttp/blob/master/header.go#L2135>)
+### func \(\*ResponseHeader\) [Cookie](<https://github.com/valyala/fasthttp/blob/master/header.go#L2075>)
 
 ```go
 func (h *ResponseHeader) Cookie(cookie *Cookie) bool
@@ -8462,7 +8462,7 @@ Cookie fills cookie for the given cookie.Key.
 Returns false if cookie with the given cookie.Key is missing.
 
 <a name="ResponseHeader.CopyTo"></a>
-### func \(\*ResponseHeader\) [CopyTo](<https://github.com/valyala/fasthttp/blob/master/header.go#L1160>)
+### func \(\*ResponseHeader\) [CopyTo](<https://github.com/valyala/fasthttp/blob/master/header.go#L1100>)
 
 ```go
 func (h *ResponseHeader) CopyTo(dst *ResponseHeader)
@@ -8471,7 +8471,7 @@ func (h *ResponseHeader) CopyTo(dst *ResponseHeader)
 CopyTo copies all the headers to dst.
 
 <a name="ResponseHeader.Del"></a>
-### func \(\*ResponseHeader\) [Del](<https://github.com/valyala/fasthttp/blob/master/header.go#L1333>)
+### func \(\*ResponseHeader\) [Del](<https://github.com/valyala/fasthttp/blob/master/header.go#L1273>)
 
 ```go
 func (h *ResponseHeader) Del(key string)
@@ -8480,7 +8480,7 @@ func (h *ResponseHeader) Del(key string)
 Del deletes header with the given key.
 
 <a name="ResponseHeader.DelAllCookies"></a>
-### func \(\*ResponseHeader\) [DelAllCookies](<https://github.com/valyala/fasthttp/blob/master/header.go#L1751>)
+### func \(\*ResponseHeader\) [DelAllCookies](<https://github.com/valyala/fasthttp/blob/master/header.go#L1691>)
 
 ```go
 func (h *ResponseHeader) DelAllCookies()
@@ -8489,7 +8489,7 @@ func (h *ResponseHeader) DelAllCookies()
 DelAllCookies removes all the cookies from response headers.
 
 <a name="ResponseHeader.DelBytes"></a>
-### func \(\*ResponseHeader\) [DelBytes](<https://github.com/valyala/fasthttp/blob/master/header.go#L1339>)
+### func \(\*ResponseHeader\) [DelBytes](<https://github.com/valyala/fasthttp/blob/master/header.go#L1279>)
 
 ```go
 func (h *ResponseHeader) DelBytes(key []byte)
@@ -8498,7 +8498,7 @@ func (h *ResponseHeader) DelBytes(key []byte)
 DelBytes deletes header with the given key.
 
 <a name="ResponseHeader.DelClientCookie"></a>
-### func \(\*ResponseHeader\) [DelClientCookie](<https://github.com/valyala/fasthttp/blob/master/header.go#L1696>)
+### func \(\*ResponseHeader\) [DelClientCookie](<https://github.com/valyala/fasthttp/blob/master/header.go#L1636>)
 
 ```go
 func (h *ResponseHeader) DelClientCookie(key string)
@@ -8519,7 +8519,7 @@ ReleaseCookie(c)
 Use DelCookie if you want just removing the cookie from response header.
 
 <a name="ResponseHeader.DelClientCookieBytes"></a>
-### func \(\*ResponseHeader\) [DelClientCookieBytes](<https://github.com/valyala/fasthttp/blob/master/header.go#L1719>)
+### func \(\*ResponseHeader\) [DelClientCookieBytes](<https://github.com/valyala/fasthttp/blob/master/header.go#L1659>)
 
 ```go
 func (h *ResponseHeader) DelClientCookieBytes(key []byte)
@@ -8540,7 +8540,7 @@ ReleaseCookie(c)
 Use DelCookieBytes if you want just removing the cookie from response header.
 
 <a name="ResponseHeader.DelCookie"></a>
-### func \(\*ResponseHeader\) [DelCookie](<https://github.com/valyala/fasthttp/blob/master/header.go#L1727>)
+### func \(\*ResponseHeader\) [DelCookie](<https://github.com/valyala/fasthttp/blob/master/header.go#L1667>)
 
 ```go
 func (h *ResponseHeader) DelCookie(key string)
@@ -8551,7 +8551,7 @@ DelCookie removes cookie under the given key from response header.
 Note that DelCookie doesn't remove the cookie from the client. Use DelClientCookie instead.
 
 <a name="ResponseHeader.DelCookieBytes"></a>
-### func \(\*ResponseHeader\) [DelCookieBytes](<https://github.com/valyala/fasthttp/blob/master/header.go#L1735>)
+### func \(\*ResponseHeader\) [DelCookieBytes](<https://github.com/valyala/fasthttp/blob/master/header.go#L1675>)
 
 ```go
 func (h *ResponseHeader) DelCookieBytes(key []byte)
@@ -8562,7 +8562,7 @@ DelCookieBytes removes cookie under the given key from response header.
 Note that DelCookieBytes doesn't remove the cookie from the client. Use DelClientCookieBytes instead.
 
 <a name="ResponseHeader.DisableNormalizing"></a>
-### func \(\*ResponseHeader\) [DisableNormalizing](<https://github.com/valyala/fasthttp/blob/master/header.go#L1070>)
+### func \(\*ResponseHeader\) [DisableNormalizing](<https://github.com/valyala/fasthttp/blob/master/header.go#L1010>)
 
 ```go
 func (h *ResponseHeader) DisableNormalizing()
@@ -8579,7 +8579,7 @@ By default all the header names are normalized by uppercasing the first letter a
 Disable header names' normalization only if know what are you doing.
 
 <a name="ResponseHeader.EnableNormalizing"></a>
-### func \(\*ResponseHeader\) [EnableNormalizing](<https://github.com/valyala/fasthttp/blob/master/header.go#L1086>)
+### func \(\*ResponseHeader\) [EnableNormalizing](<https://github.com/valyala/fasthttp/blob/master/header.go#L1026>)
 
 ```go
 func (h *ResponseHeader) EnableNormalizing()
@@ -8596,7 +8596,7 @@ Header names are normalized by uppercasing the first letter and all the first le
 This is enabled by default unless disabled using DisableNormalizing\(\).
 
 <a name="ResponseHeader.Header"></a>
-### func \(\*ResponseHeader\) [Header](<https://github.com/valyala/fasthttp/blob/master/header.go#L2463>)
+### func \(\*ResponseHeader\) [Header](<https://github.com/valyala/fasthttp/blob/master/header.go#L2405>)
 
 ```go
 func (h *ResponseHeader) Header() []byte
@@ -8609,7 +8609,7 @@ Headers that set as Trailer will not represent. Use TrailerHeader for trailers.
 The returned value is valid until the request is released, either though ReleaseRequest or your request handler returning. Do not store references to returned value. Make copies instead.
 
 <a name="ResponseHeader.IsHTTP11"></a>
-### func \(\*ResponseHeader\) [IsHTTP11](<https://github.com/valyala/fasthttp/blob/master/header.go#L964>)
+### func \(\*ResponseHeader\) [IsHTTP11](<https://github.com/valyala/fasthttp/blob/master/header.go#L904>)
 
 ```go
 func (h *ResponseHeader) IsHTTP11() bool
@@ -8618,7 +8618,7 @@ func (h *ResponseHeader) IsHTTP11() bool
 IsHTTP11 returns true if the response is HTTP/1.1.
 
 <a name="ResponseHeader.Len"></a>
-### func \(\*ResponseHeader\) [Len](<https://github.com/valyala/fasthttp/blob/master/header.go#L995>)
+### func \(\*ResponseHeader\) [Len](<https://github.com/valyala/fasthttp/blob/master/header.go#L935>)
 
 ```go
 func (h *ResponseHeader) Len() int
@@ -8627,7 +8627,7 @@ func (h *ResponseHeader) Len() int
 Len returns the number of headers set, i.e. the number of times f is called in VisitAll.
 
 <a name="ResponseHeader.Peek"></a>
-### func \(\*ResponseHeader\) [Peek](<https://github.com/valyala/fasthttp/blob/master/header.go#L1891>)
+### func \(\*ResponseHeader\) [Peek](<https://github.com/valyala/fasthttp/blob/master/header.go#L1831>)
 
 ```go
 func (h *ResponseHeader) Peek(key string) []byte
@@ -8638,7 +8638,7 @@ Peek returns header value for the given key.
 The returned value is valid until the response is released, either though ReleaseResponse or your request handler returning. Do not store references to the returned value. Make copies instead.
 
 <a name="ResponseHeader.PeekAll"></a>
-### func \(\*ResponseHeader\) [PeekAll](<https://github.com/valyala/fasthttp/blob/master/header.go#L2033>)
+### func \(\*ResponseHeader\) [PeekAll](<https://github.com/valyala/fasthttp/blob/master/header.go#L1973>)
 
 ```go
 func (h *ResponseHeader) PeekAll(key string) [][]byte
@@ -8649,7 +8649,7 @@ PeekAll returns all header value for the given key.
 The returned value is valid until the request is released, either though ReleaseResponse or your request handler returning. Any future calls to the Peek\* will modify the returned value. Do not store references to returned value. Make copies instead.
 
 <a name="ResponseHeader.PeekBytes"></a>
-### func \(\*ResponseHeader\) [PeekBytes](<https://github.com/valyala/fasthttp/blob/master/header.go#L1901>)
+### func \(\*ResponseHeader\) [PeekBytes](<https://github.com/valyala/fasthttp/blob/master/header.go#L1841>)
 
 ```go
 func (h *ResponseHeader) PeekBytes(key []byte) []byte
@@ -8669,7 +8669,7 @@ func (h *ResponseHeader) PeekCookie(key string) []byte
 PeekCookie is able to returns cookie by a given key from response.
 
 <a name="ResponseHeader.PeekKeys"></a>
-### func \(\*ResponseHeader\) [PeekKeys](<https://github.com/valyala/fasthttp/blob/master/header.go#L2100>)
+### func \(\*ResponseHeader\) [PeekKeys](<https://github.com/valyala/fasthttp/blob/master/header.go#L2040>)
 
 ```go
 func (h *ResponseHeader) PeekKeys() [][]byte
@@ -8680,7 +8680,7 @@ PeekKeys return all header keys.
 The returned value is valid until the request is released, either though ReleaseResponse or your request handler returning. Any future calls to the Peek\* will modify the returned value. Do not store references to returned value. Make copies instead.
 
 <a name="ResponseHeader.PeekTrailerKeys"></a>
-### func \(\*ResponseHeader\) [PeekTrailerKeys](<https://github.com/valyala/fasthttp/blob/master/header.go#L2112>)
+### func \(\*ResponseHeader\) [PeekTrailerKeys](<https://github.com/valyala/fasthttp/blob/master/header.go#L2052>)
 
 ```go
 func (h *ResponseHeader) PeekTrailerKeys() [][]byte
@@ -8700,7 +8700,7 @@ func (h *ResponseHeader) Protocol() []byte
 Protocol returns response protocol bytes.
 
 <a name="ResponseHeader.Read"></a>
-### func \(\*ResponseHeader\) [Read](<https://github.com/valyala/fasthttp/blob/master/header.go#L2147>)
+### func \(\*ResponseHeader\) [Read](<https://github.com/valyala/fasthttp/blob/master/header.go#L2087>)
 
 ```go
 func (h *ResponseHeader) Read(r *bufio.Reader) error
@@ -8711,7 +8711,7 @@ Read reads response header from r.
 io.EOF is returned if r is closed before reading the first header byte.
 
 <a name="ResponseHeader.ReadTrailer"></a>
-### func \(\*ResponseHeader\) [ReadTrailer](<https://github.com/valyala/fasthttp/blob/master/header.go#L2201>)
+### func \(\*ResponseHeader\) [ReadTrailer](<https://github.com/valyala/fasthttp/blob/master/header.go#L2141>)
 
 ```go
 func (h *ResponseHeader) ReadTrailer(r *bufio.Reader) error
@@ -8722,7 +8722,7 @@ ReadTrailer reads response trailer header from r.
 io.EOF is returned if r is closed before reading the first byte.
 
 <a name="ResponseHeader.Reset"></a>
-### func \(\*ResponseHeader\) [Reset](<https://github.com/valyala/fasthttp/blob/master/header.go#L1096>)
+### func \(\*ResponseHeader\) [Reset](<https://github.com/valyala/fasthttp/blob/master/header.go#L1036>)
 
 ```go
 func (h *ResponseHeader) Reset()
@@ -8749,7 +8749,7 @@ func (h *ResponseHeader) Server() []byte
 Server returns Server header value.
 
 <a name="ResponseHeader.Set"></a>
-### func \(\*ResponseHeader\) [Set](<https://github.com/valyala/fasthttp/blob/master/header.go#L1597>)
+### func \(\*ResponseHeader\) [Set](<https://github.com/valyala/fasthttp/blob/master/header.go#L1537>)
 
 ```go
 func (h *ResponseHeader) Set(key, value string)
@@ -8764,7 +8764,7 @@ If the header is set as a Trailer \(forbidden trailers will not be set, see SetT
 Use Add for setting multiple header values under the same key.
 
 <a name="ResponseHeader.SetBytesK"></a>
-### func \(\*ResponseHeader\) [SetBytesK](<https://github.com/valyala/fasthttp/blob/master/header.go#L1611>)
+### func \(\*ResponseHeader\) [SetBytesK](<https://github.com/valyala/fasthttp/blob/master/header.go#L1551>)
 
 ```go
 func (h *ResponseHeader) SetBytesK(key []byte, value string)
@@ -8779,7 +8779,7 @@ If the header is set as a Trailer \(forbidden trailers will not be set, see SetT
 Use AddBytesK for setting multiple header values under the same key.
 
 <a name="ResponseHeader.SetBytesKV"></a>
-### func \(\*ResponseHeader\) [SetBytesKV](<https://github.com/valyala/fasthttp/blob/master/header.go#L1639>)
+### func \(\*ResponseHeader\) [SetBytesKV](<https://github.com/valyala/fasthttp/blob/master/header.go#L1579>)
 
 ```go
 func (h *ResponseHeader) SetBytesKV(key, value []byte)
@@ -8794,7 +8794,7 @@ If the header is set as a Trailer \(forbidden trailers will not be set, see SetT
 Use AddBytesKV for setting multiple header values under the same key.
 
 <a name="ResponseHeader.SetBytesV"></a>
-### func \(\*ResponseHeader\) [SetBytesV](<https://github.com/valyala/fasthttp/blob/master/header.go#L1625>)
+### func \(\*ResponseHeader\) [SetBytesV](<https://github.com/valyala/fasthttp/blob/master/header.go#L1565>)
 
 ```go
 func (h *ResponseHeader) SetBytesV(key string, value []byte)
@@ -8809,7 +8809,7 @@ If the header is set as a Trailer \(forbidden trailers will not be set, see SetT
 Use AddBytesV for setting multiple header values under the same key.
 
 <a name="ResponseHeader.SetCanonical"></a>
-### func \(\*ResponseHeader\) [SetCanonical](<https://github.com/valyala/fasthttp/blob/master/header.go#L1653>)
+### func \(\*ResponseHeader\) [SetCanonical](<https://github.com/valyala/fasthttp/blob/master/header.go#L1593>)
 
 ```go
 func (h *ResponseHeader) SetCanonical(key, value []byte)
@@ -8887,7 +8887,7 @@ func (h *ResponseHeader) SetContentTypeBytes(contentType []byte)
 SetContentTypeBytes sets Content\-Type header value.
 
 <a name="ResponseHeader.SetCookie"></a>
-### func \(\*ResponseHeader\) [SetCookie](<https://github.com/valyala/fasthttp/blob/master/header.go#L1663>)
+### func \(\*ResponseHeader\) [SetCookie](<https://github.com/valyala/fasthttp/blob/master/header.go#L1603>)
 
 ```go
 func (h *ResponseHeader) SetCookie(cookie *Cookie)
@@ -8907,7 +8907,7 @@ func (h *ResponseHeader) SetLastModified(t time.Time)
 SetLastModified sets 'Last\-Modified' header to the given value.
 
 <a name="ResponseHeader.SetNoDefaultContentType"></a>
-### func \(\*ResponseHeader\) [SetNoDefaultContentType](<https://github.com/valyala/fasthttp/blob/master/header.go#L1091>)
+### func \(\*ResponseHeader\) [SetNoDefaultContentType](<https://github.com/valyala/fasthttp/blob/master/header.go#L1031>)
 
 ```go
 func (h *ResponseHeader) SetNoDefaultContentType(noDefaultContentType bool)
@@ -9013,7 +9013,7 @@ func (h *ResponseHeader) StatusMessage() []byte
 StatusMessage returns response status message.
 
 <a name="ResponseHeader.String"></a>
-### func \(\*ResponseHeader\) [String](<https://github.com/valyala/fasthttp/blob/master/header.go#L2492>)
+### func \(\*ResponseHeader\) [String](<https://github.com/valyala/fasthttp/blob/master/header.go#L2434>)
 
 ```go
 func (h *ResponseHeader) String() string
@@ -9022,7 +9022,7 @@ func (h *ResponseHeader) String() string
 String returns response header representation.
 
 <a name="ResponseHeader.TrailerHeader"></a>
-### func \(\*ResponseHeader\) [TrailerHeader](<https://github.com/valyala/fasthttp/blob/master/header.go#L2481>)
+### func \(\*ResponseHeader\) [TrailerHeader](<https://github.com/valyala/fasthttp/blob/master/header.go#L2423>)
 
 ```go
 func (h *ResponseHeader) TrailerHeader() []byte
@@ -9035,7 +9035,7 @@ Trailers will only be received with chunked transfer.
 The returned value is valid until the request is released, either though ReleaseRequest or your request handler returning. Do not store references to returned value. Make copies instead.
 
 <a name="ResponseHeader.VisitAll"></a>
-### func \(\*ResponseHeader\) [VisitAll](<https://github.com/valyala/fasthttp/blob/master/header.go#L1210>)
+### func \(\*ResponseHeader\) [VisitAll](<https://github.com/valyala/fasthttp/blob/master/header.go#L1150>)
 
 ```go
 func (h *ResponseHeader) VisitAll(f func(key, value []byte))
@@ -9046,7 +9046,7 @@ VisitAll calls f for each header.
 f must not retain references to key and/or value after returning. Copy key and/or value contents before returning if you need retaining them.
 
 <a name="ResponseHeader.VisitAllCookie"></a>
-### func \(\*ResponseHeader\) [VisitAllCookie](<https://github.com/valyala/fasthttp/blob/master/header.go#L1265>)
+### func \(\*ResponseHeader\) [VisitAllCookie](<https://github.com/valyala/fasthttp/blob/master/header.go#L1205>)
 
 ```go
 func (h *ResponseHeader) VisitAllCookie(f func(key, value []byte))
@@ -9059,7 +9059,7 @@ Cookie name is passed in key and the whole Set\-Cookie header value is passed in
 f must not retain references to key and/or value after returning.
 
 <a name="ResponseHeader.VisitAllTrailer"></a>
-### func \(\*ResponseHeader\) [VisitAllTrailer](<https://github.com/valyala/fasthttp/blob/master/header.go#L1243>)
+### func \(\*ResponseHeader\) [VisitAllTrailer](<https://github.com/valyala/fasthttp/blob/master/header.go#L1183>)
 
 ```go
 func (h *ResponseHeader) VisitAllTrailer(f func(value []byte))
@@ -9070,7 +9070,7 @@ VisitAllTrailer calls f for each response Trailer.
 f must not retain references to value after returning.
 
 <a name="ResponseHeader.Write"></a>
-### func \(\*ResponseHeader\) [Write](<https://github.com/valyala/fasthttp/blob/master/header.go#L2443>)
+### func \(\*ResponseHeader\) [Write](<https://github.com/valyala/fasthttp/blob/master/header.go#L2385>)
 
 ```go
 func (h *ResponseHeader) Write(w *bufio.Writer) error
@@ -9079,7 +9079,7 @@ func (h *ResponseHeader) Write(w *bufio.Writer) error
 Write writes response header to w.
 
 <a name="ResponseHeader.WriteTo"></a>
-### func \(\*ResponseHeader\) [WriteTo](<https://github.com/valyala/fasthttp/blob/master/header.go#L2451>)
+### func \(\*ResponseHeader\) [WriteTo](<https://github.com/valyala/fasthttp/blob/master/header.go#L2393>)
 
 ```go
 func (h *ResponseHeader) WriteTo(w io.Writer) (int64, error)
@@ -9467,7 +9467,7 @@ func main() {
 </details>
 
 <a name="Server.AppendCert"></a>
-### func \(\*Server\) [AppendCert](<https://github.com/valyala/fasthttp/blob/master/server.go#L1750>)
+### func \(\*Server\) [AppendCert](<https://github.com/valyala/fasthttp/blob/master/server.go#L1742>)
 
 ```go
 func (s *Server) AppendCert(certFile, keyFile string) error
@@ -9478,7 +9478,7 @@ AppendCert appends certificate and keyfile to TLS Configuration.
 This function allows programmer to handle multiple domains in one server structure. See examples/multidomain.
 
 <a name="Server.AppendCertEmbed"></a>
-### func \(\*Server\) [AppendCertEmbed](<https://github.com/valyala/fasthttp/blob/master/server.go#L1767>)
+### func \(\*Server\) [AppendCertEmbed](<https://github.com/valyala/fasthttp/blob/master/server.go#L1759>)
 
 ```go
 func (s *Server) AppendCertEmbed(certData, keyData []byte) error
@@ -9487,7 +9487,7 @@ func (s *Server) AppendCertEmbed(certData, keyData []byte) error
 AppendCertEmbed does the same as AppendCert but using in\-memory data.
 
 <a name="Server.GetCurrentConcurrency"></a>
-### func \(\*Server\) [GetCurrentConcurrency](<https://github.com/valyala/fasthttp/blob/master/server.go#L2065>)
+### func \(\*Server\) [GetCurrentConcurrency](<https://github.com/valyala/fasthttp/blob/master/server.go#L2057>)
 
 ```go
 func (s *Server) GetCurrentConcurrency() uint32
@@ -9498,7 +9498,7 @@ GetCurrentConcurrency returns a number of currently served connections.
 This function is intended be used by monitoring systems.
 
 <a name="Server.GetOpenConnectionsCount"></a>
-### func \(\*Server\) [GetOpenConnectionsCount](<https://github.com/valyala/fasthttp/blob/master/server.go#L2072>)
+### func \(\*Server\) [GetOpenConnectionsCount](<https://github.com/valyala/fasthttp/blob/master/server.go#L2064>)
 
 ```go
 func (s *Server) GetOpenConnectionsCount() int32
@@ -9509,7 +9509,7 @@ GetOpenConnectionsCount returns a number of opened connections.
 This function is intended be used by monitoring systems.
 
 <a name="Server.GetRejectedConnectionsCount"></a>
-### func \(\*Server\) [GetRejectedConnectionsCount](<https://github.com/valyala/fasthttp/blob/master/server.go#L2087>)
+### func \(\*Server\) [GetRejectedConnectionsCount](<https://github.com/valyala/fasthttp/blob/master/server.go#L2079>)
 
 ```go
 func (s *Server) GetRejectedConnectionsCount() uint32
@@ -9591,7 +9591,7 @@ NextProto adds nph to be processed when key is negotiated when TLS connection is
 This function can only be called before the server is started.
 
 <a name="Server.Serve"></a>
-### func \(\*Server\) [Serve](<https://github.com/valyala/fasthttp/blob/master/server.go#L1797>)
+### func \(\*Server\) [Serve](<https://github.com/valyala/fasthttp/blob/master/server.go#L1789>)
 
 ```go
 func (s *Server) Serve(ln net.Listener) error
@@ -9602,7 +9602,7 @@ Serve serves incoming connections from the given listener.
 Serve blocks until the given listener returns permanent error.
 
 <a name="Server.ServeConn"></a>
-### func \(\*Server\) [ServeConn](<https://github.com/valyala/fasthttp/blob/master/server.go#L2023>)
+### func \(\*Server\) [ServeConn](<https://github.com/valyala/fasthttp/blob/master/server.go#L2015>)
 
 ```go
 func (s *Server) ServeConn(c net.Conn) error
@@ -9630,7 +9630,7 @@ certFile and keyFile are paths to TLS certificate and key files.
 If the certFile or keyFile has not been provided the server structure, the function will use previously added TLS configuration.
 
 <a name="Server.ServeTLSEmbed"></a>
-### func \(\*Server\) [ServeTLSEmbed](<https://github.com/valyala/fasthttp/blob/master/server.go#L1724>)
+### func \(\*Server\) [ServeTLSEmbed](<https://github.com/valyala/fasthttp/blob/master/server.go#L1720>)
 
 ```go
 func (s *Server) ServeTLSEmbed(ln net.Listener, certData, keyData []byte) error
@@ -9643,7 +9643,7 @@ certData and keyData must contain valid TLS certificate and key data.
 If the certFile or keyFile has not been provided the server structure, the function will use previously added TLS configuration.
 
 <a name="Server.Shutdown"></a>
-### func \(\*Server\) [Shutdown](<https://github.com/valyala/fasthttp/blob/master/server.go#L1877>)
+### func \(\*Server\) [Shutdown](<https://github.com/valyala/fasthttp/blob/master/server.go#L1869>)
 
 ```go
 func (s *Server) Shutdown() error
@@ -9656,7 +9656,7 @@ When Shutdown is called, Serve, ListenAndServe, and ListenAndServeTLS immediatel
 Shutdown does not close keepalive connections so it's recommended to set ReadTimeout and IdleTimeout to something else than 0.
 
 <a name="Server.ShutdownWithContext"></a>
-### func \(\*Server\) [ShutdownWithContext](<https://github.com/valyala/fasthttp/blob/master/server.go#L1892>)
+### func \(\*Server\) [ShutdownWithContext](<https://github.com/valyala/fasthttp/blob/master/server.go#L1884>)
 
 ```go
 func (s *Server) ShutdownWithContext(ctx context.Context) (err error)
@@ -10219,3 +10219,5 @@ func (u *URI) WriteTo(w io.Writer) (int64, error)
 WriteTo writes full uri to w.
 
 WriteTo implements io.WriterTo interface.
+
+Generated by [gomarkdoc](<https://github.com/princjef/gomarkdoc>)
