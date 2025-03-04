@@ -83,20 +83,12 @@ func (s *Scanner) Run() error {
 }
 
 func (s *Scanner) scanURL(url string) error {
-	resultsChannel := s.RunAllBypasses(url)
-
-	var resultCount int
-	for result := range resultsChannel {
-		if result != nil {
-			resultCount++
-		}
-	}
+	resultCount := s.RunAllBypasses(url)
 
 	if resultCount > 0 {
 		resultsFile := s.scannerOpts.ResultsDBFile
 
 		fmt.Println()
-		// if err := PrintResultsTableFromJsonL(resultsFile, url, s.scannerOpts.BypassModule); err != nil {
 		if err := PrintResultsTableFromDB(url, s.scannerOpts.BypassModule); err != nil {
 			GB403Logger.Error().Msgf("Failed to display results: %v\n", err)
 		} else {

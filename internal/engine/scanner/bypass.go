@@ -5,6 +5,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/slicingmelon/go-bypass-403/internal/engine/payload"
@@ -160,32 +161,22 @@ func (w *BypassWorker) Stop() {
 }
 
 // Core Function
-func (s *Scanner) RunAllBypasses(targetURL string) chan *Result {
-	results := make(chan *Result)
+func (s *Scanner) RunAllBypasses(targetURL string) int {
+	totalFindings := 0
 
-	go func() {
-		defer close(results)
-
-		modules := strings.Split(s.scannerOpts.BypassModule, ",")
-		for _, module := range modules {
-			module = strings.TrimSpace(module)
-			if module == "" {
-				continue
-			}
-
-			modResults := make(chan *Result)
-			go s.RunBypassModule(module, targetURL, modResults)
-
-			// Just forward results for progress tracking
-			for res := range modResults {
-				if res != nil {
-					results <- res
-				}
-			}
+	modules := strings.Split(s.scannerOpts.BypassModule, ",")
+	for _, module := range modules {
+		module = strings.TrimSpace(module)
+		if module == "" {
+			continue
 		}
-	}()
 
-	return results
+		// Now RunBypassModule returns count instead of using channels
+		findings := s.RunBypassModule(module, targetURL)
+		totalFindings += findings
+	}
+
+	return totalFindings
 }
 
 var resultPool = sync.Pool{
@@ -195,18 +186,16 @@ var resultPool = sync.Pool{
 }
 
 // Run a specific Bypass Module
-func (s *Scanner) RunBypassModule(bypassModule string, targetURL string, results chan<- *Result) {
-	defer close(results)
-
+func (s *Scanner) RunBypassModule(bypassModule string, targetURL string) int {
 	moduleInstance, exists := bypassModules[bypassModule]
 	if !exists {
-		return
+		return 0
 	}
 
 	allJobs := moduleInstance.GenerateJobs(targetURL, bypassModule, s.scannerOpts)
 	if len(allJobs) == 0 {
 		GB403Logger.Warning().Msgf("No jobs generated for bypass module: %s\n", bypassModule)
-		return
+		return 0
 	}
 
 	GB403Logger.Verbose().Msgf("[%s] Generated %d payloads for %s\n", bypassModule, len(allJobs), targetURL)
@@ -224,6 +213,7 @@ func (s *Scanner) RunBypassModule(bypassModule string, targetURL string, results
 	responses := worker.requestPool.ProcessRequests(allJobs)
 
 	var dbWg sync.WaitGroup
+	resultCount := atomic.Int32{}
 
 	// Process responses and update progress based on pool metrics
 	for response := range responses {
@@ -268,11 +258,10 @@ func (s *Scanner) RunBypassModule(bypassModule string, targetURL string, results
 				defer dbWg.Done()
 				if err := AppendResultsToDB([]*Result{res}); err != nil {
 					GB403Logger.Error().Msgf("Failed to write result to DB: %v\n\n", err)
+				} else {
+					resultCount.Add(1) // Only increment on successful DB write
 				}
 			}(result)
-
-			// Send to results channel immediately
-			results <- result
 		}
 
 		// Release the RawHTTPResponseDetails back to its pool
@@ -300,6 +289,8 @@ func (s *Scanner) RunBypassModule(bypassModule string, targetURL string, results
 			worker.requestPool.GetPeakRequestRate(),
 		)
 	}
+
+	return int(resultCount.Load())
 }
 
 // ResendRequestFromToken

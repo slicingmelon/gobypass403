@@ -132,8 +132,6 @@ func (wp *RequestWorkerPool) ProcessRequests(bypassPayloads []payload.BypassPayl
 
 			// Check for the critical error that should cancel everything
 			if err == ErrReqFailedMaxConsecutiveFails {
-				//GB403Logger.Warning().Msgf("Cancelling current bypass module due to max consecutive failures reached for module [%s]\n",
-				//	wp.httpClient.options.BypassModule)
 				wp.cancel() // Cancel context to stop all other jobs
 				return
 			}
@@ -206,7 +204,7 @@ func (wp *RequestWorkerPool) ProcessRequestResponseJob(bypassPayload payload.Byp
 	return result, nil
 }
 
-// buildRequest constructs the HTTP request
+// buildRequest constructs the raw HTTP request
 func (wp *RequestWorkerPool) BuildRawRequestTask(req *fasthttp.Request, bypassPayload payload.BypassPayload) error {
 	if err := BuildRawHTTPRequest(wp.httpClient, req, bypassPayload); err != nil {
 		return GB403ErrorHandler.GetErrorHandler().HandleErrorAndContinue(err, GB403ErrorHandler.ErrorContext{
@@ -220,20 +218,6 @@ func (wp *RequestWorkerPool) BuildRawRequestTask(req *fasthttp.Request, bypassPa
 }
 
 // SendRequest sends the HTTP request
-// To remember!
-// ErrNoFreeConns is returned when no free connections available
-// to the given host.
-//
-// Increase the allowed number of connections per host if you
-// see this error.
-//
-// ErrNoFreeConns ErrConnectionClosed may be returned from client methods if the server
-// closes connection before returning the first response byte.
-//
-// If you see this error, then either fix the server by returning
-// 'Connection: close' response header before closing the connection
-// or add 'Connection: close' request header before sending requests
-// to broken server.
 func (wp *RequestWorkerPool) SendRequestTask(req *fasthttp.Request, resp *fasthttp.Response, bypassPayload payload.BypassPayload) (int64, error) {
 	return wp.httpClient.DoRequest(req, resp, bypassPayload)
 }

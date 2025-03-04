@@ -1,6 +1,7 @@
 package rawhttp
 
 import (
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"sync"
@@ -95,12 +96,8 @@ func NewHTTPClient(opts *HTTPClientOptions) *HTTPClient {
 		opts = DefaultHTTPClientOptions()
 	}
 
-	// if opts.Dialer == nil {
-	// 	opts.Dialer = CreateHTTPClientDialer(opts.DialTimeout, opts.ProxyURL)
-	// }
-
 	if opts.Dialer == nil {
-		opts.Dialer = CreateUTLSDialer(opts.DialTimeout, opts.ProxyURL)
+		opts.Dialer = CreateHTTPClientDialer(opts.DialTimeout, opts.ProxyURL)
 	}
 
 	retryConfig := DefaultRetryConfig()
@@ -135,14 +132,14 @@ func NewHTTPClient(opts *HTTPClientOptions) *HTTPClient {
 		WriteTimeout:                  opts.Timeout,
 		StreamResponseBody:            opts.StreamResponseBody,
 		Dial:                          opts.Dialer,
-		// TLSConfig: &tls.Config{
-		// 	InsecureSkipVerify: true,
-		// 	MinVersion:         tls.VersionTLS10,
-		// 	MaxVersion:         tls.VersionTLS13,
-		// 	Renegotiation:      tls.RenegotiateOnceAsClient,
-		//ClientSessionCache: tls.NewLRUClientSessionCache(1024), // Session cache to resume sessions
-		//SessionTicketsDisabled: true,
-		//},
+		TLSConfig: &tls.Config{
+			InsecureSkipVerify: true,
+			MinVersion:         tls.VersionTLS10,
+			MaxVersion:         tls.VersionTLS13,
+			Renegotiation:      tls.RenegotiateOnceAsClient,
+			//ClientSessionCache:     tls.NewLRUClientSessionCache(1024), // Session cache to resume sessions
+			//SessionTicketsDisabled: true,
+		},
 	}
 
 	c.client = client
@@ -247,8 +244,25 @@ func (c *HTTPClient) handleRetries(req *fasthttp.Request, resp *fasthttp.Respons
 	return 0, ErrReqFailedMaxRetries
 }
 
+/*
 // DoRequest performs a HTTP request (raw)
 // Returns the HTTP response time (in ms) and error
+
+To remember!
+ErrNoFreeConns is returned when no free connections available
+to the given host.
+
+Increase the allowed number of connections per host if you
+see this error.
+
+ErrNoFreeConns ErrConnectionClosed may be returned from client methods if the server
+closes connection before returning the first response byte.
+
+If you see this error, then either fix the server by returning
+'Connection: close' response header before closing the connection
+or add 'Connection: close' request header before sending requests
+to broken server.
+*/
 func (c *HTTPClient) DoRequest(req *fasthttp.Request, resp *fasthttp.Response, bypassPayload payload.BypassPayload) (int64, error) {
 
 	if c.GetHTTPClientOptions().RequestDelay > 0 {
@@ -374,8 +388,8 @@ func ReqCopyToWithSettings(src *fasthttp.Request, dst *fasthttp.Request) *fastht
 	applyReqFlags(dst)
 
 	// Store original values as []byte
-	originalScheme := src.URI().Scheme() // Returns []byte
-	originalHost := src.URI().Host()     // Returns []byte
+	originalScheme := src.URI().Scheme()
+	originalHost := src.URI().Host()
 
 	//GB403Logger.Debug().Msgf("Original values - scheme=%s host=%s",
 	//	originalScheme, originalHost) // Use bytes directly in logging
