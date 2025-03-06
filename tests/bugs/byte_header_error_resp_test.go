@@ -161,7 +161,7 @@ func TestServerClosedConnectionBeforeReturningTheFirstResponseByte2(t *testing.T
 			defer fasthttp.ReleaseRequest(req)
 			defer fasthttp.ReleaseResponse(resp)
 
-			req.SetRequestURI(fmt.Sprintf("http://lczen.com/test%d", reqNum)) // Change this to point to your server
+			req.SetRequestURI(fmt.Sprintf("http://wsl-debian/test%d", reqNum)) // Change this to point to your server
 			err := client.Do(req, resp)
 			if err != nil {
 				errCount.Add(1)
