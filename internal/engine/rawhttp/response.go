@@ -167,7 +167,6 @@ func ProcessHTTPResponse(httpclient *HTTPClient, resp *fasthttp.Response, bypass
 	if httpClientOpts.MaxResponseBodySize > 0 && httpClientOpts.ResponseBodyPreviewSize > 0 {
 		previewSize := httpClientOpts.ResponseBodyPreviewSize
 
-		// Get buffer from pool
 		buf := respPreviewBufPool.Get()
 		defer respPreviewBufPool.Put(buf)
 
