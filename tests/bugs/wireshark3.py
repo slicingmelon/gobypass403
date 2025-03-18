@@ -213,9 +213,8 @@ def analyze_fasthttp_tcp_behavior(pcap_file):
                 avg_idle = sum(time_diffs) / len(time_diffs)
                 idle_periods.append(max_idle)
                 
-                # Look for significant idle periods (more than 5x average)
-                if max_idle > avg_idle * 5 and max_idle > 1.0:  # More than 1 second idle
-                    # Check if this stream had HTTP activity
+                # Look for significant idle periods (could be refined)
+                if max_idle > avg_idle * 5 and max_idle > 1.0: 
                     if stream_id in http_requests_by_stream:
                         silently_terminated_streams.append({
                             'stream_id': stream_id, 
@@ -225,7 +224,6 @@ def analyze_fasthttp_tcp_behavior(pcap_file):
                             'responses': len(http_responses_by_stream.get(stream_id, []))
                         })
     
-    # Analysis of results
     print("\n===== FASTHTTP TCP BEHAVIOR ANALYSIS =====")
     print(f"Total TCP streams: {len(tcp_streams)}")
     print(f"Total HTTP requests: {sum(len(reqs) for reqs in http_requests_by_stream.values())}")
@@ -239,10 +237,9 @@ def analyze_fasthttp_tcp_behavior(pcap_file):
     print(f"TCP ACKed unseen segments: {acked_unseen_segments}")
     print(f"RST+ACK packets: {rst_ack_packets}")
     
-    # Analyze potentially problematic scenarios
     print("\n===== PROBLEMATIC TCP BEHAVIOR =====")
     
-    # 1. RST after response without Connection: close
+    # 1. RST after response without Connection: close (from other tests)
     rst_streams_after_response = set(item['stream_id'] for item in rst_after_response)
     print(f"TCP streams with RST after response: {len(rst_streams_after_response)}")
     
@@ -284,10 +281,8 @@ def analyze_fasthttp_tcp_behavior(pcap_file):
                 time_to_rst = item['time'] - last_response_time
                 timing_issues.append((stream_id, time_to_rst))
     
-    # Sort by timing
     timing_issues.sort(key=lambda x: x[1])
     
-    # Show some samples
     if timing_issues:
         print("\n===== TIMING BETWEEN RESPONSE AND RST =====")
         print("Time (seconds) between last HTTP response and RST packet:")
@@ -334,7 +329,7 @@ def analyze_fasthttp_tcp_behavior(pcap_file):
             print(f"  Median: {statistics.median(idle_periods):.2f} seconds")
     
     # 6. FastHTTP specific connection issues
-    print("\n===== FASTHTTP SPECIFIC ISSUES =====")
+    print("\n===== POSSIBLE ISSUES =====")
     
     # Calculate percentages for better analysis
     total_streams_with_responses = len(http_responses_by_stream)
@@ -356,46 +351,18 @@ def analyze_fasthttp_tcp_behavior(pcap_file):
     # Connection reuse analysis
     if reused_connections:
         print(f"Connections with port reuse: {len(reused_connections)}")
-        print("This suggests FastHTTP may be reusing local ports for new connections")
-        print("after previous connections have been closed or become idle")
+        print("FastHTTP may be reusing local ports for new connections after previous connections have been closed or become idle")
     
-    # Final conclusion
     print("\n===== CONCLUSION =====")
-    # Update this condition to include ACKed unseen segments
     silence_issue = (len(silently_terminated_streams) > 0 or 
                     (total_rst_packets > 0 and connection_close_headers == 0) or
                     (acked_unseen_segments > 0 and len(short_streams) > 0))
 
     if silence_issue:
-        print("ISSUE IDENTIFIED: Evidence shows TCP connections are being silently terminated")
-        print("without proper 'Connection: close' headers in the HTTP responses.")
-        print("\nKey evidence:")
+        print("\nPossible Issue Evidence:")
         print(f"- {acked_unseen_segments} TCP ACKed unseen segments: Direct evidence of packets missing from capture")
         print(f"- {len(short_streams)} short-lived connections: Connections terminating abnormally")
-        print(f"- 0 'Connection: close' headers despite connection terminations")
-        
-        print("\nThis matches the FastHTTP error: 'the server closed connection before returning")
-        print("the first response byte. Make sure the server returns 'Connection: close' response")
-        print("header before closing the connection'")
-        
-        print("\nDETAILED DIAGNOSIS:")
-        print("1. FastHTTP maintains a connection pool and reuses connections for HTTP/1.1 requests")
-        print("2. The server silently closes connections without sending 'Connection: close' headers")
-        print("3. These closures are happening in a way that generates 'TCP ACKed unseen segment' messages,")
-        print("   which indicates packets containing connection terminations are missing from capture")
-        print("4. When FastHTTP tries to reuse a silently closed connection from its pool,")
-        print("   it encounters EOF when reading, resulting in the error message")
-        
-
-        print("\nSPECIFIC ISSUE IN FASTHTTP:")
-        print("The core issue is in client.go when FastHTTP attempts to reuse a connection")
-        print("that has been silently terminated. When reading the response with resp.ReadLimitBody(),")
-        print("it encounters io.EOF at the first read attempt and maps this to ErrConnectionClosed.")
-        
-        print("\nRECOMMENDED SOLUTIONS:")
-        print("1. FastHTTP should validate connections from pool before use (pre-emptive check)")
-        print("2. Add more robust connection error recovery that automatically retries with new connections")
-        print("3. For client users: Implement a wrapper to handle this specific error with automatic retry")
+        #print(f"- 'Connection: close' headers despite connection terminations")
 
 if __name__ == "__main__":
     if len(sys.argv) > 1:
