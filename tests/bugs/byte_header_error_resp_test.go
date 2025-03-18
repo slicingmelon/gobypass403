@@ -125,20 +125,20 @@ PASS
 ok      github.com/slicingmelon/go-bypass-403/tests/bugs        10.506s
 */
 func TestServerClosedConnectionBeforeReturningTheFirstResponseByte2(t *testing.T) {
+	const totalRequests = 10000    // so a total of 10k requests to be sent
+	const concurrentRequests = 512 // and 512 concurrent requests
+
 	client := &fasthttp.Client{
 		StreamResponseBody:            true,
 		DisablePathNormalizing:        true,
 		DisableHeaderNamesNormalizing: true,
-		MaxConnsPerHost:               768, // 512 + 50% additional (I use the same config on my main tool)
+		MaxConnsPerHost:               concurrentRequests + (concurrentRequests / 2), // 512 + 50% additional (I use the same config on my main tool)
 		MaxConnWaitTimeout:            1 * time.Second,
 		MaxIdleConnDuration:           1 * time.Minute,
 		TLSConfig: &tls.Config{
 			InsecureSkipVerify: true,
 		},
 	}
-
-	const totalRequests = 10000    // so a total of 10k requests to be sent
-	const concurrentRequests = 512 // and 512 concurrent requests
 
 	var (
 		wg           sync.WaitGroup
@@ -162,6 +162,7 @@ func TestServerClosedConnectionBeforeReturningTheFirstResponseByte2(t *testing.T
 			defer fasthttp.ReleaseResponse(resp)
 
 			req.SetRequestURI(fmt.Sprintf("http://wsl-debian/test%d", reqNum)) // Change this to point to your server
+			//req.SetConnectionClose()
 			err := client.Do(req, resp)
 			if err != nil {
 				errCount.Add(1)
