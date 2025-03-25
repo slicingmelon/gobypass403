@@ -5,7 +5,7 @@ go 1.23.6
 require (
 	github.com/VictoriaMetrics/VictoriaMetrics v1.112.0
 	github.com/VictoriaMetrics/fastcache v1.12.2
-	github.com/alitto/pond/v2 v2.2.0
+	github.com/alitto/pond/v2 v2.3.0
 	github.com/andybalholm/brotli v1.1.1
 	github.com/dgraph-io/ristretto/v2 v2.1.0
 	github.com/golang/snappy v0.0.4

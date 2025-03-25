@@ -152,7 +152,7 @@ func (wp *RequestWorkerPool) ProcessRequests(bypassPayloads []payload.BypassPayl
 		select {
 		case <-wp.ctx.Done():
 			// Context was cancelled (due to max consecutive failures)
-			GB403Logger.Warning().Msgf("Worker pool cancelled: max consecutive failures reached for module [%s]\n",
+			GB403Logger.Warning().Msgf("Worker pool cancelled: max consecutive failures reached for module [%s]\n\n",
 				wp.httpClient.options.BypassModule)
 			wp.pool.StopAndWait() // Ensure all workers are stopped
 			return
