@@ -10,6 +10,7 @@ import (
 
 	"github.com/slicingmelon/go-bypass-403/internal/engine/payload"
 	GB403ErrorHandler "github.com/slicingmelon/go-bypass-403/internal/utils/error"
+	GB403Logger "github.com/slicingmelon/go-bypass-403/internal/utils/logger"
 	"github.com/valyala/fasthttp"
 )
 
@@ -303,7 +304,11 @@ func (c *HTTPClient) DoRequest(req *fasthttp.Request, resp *fasthttp.Response, b
 		if retryErr != nil {
 			if retryErr == ErrReqFailedMaxRetries {
 				newCount := c.consecutiveFailedReqs.Add(1)
+				GB403Logger.Debug().Msgf("Consecutive failures for %s: %d/%d",
+					bypassPayload.BypassModule, newCount, c.options.MaxConsecutiveFailedReqs)
 				if newCount >= int32(c.options.MaxConsecutiveFailedReqs) {
+					GB403Logger.Warning().Msgf("Max consecutive failures reached for %s: %d/%d",
+						bypassPayload.BypassModule, newCount, c.options.MaxConsecutiveFailedReqs)
 					return retryTime, ErrReqFailedMaxConsecutiveFails
 				}
 			}

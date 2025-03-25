@@ -210,7 +210,7 @@ func (wp *RequestWorkerPool) ProcessRequests(bypassPayloads []payload.BypassPayl
 
 					// Cancel context AND stop the pool to prevent processing the queue
 					wp.cancel()
-					wp.pool.StopAndWait()
+					wp.pool.Stop()
 				}
 				return err
 			}
@@ -240,7 +240,7 @@ func (wp *RequestWorkerPool) ProcessRequests(bypassPayloads []payload.BypassPayl
 			if errors.Is(err, ErrReqFailedMaxConsecutiveFails) {
 				GB403Logger.Warning().Msgf("Worker pool returned error: %v\n", err)
 				wp.cancel()
-				wp.pool.StopAndWait()
+				wp.pool.Stop()
 			}
 		}
 	}()
