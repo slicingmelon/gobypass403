@@ -38,7 +38,8 @@ func NewRequestWorkerPool(opts *HTTPClientOptions, maxWorkers int) *RequestWorke
 		httpClient: NewHTTPClient(opts),
 		ctx:        ctx,
 		cancel:     cancel,
-		pool:       pond.NewPool(maxWorkers, pond.WithContext(ctx), pond.WithQueueSize(500)),
+		//pool:       pond.NewPool(maxWorkers, pond.WithContext(ctx), pond.WithQueueSize(500)),
+		pool:       pond.NewPool(maxWorkers),
 		maxWorkers: maxWorkers,
 	}
 
@@ -208,10 +209,8 @@ func (wp *RequestWorkerPool) ProcessRequests(bypassPayloads []payload.BypassPayl
 					GB403Logger.Warning().Msgf("Worker pool cancelled: max consecutive failures reached for module [%s]\n",
 						wp.httpClient.options.BypassModule)
 
-					// Cancel context AND stop the pool to prevent processing the queue
+					// Cancel context
 					wp.cancel()
-					group.Stop()
-					wp.pool.Stop()
 				}
 				return err
 			}
@@ -239,9 +238,9 @@ func (wp *RequestWorkerPool) ProcessRequests(bypassPayloads []payload.BypassPayl
 			if errors.Is(err, ErrReqFailedMaxConsecutiveFails) && !cancelled.Load() {
 				GB403Logger.Warning().Msgf("[!!!] Worker pool Wait() returned max consecutive failures for [%s]\n\n",
 					wp.httpClient.GetHTTPClientOptions().BypassModule)
-				wp.cancel()
-				group.Stop()
-				wp.pool.Stop()
+				//wp.cancel()
+				//group.Stop()
+				//wp.pool.Stop()
 			} else if err != context.Canceled && !cancelled.Load() {
 				GB403Logger.Warning().Msgf("Worker pool for [%s] returned unexpected error: %v\n\n",
 					wp.httpClient.GetHTTPClientOptions().BypassModule, err)
