@@ -123,61 +123,6 @@ func (wp *RequestWorkerPool) ResetPeakRate() {
 }
 
 // ProcessRequests handles multiple payload jobs
-// func (wp *RequestWorkerPool) ProcessRequests(bypassPayloads []payload.BypassPayload) <-chan *RawHTTPResponseDetails {
-// 	results := make(chan *RawHTTPResponseDetails)
-// 	group := wp.pool.NewGroupContext(wp.ctx)
-
-// 	for _, bypassPayload := range bypassPayloads {
-// 		bypassPayload := bypassPayload // Capture for closure
-// 		group.SubmitErr(func() error {
-// 			// First check if context is already done to avoid unnecessary work
-// 			select {
-// 			case <-wp.ctx.Done():
-// 				return nil
-// 			default:
-// 			}
-
-// 			resp, err := wp.ProcessRequestResponseJob(bypassPayload)
-
-// 			// If we hit the critical error, return it to stop the group
-// 			if err == ErrReqFailedMaxConsecutiveFails {
-// 				GB403Logger.Warning().Msgf("[ErrReqFailedMaxConsecutiveFails] Worker pool cancelled: max consecutive failures reached for module [%s]\n",
-// 					wp.httpClient.options.BypassModule)
-// 				return err // This will cause group.Wait() to return this error
-// 			}
-
-// 			// Only send valid responses to the results channel
-// 			if resp != nil {
-// 				select {
-// 				case <-wp.ctx.Done():
-// 					return nil
-// 				case results <- resp:
-// 				}
-// 			}
-
-// 			return nil
-// 		})
-// 	}
-
-// 	// Process the group in a separate goroutine
-// 	go func() {
-// 		defer close(results)
-
-// 		// Wait for all tasks or first critical error
-// 		err := group.Wait()
-
-// 		if errors.Is(err, ErrReqFailedMaxConsecutiveFails) {
-// 			// Critical error occurred, cancel context and log
-// 			GB403Logger.Warning().Msgf("Worker pool cancelled: max consecutive failures reached for module [%s]\n",
-// 				wp.httpClient.options.BypassModule)
-// 			wp.cancel() // Cancel context to stop any pending operations
-// 			wp.pool.Stop()
-// 		}
-// 	}()
-
-// 	return results
-// }
-
 func (wp *RequestWorkerPool) ProcessRequests(bypassPayloads []payload.BypassPayload) <-chan *RawHTTPResponseDetails {
 	results := make(chan *RawHTTPResponseDetails) // Buffered channel
 	var cancelled atomic.Bool
