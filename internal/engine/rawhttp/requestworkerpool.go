@@ -38,7 +38,7 @@ func NewRequestWorkerPool(opts *HTTPClientOptions, maxWorkers int) *RequestWorke
 		httpClient: NewHTTPClient(opts),
 		ctx:        ctx,
 		cancel:     cancel,
-		pool:       pond.NewPool(maxWorkers, pond.WithContext(ctx)),
+		pool:       pond.NewPool(maxWorkers, pond.WithContext(ctx), pond.WithQueueSize(100)),
 		maxWorkers: maxWorkers,
 	}
 
