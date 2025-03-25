@@ -38,7 +38,6 @@ func NewRequestWorkerPool(opts *HTTPClientOptions, maxWorkers int) *RequestWorke
 		httpClient: NewHTTPClient(opts),
 		ctx:        ctx,
 		cancel:     cancel,
-		//pool:       pond.NewPool(maxWorkers, pond.WithContext(ctx), pond.WithQueueSize(500)),
 		pool:       pond.NewPool(maxWorkers),
 		maxWorkers: maxWorkers,
 	}
@@ -124,7 +123,7 @@ func (wp *RequestWorkerPool) ResetPeakRate() {
 
 // ProcessRequests handles multiple payload jobs
 func (wp *RequestWorkerPool) ProcessRequests(bypassPayloads []payload.BypassPayload) <-chan *RawHTTPResponseDetails {
-	results := make(chan *RawHTTPResponseDetails) // Buffered channel
+	results := make(chan *RawHTTPResponseDetails) // add buffer to improve throughput?
 	var cancelled atomic.Bool
 
 	// Create task group with context for cancellation
@@ -133,16 +132,9 @@ func (wp *RequestWorkerPool) ProcessRequests(bypassPayloads []payload.BypassPayl
 	for _, bypassPayload := range bypassPayloads {
 		bypassPayload := bypassPayload // Capture for closure
 		group.SubmitErr(func() error {
-			// Fast check before any work
-			if cancelled.Load() {
+			// Fast check for cancellation - combined check
+			if cancelled.Load() || wp.ctx.Err() != nil {
 				return nil
-			}
-
-			// Standard context check
-			select {
-			case <-wp.ctx.Done():
-				return nil
-			default:
 			}
 
 			resp, err := wp.ProcessRequestResponseJob(bypassPayload)
@@ -160,13 +152,9 @@ func (wp *RequestWorkerPool) ProcessRequests(bypassPayloads []payload.BypassPayl
 				return err
 			}
 
-			// Only send valid responses
-			if resp != nil && !cancelled.Load() {
-				select {
-				case <-wp.ctx.Done():
-					return nil
-				case results <- resp:
-				}
+			// Only send valid responses if not cancelled
+			if resp != nil && !cancelled.Load() && wp.ctx.Err() == nil {
+				results <- resp
 			}
 
 			return nil
@@ -183,9 +171,6 @@ func (wp *RequestWorkerPool) ProcessRequests(bypassPayloads []payload.BypassPayl
 			if errors.Is(err, ErrReqFailedMaxConsecutiveFails) && !cancelled.Load() {
 				GB403Logger.Warning().Msgf("[!!!] Worker pool Wait() returned max consecutive failures for [%s]\n\n",
 					wp.httpClient.GetHTTPClientOptions().BypassModule)
-				//wp.cancel()
-				//group.Stop()
-				//wp.pool.Stop()
 			} else if err != context.Canceled && !cancelled.Load() {
 				GB403Logger.Warning().Msgf("Worker pool for [%s] returned unexpected error: %v\n\n",
 					wp.httpClient.GetHTTPClientOptions().BypassModule, err)

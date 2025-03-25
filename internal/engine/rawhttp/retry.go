@@ -8,7 +8,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	GB403ErrorHandler "github.com/slicingmelon/go-bypass-403/internal/utils/error"
 	"github.com/valyala/fasthttp"
 )
 
@@ -69,10 +68,11 @@ func IsRetryableError(err error) RetryDecision {
 		return RetryDecision{false, NoRetry}
 	}
 
+	errStr := err.Error()
+
 	// Check for malformed response error that requires disabling streaming
-	if strings.Contains(err.Error(), "cannot find whitespace in the first line") ||
-		strings.Contains(err.Error(), "cannot parse response status code") {
-		//GB403Logger.Debug().Msgf("Identified as retryable error: %v", err)
+	if strings.Contains(errStr, "cannot find whitespace in the first line") ||
+		strings.Contains(errStr, "cannot parse response status code") {
 		return RetryDecision{true, RetryWithoutResponseStreaming}
 	}
 
@@ -80,12 +80,11 @@ func IsRetryableError(err error) RetryDecision {
 	if err == io.EOF ||
 		errors.Is(err, fasthttp.ErrConnectionClosed) ||
 		errors.Is(err, fasthttp.ErrTimeout) ||
-		strings.Contains(err.Error(), "timeout") ||
-		strings.Contains(err.Error(), "existing connection was forcibly closed") ||
-		strings.Contains(err.Error(), "Only one usage of each socket address") ||
-		//strings.Contains(err.Error(), "A connection attempt failed because the connected party did not properly respond") ||
-		strings.Contains(err.Error(), GB403ErrorHandler.ErrConnForciblyClosedWin.Error()) ||
-		strings.Contains(err.Error(), "server closed connection before returning the first response byte") {
+		strings.Contains(errStr, "timeout") ||
+		strings.Contains(errStr, "was forcibly closed") ||
+		strings.Contains(errStr, "Only one usage of each socket address") ||
+		strings.Contains(errStr, "A connection attempt failed because the connected party did not properly respond") {
+		//strings.Contains(errStr, GB403ErrorHandler.ErrConnForciblyClosedWin.Error()) {
 		return RetryDecision{true, RetryWithConnectionClose}
 	}
 
