@@ -122,14 +122,77 @@ func (wp *RequestWorkerPool) ResetPeakRate() {
 }
 
 // ProcessRequests handles multiple payload jobs
+// func (wp *RequestWorkerPool) ProcessRequests(bypassPayloads []payload.BypassPayload) <-chan *RawHTTPResponseDetails {
+// 	results := make(chan *RawHTTPResponseDetails)
+// 	group := wp.pool.NewGroupContext(wp.ctx)
+
+// 	for _, bypassPayload := range bypassPayloads {
+// 		bypassPayload := bypassPayload // Capture for closure
+// 		group.SubmitErr(func() error {
+// 			// First check if context is already done to avoid unnecessary work
+// 			select {
+// 			case <-wp.ctx.Done():
+// 				return nil
+// 			default:
+// 			}
+
+// 			resp, err := wp.ProcessRequestResponseJob(bypassPayload)
+
+// 			// If we hit the critical error, return it to stop the group
+// 			if err == ErrReqFailedMaxConsecutiveFails {
+// 				GB403Logger.Warning().Msgf("[ErrReqFailedMaxConsecutiveFails] Worker pool cancelled: max consecutive failures reached for module [%s]\n",
+// 					wp.httpClient.options.BypassModule)
+// 				return err // This will cause group.Wait() to return this error
+// 			}
+
+// 			// Only send valid responses to the results channel
+// 			if resp != nil {
+// 				select {
+// 				case <-wp.ctx.Done():
+// 					return nil
+// 				case results <- resp:
+// 				}
+// 			}
+
+// 			return nil
+// 		})
+// 	}
+
+// 	// Process the group in a separate goroutine
+// 	go func() {
+// 		defer close(results)
+
+// 		// Wait for all tasks or first critical error
+// 		err := group.Wait()
+
+// 		if errors.Is(err, ErrReqFailedMaxConsecutiveFails) {
+// 			// Critical error occurred, cancel context and log
+// 			GB403Logger.Warning().Msgf("Worker pool cancelled: max consecutive failures reached for module [%s]\n",
+// 				wp.httpClient.options.BypassModule)
+// 			wp.cancel() // Cancel context to stop any pending operations
+// 			wp.pool.Stop()
+// 		}
+// 	}()
+
+// 	return results
+// }
+
 func (wp *RequestWorkerPool) ProcessRequests(bypassPayloads []payload.BypassPayload) <-chan *RawHTTPResponseDetails {
-	results := make(chan *RawHTTPResponseDetails)
+	results := make(chan *RawHTTPResponseDetails) // Buffered channel
+	var cancelled atomic.Bool
+
+	// Create task group with context for cancellation
 	group := wp.pool.NewGroupContext(wp.ctx)
 
 	for _, bypassPayload := range bypassPayloads {
 		bypassPayload := bypassPayload // Capture for closure
 		group.SubmitErr(func() error {
-			// First check if context is already done to avoid unnecessary work
+			// Fast check before any work
+			if cancelled.Load() {
+				return nil
+			}
+
+			// Standard context check
 			select {
 			case <-wp.ctx.Done():
 				return nil
@@ -138,13 +201,22 @@ func (wp *RequestWorkerPool) ProcessRequests(bypassPayloads []payload.BypassPayl
 
 			resp, err := wp.ProcessRequestResponseJob(bypassPayload)
 
-			// If we hit the critical error, return it to stop the group
+			// Critical error - stop everything
 			if err == ErrReqFailedMaxConsecutiveFails {
-				return err // This will cause group.Wait() to return this error
+				if !cancelled.Swap(true) {
+					// Only log and cancel once
+					GB403Logger.Warning().Msgf("Worker pool cancelled: max consecutive failures reached for module [%s]\n",
+						wp.httpClient.options.BypassModule)
+
+					// Cancel context AND stop the pool to prevent processing the queue
+					wp.cancel()
+					wp.pool.StopAndWait()
+				}
+				return err
 			}
 
-			// Only send valid responses to the results channel
-			if resp != nil {
+			// Only send valid responses
+			if resp != nil && !cancelled.Load() {
 				select {
 				case <-wp.ctx.Done():
 					return nil
@@ -156,18 +228,20 @@ func (wp *RequestWorkerPool) ProcessRequests(bypassPayloads []payload.BypassPayl
 		})
 	}
 
-	// Process the group in a separate goroutine
+	// Handle completion or error
 	go func() {
 		defer close(results)
 
-		// Wait for all tasks or first critical error
+		// Wait for all tasks or first error
 		err := group.Wait()
 
-		if errors.Is(err, ErrReqFailedMaxConsecutiveFails) {
-			// Critical error occurred, cancel context and log
-			GB403Logger.Warning().Msgf("Worker pool cancelled: max consecutive failures reached for module [%s]\n",
-				wp.httpClient.options.BypassModule)
-			wp.cancel() // Cancel context to stop any pending operations
+		// Handle case where Wait() returns error but we haven't cancelled yet
+		if err != nil && !cancelled.Load() {
+			if errors.Is(err, ErrReqFailedMaxConsecutiveFails) {
+				GB403Logger.Warning().Msgf("Worker pool returned error: %v\n", err)
+				wp.cancel()
+				wp.pool.StopAndWait()
+			}
 		}
 	}()
 
