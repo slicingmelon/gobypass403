@@ -124,9 +124,7 @@ func (wp *RequestWorkerPool) ResetPeakRate() {
 
 // ProcessRequests handles multiple payload jobs
 func (wp *RequestWorkerPool) ProcessRequests(bypassPayloads []payload.BypassPayload) <-chan *RawHTTPResponseDetails {
-	//results := make(chan *RawHTTPResponseDetails) // add buffer to improve throughput?
 	results := make(chan *RawHTTPResponseDetails, len(bypassPayloads))
-	var cancelled atomic.Bool
 
 	// Create task group with context for cancellation
 	group := wp.pool.NewGroupContext(wp.ctx)
@@ -134,28 +132,26 @@ func (wp *RequestWorkerPool) ProcessRequests(bypassPayloads []payload.BypassPayl
 	for _, bypassPayload := range bypassPayloads {
 		bypassPayload := bypassPayload
 		group.SubmitErr(func() error {
-			// Fast check for cancellation
-			if cancelled.Load() || wp.ctx.Err() != nil {
+			// Check for cancellation
+			if wp.ctx.Err() != nil {
 				return nil
 			}
 
 			resp, err := wp.ProcessRequestResponseJob(bypassPayload)
 
-			// Critical error - stop everything
-			if errors.Is(err, ErrReqFailedMaxConsecutiveFails) {
-				if !cancelled.Swap(true) {
-					// Only log and cancel once
-					GB403Logger.Warning().Msgf("Worker pool cancelled: max consecutive failures reached for module [%s]\n",
-						wp.httpClient.options.BypassModule)
-
-					// Cancel context
-					wp.cancel()
+			// Only propagate critical errors to pond, swallow the rest
+			if err != nil {
+				if errors.Is(err, ErrReqFailedMaxConsecutiveFails) {
+					// Only return this specific error to pond
+					return ErrReqFailedMaxConsecutiveFails
 				}
-				return err
+				// For all other errors, just log them but don't return to pond
+				//GB403Logger.Debug().Msgf("Request error (handled): %v", err)
+				return nil
 			}
 
-			// Only send valid responses if not cancelled
-			if resp != nil && !cancelled.Load() && wp.ctx.Err() == nil {
+			// Only send valid responses
+			if resp != nil && wp.ctx.Err() == nil {
 				results <- resp
 			}
 
@@ -170,10 +166,10 @@ func (wp *RequestWorkerPool) ProcessRequests(bypassPayloads []payload.BypassPayl
 		err := group.Wait()
 
 		if err != nil {
-			if errors.Is(err, ErrReqFailedMaxConsecutiveFails) && !cancelled.Load() {
+			if errors.Is(err, ErrReqFailedMaxConsecutiveFails) {
 				GB403Logger.Warning().Msgf("[!!!] Worker pool Wait() returned max consecutive failures for [%s]\n\n",
 					wp.httpClient.GetHTTPClientOptions().BypassModule)
-			} else if err != context.Canceled && !cancelled.Load() {
+			} else if err != context.Canceled {
 				GB403Logger.Warning().Msgf("Worker pool for [%s] returned unexpected error: %v\n\n",
 					wp.httpClient.GetHTTPClientOptions().BypassModule, err)
 			}
@@ -212,6 +208,7 @@ func (wp *RequestWorkerPool) ProcessRequestResponseJob(bypassPayload payload.Byp
 	if err != nil {
 		// Pass through the critical error for handling at higher level
 		if errors.Is(err, ErrReqFailedMaxConsecutiveFails) {
+			wp.cancel() // faster?
 			return nil, ErrReqFailedMaxConsecutiveFails
 		}
 		return nil, err
