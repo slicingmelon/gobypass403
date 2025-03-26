@@ -26,6 +26,7 @@ type CliOptions struct {
 	Module                   string
 	MatchStatusCodesStr      string
 	MatchStatusCodes         []int
+	MatchContentType         string
 	Threads                  int
 	Timeout                  int
 	Delay                    int

@@ -344,6 +344,13 @@ func (s *Scanner) RunBypassModule(bypassModule string, targetURL string) int {
 		bar.WriteAbove(msg)
 
 		if matchStatusCodes(response.StatusCode, s.scannerOpts.MatchStatusCodes) {
+			if s.scannerOpts.MatchContentType != "" {
+				contentType := strings.ToLower(string(response.ContentType))
+				if !strings.Contains(contentType, strings.ToLower(s.scannerOpts.MatchContentType)) {
+					continue
+				}
+			}
+
 			result := &Result{
 				TargetURL:           string(response.URL),
 				BypassModule:        string(response.BypassModule),

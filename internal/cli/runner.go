@@ -84,6 +84,7 @@ func (r *Runner) Initialize() error {
 		SpoofIP:                   r.RunnerOptions.SpoofIP,
 		FollowRedirects:           r.RunnerOptions.FollowRedirects,
 		MatchStatusCodes:          r.RunnerOptions.MatchStatusCodes,
+		MatchContentType:          r.RunnerOptions.MatchContentType,
 		Debug:                     r.RunnerOptions.Debug,
 		Verbose:                   r.RunnerOptions.Verbose,
 		ResponseBodyPreviewSize:   r.RunnerOptions.ResponseBodyPreviewSize,
