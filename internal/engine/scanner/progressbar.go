@@ -307,9 +307,9 @@ func (pb *ProgressBar) Stop() {
 	// Then stop progressbar
 	if pb.progressbar != nil {
 		// Ensure progress bar is at 100% before stopping
-		if pb.progressbar.Current < pb.progressbar.Total {
-			pb.progressbar.Current = pb.progressbar.Total
-		}
+		// if pb.progressbar.Current < pb.progressbar.Total {
+		// 	pb.progressbar.Current = pb.progressbar.Total
+		// }
 
 		// Force a final update before stopping
 		pb.progressbar.UpdateTitle(pb.progressbar.Title)

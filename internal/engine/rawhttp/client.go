@@ -302,9 +302,9 @@ func (c *HTTPClient) DoRequest(req *fasthttp.Request, resp *fasthttp.Response, b
 		// Attempt retries
 		retryTime, retryErr := c.handleRetries(req, resp, bypassPayload, retryDecision.Action)
 		if retryErr != nil {
-			if retryErr == ErrReqFailedMaxRetries {
+			if errors.Is(retryErr, ErrReqFailedMaxRetries) {
 				newCount := c.consecutiveFailedReqs.Add(1)
-				GB403Logger.Debug().Msgf("Consecutive failures for %s: %d/%d (error: %v)",
+				GB403Logger.Debug().Msgf("Consecutive failures for %s: %d/%d (error: %v)\n",
 					bypassPayload.BypassModule, newCount, c.options.MaxConsecutiveFailedReqs, err)
 				if newCount >= int32(c.options.MaxConsecutiveFailedReqs) {
 					GB403Logger.Warning().Msgf("Max consecutive failures reached for %s: %d/%d",

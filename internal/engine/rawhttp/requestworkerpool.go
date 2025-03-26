@@ -142,7 +142,7 @@ func (wp *RequestWorkerPool) ProcessRequests(bypassPayloads []payload.BypassPayl
 			resp, err := wp.ProcessRequestResponseJob(bypassPayload)
 
 			// Critical error - stop everything
-			if err == ErrReqFailedMaxConsecutiveFails {
+			if errors.Is(err, ErrReqFailedMaxConsecutiveFails) {
 				if !cancelled.Swap(true) {
 					// Only log and cancel once
 					GB403Logger.Warning().Msgf("Worker pool cancelled: max consecutive failures reached for module [%s]\n",
@@ -211,7 +211,7 @@ func (wp *RequestWorkerPool) ProcessRequestResponseJob(bypassPayload payload.Byp
 	respTime, err := wp.httpClient.DoRequest(req, resp, bypassPayload)
 	if err != nil {
 		// Pass through the critical error for handling at higher level
-		if err == ErrReqFailedMaxConsecutiveFails {
+		if errors.Is(err, ErrReqFailedMaxConsecutiveFails) {
 			return nil, ErrReqFailedMaxConsecutiveFails
 		}
 		return nil, err
