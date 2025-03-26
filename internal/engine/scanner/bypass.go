@@ -266,13 +266,26 @@ func (s *Scanner) RunBypassModule(bypassModule string, targetURL string) int {
 	dbWg.Wait()
 
 	if progressBar != nil {
-		// Now show the success spinner - this directly handles completion tasks
-		progressBar.SpinnerSuccess(
-			worker.requestPool.GetReqWPCompletedTasks(),
-			worker.requestPool.GetReqWPSubmittedTasks(),
-			worker.requestPool.GetAverageRequestRate(),
-			worker.requestPool.GetPeakRequestRate(),
-		)
+		// Check if module was cancelled by comparing completed vs total jobs
+		completedTasks := worker.requestPool.GetReqWPCompletedTasks()
+
+		// If we didn't complete all jobs, it was likely cancelled
+		if completedTasks < uint64(len(allJobs)) {
+			progressBar.SpinnerFailed(
+				completedTasks,
+				uint64(len(allJobs)),
+				worker.requestPool.GetAverageRequestRate(),
+				worker.requestPool.GetPeakRequestRate(),
+			)
+		} else {
+			// Normal completion - show success spinner
+			progressBar.SpinnerSuccess(
+				worker.requestPool.GetReqWPCompletedTasks(),
+				worker.requestPool.GetReqWPSubmittedTasks(),
+				worker.requestPool.GetAverageRequestRate(),
+				worker.requestPool.GetPeakRequestRate(),
+			)
+		}
 	}
 
 	return int(resultCount.Load())

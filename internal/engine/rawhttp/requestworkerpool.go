@@ -39,6 +39,7 @@ func NewRequestWorkerPool(opts *HTTPClientOptions, maxWorkers int) *RequestWorke
 		ctx:        ctx,
 		cancel:     cancel,
 		pool:       pond.NewPool(maxWorkers),
+		//pool:       pond.NewPool(maxWorkers, pond.WithQueueSize(maxWorkers)),
 		maxWorkers: maxWorkers,
 	}
 
@@ -123,16 +124,17 @@ func (wp *RequestWorkerPool) ResetPeakRate() {
 
 // ProcessRequests handles multiple payload jobs
 func (wp *RequestWorkerPool) ProcessRequests(bypassPayloads []payload.BypassPayload) <-chan *RawHTTPResponseDetails {
-	results := make(chan *RawHTTPResponseDetails) // add buffer to improve throughput?
+	//results := make(chan *RawHTTPResponseDetails) // add buffer to improve throughput?
+	results := make(chan *RawHTTPResponseDetails, len(bypassPayloads))
 	var cancelled atomic.Bool
 
 	// Create task group with context for cancellation
 	group := wp.pool.NewGroupContext(wp.ctx)
 
 	for _, bypassPayload := range bypassPayloads {
-		bypassPayload := bypassPayload // Capture for closure
+		bypassPayload := bypassPayload
 		group.SubmitErr(func() error {
-			// Fast check for cancellation - combined check
+			// Fast check for cancellation
 			if cancelled.Load() || wp.ctx.Err() != nil {
 				return nil
 			}

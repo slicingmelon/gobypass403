@@ -36,7 +36,6 @@ func NewProgressBar(bypassModule string, targetURL string, totalJobs int, totalW
 	// Simple URL truncation - consistent for all displays
 	truncatedURL := simpleTruncateURL(targetURL)
 
-	// Fixed width progress bar that works well in most terminals
 	// Fixed width progress bar for better terminal compatibility
 	progressBarWidth := 80
 
@@ -166,10 +165,15 @@ func (pb *ProgressBar) SpinnerSuccess(
 	pb.mu.Lock()
 	defer pb.mu.Unlock()
 
-	// Ensure progress bar is 100% complete
-	if pb.progressbar != nil && pb.progressbar.Current < pb.progressbar.Total {
-		pb.progressbar.Current = pb.progressbar.Total
-	}
+	// // Ensure progress bar is 100% complete
+	// if pb.progressbar != nil && pb.progressbar.Current < pb.progressbar.Total {
+	// 	pb.progressbar.Current = pb.progressbar.Total
+	// }
+
+	// 	// Ensure progress bar is 100% complete
+	// 	if pb.progressbar != nil && pb.progressbar.Current < pb.progressbar.Total {
+	// 		pb.progressbar.Current = pb.progressbar.Total
+	// 	}
 
 	var spinnerBuilder strings.Builder
 	var titleBuilder strings.Builder
@@ -201,6 +205,45 @@ func (pb *ProgressBar) SpinnerSuccess(
 
 	// Show success spinner message
 	pb.spinner.Success(spinnerBuilder.String())
+}
+
+func (pb *ProgressBar) SpinnerFailed(
+	completedTasks uint64,
+	totalTasks uint64,
+	avgRate uint64,
+	peakRate uint64,
+) {
+	pb.mu.Lock()
+	defer pb.mu.Unlock()
+
+	// DO NOT force progress bar to 100% like in SpinnerSuccess
+	// Keep the actual progress at cancellation time
+
+	var spinnerBuilder strings.Builder
+	var titleBuilder strings.Builder
+
+	// Build failure spinner message showing module and stats
+	spinnerBuilder.WriteString(pb.coloredModule)
+	spinnerBuilder.WriteString(" | Workers [")
+	spinnerBuilder.WriteString(bytesutil.Itoa(pb.totalWorkers))
+	spinnerBuilder.WriteString("/")
+	spinnerBuilder.WriteString(bytesutil.Itoa(pb.totalWorkers))
+	spinnerBuilder.WriteString("] | Rate [")
+	spinnerBuilder.WriteString(bytesutil.Itoa(int(avgRate)))
+	spinnerBuilder.WriteString(" req/s] Peak [")
+	spinnerBuilder.WriteString(bytesutil.Itoa(int(peakRate)))
+	spinnerBuilder.WriteString(" req/s]")
+
+	// Update progress bar title to remain with module and URL
+	if pb.progressbar != nil {
+		titleBuilder.WriteString(pb.coloredModule)
+		titleBuilder.WriteString(" | ")
+		titleBuilder.WriteString(pb.coloredURL)
+		pb.progressbar.UpdateTitle(titleBuilder.String())
+	}
+
+	// Show failed spinner message
+	pb.spinner.Fail(spinnerBuilder.String())
 }
 
 // UpdateProgressbarTitle updates the progress bar title
@@ -259,8 +302,6 @@ func (pb *ProgressBar) Stop() {
 	// First ensure the spinner is stopped properly
 	if pb.spinner != nil {
 		pb.spinner.Stop()
-		// Small delay to let terminal update
-		//time.Sleep(50 * time.Millisecond)
 	}
 
 	// Then stop progressbar
