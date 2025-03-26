@@ -2,7 +2,6 @@ package scanner
 
 import (
 	"fmt"
-	"os"
 	"slices"
 	"strings"
 	"sync"
@@ -317,13 +316,11 @@ func (s *Scanner) RunBypassModule(bypassModule string, targetURL string) int {
 	cfg.Prefix = bypassModule
 	cfg.UseColors = true
 	cfg.Color = progressbar.GreenBar
-	cfg.ScreenWriter = os.Stdout
-
-	//cfg.UpdateInterval = 300 * time.Millisecond
+	//cfg.ScreenWriter = os.Stderr
+	//cfg.UpdateInterval = 100 // * time.Millisecond
 
 	// Create new progress bar
 	bar := cfg.NewBar()
-	defer bar.End()
 
 	responses := worker.requestPool.ProcessRequests(allJobs)
 	var dbWg sync.WaitGroup
@@ -340,10 +337,11 @@ func (s *Scanner) RunBypassModule(bypassModule string, targetURL string) int {
 		currentRate := worker.requestPool.GetRequestRate()
 		avgRate := worker.requestPool.GetAverageRequestRate()
 
-		bar.WriteAbove(fmt.Sprintf(
-			"\tWorkers [%d/%d] | Rate [%d req/s] Avg [%d req/s] | Completed %d/%d",
-			active, maxWorkers, currentRate, avgRate, completed, totalJobs,
-		))
+		msg := fmt.Sprintf(
+			"Workers [%d/%d] | Rate [%d req/s] Avg [%d req/s] | Completed %d/%d --",
+			active, maxWorkers, currentRate, avgRate, completed, uint64(totalJobs),
+		)
+		bar.WriteAbove(msg)
 
 		if matchStatusCodes(response.StatusCode, s.scannerOpts.MatchStatusCodes) {
 			result := &Result{
@@ -384,6 +382,9 @@ func (s *Scanner) RunBypassModule(bypassModule string, targetURL string) int {
 	}
 
 	dbWg.Wait()
+	bar.End()
+	fmt.Println()
+
 	return int(resultCount.Load())
 }
 

@@ -175,8 +175,8 @@ func (wp *RequestWorkerPool) ProcessRequests(bypassPayloads []payload.BypassPayl
 			}
 		}
 
-		GB403Logger.Debug().Msgf("Worker pool for module [%s] completed",
-			wp.httpClient.GetHTTPClientOptions().BypassModule)
+		// GB403Logger.Debug().Msgf("Worker pool for module [%s] completed\n\n",
+		// 	wp.httpClient.GetHTTPClientOptions().BypassModule)
 	}()
 
 	return results
