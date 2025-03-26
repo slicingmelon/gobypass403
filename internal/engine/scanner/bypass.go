@@ -1,6 +1,7 @@
 package scanner
 
 import (
+	"bytes"
 	"fmt"
 	"slices"
 	"strings"
@@ -162,22 +163,200 @@ func (w *BypassWorker) Stop() {
 }
 
 // Core Function
+// func (s *Scanner) RunAllBypasses(targetURL string) int {
+// 	totalFindings := 0
+
+// 	modules := strings.Split(s.scannerOpts.BypassModule, ",")
+// 	for _, module := range modules {
+// 		module = strings.TrimSpace(module)
+// 		if module == "" {
+// 			continue
+// 		}
+
+// 		// Now RunBypassModule returns count instead of using channels
+// 		findings := s.RunBypassModule(module, targetURL)
+// 		totalFindings += findings
+// 	}
+
+// 	return totalFindings
+// }
+
+var bar *progressbar.Bar
+
 func (s *Scanner) RunAllBypasses(targetURL string) int {
 	totalFindings := 0
-
 	modules := strings.Split(s.scannerOpts.BypassModule, ",")
+
+	// Filter out empty modules and count valid ones
+	validModules := []string{}
 	for _, module := range modules {
 		module = strings.TrimSpace(module)
-		if module == "" {
+		if module != "" && bypassModules[module] != nil { // Only add valid, registered modules
+			validModules = append(validModules, module)
+		}
+	}
+
+	if len(validModules) == 0 {
+		GB403Logger.Warning().Msgf("No valid bypass modules specified")
+		return 0
+	}
+
+	// Create a single MultiBar directly (not storing it in Scanner struct)
+	if s.progressBarEnabled.Load() {
+		cfg := progressbar.DefaultConfig()
+		cfg.UseColors = true
+		cfg.ExtraLines = 1
+
+		// Direct array creation - avoids spreading issues
+		prefixes := make([]string, len(validModules))
+		for i := 0; i < len(validModules); i++ {
+			prefixes[i] = validModules[i]
+		}
+
+		// Create the MultiBar with direct prefixes
+		multiBar := cfg.NewMultiBarPrefixes(prefixes...)
+
+		// Set different colors for each bar
+		colors := []string{
+			progressbar.GreenBar,
+			progressbar.BlueBar,
+			progressbar.YellowBar,
+			progressbar.RedBar,
+			progressbar.WhiteBar,
+		}
+
+		for i, bar := range multiBar.Bars {
+			bar.Color = colors[i%len(colors)]
+			// Pre-write the info text for each bar
+			bar.WriteAbove(fmt.Sprintf("Target: %s", targetURL))
+		}
+
+		multiBar.PrefixesAlign()
+
+		// Run modules with their respective bars
+		for _, module := range validModules {
+			findings := s.RunBypassModule(module, targetURL)
+			totalFindings += findings
+		}
+
+		// Clean up at the end
+		multiBar.End()
+		return totalFindings
+	}
+
+	// // No progress bar, just run each module
+	// for _, module := range validModules {
+	//     findings := s.RunBypassModuleWithSingleBar(module, targetURL)
+	//     totalFindings += findings
+	// }
+
+	return totalFindings
+}
+
+func (s *Scanner) RunBypassModule(bypassModule string, targetURL string) int {
+	moduleInstance, exists := bypassModules[bypassModule]
+	if !exists {
+		return 0
+	}
+
+	allJobs := moduleInstance.GenerateJobs(targetURL, bypassModule, s.scannerOpts)
+	totalJobs := len(allJobs)
+	if totalJobs == 0 {
+		GB403Logger.Warning().Msgf("No jobs generated for bypass module: %s\n", bypassModule)
+		return 0
+	}
+
+	GB403Logger.Info().Msgf("[%s] Generated %d payloads for %s\n", bypassModule, totalJobs, targetURL)
+
+	worker := NewBypassWorker(bypassModule, targetURL, s.scannerOpts, totalJobs)
+	defer worker.Stop()
+
+	maxWorkers := s.scannerOpts.Threads
+
+	// Update bar with initial info
+	bar.WriteAbove(fmt.Sprintf("Target: %s | Jobs: %d | Workers: %d",
+		targetURL, totalJobs, maxWorkers))
+
+	// Process jobs
+	responses := worker.requestPool.ProcessRequests(allJobs)
+	var dbWg sync.WaitGroup
+	resultCount := atomic.Int32{}
+
+	for response := range responses {
+		if response == nil {
 			continue
 		}
 
-		// Now RunBypassModule returns count instead of using channels
-		findings := s.RunBypassModule(module, targetURL)
-		totalFindings += findings
+		// Update progress
+		completed := worker.requestPool.GetReqWPCompletedTasks()
+		active := worker.requestPool.GetReqWPActiveWorkers()
+		currentRate := worker.requestPool.GetRequestRate()
+		avgRate := worker.requestPool.GetAverageRequestRate()
+
+		msg := fmt.Sprintf(
+			"Workers [%d/%d] | Rate [%d req/s] Avg [%d req/s] | Completed %d/%d",
+			active, maxWorkers, currentRate, avgRate, completed, uint64(totalJobs),
+		)
+		bar.WriteAbove(msg)
+
+		progressPercent := (float64(completed) / float64(totalJobs)) * 100.0
+		if progressPercent > 100.0 {
+			progressPercent = 100.0
+		}
+		bar.Progress(progressPercent)
+
+		if matchStatusCodes(response.StatusCode, s.scannerOpts.MatchStatusCodes) {
+			if len(s.scannerOpts.MatchContentTypeByte) > 0 {
+				if !bytes.Contains(response.ContentType, s.scannerOpts.MatchContentTypeByte) {
+					continue
+				}
+			}
+
+			result := &Result{
+				TargetURL:           string(response.URL),
+				BypassModule:        string(response.BypassModule),
+				StatusCode:          response.StatusCode,
+				ResponseHeaders:     string(response.ResponseHeaders),
+				CurlCMD:             string(response.CurlCommand),
+				ResponseBodyPreview: string(response.ResponsePreview),
+				ContentType:         string(response.ContentType),
+				ContentLength:       response.ContentLength,
+				ResponseBodyBytes:   response.ResponseBytes,
+				Title:               string(response.Title),
+				ServerInfo:          string(response.ServerInfo),
+				RedirectURL:         string(response.RedirectURL),
+				ResponseTime:        response.ResponseTime,
+				DebugToken:          string(response.DebugToken),
+			}
+
+			dbWg.Add(1)
+			go func(res *Result) {
+				defer dbWg.Done()
+				if err := AppendResultsToDB([]*Result{res}); err != nil {
+					GB403Logger.Error().Msgf("Failed to write result to DB: %v\n\n", err)
+				} else {
+					resultCount.Add(1)
+				}
+			}(result)
+		}
+
+		rawhttp.ReleaseResponseDetails(response)
 	}
 
-	return totalFindings
+	// Final update
+	completed := worker.requestPool.GetReqWPCompletedTasks()
+	avgRate := worker.requestPool.GetAverageRequestRate()
+	peakRate := worker.requestPool.GetPeakRequestRate()
+
+	msg := fmt.Sprintf(
+		"✓ Completed %d/%d | Avg [%d req/s] Peak [%d req/s] | Findings: %d",
+		completed, uint64(totalJobs), avgRate, peakRate, resultCount.Load(),
+	)
+	bar.WriteAbove(msg)
+	bar.Progress(100.0)
+
+	dbWg.Wait()
+	return int(resultCount.Load())
 }
 
 // Run a specific Bypass Module and return the number of findings
@@ -292,206 +471,209 @@ func (s *Scanner) RunAllBypasses(targetURL string) int {
 // 	return int(resultCount.Load())
 // }
 
-func (s *Scanner) RunBypassModule(bypassModule string, targetURL string) int {
-	moduleInstance, exists := bypassModules[bypassModule]
-	if !exists {
-		return 0
-	}
+// func (s *Scanner) RunBypassModule(bypassModule string, targetURL string) int {
+// 	moduleInstance, exists := bypassModules[bypassModule]
+// 	if !exists {
+// 		return 0
+// 	}
 
-	allJobs := moduleInstance.GenerateJobs(targetURL, bypassModule, s.scannerOpts)
-	totalJobs := len(allJobs)
-	if totalJobs == 0 {
-		GB403Logger.Warning().Msgf("No jobs generated for bypass module: %s\n", bypassModule)
-		return 0
-	}
+// 	allJobs := moduleInstance.GenerateJobs(targetURL, bypassModule, s.scannerOpts)
+// 	totalJobs := len(allJobs)
+// 	if totalJobs == 0 {
+// 		GB403Logger.Warning().Msgf("No jobs generated for bypass module: %s\n", bypassModule)
+// 		return 0
+// 	}
 
-	GB403Logger.Info().Msgf("[%s] Generated %d payloads for %s\n", bypassModule, totalJobs, targetURL)
+// 	GB403Logger.Info().Msgf("[%s] Generated %d payloads for %s\n", bypassModule, totalJobs, targetURL)
 
-	worker := NewBypassWorker(bypassModule, targetURL, s.scannerOpts, totalJobs)
-	defer worker.Stop()
+// 	worker := NewBypassWorker(bypassModule, targetURL, s.scannerOpts, totalJobs)
+// 	defer worker.Stop()
 
-	maxWorkers := s.scannerOpts.Threads
-	// Create new progress bar configuration
-	cfg := progressbar.DefaultConfig()
-	cfg.Prefix = bypassModule
-	cfg.UseColors = true
-	cfg.Color = progressbar.GreenBar
-	//cfg.ScreenWriter = os.Stderr
-	//cfg.UpdateInterval = 100 // * time.Millisecond
+// 	maxWorkers := s.scannerOpts.Threads
+// 	// Create new progress bar configuration
+// 	cfg := progressbar.DefaultConfig()
+// 	cfg.Prefix = bypassModule
+// 	cfg.UseColors = true
+// 	cfg.Color = progressbar.GreenBar
+// 	cfg.ExtraLines = 1
+// 	//cfg.ScreenWriter = os.Stderr
+// 	//cfg.UpdateInterval = 100 // * time.Millisecond
 
-	// Create new progress bar
-	bar := cfg.NewBar()
+// 	// Create new progress bar
+// 	bar := cfg.NewBar()
 
-	responses := worker.requestPool.ProcessRequests(allJobs)
-	var dbWg sync.WaitGroup
-	resultCount := atomic.Int32{}
+// 	responses := worker.requestPool.ProcessRequests(allJobs)
+// 	var dbWg sync.WaitGroup
+// 	resultCount := atomic.Int32{}
 
-	for response := range responses {
-		if response == nil {
-			continue
-		}
+// 	for response := range responses {
+// 		if response == nil {
+// 			continue
+// 		}
 
-		// Update progress bar with current stats
-		completed := worker.requestPool.GetReqWPCompletedTasks()
-		active := worker.requestPool.GetReqWPActiveWorkers()
-		currentRate := worker.requestPool.GetRequestRate()
-		avgRate := worker.requestPool.GetAverageRequestRate()
+// 		// Update progress bar with current stats
+// 		completed := worker.requestPool.GetReqWPCompletedTasks()
+// 		active := worker.requestPool.GetReqWPActiveWorkers()
+// 		currentRate := worker.requestPool.GetRequestRate()
+// 		avgRate := worker.requestPool.GetAverageRequestRate()
 
-		msg := fmt.Sprintf(
-			"Workers [%d/%d] | Rate [%d req/s] Avg [%d req/s] | Completed %d/%d --",
-			active, maxWorkers, currentRate, avgRate, completed, uint64(totalJobs),
-		)
-		bar.WriteAbove(msg)
+// 		msg := fmt.Sprintf(
+// 			"Workers [%d/%d] | Rate [%d req/s] Avg [%d req/s] | Completed %d/%d --",
+// 			active, maxWorkers, currentRate, avgRate, completed, uint64(totalJobs),
+// 		)
+// 		bar.WriteAbove(msg)
 
-		if matchStatusCodes(response.StatusCode, s.scannerOpts.MatchStatusCodes) {
-			if s.scannerOpts.MatchContentType != "" {
-				contentType := strings.ToLower(string(response.ContentType))
-				if !strings.Contains(contentType, strings.ToLower(s.scannerOpts.MatchContentType)) {
-					continue
-				}
-			}
+// 		if matchStatusCodes(response.StatusCode, s.scannerOpts.MatchStatusCodes) {
+// 			if len(s.scannerOpts.MatchContentTypeByte) > 0 {
+// 				if !bytes.Contains(response.ContentType, s.scannerOpts.MatchContentTypeByte) {
+// 					continue
+// 				}
+// 			}
 
-			result := &Result{
-				TargetURL:           string(response.URL),
-				BypassModule:        string(response.BypassModule),
-				StatusCode:          response.StatusCode,
-				ResponseHeaders:     string(response.ResponseHeaders),
-				CurlCMD:             string(response.CurlCommand),
-				ResponseBodyPreview: string(response.ResponsePreview),
-				ContentType:         string(response.ContentType),
-				ContentLength:       response.ContentLength,
-				ResponseBodyBytes:   response.ResponseBytes,
-				Title:               string(response.Title),
-				ServerInfo:          string(response.ServerInfo),
-				RedirectURL:         string(response.RedirectURL),
-				ResponseTime:        response.ResponseTime,
-				DebugToken:          string(response.DebugToken),
-			}
+// 			result := &Result{
+// 				TargetURL:           string(response.URL),
+// 				BypassModule:        string(response.BypassModule),
+// 				StatusCode:          response.StatusCode,
+// 				ResponseHeaders:     string(response.ResponseHeaders),
+// 				CurlCMD:             string(response.CurlCommand),
+// 				ResponseBodyPreview: string(response.ResponsePreview),
+// 				ContentType:         string(response.ContentType),
+// 				ContentLength:       response.ContentLength,
+// 				ResponseBodyBytes:   response.ResponseBytes,
+// 				Title:               string(response.Title),
+// 				ServerInfo:          string(response.ServerInfo),
+// 				RedirectURL:         string(response.RedirectURL),
+// 				ResponseTime:        response.ResponseTime,
+// 				DebugToken:          string(response.DebugToken),
+// 			}
 
-			dbWg.Add(1)
-			go func(res *Result) {
-				defer dbWg.Done()
-				if err := AppendResultsToDB([]*Result{res}); err != nil {
-					GB403Logger.Error().Msgf("Failed to write result to DB: %v\n\n", err)
-				} else {
-					resultCount.Add(1)
-				}
-			}(result)
-		}
+// 			dbWg.Add(1)
+// 			go func(res *Result) {
+// 				defer dbWg.Done()
+// 				if err := AppendResultsToDB([]*Result{res}); err != nil {
+// 					GB403Logger.Error().Msgf("Failed to write result to DB: %v\n\n", err)
+// 				} else {
+// 					resultCount.Add(1)
+// 				}
+// 			}(result)
+// 		}
 
-		rawhttp.ReleaseResponseDetails(response)
+// 		rawhttp.ReleaseResponseDetails(response)
 
-		progressPercent := (float64(completed) / float64(totalJobs)) * 100.0
-		if progressPercent > 100.0 {
-			progressPercent = 100.0
-		}
-		bar.Progress(progressPercent)
-	}
+// 		progressPercent := (float64(completed) / float64(totalJobs)) * 100.0
+// 		if progressPercent > 100.0 {
+// 			progressPercent = 100.0
+// 		}
+// 		bar.Progress(progressPercent)
+// 	}
 
-	dbWg.Wait()
-	bar.End()
-	fmt.Println()
+// 	dbWg.Wait()
+// 	bar.End()
+// 	fmt.Println()
 
-	return int(resultCount.Load())
-}
+// 	return int(resultCount.Load())
+// }
 
 // ResendRequestFromToken
 // Resend a request from a payload token (debug token)
 func (s *Scanner) ResendRequestFromToken(debugToken string, resendCount int) ([]*Result, error) {
-	tokenData, err := payload.DecodePayloadToken(debugToken)
-	if err != nil {
-		return nil, fmt.Errorf("failed to decode debug token: %w", err)
-	}
-
-	bypassPayload := payload.BypassPayload{
-		OriginalURL:  tokenData.OriginalURL,
-		Method:       tokenData.Method,
-		Scheme:       tokenData.Scheme,
-		Host:         tokenData.Host,
-		RawURI:       tokenData.RawURI,
-		Headers:      tokenData.Headers,
-		BypassModule: tokenData.BypassModule,
-	}
-
-	targetURL := payload.BypassPayloadToBaseURL(bypassPayload)
-
-	// Create a new worker for the bypass module
-	worker := NewBypassWorker(bypassPayload.BypassModule, targetURL, s.scannerOpts, resendCount)
-	defer worker.Stop()
-
-	// Create jobs array with pre-allocated capacity
-	jobs := make([]payload.BypassPayload, 0, resendCount)
-	for i := 0; i < resendCount; i++ {
-		jobCopy := bypassPayload // Create a copy to avoid sharing the same job reference
-		jobCopy.PayloadToken = payload.GeneratePayloadToken(bypassPayload)
-		jobs = append(jobs, jobCopy)
-	}
-
-	var progressBar *ProgressBar
-	if s.progressBarEnabled.Load() {
-		progressBar = NewProgressBar(bypassPayload.BypassModule, targetURL, resendCount, s.scannerOpts.Threads)
-		progressBar.Start()
-		defer progressBar.Stop()
-	}
-
-	responses := worker.requestPool.ProcessRequests(jobs)
-	var results []*Result
-
-	for response := range responses {
-		if response == nil {
-			continue
-		}
-
-		// Update progress
-		if progressBar != nil {
-			progressBar.Increment()
-			progressBar.UpdateSpinnerText(
-				worker.requestPool.GetReqWPActiveWorkers(),
-				worker.requestPool.GetReqWPCompletedTasks(),
-				worker.requestPool.GetReqWPSubmittedTasks(),
-				worker.requestPool.GetRequestRate(),
-				worker.requestPool.GetAverageRequestRate(),
-			)
-		}
-
-		// Only add to results if status code matches
-		if matchStatusCodes(response.StatusCode, s.scannerOpts.MatchStatusCodes) {
-			result := &Result{
-				TargetURL:           targetURL,
-				BypassModule:        string(response.BypassModule),
-				StatusCode:          response.StatusCode,
-				ResponseHeaders:     string(response.ResponseHeaders),
-				CurlCMD:             string(response.CurlCommand),
-				ResponseBodyPreview: string(response.ResponsePreview),
-				ContentType:         string(response.ContentType),
-				ContentLength:       response.ContentLength,
-				ResponseBodyBytes:   response.ResponseBytes,
-				Title:               string(response.Title),
-				ServerInfo:          string(response.ServerInfo),
-				RedirectURL:         string(response.RedirectURL),
-				ResponseTime:        response.ResponseTime,
-				DebugToken:          string(response.DebugToken),
-			}
-
-			results = append(results, result)
-		}
-
-		// Release the response object immediately after processing - for all responses
-		rawhttp.ReleaseResponseDetails(response)
-	}
-
-	// Final progress update
-	if progressBar != nil {
-		progressBar.SpinnerSuccess(
-			worker.requestPool.GetReqWPCompletedTasks(),
-			worker.requestPool.GetReqWPSubmittedTasks(),
-			worker.requestPool.GetAverageRequestRate(),
-			worker.requestPool.GetPeakRequestRate(),
-		)
-	}
-
-	return results, nil
+	return nil, nil
 }
+
+// 	tokenData, err := payload.DecodePayloadToken(debugToken)
+// 	if err != nil {
+// 		return nil, fmt.Errorf("failed to decode debug token: %w", err)
+// 	}
+
+// 	bypassPayload := payload.BypassPayload{
+// 		OriginalURL:  tokenData.OriginalURL,
+// 		Method:       tokenData.Method,
+// 		Scheme:       tokenData.Scheme,
+// 		Host:         tokenData.Host,
+// 		RawURI:       tokenData.RawURI,
+// 		Headers:      tokenData.Headers,
+// 		BypassModule: tokenData.BypassModule,
+// 	}
+
+// 	targetURL := payload.BypassPayloadToBaseURL(bypassPayload)
+
+// 	// Create a new worker for the bypass module
+// 	worker := NewBypassWorker(bypassPayload.BypassModule, targetURL, s.scannerOpts, resendCount)
+// 	defer worker.Stop()
+
+// 	// Create jobs array with pre-allocated capacity
+// 	jobs := make([]payload.BypassPayload, 0, resendCount)
+// 	for i := 0; i < resendCount; i++ {
+// 		jobCopy := bypassPayload // Create a copy to avoid sharing the same job reference
+// 		jobCopy.PayloadToken = payload.GeneratePayloadToken(bypassPayload)
+// 		jobs = append(jobs, jobCopy)
+// 	}
+
+// 	var progressBar *ProgressBar
+// 	if s.progressBarEnabled.Load() {
+// 		progressBar = NewProgressBar(bypassPayload.BypassModule, targetURL, resendCount, s.scannerOpts.Threads)
+// 		progressBar.Start()
+// 		defer progressBar.Stop()
+// 	}
+
+// 	responses := worker.requestPool.ProcessRequests(jobs)
+// 	var results []*Result
+
+// 	for response := range responses {
+// 		if response == nil {
+// 			continue
+// 		}
+
+// 		// Update progress
+// 		if progressBar != nil {
+// 			progressBar.Increment()
+// 			progressBar.UpdateSpinnerText(
+// 				worker.requestPool.GetReqWPActiveWorkers(),
+// 				worker.requestPool.GetReqWPCompletedTasks(),
+// 				worker.requestPool.GetReqWPSubmittedTasks(),
+// 				worker.requestPool.GetRequestRate(),
+// 				worker.requestPool.GetAverageRequestRate(),
+// 			)
+// 		}
+
+// 		// Only add to results if status code matches
+// 		if matchStatusCodes(response.StatusCode, s.scannerOpts.MatchStatusCodes) {
+// 			result := &Result{
+// 				TargetURL:           targetURL,
+// 				BypassModule:        string(response.BypassModule),
+// 				StatusCode:          response.StatusCode,
+// 				ResponseHeaders:     string(response.ResponseHeaders),
+// 				CurlCMD:             string(response.CurlCommand),
+// 				ResponseBodyPreview: string(response.ResponsePreview),
+// 				ContentType:         string(response.ContentType),
+// 				ContentLength:       response.ContentLength,
+// 				ResponseBodyBytes:   response.ResponseBytes,
+// 				Title:               string(response.Title),
+// 				ServerInfo:          string(response.ServerInfo),
+// 				RedirectURL:         string(response.RedirectURL),
+// 				ResponseTime:        response.ResponseTime,
+// 				DebugToken:          string(response.DebugToken),
+// 			}
+
+// 			results = append(results, result)
+// 		}
+
+// 		// Release the response object immediately after processing - for all responses
+// 		rawhttp.ReleaseResponseDetails(response)
+// 	}
+
+// 	// Final progress update
+// 	if progressBar != nil {
+// 		progressBar.SpinnerSuccess(
+// 			worker.requestPool.GetReqWPCompletedTasks(),
+// 			worker.requestPool.GetReqWPSubmittedTasks(),
+// 			worker.requestPool.GetAverageRequestRate(),
+// 			worker.requestPool.GetPeakRequestRate(),
+// 		)
+// 	}
+
+// 	return results, nil
+// }
 
 // match HTTP status code in list
 // if codes is nil, match all status codes

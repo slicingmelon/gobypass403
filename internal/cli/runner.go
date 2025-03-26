@@ -85,6 +85,7 @@ func (r *Runner) Initialize() error {
 		FollowRedirects:           r.RunnerOptions.FollowRedirects,
 		MatchStatusCodes:          r.RunnerOptions.MatchStatusCodes,
 		MatchContentType:          r.RunnerOptions.MatchContentType,
+		MatchContentTypeByte:      r.RunnerOptions.MatchContentTypeByte,
 		Debug:                     r.RunnerOptions.Debug,
 		Verbose:                   r.RunnerOptions.Verbose,
 		ResponseBodyPreviewSize:   r.RunnerOptions.ResponseBodyPreviewSize,

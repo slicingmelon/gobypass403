@@ -147,6 +147,82 @@ func NewHTTPClient(opts *HTTPClientOptions) *HTTPClient {
 	return c
 }
 
+// NewHTTPClientWith creates a client with default options plus custom settings
+func NewDefaultHTTPClient(httpClientOpts *HTTPClientOptions) *HTTPClient {
+	// Get default options
+	opts := DefaultHTTPClientOptions()
+
+	// If custom options provided, copy them to the default options
+	if httpClientOpts != nil {
+		// Handle boolean values explicitly since they're zero by default
+		if httpClientOpts.DisableKeepAlive {
+			opts.DisableKeepAlive = true
+		}
+		if httpClientOpts.NoDefaultUserAgent {
+			opts.NoDefaultUserAgent = true
+		}
+		if httpClientOpts.AutoThrottle {
+			opts.AutoThrottle = true
+		}
+		if httpClientOpts.EnableHTTP2 {
+			opts.EnableHTTP2 = true
+		}
+		if httpClientOpts.DisablePathNormalizing {
+			opts.DisablePathNormalizing = true
+		}
+		if httpClientOpts.StreamResponseBody {
+			opts.StreamResponseBody = true
+		}
+
+		// Handle non-boolean fields only if they're non-zero values
+		if httpClientOpts.Timeout != 0 {
+			opts.Timeout = httpClientOpts.Timeout
+		}
+		if httpClientOpts.DialTimeout != 0 {
+			opts.DialTimeout = httpClientOpts.DialTimeout
+		}
+		if httpClientOpts.MaxConnsPerHost != 0 {
+			opts.MaxConnsPerHost = httpClientOpts.MaxConnsPerHost
+		}
+		if httpClientOpts.MaxRetries != 0 {
+			opts.MaxRetries = httpClientOpts.MaxRetries
+		}
+		if httpClientOpts.ProxyURL != "" {
+			opts.ProxyURL = httpClientOpts.ProxyURL
+		}
+		if httpClientOpts.BypassModule != "" {
+			opts.BypassModule = httpClientOpts.BypassModule
+		}
+		if httpClientOpts.Dialer != nil {
+			opts.Dialer = httpClientOpts.Dialer
+		}
+		if len(httpClientOpts.MatchStatusCodes) > 0 {
+			opts.MatchStatusCodes = httpClientOpts.MatchStatusCodes
+		}
+		if httpClientOpts.RequestDelay > 0 {
+			opts.RequestDelay = httpClientOpts.RequestDelay
+		}
+		if httpClientOpts.RetryDelay > 0 {
+			opts.RetryDelay = httpClientOpts.RetryDelay
+		}
+		if httpClientOpts.MaxConsecutiveFailedReqs > 0 {
+			opts.MaxConsecutiveFailedReqs = httpClientOpts.MaxConsecutiveFailedReqs
+		}
+		if httpClientOpts.MaxResponseBodySize > 0 {
+			opts.MaxResponseBodySize = httpClientOpts.MaxResponseBodySize
+		}
+		if httpClientOpts.ReadBufferSize > 0 {
+			opts.ReadBufferSize = httpClientOpts.ReadBufferSize
+		}
+		if httpClientOpts.WriteBufferSize > 0 {
+			opts.WriteBufferSize = httpClientOpts.WriteBufferSize
+		}
+
+	}
+
+	return NewHTTPClient(opts)
+}
+
 func (c *HTTPClient) GetHTTPClientOptions() *HTTPClientOptions {
 	c.mu.RLock()
 	defer c.mu.RUnlock()

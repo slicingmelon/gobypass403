@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"bytes"
 	"flag"
 	"fmt"
 	"net/url"
@@ -27,6 +28,7 @@ type CliOptions struct {
 	MatchStatusCodesStr      string
 	MatchStatusCodes         []int
 	MatchContentType         string
+	MatchContentTypeByte     []byte
 	Threads                  int
 	Timeout                  int
 	Delay                    int
@@ -216,6 +218,10 @@ func (o *CliOptions) validate() error {
 	// Process proxy if provided
 	if err := o.processProxy(); err != nil {
 		return err
+	}
+
+	if o.MatchContentType != "" {
+		o.MatchContentTypeByte = bytes.ToLower([]byte(o.MatchContentType))
 	}
 
 	return nil
