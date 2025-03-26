@@ -85,7 +85,6 @@ func IsRetryableError(err error) RetryDecision {
 		strings.Contains(errStr, "Only one usage of each socket address") ||
 		strings.Contains(errStr, "closed connection before returning the first response byte") ||
 		strings.Contains(errStr, "A connection attempt failed because the connected party did not properly respond") {
-		//strings.Contains(errStr, GB403ErrorHandler.ErrConnForciblyClosedWin.Error()) {
 		return RetryDecision{true, RetryWithConnectionClose}
 	}
 
