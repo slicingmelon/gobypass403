@@ -14,7 +14,6 @@ type ScannerOpts struct {
 	Timeout                   int
 	Threads                   int
 	MatchStatusCodes          []int
-	MatchContentType          string
 	MatchContentTypeByte      []byte
 	Debug                     bool
 	Verbose                   bool

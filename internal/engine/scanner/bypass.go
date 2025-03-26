@@ -3,6 +3,7 @@ package scanner
 import (
 	"bytes"
 	"fmt"
+	"math/rand"
 	"slices"
 	"strings"
 	"sync"
@@ -197,20 +198,28 @@ func (s *Scanner) RunBypassModule(bypassModule string, targetURL string) int {
 
 	GB403Logger.Info().Msgf("[%s] Generated %d payloads for %s\n", bypassModule, totalJobs, targetURL)
 
+	maxModuleNameLength := 0
+	for module := range bypassModules {
+		if len(module) > maxModuleNameLength {
+			maxModuleNameLength = len(module)
+		}
+	}
+
 	worker := NewBypassWorker(bypassModule, targetURL, s.scannerOpts, totalJobs)
 	defer worker.Stop()
 
 	maxWorkers := s.scannerOpts.Threads
 	// Create new progress bar configuration
 	cfg := progressbar.DefaultConfig()
-	cfg.Prefix = bypassModule
+	//cfg.Prefix = bypassModule
+	cfg.Prefix = bypassModule + strings.Repeat(" ", maxModuleNameLength-len(bypassModule))
 	cfg.UseColors = true
-	cfg.Color = progressbar.GreenBar
 	cfg.ExtraLines = 1
-	//cfg.ScreenWriter = os.Stderr
-	//cfg.UpdateInterval = 100 // * time.Millisecond
 
+	colors := []string{progressbar.RedBar, progressbar.GreenBar, progressbar.YellowBar, progressbar.BlueBar, progressbar.WhiteBar}
+	cfg.Color = colors[rand.Intn(len(colors))]
 	// Create new progress bar
+
 	bar := cfg.NewBar()
 
 	responses := worker.requestPool.ProcessRequests(allJobs)
