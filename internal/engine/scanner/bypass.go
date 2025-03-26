@@ -2,12 +2,14 @@ package scanner
 
 import (
 	"fmt"
+	"os"
 	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 
+	"fortio.org/progressbar"
 	"github.com/slicingmelon/go-bypass-403/internal/engine/payload"
 	"github.com/slicingmelon/go-bypass-403/internal/engine/rawhttp"
 	GB403Logger "github.com/slicingmelon/go-bypass-403/internal/utils/logger"
@@ -180,6 +182,117 @@ func (s *Scanner) RunAllBypasses(targetURL string) int {
 }
 
 // Run a specific Bypass Module and return the number of findings
+// func (s *Scanner) RunBypassModule(bypassModule string, targetURL string) int {
+// 	moduleInstance, exists := bypassModules[bypassModule]
+// 	if !exists {
+// 		return 0
+// 	}
+
+// 	allJobs := moduleInstance.GenerateJobs(targetURL, bypassModule, s.scannerOpts)
+// 	if len(allJobs) == 0 {
+// 		GB403Logger.Warning().Msgf("No jobs generated for bypass module: %s\n", bypassModule)
+// 		return 0
+// 	}
+
+// 	GB403Logger.Info().Msgf("[%s] Generated %d payloads for %s\n", bypassModule, len(allJobs), targetURL)
+
+// 	worker := NewBypassWorker(bypassModule, targetURL, s.scannerOpts, len(allJobs))
+// 	defer worker.Stop()
+
+// 	var progressBar *ProgressBar
+// 	if s.progressBarEnabled.Load() {
+// 		progressBar = NewProgressBar(bypassModule, targetURL, len(allJobs), s.scannerOpts.Threads)
+// 		progressBar.Start()
+// 		defer progressBar.Stop()
+// 	}
+
+// 	responses := worker.requestPool.ProcessRequests(allJobs)
+
+// 	var dbWg sync.WaitGroup
+// 	resultCount := atomic.Int32{}
+
+// 	// Process responses and update progress based on pool metrics
+// 	for response := range responses {
+// 		if response == nil {
+// 			continue
+// 		}
+
+// 		// Update progress bar to match pool state
+// 		if progressBar != nil {
+// 			progressBar.Increment()
+// 			progressBar.UpdateSpinnerText(
+// 				worker.requestPool.GetReqWPActiveWorkers(),
+// 				worker.requestPool.GetReqWPCompletedTasks(),
+// 				worker.requestPool.GetReqWPSubmittedTasks(),
+// 				worker.requestPool.GetRequestRate(),
+// 				worker.requestPool.GetAverageRequestRate(),
+// 			)
+// 		}
+
+// 		if matchStatusCodes(response.StatusCode, s.scannerOpts.MatchStatusCodes) {
+// 			// Create Result struct from response
+// 			result := &Result{
+// 				TargetURL:           string(response.URL),
+// 				BypassModule:        string(response.BypassModule),
+// 				StatusCode:          response.StatusCode,
+// 				ResponseHeaders:     string(response.ResponseHeaders),
+// 				CurlCMD:             string(response.CurlCommand),
+// 				ResponseBodyPreview: string(response.ResponsePreview),
+// 				ContentType:         string(response.ContentType),
+// 				ContentLength:       response.ContentLength,
+// 				ResponseBodyBytes:   response.ResponseBytes,
+// 				Title:               string(response.Title),
+// 				ServerInfo:          string(response.ServerInfo),
+// 				RedirectURL:         string(response.RedirectURL),
+// 				ResponseTime:        response.ResponseTime,
+// 				DebugToken:          string(response.DebugToken),
+// 			}
+
+// 			// Write to DB in a separate goroutine
+// 			dbWg.Add(1)
+// 			go func(res *Result) {
+// 				defer dbWg.Done()
+// 				if err := AppendResultsToDB([]*Result{res}); err != nil {
+// 					GB403Logger.Error().Msgf("Failed to write result to DB: %v\n\n", err)
+// 				} else {
+// 					resultCount.Add(1) // Only increment on successful DB write
+// 				}
+// 			}(result)
+// 		}
+
+// 		// Release the RawHTTPResponseDetails back to its pool
+// 		rawhttp.ReleaseResponseDetails(response)
+// 	}
+
+// 	// Before function returns, wait for all DB operations to complete
+// 	dbWg.Wait()
+
+// 	if progressBar != nil {
+// 		// Check if module was cancelled by comparing completed vs total jobs
+// 		completedTasks := worker.requestPool.GetReqWPCompletedTasks()
+
+// 		// If we didn't complete all jobs, it was likely cancelled
+// 		if completedTasks < uint64(len(allJobs)) {
+// 			progressBar.SpinnerFailed(
+// 				completedTasks,
+// 				uint64(len(allJobs)),
+// 				worker.requestPool.GetAverageRequestRate(),
+// 				worker.requestPool.GetPeakRequestRate(),
+// 			)
+// 		} else {
+// 			// Normal completion - show success spinner
+// 			progressBar.SpinnerSuccess(
+// 				worker.requestPool.GetReqWPCompletedTasks(),
+// 				worker.requestPool.GetReqWPSubmittedTasks(),
+// 				worker.requestPool.GetAverageRequestRate(),
+// 				worker.requestPool.GetPeakRequestRate(),
+// 			)
+// 		}
+// 	}
+
+// 	return int(resultCount.Load())
+// }
+
 func (s *Scanner) RunBypassModule(bypassModule string, targetURL string) int {
 	moduleInstance, exists := bypassModules[bypassModule]
 	if !exists {
@@ -187,48 +300,52 @@ func (s *Scanner) RunBypassModule(bypassModule string, targetURL string) int {
 	}
 
 	allJobs := moduleInstance.GenerateJobs(targetURL, bypassModule, s.scannerOpts)
-	if len(allJobs) == 0 {
+	totalJobs := len(allJobs)
+	if totalJobs == 0 {
 		GB403Logger.Warning().Msgf("No jobs generated for bypass module: %s\n", bypassModule)
 		return 0
 	}
 
-	GB403Logger.Info().Msgf("[%s] Generated %d payloads for %s\n", bypassModule, len(allJobs), targetURL)
+	GB403Logger.Info().Msgf("[%s] Generated %d payloads for %s\n", bypassModule, totalJobs, targetURL)
 
-	worker := NewBypassWorker(bypassModule, targetURL, s.scannerOpts, len(allJobs))
+	worker := NewBypassWorker(bypassModule, targetURL, s.scannerOpts, totalJobs)
 	defer worker.Stop()
 
-	var progressBar *ProgressBar
-	if s.progressBarEnabled.Load() {
-		progressBar = NewProgressBar(bypassModule, targetURL, len(allJobs), s.scannerOpts.Threads)
-		progressBar.Start()
-		defer progressBar.Stop()
-	}
+	maxWorkers := s.scannerOpts.Threads
+	// Create new progress bar configuration
+	cfg := progressbar.DefaultConfig()
+	cfg.Prefix = bypassModule
+	cfg.UseColors = true
+	cfg.Color = progressbar.GreenBar
+	cfg.ScreenWriter = os.Stdout
+
+	//cfg.UpdateInterval = 300 * time.Millisecond
+
+	// Create new progress bar
+	bar := cfg.NewBar()
+	defer bar.End()
 
 	responses := worker.requestPool.ProcessRequests(allJobs)
-
 	var dbWg sync.WaitGroup
 	resultCount := atomic.Int32{}
 
-	// Process responses and update progress based on pool metrics
 	for response := range responses {
 		if response == nil {
 			continue
 		}
 
-		// Update progress bar to match pool state
-		if progressBar != nil {
-			progressBar.Increment()
-			progressBar.UpdateSpinnerText(
-				worker.requestPool.GetReqWPActiveWorkers(),
-				worker.requestPool.GetReqWPCompletedTasks(),
-				worker.requestPool.GetReqWPSubmittedTasks(),
-				worker.requestPool.GetRequestRate(),
-				worker.requestPool.GetAverageRequestRate(),
-			)
-		}
+		// Update progress bar with current stats
+		completed := worker.requestPool.GetReqWPCompletedTasks()
+		active := worker.requestPool.GetReqWPActiveWorkers()
+		currentRate := worker.requestPool.GetRequestRate()
+		avgRate := worker.requestPool.GetAverageRequestRate()
+
+		bar.WriteAbove(fmt.Sprintf(
+			"\tWorkers [%d/%d] | Rate [%d req/s] Avg [%d req/s] | Completed %d/%d",
+			active, maxWorkers, currentRate, avgRate, completed, totalJobs,
+		))
 
 		if matchStatusCodes(response.StatusCode, s.scannerOpts.MatchStatusCodes) {
-			// Create Result struct from response
 			result := &Result{
 				TargetURL:           string(response.URL),
 				BypassModule:        string(response.BypassModule),
@@ -246,48 +363,27 @@ func (s *Scanner) RunBypassModule(bypassModule string, targetURL string) int {
 				DebugToken:          string(response.DebugToken),
 			}
 
-			// Write to DB in a separate goroutine
 			dbWg.Add(1)
 			go func(res *Result) {
 				defer dbWg.Done()
 				if err := AppendResultsToDB([]*Result{res}); err != nil {
 					GB403Logger.Error().Msgf("Failed to write result to DB: %v\n\n", err)
 				} else {
-					resultCount.Add(1) // Only increment on successful DB write
+					resultCount.Add(1)
 				}
 			}(result)
 		}
 
-		// Release the RawHTTPResponseDetails back to its pool
 		rawhttp.ReleaseResponseDetails(response)
-	}
 
-	// Before function returns, wait for all DB operations to complete
-	dbWg.Wait()
-
-	if progressBar != nil {
-		// Check if module was cancelled by comparing completed vs total jobs
-		completedTasks := worker.requestPool.GetReqWPCompletedTasks()
-
-		// If we didn't complete all jobs, it was likely cancelled
-		if completedTasks < uint64(len(allJobs)) {
-			progressBar.SpinnerFailed(
-				completedTasks,
-				uint64(len(allJobs)),
-				worker.requestPool.GetAverageRequestRate(),
-				worker.requestPool.GetPeakRequestRate(),
-			)
-		} else {
-			// Normal completion - show success spinner
-			progressBar.SpinnerSuccess(
-				worker.requestPool.GetReqWPCompletedTasks(),
-				worker.requestPool.GetReqWPSubmittedTasks(),
-				worker.requestPool.GetAverageRequestRate(),
-				worker.requestPool.GetPeakRequestRate(),
-			)
+		progressPercent := (float64(completed) / float64(totalJobs)) * 100.0
+		if progressPercent > 100.0 {
+			progressPercent = 100.0
 		}
+		bar.Progress(progressPercent)
 	}
 
+	dbWg.Wait()
 	return int(resultCount.Load())
 }
 
