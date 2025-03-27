@@ -61,10 +61,11 @@ jobs:
           go-version: 1.23.6
 
       - name: Build
+        shell: pwsh
         env:
           CGO_ENABLED: 1
         run: |
-          mkdir dist
+          if (-not (Test-Path dist)) { New-Item -ItemType Directory -Path dist }
           go build -v -o dist/gobypass403-windows-amd64.exe ./cmd/go-bypass-403
 
       - name: Upload Windows Binary
