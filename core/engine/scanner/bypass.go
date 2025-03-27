@@ -16,9 +16,9 @@ import (
 	"time"
 
 	"fortio.org/progressbar"
-	"github.com/slicingmelon/go-bypass-403/core/engine/payload"
-	"github.com/slicingmelon/go-bypass-403/core/engine/rawhttp"
-	GB403Logger "github.com/slicingmelon/go-bypass-403/core/utils/logger"
+	"github.com/slicingmelon/gobypass403/core/engine/payload"
+	"github.com/slicingmelon/gobypass403/core/engine/rawhttp"
+	GB403Logger "github.com/slicingmelon/gobypass403/core/utils/logger"
 )
 
 // BypassModule defines the interface for all bypass modules

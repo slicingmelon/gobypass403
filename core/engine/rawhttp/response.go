@@ -14,8 +14,8 @@ import (
 	"unsafe"
 
 	"github.com/VictoriaMetrics/VictoriaMetrics/lib/bytesutil"
-	"github.com/slicingmelon/go-bypass-403/core/engine/payload"
-	GB403Logger "github.com/slicingmelon/go-bypass-403/core/utils/logger"
+	"github.com/slicingmelon/gobypass403/core/engine/payload"
+	GB403Logger "github.com/slicingmelon/gobypass403/core/utils/logger"
 	"github.com/valyala/fasthttp"
 )
 

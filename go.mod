@@ -1,15 +1,15 @@
-module github.com/slicingmelon/go-bypass-403
+module github.com/slicingmelon/gobypass403
 
-go 1.23.6
+go 1.24.1
 
 require (
 	fortio.org/progressbar v0.12.0
-	github.com/VictoriaMetrics/VictoriaMetrics v1.112.0
+	github.com/VictoriaMetrics/VictoriaMetrics v1.114.0
 	github.com/VictoriaMetrics/fastcache v1.12.2
 	github.com/alitto/pond/v2 v2.3.0
 	github.com/andybalholm/brotli v1.1.1
 	github.com/dgraph-io/ristretto/v2 v2.1.0
-	github.com/golang/snappy v0.0.4
+	github.com/golang/snappy v1.0.0
 	github.com/klauspost/compress v1.18.0
 	github.com/likexian/doh v0.7.1
 	github.com/mattn/go-sqlite3 v1.14.24
@@ -21,7 +21,7 @@ require (
 	github.com/stretchr/testify v1.10.0
 	github.com/valyala/fasthttp v1.59.0
 	github.com/vmihailenco/msgpack/v5 v5.4.1
-	golang.org/x/text v0.22.0
+	golang.org/x/text v0.23.0
 )
 
 require (
@@ -29,7 +29,7 @@ require (
 	atomicgo.dev/keyboard v0.2.9 // indirect
 	atomicgo.dev/schedule v0.1.0 // indirect
 	github.com/VictoriaMetrics/metrics v1.35.2 // indirect
-	github.com/VictoriaMetrics/metricsql v0.83.1 // indirect
+	github.com/VictoriaMetrics/metricsql v0.84.3 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/cloudflare/circl v1.3.7 // indirect
 	github.com/containerd/console v1.0.3 // indirect
@@ -48,10 +48,9 @@ require (
 	github.com/valyala/quicktemplate v1.8.0 // indirect
 	github.com/vmihailenco/tagparser/v2 v2.0.0 // indirect
 	github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e // indirect
-	golang.org/x/crypto v0.33.0 // indirect
-	golang.org/x/exp v0.0.0-20250218142911-aa4b98e5adaa // indirect
-	golang.org/x/net v0.35.0 // indirect
-	golang.org/x/sys v0.30.0 // indirect
-	golang.org/x/term v0.29.0 // indirect
+	golang.org/x/crypto v0.36.0 // indirect
+	golang.org/x/net v0.37.0 // indirect
+	golang.org/x/sys v0.31.0 // indirect
+	golang.org/x/term v0.30.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

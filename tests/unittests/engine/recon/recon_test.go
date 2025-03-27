@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/slicingmelon/go-bypass-403/internal/engine/recon"
+	"github.com/slicingmelon/gobypass403/core/engine/recon"
 )
 
 func TestReconService_Run(t *testing.T) {

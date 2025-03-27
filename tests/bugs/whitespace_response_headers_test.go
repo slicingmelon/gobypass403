@@ -12,10 +12,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/slicingmelon/go-bypass-403/internal/engine/payload"
-	"github.com/slicingmelon/go-bypass-403/internal/engine/rawhttp"
-	GB403ErrorHandler "github.com/slicingmelon/go-bypass-403/internal/utils/error"
 	"github.com/slicingmelon/go-rawurlparser"
+	"github.com/slicingmelon/gobypass403/core/engine/payload"
+	"github.com/slicingmelon/gobypass403/core/engine/rawhttp"
+	GB403ErrorHandler "github.com/slicingmelon/gobypass403/core/utils/error"
 	"github.com/valyala/fasthttp"
 )
 

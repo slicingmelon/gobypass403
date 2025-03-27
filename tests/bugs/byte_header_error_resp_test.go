@@ -122,7 +122,7 @@ go.exe test -timeout 30s -run ^TestServerClosedConnectionBeforeReturningTheFirst
 
 --- PASS: TestServerClosedConnectionBeforeReturningTheFirstResponseByte2 (8.66s)
 PASS
-ok      github.com/slicingmelon/go-bypass-403/tests/bugs        10.506s
+ok      github.com/slicingmelon/gobypass403/tests/bugs        10.506s
 */
 func TestServerClosedConnectionBeforeReturningTheFirstResponseByte2(t *testing.T) {
 	const totalRequests = 10000    // so a total of 10k requests to be sent

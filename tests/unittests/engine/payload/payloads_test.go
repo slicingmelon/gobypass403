@@ -3,7 +3,7 @@ package tests
 import (
 	"testing"
 
-	"github.com/slicingmelon/go-bypass-403/internal/engine/payload"
+	"github.com/slicingmelon/gobypass403/core/engine/payload"
 )
 
 func TestGenerateHeaderIPJobs_RequestFormat(t *testing.T) {

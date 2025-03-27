@@ -5,8 +5,8 @@ import (
 	"bytes"
 	"testing"
 
-	"github.com/slicingmelon/go-bypass-403/internal/engine/payload"
-	"github.com/slicingmelon/go-bypass-403/internal/engine/rawhttp"
+	"github.com/slicingmelon/gobypass403/core/engine/payload"
+	"github.com/slicingmelon/gobypass403/core/engine/rawhttp"
 	"github.com/valyala/fasthttp"
 )
 

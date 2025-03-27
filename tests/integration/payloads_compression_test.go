@@ -14,7 +14,7 @@ import (
 	"github.com/golang/snappy"
 	"github.com/klauspost/compress/zstd"
 	"github.com/pierrec/lz4/v4"
-	"github.com/slicingmelon/go-bypass-403/internal/engine/payload"
+	"github.com/slicingmelon/gobypass403/core/engine/payload"
 	"github.com/vmihailenco/msgpack/v5"
 )
 

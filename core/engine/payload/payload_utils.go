@@ -14,8 +14,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	GB403Logger "github.com/slicingmelon/go-bypass-403/core/utils/logger"
 	"github.com/slicingmelon/go-rawurlparser"
+	GB403Logger "github.com/slicingmelon/gobypass403/core/utils/logger"
 	"golang.org/x/text/unicode/norm"
 )
 
@@ -297,7 +297,7 @@ BenchmarkBypassPayloadToBaseURL/with_sprintf
 BenchmarkBypassPayloadToBaseURL/with_sprintf-20
 10295320	       120.5 ns/op	      56 B/op	       3 allocs/op
 PASS
-ok  	github.com/slicingmelon/go-bypass-403/tests/benchmark	5.679s
+ok  	github.com/slicingmelon/gobypass403/tests/benchmark	5.679s
 */
 func BypassPayloadToBaseURL(bypassPayload BypassPayload) string {
 	// Pre-allocate capacity: len(scheme) + len("://") + len(host)
