@@ -481,6 +481,7 @@ func (pg *PayloadGenerator) GenerateHTTPMethodsPayloads(targetURL string, bypass
 			}
 		}
 
+		// Generate token and add job (fixed from postJob to job)
 		job.PayloadToken = GeneratePayloadToken(job)
 		allJobs = append(allJobs, job)
 	}
