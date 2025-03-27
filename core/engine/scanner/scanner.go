@@ -19,7 +19,7 @@ type ScannerOpts struct {
 	Timeout                   int
 	Threads                   int
 	MatchStatusCodes          []int
-	MatchContentTypeByte      []byte
+	MatchContentTypeBytes     [][]byte
 	Debug                     bool
 	Verbose                   bool
 	BypassModule              string

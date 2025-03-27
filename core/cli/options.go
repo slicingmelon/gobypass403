@@ -32,8 +32,8 @@ type CliOptions struct {
 	Module                   string
 	MatchStatusCodesStr      string
 	MatchStatusCodes         []int
-	MatchContentType         string
-	MatchContentTypeByte     []byte
+	MatchContentType         string   // New field for multiple types
+	MatchContentTypeBytes    [][]byte // Multiple byte slices for efficient matching
 	Threads                  int
 	Timeout                  int
 	Delay                    int
@@ -226,7 +226,14 @@ func (o *CliOptions) validate() error {
 	}
 
 	if o.MatchContentType != "" {
-		o.MatchContentTypeByte = bytes.ToLower([]byte(o.MatchContentType))
+		// Split by comma, allowing for spaces
+		types := strings.Split(o.MatchContentType, ",")
+		for _, t := range types {
+			t = strings.TrimSpace(t)
+			if t != "" {
+				o.MatchContentTypeBytes = append(o.MatchContentTypeBytes, bytes.ToLower([]byte(t)))
+			}
+		}
 	}
 
 	return nil

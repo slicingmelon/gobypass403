@@ -250,9 +250,16 @@ func (s *Scanner) RunBypassModule(bypassModule string, targetURL string) int {
 		bar.WriteAbove(msg)
 
 		if matchStatusCodes(response.StatusCode, s.scannerOpts.MatchStatusCodes) {
-			if len(s.scannerOpts.MatchContentTypeByte) > 0 {
-				if !bytes.Contains(response.ContentType, s.scannerOpts.MatchContentTypeByte) {
-					continue
+			if len(s.scannerOpts.MatchContentTypeBytes) > 0 {
+				contentTypeMatched := false
+				for _, matchType := range s.scannerOpts.MatchContentTypeBytes {
+					if bytes.Contains(response.ContentType, matchType) {
+						contentTypeMatched = true
+						break
+					}
+				}
+				if !contentTypeMatched {
+					continue // Skip this response
 				}
 			}
 
