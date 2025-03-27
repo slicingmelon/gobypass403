@@ -152,6 +152,7 @@ func BuildRawHTTPRequest(httpclient *HTTPClient, req *fasthttp.Request, bypassPa
 	req.Header.DisableNormalizing()
 	req.Header.SetNoDefaultContentType(true)
 	req.UseHostHeader = true
+
 	req.URI().SetScheme(bypassPayload.Scheme)
 	req.URI().SetHost(bypassPayload.Host)
 

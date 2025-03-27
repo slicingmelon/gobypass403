@@ -28,6 +28,7 @@ var AvailableBypassModules = []string{
 	"http_methods",
 	"case_substitution",
 	"char_encode",
+	"nginx_bypasses",
 	"http_headers_ip",
 	"http_host",
 	"http_headers_scheme",
