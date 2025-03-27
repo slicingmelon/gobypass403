@@ -80,6 +80,7 @@ func BuildRawHTTPRequest(httpclient *HTTPClient, req *fasthttp.Request, bypassPa
 	for _, h := range bypassPayload.Headers {
 		if h.Header == "Host" {
 			hasHostHeader = true
+			shouldCloseConn = true
 		}
 		if h.Header == "Content-Length" {
 			hasContentLength = true
