@@ -28,7 +28,8 @@ jobs:
         with:
           go-version: 1.23.6
 
-      - name: Install build deps
+      - name: Install build dependencies (only for Ubuntu)
+        if: matrix.os == 'ubuntu-latest'
         run: sudo apt-get update && sudo apt-get install -y gcc-multilib
 
       - name: Build
@@ -37,14 +38,14 @@ jobs:
           GOOS: ${{ matrix.goos }}
           GOARCH: ${{ matrix.goarch }}
         run: |
-          mkdir -p bin
-          go build -v -o bin/gobypass403-${{ matrix.goos }}-${{ matrix.goarch }} ./cmd/go-bypass-403
+          mkdir -p dist
+          go build -v -o dist/gobypass403-${{ matrix.goos }}-${{ matrix.goarch }} ./cmd/go-bypass-403
 
       - name: Upload Binaries
         uses: actions/upload-artifact@v4
         with:
           name: gobypass403-${{ matrix.goos }}-${{ matrix.goarch }}
-          path: bin/
+          path: dist/
 
   build-windows:
     name: Build for Windows
@@ -63,11 +64,11 @@ jobs:
         env:
           CGO_ENABLED: 1
         run: |
-          mkdir bin
-          go build -v -o bin/gobypass403-windows-amd64.exe ./cmd/go-bypass-403
+          mkdir dist
+          go build -v -o dist/gobypass403-windows-amd64.exe ./cmd/go-bypass-403
 
       - name: Upload Windows Binary
         uses: actions/upload-artifact@v4
         with:
           name: gobypass403-windows-amd64
-          path: bin/
+          path: dist/
