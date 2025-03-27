@@ -8,7 +8,6 @@ package scanner
 import (
 	"bytes"
 	"fmt"
-	"math/rand"
 	"slices"
 	"strings"
 	"sync"
@@ -221,10 +220,10 @@ func (s *Scanner) RunBypassModule(bypassModule string, targetURL string) int {
 	cfg.UseColors = true
 	cfg.ExtraLines = 1
 
-	colors := []string{progressbar.RedBar, progressbar.GreenBar, progressbar.YellowBar, progressbar.BlueBar, progressbar.WhiteBar}
-	cfg.Color = colors[rand.Intn(len(colors))]
+	//colors := []string{progressbar.RedBar, progressbar.GreenBar, progressbar.YellowBar, progressbar.BlueBar, progressbar.WhiteBar}
+	//cfg.Color = colors[rand.Intn(len(colors))]
+	cfg.Color = "\033[38;5;74;40m" // steel blue
 	// Create new progress bar
-
 	bar := cfg.NewBar()
 
 	responses := worker.requestPool.ProcessRequests(allJobs)
