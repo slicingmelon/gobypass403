@@ -31,3 +31,5 @@ tools/**/*.exe
 
 !bin/*
 !bin/**
+!dist/*
+!dist/**
