@@ -17,31 +17,14 @@ A powerful WAF (HTTP 403/401) and URL parser bypass tool developed in Go, design
 
 - **CDN Bypass Support**: Special features for testing CDN-based bypasses using host substitution
 
-## Motivation
 
-Traditional Go-based security tools often struggle with WAF bypasses because Go's standard libraries are designed to be secure by default, automatically normalizing URLs and encoding special characters. This makes it difficult to test certain types of bypasses that rely on specific URL structures or character sequences.
-
-Go-Bypass-403 solves this by:
-1. Using a custom URL parser that preserves raw paths
-2. Implementing curl-like path preservation
-3. Maintaining exact URL structures throughout the testing process
-4. Allowing for true raw URL manipulation without automatic sanitization
-5. The best similar tool that is publicly available was developed by [laluka](https://github.com/laluka) and can be found at the following URL: [bypass-url-parser](https://github.com/laluka/bypass-url-parser). It is written in Python, however, it uses curl for each bypass attempt, as curl supports `--path-as-is` to send raw payloads. Unfortunately, this tool is extremely slow because it uses curl to send the requests.
-Quote from laluka:
-> If you wonder why this code is nothing but a dirty curl wrapper, here's why:
->>    Most of the python requests do url/path/parameter encoding/decoding, and I hate this.
->>    If I submit raw chars, I want raw chars to be sent.
->>    If I send a weird path, I want it weird, not normalized.
->>
->This is surprisingly hard to achieve in python without losing all of the lib goodies like parsing, ssl/tls encapsulation and so on.
-So, be like me, use curl as a backend, it's gonna be just fine.
 
 # Installation
 
 ```bash
-git clone https://github.com/slicingmelon/go-bypass-403.git
+git clone https://github.com/slicingmelon/gobypass403.git
 go get
-go build .\cmd\go-bypass-403\
+go build .\cmd\gobypass403\
 ```
 
 # Usage
@@ -112,14 +95,14 @@ Usage:
 
 Standard command(s):
 ```bash
-go-bypass-403 -u "https://go-test-webapp.com/admin" -mc "200"
-go-bypass-403 -u "https://go-test-webapp.com/admin" -mc "200,500" -t 10 -v 
-go-bypass-403 -u "https://go-test-webapp.com/admin" -mc "all" -t 10 -v 
+gobypass403 -u "https://go-test-webapp.com/admin" -mc "200"
+gobypass403 -u "https://go-test-webapp.com/admin" -mc "200,500" -t 10 -v 
+gobypass403 -u "https://go-test-webapp.com/admin" -mc "all" -t 10 -v 
 ```
 
 Using a list of target URLs:
 ```bash
-go-bypass-403 -l "targeturls.txt" 
+gobypass403 -l "targeturls.txt" 
 ```
 
 ## Find CDN Bypasses Using A List Of Hosts 
@@ -135,6 +118,10 @@ Example Results 1
 
 
 # Changelog
+
+## 27 March 2027
+
+- Major release.
 
 ## 14 February 2025
 
@@ -152,7 +139,27 @@ Example Results 1
 
 - First official release
 
-## Credits
+
+## Motivation
+
+Traditional Go-based security tools often struggle with WAF bypasses because Go's standard libraries are designed to be secure by default, automatically normalizing URLs and encoding special characters. This makes it difficult to test certain types of bypasses that rely on specific URL structures or character sequences.
+
+Go-Bypass-403 solves this by:
+1. Using a custom URL parser that preserves raw paths
+2. Implementing curl-like path preservation
+3. Maintaining exact URL structures throughout the testing process
+4. Allowing for true raw URL manipulation without automatic sanitization
+5. The best similar tool that is publicly available was developed by [laluka](https://github.com/laluka) and can be found at the following URL: [bypass-url-parser](https://github.com/laluka/bypass-url-parser). It is written in Python, however, it uses curl for each bypass attempt, as curl supports `--path-as-is` to send raw payloads. Unfortunately, this tool is extremely slow because it uses curl to send the requests.
+Quote from laluka:
+> If you wonder why this code is nothing but a dirty curl wrapper, here's why:
+>>    Most of the python requests do url/path/parameter encoding/decoding, and I hate this.
+>>    If I submit raw chars, I want raw chars to be sent.
+>>    If I send a weird path, I want it weird, not normalized.
+>>
+>This is surprisingly hard to achieve in python without losing all of the lib goodies like parsing, ssl/tls encapsulation and so on.
+So, be like me, use curl as a backend, it's gonna be just fine.
+
+### Credits
 
 
 This tool was inspired by and based on [laluka's bypass-url-parser](https://github.com/laluka/bypass-url-parser). All credit for the original concept and bypass techniques goes to him.

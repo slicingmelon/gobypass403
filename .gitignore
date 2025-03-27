@@ -26,9 +26,3 @@
 !test-tools/
 !test-tools/*
 !test-tools/**
-!bin/
-!bin/*
-!bin/**
-!dist/
-!dist/*
-!dist/**
