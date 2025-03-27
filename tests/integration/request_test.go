@@ -275,11 +275,11 @@ func TestRequestDelay(t *testing.T) {
 	<-serverCh
 }
 
-// go.exe test -timeout 30s -run ^TestRequestDelayWithMultipleWorkers$ github.com/slicingmelon/go-bypass-403/tests/integration -v
+// go.exe test -timeout 30s -run ^TestRequestDelayWithMultipleWorkers$ github.com/slicingmelon/gobypass403/tests/integration -v
 // === RUN   TestRequestDelayWithMultipleWorkers
 // --- PASS: TestRequestDelayWithMultipleWorkers (6.00s)
 // PASS
-// ok  	github.com/slicingmelon/go-bypass-403/tests/integration	7.525s
+// ok  	github.com/slicingmelon/gobypass403/tests/integration	7.525s
 func TestRequestDelayWithMultipleWorkers(t *testing.T) {
 	// Create in-memory listener
 	ln := fasthttputil.NewInmemoryListener()
