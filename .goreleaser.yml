@@ -2,18 +2,11 @@ project_name: go-bypass-403
 builds:
   - id: go-bypass-403
     main: ./cmd/go-bypass-403/main.go
+    binary: bin/gobypass403
     goos:
       - linux
       - windows
-      - darwin
     goarch:
       - amd64
-      - arm64
     env:
-      - CGO_ENABLED=0
-archive:
-  format: zip
-release:
-  github:
-    owner: username
-    name: repo
+      - CGO_ENABLED=1

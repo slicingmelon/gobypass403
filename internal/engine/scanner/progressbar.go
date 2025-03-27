@@ -165,16 +165,6 @@ func (pb *ProgressBar) SpinnerSuccess(
 	pb.mu.Lock()
 	defer pb.mu.Unlock()
 
-	// // Ensure progress bar is 100% complete
-	// if pb.progressbar != nil && pb.progressbar.Current < pb.progressbar.Total {
-	// 	pb.progressbar.Current = pb.progressbar.Total
-	// }
-
-	// 	// Ensure progress bar is 100% complete
-	// 	if pb.progressbar != nil && pb.progressbar.Current < pb.progressbar.Total {
-	// 		pb.progressbar.Current = pb.progressbar.Total
-	// 	}
-
 	var spinnerBuilder strings.Builder
 	var titleBuilder strings.Builder
 
@@ -215,9 +205,6 @@ func (pb *ProgressBar) SpinnerFailed(
 ) {
 	pb.mu.Lock()
 	defer pb.mu.Unlock()
-
-	// DO NOT force progress bar to 100% like in SpinnerSuccess
-	// Keep the actual progress at cancellation time
 
 	var spinnerBuilder strings.Builder
 	var titleBuilder strings.Builder
