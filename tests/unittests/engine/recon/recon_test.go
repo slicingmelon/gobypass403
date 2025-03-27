@@ -3,10 +3,12 @@ package recon
 import (
 	"testing"
 	"time"
+
+	"github.com/slicingmelon/go-bypass-403/internal/engine/recon"
 )
 
 func TestReconService_Run(t *testing.T) {
-	service := NewReconService()
+	service := recon.NewReconService()
 
 	testURLs := []string{
 		// Valid hosts
@@ -49,7 +51,7 @@ func TestReconService_Run(t *testing.T) {
 	}
 
 	for _, host := range expectedHosts {
-		result, err := service.cache.Get(host)
+		result, err := service.GetReconCache().Get(host)
 		if err != nil {
 			t.Errorf("Failed to get cache for %s: %v", host, err)
 			continue
@@ -109,7 +111,7 @@ func TestReconService_Run(t *testing.T) {
 }
 
 func TestReconService_Run_ValidateDuplicates(t *testing.T) {
-	service := NewReconService()
+	service := recon.NewReconService()
 
 	testURLs := []string{
 		// Valid hosts
@@ -147,7 +149,7 @@ func TestReconService_Run_ValidateDuplicates(t *testing.T) {
 	time.Sleep(2 * time.Second)
 
 	// Verify duplicate handling
-	result, err := service.cache.Get("httpbin.org")
+	result, err := service.GetReconCache().Get("httpbin.org")
 	if err != nil {
 		t.Errorf("Failed to get cache for httpbin.org: %v", err)
 	} else {
@@ -158,7 +160,7 @@ func TestReconService_Run_ValidateDuplicates(t *testing.T) {
 	}
 
 	// Verify duplicate IP handling
-	result, err = service.cache.Get("1.1.1.1")
+	result, err = service.GetReconCache().Get("1.1.1.1")
 	if err != nil {
 		t.Errorf("Failed to get cache for 1.1.1.1: %v", err)
 	} else {
@@ -175,7 +177,7 @@ func TestReconService_Run_ValidateDuplicates(t *testing.T) {
 	}
 
 	for _, host := range expectedHosts {
-		result, err := service.cache.Get(host)
+		result, err := service.GetReconCache().Get(host)
 		if err != nil {
 			t.Errorf("Failed to get cache for %s: %v", host, err)
 			continue
@@ -235,9 +237,9 @@ func TestReconService_Run_ValidateDuplicates(t *testing.T) {
 }
 
 func TestReconCache(t *testing.T) {
-	cache := NewReconCache()
+	cache := recon.NewReconCache()
 
-	testData := &ReconResult{
+	testData := &recon.ReconResult{
 		Hostname: "test.com",
 		IPv4Services: map[string]map[string][]string{
 			"http": {
