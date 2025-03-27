@@ -29,5 +29,5 @@ tests/**/*.exe
 tools/*.exe
 tools/**/*.exe
 
-!bin/
+!bin/*
 !bin/**
