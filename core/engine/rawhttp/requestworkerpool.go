@@ -8,11 +8,11 @@ package rawhttp
 import (
 	"context"
 	"errors"
-	"sync/atomic"r
+	"sync/atomic"
 	"time"
 
 	"github.com/alitto/pond/v2"
-	"github.com/slicingmelon/go-bypass-403/internal/core/payload"
+	"github.com/slicingmelon/go-bypass-403/core/engine/payload"
 	GB403ErrorHandler "github.com/slicingmelon/go-bypass-403/core/utils/error"
 	GB403Logger "github.com/slicingmelon/go-bypass-403/core/utils/logger"
 	"github.com/valyala/fasthttp"
