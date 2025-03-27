@@ -80,6 +80,7 @@ var AvailableModules = map[string]bool{
 	"dumb_check":                 true,
 	"mid_paths":                  true,
 	"end_paths":                  true,
+	"http_methods":               true,
 	"case_substitution":          true,
 	"char_encode":                true,
 	"http_headers_scheme":        true,
@@ -97,7 +98,7 @@ func (o *CliOptions) printUsage(flagName ...string) {
 	}
 
 	// Print header only for specific flag usage
-	fmt.Fprintf(os.Stderr, "Go-Bypass-403\n\n")
+	fmt.Fprintf(os.Stderr, "GoByPASS403\n\n")
 
 	// Search for the specific flag in our flags slice
 	for _, f := range flags {
@@ -155,7 +156,7 @@ func (o *CliOptions) setDefaults() {
 
 	// Output directory default
 	if o.OutDir == "" {
-		o.OutDir = filepath.Join(os.TempDir(), fmt.Sprintf("go-bypass-403-%x", time.Now().UnixNano()))
+		o.OutDir = filepath.Join(os.TempDir(), fmt.Sprintf("gobypass403-%x", time.Now().UnixNano()))
 	}
 
 	if o.ResultsDBFile == "" {

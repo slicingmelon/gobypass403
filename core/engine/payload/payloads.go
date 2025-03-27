@@ -20,6 +20,7 @@ var BypassModulesRegistry = []string{
 	"dumb_check",
 	"mid_paths",
 	"end_paths",
+	"http_methods",
 	"case_substitution",
 	"char_encode",
 	"http_headers_scheme",

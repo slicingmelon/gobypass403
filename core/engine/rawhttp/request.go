@@ -8,6 +8,7 @@ package rawhttp
 import (
 	"bufio"
 	"bytes"
+	"strconv"
 	"sync"
 
 	"github.com/slicingmelon/gobypass403/core/engine/payload"
@@ -58,6 +59,7 @@ For this to work, everything must be set in order, Raw Request line, headers, th
 then set req.UseHostHeader = true and then req.URI().SetScheme() and req.URI().SetHost()
 */
 func BuildRawHTTPRequest(httpclient *HTTPClient, req *fasthttp.Request, bypassPayload payload.BypassPayload) error {
+	// Define shouldCloseConn
 	shouldCloseConn := len(bypassPayload.Headers) > 0 ||
 		httpclient.GetHTTPClientOptions().DisableKeepAlive ||
 		httpclient.GetHTTPClientOptions().ProxyURL != ""
@@ -72,11 +74,20 @@ func BuildRawHTTPRequest(httpclient *HTTPClient, req *fasthttp.Request, bypassPa
 	bb.B = append(bb.B, bypassPayload.RawURI...)
 	bb.B = append(bb.B, " HTTP/1.1\r\n"...)
 
+	// Add all headers
 	hasHostHeader := false
+	hasContentLength := false
 	for _, h := range bypassPayload.Headers {
 		if h.Header == "Host" {
 			hasHostHeader = true
+		}
+		if h.Header == "Content-Length" {
+			hasContentLength = true
+		}
+		if h.Header == "Connection" {
+			// Skip Connection header here, we'll add it last
 			shouldCloseConn = true
+			continue
 		}
 		bb.B = append(bb.B, h.Header...)
 		bb.B = append(bb.B, ": "...)
@@ -91,6 +102,7 @@ func BuildRawHTTPRequest(httpclient *HTTPClient, req *fasthttp.Request, bypassPa
 		bb.B = append(bb.B, "\r\n"...)
 	}
 
+	// Add standard headers
 	bb.B = append(bb.B, strUserAgentHeader...)
 	bb.B = append(bb.B, "\r\n"...)
 	bb.B = append(bb.B, "Accept: */*\r\n"...)
@@ -102,7 +114,14 @@ func BuildRawHTTPRequest(httpclient *HTTPClient, req *fasthttp.Request, bypassPa
 		bb.B = append(bb.B, "\r\n"...)
 	}
 
-	// Connection handling
+	// Add Content-Length header if body exists and header wasn't explicitly set
+	if len(bypassPayload.Body) > 0 && !hasContentLength {
+		bb.B = append(bb.B, "Content-Length: "...)
+		bb.B = append(bb.B, strconv.Itoa(len(bypassPayload.Body))...)
+		bb.B = append(bb.B, "\r\n"...)
+	}
+
+	// Add Connection header LAST
 	if shouldCloseConn {
 		bb.B = append(bb.B, "Connection: close\r\n"...)
 	} else {
@@ -112,11 +131,17 @@ func BuildRawHTTPRequest(httpclient *HTTPClient, req *fasthttp.Request, bypassPa
 	// End of headers
 	bb.B = append(bb.B, "\r\n"...)
 
+	// Add body if present
+	if len(bypassPayload.Body) > 0 {
+		bb.B = append(bb.B, bypassPayload.Body...)
+	}
+
 	// Get bufio.Reader from pool and reset it with our ByteBuffer reader
 	br := rawRequestBuffReaderPool.Get().(*bufio.Reader)
 	br.Reset(bytes.NewReader(bb.B))
 	defer rawRequestBuffReaderPool.Put(br)
 
+	// Let FastHTTP parse the entire request (headers + body)
 	if err := req.ReadLimitBody(br, 0); err != nil {
 		return err
 	}
