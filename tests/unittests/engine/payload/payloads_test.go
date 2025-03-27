@@ -11,10 +11,13 @@ func TestGenerateHeaderIPJobs_RequestFormat(t *testing.T) {
 	bypassModule := "header_ip"
 
 	// Create PayloadGenerator instance
-	pg := payload.NewPayloadGenerator()
+	pg := payload.NewPayloadGenerator(payload.PayloadGeneratorOptions{
+		TargetURL:    targetURL,
+		BypassModule: bypassModule,
+	})
 
 	// Generate sample jobs
-	jobs := pg.GenerateHeaderIPPayloads(targetURL, bypassModule, "", "")
+	jobs := pg.GenerateHeaderIPPayloads(targetURL, bypassModule)
 
 	// Print a few sample jobs to demonstrate the structure
 	t.Log("\nSample PayloadJobs generated for:", targetURL)
@@ -82,10 +85,13 @@ func TestGenerateHeaderIPJobs_RequestFormatAllJobs(t *testing.T) {
 	bypassModule := "header_ip"
 
 	// Create PayloadGenerator instance
-	pg := payload.NewPayloadGenerator()
+	pg := payload.NewPayloadGenerator(payload.PayloadGeneratorOptions{
+		TargetURL:    targetURL,
+		BypassModule: bypassModule,
+	})
 
 	// Generate all jobs
-	jobs := pg.GenerateHeaderIPPayloads(targetURL, bypassModule, "", "")
+	jobs := pg.GenerateHeaderIPPayloads(targetURL, bypassModule)
 
 	t.Logf("\nAll PayloadJobs generated for: %s", targetURL)
 	t.Logf("Total jobs generated: %d\n", len(jobs))

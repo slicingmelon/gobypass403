@@ -59,27 +59,27 @@ func NewPayloadGenerator(opts PayloadGeneratorOptions) *PayloadGenerator {
 func (pg *PayloadGenerator) Generate() []BypassPayload {
 	switch pg.bypassModule {
 	case "dumb_check":
-		return pg.GenerateDumbCheckPayload()
+		return pg.GenerateDumbCheckPayload(pg.targetURL, pg.bypassModule)
 	case "mid_paths":
-		return pg.GenerateMidPathsPayloads()
+		return pg.GenerateMidPathsPayloads(pg.targetURL, pg.bypassModule)
 	case "end_paths":
-		return pg.GenerateEndPathsPayloads()
+		return pg.GenerateEndPathsPayloads(pg.targetURL, pg.bypassModule)
 	case "case_substitution":
-		return pg.GenerateCaseSubstitutionPayloads()
+		return pg.GenerateCaseSubstitutionPayloads(pg.targetURL, pg.bypassModule)
 	case "char_encode":
-		return pg.GenerateCharEncodePayloads()
+		return pg.GenerateCharEncodePayloads(pg.targetURL, pg.bypassModule)
 	case "http_headers_scheme":
-		return pg.GenerateHeaderSchemePayloads()
+		return pg.GenerateHeaderSchemePayloads(pg.targetURL, pg.bypassModule)
 	case "http_headers_ip":
-		return pg.GenerateHeaderIPPayloads()
+		return pg.GenerateHeaderIPPayloads(pg.targetURL, pg.bypassModule)
 	case "http_headers_port":
-		return pg.GenerateHeaderPortPayloads()
+		return pg.GenerateHeaderPortPayloads(pg.targetURL, pg.bypassModule)
 	case "http_headers_url":
-		return pg.GenerateHeaderURLPayloads()
+		return pg.GenerateHeaderURLPayloads(pg.targetURL, pg.bypassModule)
 	case "http_host":
-		return pg.GenerateHostHeaderPayloads()
+		return pg.GenerateHostHeaderPayloads(pg.targetURL, pg.bypassModule)
 	case "unicode_path_normalization":
-		return pg.GenerateUnicodePathNormalizationsPayloads()
+		return pg.GenerateUnicodePathNormalizationsPayloads(pg.targetURL, pg.bypassModule)
 	default:
 		GB403Logger.Warning().Msgf("Unknown bypass module: %s\n", pg.bypassModule)
 		return []BypassPayload{}
@@ -102,10 +102,10 @@ type BypassPayload struct {
 	PayloadToken string    // always gets updated
 }
 
-func (pg *PayloadGenerator) GenerateDumbCheckPayload() []BypassPayload {
+func (pg *PayloadGenerator) GenerateDumbCheckPayload(targetURL string, bypassModule string) []BypassPayload {
 	var allJobs []BypassPayload
 
-	parsedURL, err := rawurlparser.RawURLParse(pg.targetURL)
+	parsedURL, err := rawurlparser.RawURLParse(targetURL)
 	if err != nil {
 		GB403Logger.Error().Msgf("Failed to parse URL")
 		return allJobs
@@ -119,12 +119,12 @@ func (pg *PayloadGenerator) GenerateDumbCheckPayload() []BypassPayload {
 
 	// Just one job with the original URL
 	job := BypassPayload{
-		OriginalURL:  pg.targetURL,
+		OriginalURL:  targetURL,
 		Method:       "GET",
 		Scheme:       parsedURL.Scheme,
 		Host:         parsedURL.Host,
 		RawURI:       rawURI,
-		BypassModule: pg.bypassModule,
+		BypassModule: bypassModule,
 	}
 
 	// Generate token with only the necessary components
@@ -132,13 +132,13 @@ func (pg *PayloadGenerator) GenerateDumbCheckPayload() []BypassPayload {
 
 	allJobs = append(allJobs, job)
 
-	GB403Logger.Debug().BypassModule(pg.bypassModule).Msgf("Generated 1 payload for %s\n", pg.targetURL)
+	GB403Logger.Debug().BypassModule(bypassModule).Msgf("Generated 1 payload for %s\n", targetURL)
 	return allJobs
 }
 
-func (pg *PayloadGenerator) GenerateMidPathsPayloads() []BypassPayload {
+func (pg *PayloadGenerator) GenerateMidPathsPayloads(targetURL string, bypassModule string) []BypassPayload {
 	var jobs []BypassPayload
-	parsedURL, err := rawurlparser.RawURLParse(pg.targetURL)
+	parsedURL, err := rawurlparser.RawURLParse(targetURL)
 	if err != nil {
 		GB403Logger.Error().Msgf("Failed to parse URL")
 		return jobs
@@ -192,12 +192,12 @@ func (pg *PayloadGenerator) GenerateMidPathsPayloads() []BypassPayload {
 	// Convert unique paths to PayloadJobs
 	for rawURI := range uniquePaths {
 		job := BypassPayload{
-			OriginalURL:  pg.targetURL,
+			OriginalURL:  targetURL,
 			Method:       "GET",
 			Scheme:       parsedURL.Scheme,
 			Host:         parsedURL.Host,
 			RawURI:       rawURI,
-			BypassModule: pg.bypassModule,
+			BypassModule: bypassModule,
 		}
 
 		// Generate token with only the necessary components
@@ -206,14 +206,14 @@ func (pg *PayloadGenerator) GenerateMidPathsPayloads() []BypassPayload {
 		jobs = append(jobs, job)
 	}
 
-	GB403Logger.Debug().BypassModule(pg.bypassModule).Msgf("Generated %d payloads for %s\n", len(jobs), pg.targetURL)
+	GB403Logger.Debug().BypassModule(bypassModule).Msgf("Generated %d payloads for %s\n", len(jobs), targetURL)
 	return jobs
 }
 
-func (pg *PayloadGenerator) GenerateEndPathsPayloads() []BypassPayload {
+func (pg *PayloadGenerator) GenerateEndPathsPayloads(targetURL string, bypassModule string) []BypassPayload {
 	var jobs []BypassPayload
 
-	parsedURL, err := rawurlparser.RawURLParse(pg.targetURL)
+	parsedURL, err := rawurlparser.RawURLParse(targetURL)
 	if err != nil {
 		GB403Logger.Error().Msgf("Failed to parse URL")
 		return jobs
@@ -266,12 +266,12 @@ func (pg *PayloadGenerator) GenerateEndPathsPayloads() []BypassPayload {
 	// Convert unique paths to PayloadJobs
 	for rawURI := range uniquePaths {
 		job := BypassPayload{
-			OriginalURL:  pg.targetURL,
+			OriginalURL:  targetURL,
 			Method:       "GET",
 			Scheme:       parsedURL.Scheme,
 			Host:         parsedURL.Host,
 			RawURI:       rawURI,
-			BypassModule: pg.bypassModule,
+			BypassModule: bypassModule,
 		}
 
 		job.PayloadToken = GeneratePayloadToken(job)
@@ -279,14 +279,14 @@ func (pg *PayloadGenerator) GenerateEndPathsPayloads() []BypassPayload {
 		jobs = append(jobs, job)
 	}
 
-	GB403Logger.Debug().BypassModule(pg.bypassModule).Msgf("Generated %d payloads for %s\n", len(jobs), pg.targetURL)
+	GB403Logger.Debug().BypassModule(bypassModule).Msgf("Generated %d payloads for %s\n", len(jobs), targetURL)
 	return jobs
 }
 
-func (pg *PayloadGenerator) GenerateHeaderIPPayloads() []BypassPayload {
+func (pg *PayloadGenerator) GenerateHeaderIPPayloads(targetURL string, bypassModule string) []BypassPayload {
 	var allJobs []BypassPayload
 
-	parsedURL, err := rawurlparser.RawURLParse(pg.targetURL)
+	parsedURL, err := rawurlparser.RawURLParse(targetURL)
 	if err != nil {
 		GB403Logger.Error().Msgf("Failed to parse URL")
 		return allJobs
@@ -307,7 +307,7 @@ func (pg *PayloadGenerator) GenerateHeaderIPPayloads() []BypassPayload {
 				headerNames = append(headerNames, header)
 			}
 		}
-		GB403Logger.Verbose().BypassModule(pg.bypassModule).Msgf("Added [%s] custom headers from -spoof-header\n", strings.Join(customHeaders, ","))
+		GB403Logger.Verbose().BypassModule(bypassModule).Msgf("Added [%s] custom headers from -spoof-header\n", strings.Join(customHeaders, ","))
 	}
 
 	ips, err := ReadPayloadsFromFile("internal_ip_hosts.lst")
@@ -325,7 +325,7 @@ func (pg *PayloadGenerator) GenerateHeaderIPPayloads() []BypassPayload {
 				ips = append(ips, ip)
 			}
 		}
-		GB403Logger.Verbose().BypassModule(pg.bypassModule).Msgf("Added [%s] custom IPs from -spoof-ip\n", strings.Join(customIPs, ","))
+		GB403Logger.Verbose().BypassModule(bypassModule).Msgf("Added [%s] custom IPs from -spoof-ip\n", strings.Join(customIPs, ","))
 	}
 
 	// Extract path and query
@@ -336,12 +336,12 @@ func (pg *PayloadGenerator) GenerateHeaderIPPayloads() []BypassPayload {
 
 	// Base job template
 	baseJob := BypassPayload{
-		OriginalURL:  pg.targetURL,
+		OriginalURL:  targetURL,
 		Method:       "GET",
 		Scheme:       parsedURL.Scheme,
 		Host:         parsedURL.Host,
 		RawURI:       rawURI,
-		BypassModule: pg.bypassModule,
+		BypassModule: bypassModule,
 	}
 
 	// Special case job
@@ -384,14 +384,14 @@ func (pg *PayloadGenerator) GenerateHeaderIPPayloads() []BypassPayload {
 		}
 	}
 
-	GB403Logger.Debug().Msgf("[%s] Generated %d payloads for %s\n", pg.bypassModule, len(allJobs), pg.targetURL)
+	GB403Logger.Debug().Msgf("[%s] Generated %d payloads for %s\n", bypassModule, len(allJobs), targetURL)
 	return allJobs
 }
 
-func (pg *PayloadGenerator) GenerateCaseSubstitutionPayloads() []BypassPayload {
+func (pg *PayloadGenerator) GenerateCaseSubstitutionPayloads(targetURL string, bypassModule string) []BypassPayload {
 	var allJobs []BypassPayload
 
-	parsedURL, err := rawurlparser.RawURLParse(pg.targetURL)
+	parsedURL, err := rawurlparser.RawURLParse(targetURL)
 	if err != nil {
 		GB403Logger.Error().Msgf("Failed to parse URL")
 		return allJobs
@@ -428,12 +428,12 @@ func (pg *PayloadGenerator) GenerateCaseSubstitutionPayloads() []BypassPayload {
 	// Convert to PayloadJobs
 	for rawURI := range uniquePaths {
 		job := BypassPayload{
-			OriginalURL:  pg.targetURL,
+			OriginalURL:  targetURL,
 			Method:       "GET",
 			Scheme:       parsedURL.Scheme,
 			Host:         parsedURL.Host,
 			RawURI:       rawURI,
-			BypassModule: pg.bypassModule,
+			BypassModule: bypassModule,
 		}
 
 		job.PayloadToken = GeneratePayloadToken(job)
@@ -441,14 +441,14 @@ func (pg *PayloadGenerator) GenerateCaseSubstitutionPayloads() []BypassPayload {
 		allJobs = append(allJobs, job)
 	}
 
-	GB403Logger.Debug().BypassModule(pg.bypassModule).Msgf("Generated %d payloads for %s\n", len(allJobs), pg.targetURL)
+	GB403Logger.Debug().BypassModule(bypassModule).Msgf("Generated %d payloads for %s\n", len(allJobs), targetURL)
 	return allJobs
 }
 
-func (pg *PayloadGenerator) GenerateCharEncodePayloads() []BypassPayload {
+func (pg *PayloadGenerator) GenerateCharEncodePayloads(targetURL string, bypassModule string) []BypassPayload {
 	var allJobs []BypassPayload
 
-	parsedURL, err := rawurlparser.RawURLParse(pg.targetURL)
+	parsedURL, err := rawurlparser.RawURLParse(targetURL)
 	if err != nil {
 		GB403Logger.Error().Msgf("Failed to parse URL")
 		return allJobs
@@ -469,11 +469,11 @@ func (pg *PayloadGenerator) GenerateCharEncodePayloads() []BypassPayload {
 
 	// Base job template
 	baseJob := BypassPayload{
-		OriginalURL:  pg.targetURL,
+		OriginalURL:  targetURL,
 		Method:       "GET",
 		Scheme:       parsedURL.Scheme,
 		Host:         parsedURL.Host,
-		BypassModule: pg.bypassModule,
+		BypassModule: bypassModule,
 	}
 
 	// Find all letter positions
@@ -511,14 +511,14 @@ func (pg *PayloadGenerator) GenerateCharEncodePayloads() []BypassPayload {
 	createJobs(triplePaths, "char_encode_triple")
 
 	totalJobs := len(singlePaths) + len(doublePaths) + len(triplePaths)
-	GB403Logger.Debug().BypassModule(pg.bypassModule).Msgf("Generated %d payloads for %s\n", totalJobs, pg.targetURL)
+	GB403Logger.Debug().BypassModule(bypassModule).Msgf("Generated %d payloads for %s\n", totalJobs, targetURL)
 	return allJobs
 }
 
-func (pg *PayloadGenerator) GenerateHeaderSchemePayloads() []BypassPayload {
+func (pg *PayloadGenerator) GenerateHeaderSchemePayloads(targetURL string, bypassModule string) []BypassPayload {
 	var allJobs []BypassPayload
 
-	parsedURL, err := rawurlparser.RawURLParse(pg.targetURL)
+	parsedURL, err := rawurlparser.RawURLParse(targetURL)
 	if err != nil {
 		GB403Logger.Error().Msgf("Failed to parse URL")
 		return allJobs
@@ -544,12 +544,12 @@ func (pg *PayloadGenerator) GenerateHeaderSchemePayloads() []BypassPayload {
 
 	// Base job template
 	baseJob := BypassPayload{
-		OriginalURL:  pg.targetURL,
+		OriginalURL:  targetURL,
 		Method:       "GET",
 		Scheme:       parsedURL.Scheme,
 		Host:         parsedURL.Host,
 		RawURI:       rawURI,
-		BypassModule: pg.bypassModule,
+		BypassModule: bypassModule,
 	}
 
 	// Handle special headers with "on" value
@@ -591,14 +591,14 @@ func (pg *PayloadGenerator) GenerateHeaderSchemePayloads() []BypassPayload {
 		}
 	}
 
-	GB403Logger.Debug().BypassModule(pg.bypassModule).Msgf("Generated %d payloads for %s\n", len(allJobs), pg.targetURL)
+	GB403Logger.Debug().BypassModule(bypassModule).Msgf("Generated %d payloads for %s\n", len(allJobs), targetURL)
 	return allJobs
 }
 
-func (pg *PayloadGenerator) GenerateHeaderURLPayloads() []BypassPayload {
+func (pg *PayloadGenerator) GenerateHeaderURLPayloads(targetURL string, bypassModule string) []BypassPayload {
 	var allJobs []BypassPayload
 
-	parsedURL, err := rawurlparser.RawURLParse(pg.targetURL)
+	parsedURL, err := rawurlparser.RawURLParse(targetURL)
 	if err != nil {
 		GB403Logger.Error().Msgf("Failed to parse URL")
 		return allJobs
@@ -629,11 +629,11 @@ func (pg *PayloadGenerator) GenerateHeaderURLPayloads() []BypassPayload {
 
 	// Base job template
 	baseJob := BypassPayload{
-		OriginalURL:  pg.targetURL,
+		OriginalURL:  targetURL,
 		Method:       "GET",
 		Scheme:       parsedURL.Scheme,
 		Host:         parsedURL.Host,
-		BypassModule: pg.bypassModule,
+		BypassModule: bypassModule,
 	}
 
 	for _, headerURL := range headerURLs {
@@ -667,7 +667,7 @@ func (pg *PayloadGenerator) GenerateHeaderURLPayloads() []BypassPayload {
 			job.RawURI = "/"
 			job.Headers = []Headers{{
 				Header: headerURL,
-				Value:  pg.targetURL,
+				Value:  targetURL,
 			}}
 			job.PayloadToken = GeneratePayloadToken(job)
 			allJobs = append(allJobs, job)
@@ -733,14 +733,14 @@ func (pg *PayloadGenerator) GenerateHeaderURLPayloads() []BypassPayload {
 		}
 	}
 
-	GB403Logger.Debug().BypassModule(pg.bypassModule).Msgf("Generated %d payloads for %s\n", len(allJobs), pg.targetURL)
+	GB403Logger.Debug().BypassModule(bypassModule).Msgf("Generated %d payloads for %s\n", len(allJobs), targetURL)
 	return allJobs
 }
 
-func (pg *PayloadGenerator) GenerateHeaderPortPayloads() []BypassPayload {
+func (pg *PayloadGenerator) GenerateHeaderPortPayloads(targetURL string, bypassModule string) []BypassPayload {
 	var allJobs []BypassPayload
 
-	parsedURL, err := rawurlparser.RawURLParse(pg.targetURL)
+	parsedURL, err := rawurlparser.RawURLParse(targetURL)
 	if err != nil {
 		GB403Logger.Error().Msgf("Failed to parse URL")
 		return allJobs
@@ -766,12 +766,12 @@ func (pg *PayloadGenerator) GenerateHeaderPortPayloads() []BypassPayload {
 
 	// Base job template
 	baseJob := BypassPayload{
-		OriginalURL:  pg.targetURL,
+		OriginalURL:  targetURL,
 		Method:       "GET",
 		Scheme:       parsedURL.Scheme,
 		Host:         parsedURL.Host,
 		RawURI:       rawURI,
-		BypassModule: pg.bypassModule,
+		BypassModule: bypassModule,
 	}
 
 	for _, headerPort := range headerPorts {
@@ -791,14 +791,14 @@ func (pg *PayloadGenerator) GenerateHeaderPortPayloads() []BypassPayload {
 		}
 	}
 
-	GB403Logger.Debug().BypassModule(pg.bypassModule).Msgf("Generated %d payloads for %s\n", len(allJobs), pg.targetURL)
+	GB403Logger.Debug().BypassModule(bypassModule).Msgf("Generated %d payloads for %s\n", len(allJobs), targetURL)
 	return allJobs
 }
 
-func (pg *PayloadGenerator) GenerateHostHeaderPayloads() []BypassPayload {
+func (pg *PayloadGenerator) GenerateHostHeaderPayloads(targetURL string, bypassModule string) []BypassPayload {
 	var allJobs []BypassPayload
 
-	parsedURL, err := rawurlparser.RawURLParse(pg.targetURL)
+	parsedURL, err := rawurlparser.RawURLParse(targetURL)
 	if err != nil {
 		GB403Logger.Error().Msgf("Failed to parse URL")
 		return allJobs
@@ -813,15 +813,15 @@ func (pg *PayloadGenerator) GenerateHostHeaderPayloads() []BypassPayload {
 	// Get IP information from cache
 	probeCacheResult, err := pg.reconCache.Get(parsedURL.Hostname)
 	if err != nil || probeCacheResult == nil {
-		GB403Logger.Error().Msgf("No cache result found for %s: %v", pg.targetURL, err)
+		GB403Logger.Error().Msgf("No cache result found for %s: %v", targetURL, err)
 		return allJobs
 	}
 
 	// Base job template
 	baseJob := BypassPayload{
-		OriginalURL:  pg.targetURL,
+		OriginalURL:  targetURL,
 		Method:       "GET",
-		BypassModule: pg.bypassModule,
+		BypassModule: bypassModule,
 	}
 
 	// Process IPv4 Services
@@ -969,7 +969,7 @@ func (pg *PayloadGenerator) GenerateHostHeaderPayloads() []BypassPayload {
 		}
 	}
 
-	GB403Logger.Verbose().BypassModule(pg.bypassModule).Msgf("Generated %d payloads for %s\n", len(allJobs), pg.targetURL)
+	GB403Logger.Verbose().BypassModule(bypassModule).Msgf("Generated %d payloads for %s\n", len(allJobs), targetURL)
 	return allJobs
 }
 
@@ -1001,10 +1001,10 @@ const normalizedMatches = new Set();
 
 normalizedMatches.forEach(match => console.log(match));
 */
-func (pg *PayloadGenerator) GenerateUnicodePathNormalizationsPayloads() []BypassPayload {
+func (pg *PayloadGenerator) GenerateUnicodePathNormalizationsPayloads(targetURL string, bypassModule string) []BypassPayload {
 	var jobs []BypassPayload
 
-	parsedURL, err := rawurlparser.RawURLParse(pg.targetURL)
+	parsedURL, err := rawurlparser.RawURLParse(targetURL)
 	if err != nil {
 		GB403Logger.Error().Msgf("Failed to parse URL: %v\n", err)
 		return jobs
@@ -1046,11 +1046,11 @@ func (pg *PayloadGenerator) GenerateUnicodePathNormalizationsPayloads() []Bypass
 	}
 
 	baseJob := BypassPayload{
-		OriginalURL:  pg.targetURL,
+		OriginalURL:  targetURL,
 		Method:       "GET",
 		Scheme:       parsedURL.Scheme,
 		Host:         parsedURL.Host,
-		BypassModule: pg.bypassModule,
+		BypassModule: bypassModule,
 	}
 
 	uniquePaths := make(map[string]struct{})
@@ -1127,8 +1127,8 @@ func (pg *PayloadGenerator) GenerateUnicodePathNormalizationsPayloads() []Bypass
 		}
 	}
 
-	GB403Logger.Debug().BypassModule(pg.bypassModule).
-		Msgf("Generated %d unicode normalization payloads for %s\n", len(jobs), pg.targetURL)
+	GB403Logger.Debug().BypassModule(bypassModule).
+		Msgf("Generated %d unicode normalization payloads for %s\n", len(jobs), targetURL)
 	return jobs
 }
 

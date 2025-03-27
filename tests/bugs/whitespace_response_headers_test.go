@@ -232,8 +232,8 @@ func TestMidPathsWorkerPool(t *testing.T) {
 	defer pool.Close()
 
 	// Generate payloads
+	pg := payload.NewPayloadGenerator(payload.PayloadGeneratorOptions{})
 
-	pg := payload.NewPayloadGenerator()
 	targetURL := "http://thuxxxxxx1.mp4"
 	jobs := pg.GenerateMidPathsPayloads(targetURL, "midpaths_test")
 
@@ -296,7 +296,7 @@ func TestEndPathsWorkerPool(t *testing.T) {
 	defer pool.Close()
 
 	// Generate payloads
-	pg := payload.NewPayloadGenerator()
+	pg := payload.NewPayloadGenerator(payload.PayloadGeneratorOptions{})
 	targetURL := "https://thsssssss221.mp4"
 	jobs := pg.GenerateEndPathsPayloads(targetURL, "endpaths_test")
 
@@ -364,7 +364,7 @@ func TestFasthttpStreamingConcurrent(t *testing.T) {
 	//workers := 50
 
 	// Generate payloads
-	pg := payload.NewPayloadGenerator()
+	pg := payload.NewPayloadGenerator(payload.PayloadGeneratorOptions{})
 	targetURL := "https://thumbssdasd221.mp4"
 	jobs := pg.GenerateEndPathsPayloads(targetURL, "endpaths_test")
 
@@ -500,7 +500,7 @@ func TestFasthttpStreamingConcurrent2(t *testing.T) {
 	workers := 50 // Limit concurrent workers
 
 	// Generate payloads
-	pg := payload.NewPayloadGenerator()
+	pg := payload.NewPayloadGenerator(payload.PayloadGeneratorOptions{})
 	targetURL := "https://thumbsfdsfsd221.mp4"
 	jobs := pg.GenerateEndPathsPayloads(targetURL, "endpaths_test")
 
@@ -666,7 +666,7 @@ func TestFasthttpStreamingConcurrent3(t *testing.T) {
 	errHandler := GB403ErrorHandler.GetErrorHandler()
 
 	// Generate payloads
-	pg := payload.NewPayloadGenerator()
+	pg := payload.NewPayloadGenerator(payload.PayloadGeneratorOptions{})
 	targetURL := "https://txxxxxxxx0Kssss7221.mp4"
 	jobs := pg.GenerateEndPathsPayloads(targetURL, "endpaths_test")
 
