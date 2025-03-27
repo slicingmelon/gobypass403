@@ -1402,7 +1402,7 @@ func (pg *PayloadGenerator) GenerateUnicodePathNormalizationsPayloads(targetURL 
 		}
 	}
 
-	// 3. Special case: Add full-width slash before the last segment (Caido script technique)
+	// 3. Special case: Add full-width slash before the last segment
 	segments := strings.Split(path, "/")
 	if len(segments) > 1 {
 		lastSegment := segments[len(segments)-1]
