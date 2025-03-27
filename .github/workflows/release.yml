@@ -2,7 +2,7 @@
 name: Build GoBypass403
 
 on:
-  workflow_dispatch:  # Manual trigger via GitHub UI
+  workflow_dispatch:
 
 jobs:
   build-linux-macos:
