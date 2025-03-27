@@ -3,6 +3,7 @@
 
 # Allow some root files
 !.gitignore
+!.github/.workflows/*.yml
 !README.md
 !go.mod
 !go.sum
