@@ -51,9 +51,6 @@ type Scanner struct {
 
 // NewScanner creates a new Scanner instance
 func NewScanner(opts *ScannerOpts, urls []string) *Scanner {
-	// Initialize bypass modules first
-	InitializeBypassModules()
-
 	s := &Scanner{
 		scannerOpts: opts,
 		urls:        urls,
