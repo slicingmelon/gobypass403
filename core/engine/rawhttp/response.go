@@ -11,7 +11,6 @@ import (
 	"runtime"
 	"slices"
 	"sync"
-	"unsafe"
 
 	"github.com/VictoriaMetrics/VictoriaMetrics/lib/bytesutil"
 	"github.com/slicingmelon/gobypass403/core/engine/payload"
@@ -199,22 +198,6 @@ func ProcessHTTPResponse(httpclient *HTTPClient, resp *fasthttp.Response, bypass
 	result.CurlCommand = BuildCurlCommandPoc(bypassPayload, result.CurlCommand)
 
 	return result
-}
-
-// String2Byte converts string to a byte slice without memory allocation.
-// This conversion *does not* copy data. Note that casting via "([]byte)(string)" *does* copy data.
-// Also note that you *should not* change the byte slice after conversion, because Go strings
-// are treated as immutable. This would cause a segmentation violation panic.
-func String2Byte(s string) []byte {
-	return unsafe.Slice(unsafe.StringData(s), len(s))
-}
-
-// Byte2String converts byte slice to a string without memory allocation.
-// This conversion *does not* copy data. Note that casting via "(string)([]byte)" *does* copy data.
-// Also note that you *should not* change the byte slice after conversion, because Go strings
-// are treated as immutable. This would cause a segmentation violation panic.
-func Byte2String(b []byte) string {
-	return unsafe.String(unsafe.SliceData(b), len(b))
 }
 
 // ReadLimitedResponseBodyStream reads limited bytes from a response body stream

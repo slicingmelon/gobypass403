@@ -81,7 +81,7 @@ func (pg *PayloadGenerator) Generate() []BypassPayload {
 	case "unicode_path_normalization":
 		return pg.GenerateUnicodePathNormalizationsPayloads(pg.targetURL, pg.bypassModule)
 	default:
-		GB403Logger.Warning().Msgf("Unknown bypass module: %s\n", pg.bypassModule)
+		//GB403Logger.Warning().Msgf("Unknown bypass module: %s\n", pg.bypassModule)
 		return []BypassPayload{}
 	}
 }

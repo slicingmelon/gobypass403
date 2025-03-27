@@ -7,6 +7,7 @@ import (
 
 	"github.com/slicingmelon/gobypass403/core/engine/payload"
 	"github.com/slicingmelon/gobypass403/core/engine/rawhttp"
+	"github.com/slicingmelon/gobypass403/core/utils/helpers"
 	"github.com/valyala/fasthttp"
 )
 
@@ -159,7 +160,7 @@ func BenchmarkString2ByteConversion(b *testing.B) {
 	b.RunParallel(func(pb *testing.PB) {
 
 		for pb.Next() {
-			_ = rawhttp.String2Byte(s)
+			_ = helpers.String2Byte(s)
 		}
 	})
 }
@@ -169,7 +170,7 @@ func BenchmarkByte2StringConversion(b *testing.B) {
 	b.ResetTimer()
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
-			_ = rawhttp.Byte2String(bytes)
+			_ = helpers.Byte2String(bytes)
 		}
 	})
 }
