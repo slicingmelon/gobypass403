@@ -81,31 +81,21 @@ func TestRequestBuilderViaEchoServer(t *testing.T) {
 		name         string
 		targetURL    string
 		bypassModule string
-		generator    func(pg *payload.PayloadGenerator, url, module string) []payload.BypassPayload
 	}{
 		{
 			name:         "HeaderIP Payloads",
 			targetURL:    "http://example.com/test",
 			bypassModule: "http_headers_ip",
-			generator: func(pg *payload.PayloadGenerator, url, module string) []payload.BypassPayload {
-				return pg.GenerateHeaderIPPayloads(url, module, "", "")
-			},
 		},
 		{
 			name:         "MidPaths Payloads",
 			targetURL:    "http://example.com/test/path",
 			bypassModule: "mid_paths",
-			generator: func(pg *payload.PayloadGenerator, url, module string) []payload.BypassPayload {
-				return pg.GenerateMidPathsPayloads(url, module)
-			},
 		},
 		{
 			name:         "HeaderScheme Payloads",
 			targetURL:    "http://example.com/admin",
-			bypassModule: "header_scheme",
-			generator: func(pg *payload.PayloadGenerator, url, module string) []payload.BypassPayload {
-				return pg.GenerateHeaderSchemePayloads(url, module)
-			},
+			bypassModule: "http_headers_scheme",
 		},
 	}
 
@@ -118,12 +108,20 @@ func TestRequestBuilderViaEchoServer(t *testing.T) {
 			default:
 			}
 
-			pg := payload.NewPayloadGenerator()
-			jobs := tc.generator(pg, tc.targetURL, tc.bypassModule)
+			// Create the payload generator with options
+			pg := payload.NewPayloadGenerator(payload.PayloadGeneratorOptions{
+				TargetURL:    tc.targetURL,
+				BypassModule: tc.bypassModule,
+			})
+
+			// Use the centralized Generate method
+			jobs := pg.Generate()
+
 			if len(jobs) == 0 {
 				t.Fatalf("No payloads generated for %s", tc.name)
 			}
 
+			// Rest of your test code remains the same
 			for i, job := range jobs {
 				select {
 				case <-ctx.Done():
@@ -249,15 +247,11 @@ func TestRequestBuilderMidPathsPayloads(t *testing.T) {
 		name         string
 		targetURL    string
 		bypassModule string
-		generator    func(pg *payload.PayloadGenerator, url, module string) []payload.BypassPayload
 	}{
 		{
 			name:         "MidPaths Payloads",
 			targetURL:    "http://example.com/admin",
 			bypassModule: "mid_paths",
-			generator: func(pg *payload.PayloadGenerator, url, module string) []payload.BypassPayload {
-				return pg.GenerateMidPathsPayloads(url, module)
-			},
 		},
 	}
 
@@ -270,8 +264,14 @@ func TestRequestBuilderMidPathsPayloads(t *testing.T) {
 			default:
 			}
 
-			pg := payload.NewPayloadGenerator()
-			jobs := tc.generator(pg, tc.targetURL, tc.bypassModule)
+			// Create the payload generator with options
+			pg := payload.NewPayloadGenerator(payload.PayloadGeneratorOptions{
+				TargetURL:    tc.targetURL,
+				BypassModule: tc.bypassModule,
+			})
+
+			// Use the centralized Generate method
+			jobs := pg.Generate()
 			if len(jobs) == 0 {
 				t.Fatalf("No payloads generated for %s", tc.name)
 			}

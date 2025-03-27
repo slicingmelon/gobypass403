@@ -62,6 +62,7 @@ type SeedData struct {
 	Host         string // Add separate host
 	RawURI       string // Add separate RawURI
 	Headers      []Headers
+	Body         string
 	BypassModule string
 }
 
@@ -219,6 +220,19 @@ func GeneratePayloadToken(job BypassPayload) string {
 			bb.B = append(bb.B, byte(len(job.BypassModule)))
 			bb.Write(bytesutil.ToUnsafeBytes(job.BypassModule))
 		}
+	}
+
+	// Add Body field - NEW CODE
+	if job.Body != "" {
+		bb.B = append(bb.B, 7) // field type for body (7)
+		bodyLen := len(job.Body)
+		if bodyLen > 255 {
+			// For bodies larger than 255 bytes, use 2-byte length encoding
+			bb.B = append(bb.B, 255, byte(bodyLen>>8), byte(bodyLen&0xFF))
+		} else {
+			bb.B = append(bb.B, byte(bodyLen))
+		}
+		bb.Write(bytesutil.ToUnsafeBytes(job.Body))
 	}
 
 	// Compress and encode the buffer contents
@@ -408,6 +422,24 @@ func DecodePayloadToken(token string) (BypassPayload, error) {
 				result.BypassModule = string(bb[pos : pos+fieldLen])
 			}
 			pos += fieldLen
+
+		case 7: // Body - NEW CODE
+			if fieldLen == 255 && pos+2 <= len(bb) {
+				// Handle large body (length > 255 bytes)
+				highByte := int(bb[pos])
+				lowByte := int(bb[pos+1])
+				actualLen := (highByte << 8) | lowByte
+				pos += 2
+
+				if pos+actualLen <= len(bb) {
+					result.Body = string(bb[pos : pos+actualLen])
+					pos += actualLen
+				}
+			} else {
+				// Normal case
+				result.Body = string(bb[pos : pos+fieldLen])
+				pos += fieldLen
+			}
 		}
 	}
 	return result, nil

@@ -132,18 +132,41 @@ func (r *ReconService) ProcessHost(input string) (*ReconResult, error) {
 		return cached, nil
 	}
 
+	// Update this initialization to include CNAMEs slice
 	result := &ReconResult{
 		Hostname:     host,
 		IPv4Services: make(map[string]map[string][]string),
 		IPv6Services: make(map[string]map[string][]string),
+		CNAMEs:       make([]string, 0), // Initialize the slice
 	}
 
+	// IP and CNAME resolution happens in parallel
+	var wg sync.WaitGroup
+	var mu sync.Mutex // To protect concurrent access to result
+
+	// Only do CNAME lookup if it's not an IP address
+	if net.ParseIP(host) == nil {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			cname, err := r.ResolveCNAME(host)
+			if err == nil && cname != "" && cname != host {
+				mu.Lock()
+				result.CNAMEs = append(result.CNAMEs, cname)
+				mu.Unlock()
+				GB403Logger.Verbose().Msgf("Resolved CNAME for %s: %s", host, cname)
+			}
+		}()
+	}
+
+	// Continue with existing IP resolution code...
 	var ips []net.IP
 	if ip := net.ParseIP(host); ip != nil {
 		ips = []net.IP{ip}
 	} else {
 		ips, err = r.ResolveDomain(host)
 		if err != nil {
+			wg.Wait() // Wait for CNAME resolution to finish before returning error
 			return nil, fmt.Errorf("DNS resolution failed: %v", err)
 		}
 	}
@@ -162,9 +185,6 @@ func (r *ReconService) ProcessHost(input string) (*ReconResult, error) {
 	}
 
 	// Create a wait group for parallel port probing
-	var wg sync.WaitGroup
-	var mu sync.Mutex // To protect services maps
-
 	for _, ip := range ips {
 		ipStr := ip.String()
 		services := result.IPv4Services
@@ -194,9 +214,10 @@ func (r *ReconService) ProcessHost(input string) (*ReconResult, error) {
 		}
 	}
 
-	wg.Wait() // Wait for all port probes to complete
+	// Wait for all goroutines to complete (both CNAME and port probing)
+	wg.Wait()
 
-	// Cache result
+	// Cache result (now with CNAMEs)
 	if err := r.cache.Set(host, result); err != nil {
 		GB403Logger.Error().Msgf("Failed to cache result: %v\n", err)
 	}
@@ -348,6 +369,19 @@ func (r *ReconService) ResolveDomain(host string) ([]net.IP, error) {
 	}
 
 	return ips, nil
+}
+
+func (r *ReconService) ResolveCNAME(host string) (string, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// If the resolver in dialer is our CustomResolver, use it
+	if customResolver, ok := r.dialer.Resolver.(*CustomResolver); ok {
+		return customResolver.LookupCNAME(ctx, host)
+	}
+
+	// Fallback to standard resolver
+	return net.DefaultResolver.LookupCNAME(ctx, host)
 }
 
 func extractHostAndPort(input string) (host string, port string, err error) {

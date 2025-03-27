@@ -27,6 +27,11 @@ type CustomResolver struct {
 	dnsServers []string
 }
 
+type DNSResults struct {
+	IPs    []net.IPAddr
+	CNAMEs []string
+}
+
 func NewCustomResolver(dnsServers []string) *CustomResolver {
 	// Initialize DoH client with multiple providers for automatic fastest selection
 	dohClient := doh.Use(
@@ -221,4 +226,23 @@ func (r *CustomResolver) LookupIPAddr(ctx context.Context, host string) ([]net.I
 		return ips, nil
 	}
 	return nil, fmt.Errorf("all DNS resolution attempts failed")
+}
+
+func (r *CustomResolver) LookupCNAME(ctx context.Context, host string) (string, error) {
+	domain := dns.Domain(host)
+
+	// Try DoH first
+	rspCNAME, err := r.dohClient.Query(ctx, domain, dns.TypeCNAME)
+	if err == nil && rspCNAME != nil && len(rspCNAME.Answer) > 0 {
+		if rspCNAME.Answer[0].Type == 5 {
+			return rspCNAME.Answer[0].Data, nil
+		}
+	}
+
+	// Try system resolver as fallback
+	cname, err := net.DefaultResolver.LookupCNAME(ctx, host)
+	if err != nil || cname == host+"." {
+		return "", fmt.Errorf("no CNAME record")
+	}
+	return cname, nil
 }

@@ -32,8 +32,8 @@ type CliOptions struct {
 	Module                   string
 	MatchStatusCodesStr      string
 	MatchStatusCodes         []int
-	MatchContentType         string
-	MatchContentTypeByte     []byte
+	MatchContentType         string   // New field for multiple types
+	MatchContentTypeBytes    [][]byte // Multiple byte slices for efficient matching
 	Threads                  int
 	Timeout                  int
 	Delay                    int
@@ -80,6 +80,7 @@ var AvailableModules = map[string]bool{
 	"dumb_check":                 true,
 	"mid_paths":                  true,
 	"end_paths":                  true,
+	"http_methods":               true,
 	"case_substitution":          true,
 	"char_encode":                true,
 	"http_headers_scheme":        true,
@@ -97,7 +98,7 @@ func (o *CliOptions) printUsage(flagName ...string) {
 	}
 
 	// Print header only for specific flag usage
-	fmt.Fprintf(os.Stderr, "Go-Bypass-403\n\n")
+	fmt.Fprintf(os.Stderr, "GoByPASS403\n\n")
 
 	// Search for the specific flag in our flags slice
 	for _, f := range flags {
@@ -155,7 +156,7 @@ func (o *CliOptions) setDefaults() {
 
 	// Output directory default
 	if o.OutDir == "" {
-		o.OutDir = filepath.Join(os.TempDir(), fmt.Sprintf("go-bypass-403-%x", time.Now().UnixNano()))
+		o.OutDir = filepath.Join(os.TempDir(), fmt.Sprintf("gobypass403-%x", time.Now().UnixNano()))
 	}
 
 	if o.ResultsDBFile == "" {
@@ -226,7 +227,14 @@ func (o *CliOptions) validate() error {
 	}
 
 	if o.MatchContentType != "" {
-		o.MatchContentTypeByte = bytes.ToLower([]byte(o.MatchContentType))
+		// Split by comma, allowing for spaces
+		types := strings.Split(o.MatchContentType, ",")
+		for _, t := range types {
+			t = strings.TrimSpace(t)
+			if t != "" {
+				o.MatchContentTypeBytes = append(o.MatchContentTypeBytes, bytes.ToLower([]byte(t)))
+			}
+		}
 	}
 
 	return nil

@@ -1,7 +1,7 @@
-project_name: go-bypass-403
+project_name: gobypass403
 builds:
-  - id: go-bypass-403
-    main: ./cmd/go-bypass-403/main.go
+  - id: gobypass403
+    main: ./cmd/gobypass403/
     binary: bin/gobypass403
     goos:
       - linux

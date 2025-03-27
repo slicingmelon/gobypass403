@@ -20,6 +20,7 @@ var BypassModulesRegistry = []string{
 	"dumb_check",
 	"mid_paths",
 	"end_paths",
+	"http_methods",
 	"case_substitution",
 	"char_encode",
 	"http_headers_scheme",
@@ -31,6 +32,66 @@ var BypassModulesRegistry = []string{
 }
 
 type PayloadGenerator struct {
+	targetURL    string
+	bypassModule string
+	reconCache   *recon.ReconCache
+	spoofHeader  string
+	spoofIP      string
+}
+
+type PayloadGeneratorOptions struct {
+	TargetURL    string
+	BypassModule string
+	ReconCache   *recon.ReconCache
+	SpoofHeader  string
+	SpoofIP      string
+}
+
+func NewPayloadGenerator(opts PayloadGeneratorOptions) *PayloadGenerator {
+	return &PayloadGenerator{
+		targetURL:    opts.TargetURL,
+		bypassModule: opts.BypassModule,
+		reconCache:   opts.ReconCache,
+		spoofHeader:  opts.SpoofHeader,
+		spoofIP:      opts.SpoofIP,
+	}
+}
+
+func (pg *PayloadGenerator) Generate() []BypassPayload {
+	switch pg.bypassModule {
+	case "dumb_check":
+		return pg.GenerateDumbCheckPayload(pg.targetURL, pg.bypassModule)
+	case "mid_paths":
+		return pg.GenerateMidPathsPayloads(pg.targetURL, pg.bypassModule)
+	case "end_paths":
+		return pg.GenerateEndPathsPayloads(pg.targetURL, pg.bypassModule)
+	case "case_substitution":
+		return pg.GenerateCaseSubstitutionPayloads(pg.targetURL, pg.bypassModule)
+	case "http_methods":
+		return pg.GenerateHTTPMethodsPayloads(pg.targetURL, pg.bypassModule)
+	case "char_encode":
+		return pg.GenerateCharEncodePayloads(pg.targetURL, pg.bypassModule)
+	case "http_headers_scheme":
+		return pg.GenerateHeaderSchemePayloads(pg.targetURL, pg.bypassModule)
+	case "http_headers_ip":
+		return pg.GenerateHeaderIPPayloads(pg.targetURL, pg.bypassModule)
+	case "http_headers_port":
+		return pg.GenerateHeaderPortPayloads(pg.targetURL, pg.bypassModule)
+	case "http_headers_url":
+		return pg.GenerateHeaderURLPayloads(pg.targetURL, pg.bypassModule)
+	case "http_host":
+		return pg.GenerateHostHeaderPayloads(pg.targetURL, pg.bypassModule)
+	case "unicode_path_normalization":
+		return pg.GenerateUnicodePathNormalizationsPayloads(pg.targetURL, pg.bypassModule)
+	default:
+		//GB403Logger.Warning().Msgf("Unknown bypass module: %s\n", pg.bypassModule)
+		return []BypassPayload{}
+	}
+}
+
+type Headers struct {
+	Header string
+	Value  string
 }
 
 type BypassPayload struct {
@@ -40,17 +101,9 @@ type BypassPayload struct {
 	Host         string    // this gets updated
 	RawURI       string    // this gets updated, represents everything that goes into the first line of the request u
 	Headers      []Headers // all headers as result of various payload generators
+	Body         string    // this gets updated, represents everything that goes into the body of the request
 	BypassModule string    // always gets updated
 	PayloadToken string    // always gets updated
-}
-
-func NewPayloadGenerator() *PayloadGenerator {
-	return &PayloadGenerator{}
-}
-
-type Headers struct {
-	Header string
-	Value  string
 }
 
 func (pg *PayloadGenerator) GenerateDumbCheckPayload(targetURL string, bypassModule string) []BypassPayload {
@@ -234,7 +287,7 @@ func (pg *PayloadGenerator) GenerateEndPathsPayloads(targetURL string, bypassMod
 	return jobs
 }
 
-func (pg *PayloadGenerator) GenerateHeaderIPPayloads(targetURL string, bypassModule string, spoofHeader string, spoofIP string) []BypassPayload {
+func (pg *PayloadGenerator) GenerateHeaderIPPayloads(targetURL string, bypassModule string) []BypassPayload {
 	var allJobs []BypassPayload
 
 	parsedURL, err := rawurlparser.RawURLParse(targetURL)
@@ -250,8 +303,8 @@ func (pg *PayloadGenerator) GenerateHeaderIPPayloads(targetURL string, bypassMod
 	}
 
 	// Add custom headers (cli -spoof-header)
-	if spoofHeader != "" {
-		customHeaders := strings.Split(spoofHeader, ",")
+	if pg.spoofHeader != "" {
+		customHeaders := strings.Split(pg.spoofHeader, ",")
 		for _, header := range customHeaders {
 			header = strings.TrimSpace(header)
 			if header != "" {
@@ -268,8 +321,8 @@ func (pg *PayloadGenerator) GenerateHeaderIPPayloads(targetURL string, bypassMod
 	}
 
 	// Add custom spoof IPs
-	if spoofIP != "" {
-		customIPs := strings.Split(spoofIP, ",")
+	if pg.spoofIP != "" {
+		customIPs := strings.Split(pg.spoofIP, ",")
 		for _, ip := range customIPs {
 			ip = strings.TrimSpace(ip)
 			if ip != "" {
@@ -336,6 +389,104 @@ func (pg *PayloadGenerator) GenerateHeaderIPPayloads(targetURL string, bypassMod
 	}
 
 	GB403Logger.Debug().Msgf("[%s] Generated %d payloads for %s\n", bypassModule, len(allJobs), targetURL)
+	return allJobs
+}
+
+func (pg *PayloadGenerator) GenerateHTTPMethodsPayloads(targetURL string, bypassModule string) []BypassPayload {
+	var allJobs []BypassPayload
+
+	parsedURL, err := rawurlparser.RawURLParse(targetURL)
+	if err != nil {
+		GB403Logger.Error().Msgf("Failed to parse URL")
+		return allJobs
+	}
+
+	httpMethods, err := ReadPayloadsFromFile("internal_http_methods.lst")
+	if err != nil {
+		GB403Logger.Error().Msgf("Failed to read HTTP methods: %v", err)
+		return allJobs
+	}
+
+	// Extract path and query
+	path := parsedURL.Path
+	query := ""
+	if parsedURL.Query != "" {
+		query = "?" + parsedURL.Query
+	}
+
+	// Base job template
+	baseJob := BypassPayload{
+		OriginalURL:  targetURL,
+		Scheme:       parsedURL.Scheme,
+		Host:         parsedURL.Host,
+		BypassModule: bypassModule,
+	}
+
+	// Methods that require Content-Length header
+	requiresContentLength := map[string]struct{}{
+		"POST":      {},
+		"PUT":       {},
+		"PATCH":     {},
+		"PROPFIND":  {},
+		"PROPPATCH": {},
+		"MKCOL":     {},
+		"LOCK":      {},
+		"UNLOCK":    {},
+		"DELETE":    {},
+	}
+
+	for _, method := range httpMethods {
+		// Skip empty methods
+		if method == "" {
+			continue
+		}
+
+		// Basic case: method with original path+query
+		job := baseJob
+		job.Method = method
+		job.RawURI = path + query
+
+		// Add Content-Length header if needed
+		if _, needsContentLength := requiresContentLength[method]; needsContentLength {
+			job.Headers = append(job.Headers, Headers{
+				Header: "Content-Length",
+				Value:  "0",
+			})
+
+			// For POST requests, create an additional variant with query in body
+			if method == "POST" && parsedURL.Query != "" {
+				// Create a job with path only (no query) for POST
+				postJob := baseJob
+				postJob.Method = method
+				postJob.RawURI = path // No query in URL
+
+				// Set query as body data without the leading "?"
+				bodyData := parsedURL.Query
+
+				// Add proper headers for form data
+				postJob.Headers = append(postJob.Headers, Headers{
+					Header: "Content-Type",
+					Value:  "application/x-www-form-urlencoded",
+				})
+				postJob.Headers = append(postJob.Headers, Headers{
+					Header: "Content-Length",
+					Value:  fmt.Sprintf("%d", len(bodyData)),
+				})
+
+				// Add the body data
+				postJob.Body = bodyData
+
+				postJob.PayloadToken = GeneratePayloadToken(postJob)
+				allJobs = append(allJobs, postJob)
+			}
+		}
+
+		// Generate token and add job (fixed from postJob to job)
+		job.PayloadToken = GeneratePayloadToken(job)
+		allJobs = append(allJobs, job)
+	}
+
+	GB403Logger.Debug().BypassModule(bypassModule).Msgf("Generated %d payloads for %s\n", len(allJobs), targetURL)
 	return allJobs
 }
 
@@ -746,7 +897,7 @@ func (pg *PayloadGenerator) GenerateHeaderPortPayloads(targetURL string, bypassM
 	return allJobs
 }
 
-func (pg *PayloadGenerator) GenerateHostHeaderPayloads(targetURL string, bypassModule string, reconCache *recon.ReconCache) []BypassPayload {
+func (pg *PayloadGenerator) GenerateHostHeaderPayloads(targetURL string, bypassModule string) []BypassPayload {
 	var allJobs []BypassPayload
 
 	parsedURL, err := rawurlparser.RawURLParse(targetURL)
@@ -762,7 +913,7 @@ func (pg *PayloadGenerator) GenerateHostHeaderPayloads(targetURL string, bypassM
 	}
 
 	// Get IP information from cache
-	probeCacheResult, err := reconCache.Get(parsedURL.Hostname)
+	probeCacheResult, err := pg.reconCache.Get(parsedURL.Hostname)
 	if err != nil || probeCacheResult == nil {
 		GB403Logger.Error().Msgf("No cache result found for %s: %v", targetURL, err)
 		return allJobs
@@ -845,6 +996,77 @@ func (pg *PayloadGenerator) GenerateHostHeaderPayloads(targetURL string, bypassM
 				}}
 				job2.PayloadToken = GeneratePayloadToken(job2)
 				allJobs = append(allJobs, job2)
+			}
+		}
+	}
+
+	// Process CNAMEs - New section
+	if len(probeCacheResult.CNAMEs) > 0 {
+		//GB403Logger.Verbose().BypassModule(bypassModule).Msgf("Found %d CNAMEs for %s", len(probeCacheResult.CNAMEs), parsedURL.Hostname)
+
+		for _, rawCname := range probeCacheResult.CNAMEs {
+			// Strip trailing dot that's common in DNS responses
+			cname := strings.TrimSuffix(rawCname, ".")
+
+			// Skip if CNAME is empty after trimming
+			if cname == "" {
+				continue
+			}
+
+			// 1. Original URL + CNAME in Host header
+			job1 := baseJob
+			job1.Scheme = parsedURL.Scheme
+			job1.Host = parsedURL.Host
+			job1.RawURI = pathAndQuery
+			job1.Headers = []Headers{{
+				Header: "Host",
+				Value:  cname,
+			}}
+			job1.PayloadToken = GeneratePayloadToken(job1)
+			allJobs = append(allJobs, job1)
+
+			// 2. URL with CNAME + original host in Host header
+			job2 := baseJob
+			job2.Scheme = parsedURL.Scheme
+			job2.Host = cname
+			job2.RawURI = pathAndQuery
+			job2.Headers = []Headers{{
+				Header: "Host",
+				Value:  parsedURL.Host,
+			}}
+			job2.PayloadToken = GeneratePayloadToken(job2)
+			allJobs = append(allJobs, job2)
+
+			// 3. URL with CNAME + CNAME in Host header too
+			job3 := baseJob
+			job3.Scheme = parsedURL.Scheme
+			job3.Host = cname
+			job3.RawURI = pathAndQuery
+			job3.Headers = []Headers{{
+				Header: "Host",
+				Value:  cname,
+			}}
+			job3.PayloadToken = GeneratePayloadToken(job3)
+			allJobs = append(allJobs, job3)
+
+			// 4. Partial CNAME suffix tests - recursive domain parts
+			domainParts := strings.Split(cname, ".")
+			if len(domainParts) > 2 { // Only if we have subdomains
+				for i := 1; i < len(domainParts)-1; i++ {
+					// Build partial domain from current position to the end
+					partialDomain := strings.Join(domainParts[i:], ".")
+
+					job := baseJob
+					job.Scheme = parsedURL.Scheme
+					job.Host = parsedURL.Host
+					job.RawURI = pathAndQuery
+					job.Headers = []Headers{{
+						Header: "Host",
+						Value:  partialDomain,
+					}}
+					job.PayloadToken = GeneratePayloadToken(job)
+					allJobs = append(allJobs, job)
+				}
 			}
 		}
 	}

@@ -8,7 +8,6 @@ package scanner
 import (
 	"bytes"
 	"fmt"
-	"math/rand"
 	"slices"
 	"strings"
 	"sync"
@@ -21,87 +20,30 @@ import (
 	GB403Logger "github.com/slicingmelon/gobypass403/core/utils/logger"
 )
 
-// BypassModule defines the interface for all bypass modules
-type BypassModule struct {
-	Name         string
-	payloadGen   *payload.PayloadGenerator
-	GenerateJobs func(targetURL string, bypassMmode string, opts *ScannerOpts) []payload.BypassPayload
-}
-
-func NewBypassModule(name string) *BypassModule {
-	return &BypassModule{
-		Name:       name,
-		payloadGen: payload.NewPayloadGenerator(),
-	}
-}
-
 // Registry of all bypass modules
-var bypassModules = map[string]*BypassModule{
-	"dumb_check":                 NewBypassModule("dumb_check"),
-	"mid_paths":                  NewBypassModule("mid_paths"),
-	"end_paths":                  NewBypassModule("end_paths"),
-	"http_headers_ip":            NewBypassModule("http_headers_ip"),
-	"case_substitution":          NewBypassModule("case_substitution"),
-	"char_encode":                NewBypassModule("char_encode"),
-	"http_host":                  NewBypassModule("http_host"),
-	"http_headers_scheme":        NewBypassModule("http_headers_scheme"),
-	"http_headers_port":          NewBypassModule("http_headers_port"),
-	"http_headers_url":           NewBypassModule("http_headers_url"),
-	"unicode_path_normalization": NewBypassModule("unicode_path_normalization"),
+var AvailableBypassModules = []string{
+	"dumb_check",
+	"mid_paths",
+	"end_paths",
+	"http_methods",
+	"case_substitution",
+	"char_encode",
+	"http_headers_ip",
+	"http_host",
+	"http_headers_scheme",
+	"http_headers_port",
+	"http_headers_url",
+	"unicode_path_normalization",
 }
 
-// Registry of all bypass modules
-func InitializeBypassModules() {
-	for _, module := range bypassModules {
-		module.payloadGen = payload.NewPayloadGenerator()
-
-		switch module.Name {
-		case "dumb_check":
-			module.GenerateJobs = func(targetURL string, bypassModule string, opts *ScannerOpts) []payload.BypassPayload {
-				return module.payloadGen.GenerateDumbCheckPayload(targetURL, bypassModule)
-			}
-		case "mid_paths":
-			module.GenerateJobs = func(targetURL string, bypassModule string, opts *ScannerOpts) []payload.BypassPayload {
-				return module.payloadGen.GenerateMidPathsPayloads(targetURL, bypassModule)
-			}
-		case "end_paths":
-			module.GenerateJobs = func(targetURL string, bypassModule string, opts *ScannerOpts) []payload.BypassPayload {
-				return module.payloadGen.GenerateEndPathsPayloads(targetURL, bypassModule)
-			}
-		case "http_headers_ip":
-			module.GenerateJobs = func(targetURL string, bypassModule string, opts *ScannerOpts) []payload.BypassPayload {
-				return module.payloadGen.GenerateHeaderIPPayloads(targetURL, bypassModule, opts.SpoofHeader, opts.SpoofIP)
-			}
-		case "case_substitution":
-			module.GenerateJobs = func(targetURL string, bypassModule string, opts *ScannerOpts) []payload.BypassPayload {
-				return module.payloadGen.GenerateCaseSubstitutionPayloads(targetURL, bypassModule)
-			}
-		case "char_encode":
-			module.GenerateJobs = func(targetURL string, bypassModule string, opts *ScannerOpts) []payload.BypassPayload {
-				return module.payloadGen.GenerateCharEncodePayloads(targetURL, bypassModule)
-			}
-		case "http_host":
-			module.GenerateJobs = func(targetURL string, bypassModule string, opts *ScannerOpts) []payload.BypassPayload {
-				return module.payloadGen.GenerateHostHeaderPayloads(targetURL, bypassModule, opts.ReconCache)
-			}
-		case "http_headers_scheme":
-			module.GenerateJobs = func(targetURL string, bypassModule string, opts *ScannerOpts) []payload.BypassPayload {
-				return module.payloadGen.GenerateHeaderSchemePayloads(targetURL, bypassModule)
-			}
-		case "http_headers_port":
-			module.GenerateJobs = func(targetURL string, bypassModule string, opts *ScannerOpts) []payload.BypassPayload {
-				return module.payloadGen.GenerateHeaderPortPayloads(targetURL, bypassModule)
-			}
-		case "http_headers_url":
-			module.GenerateJobs = func(targetURL string, bypassModule string, opts *ScannerOpts) []payload.BypassPayload {
-				return module.payloadGen.GenerateHeaderURLPayloads(targetURL, bypassModule)
-			}
-		case "unicode_path_normalization":
-			module.GenerateJobs = func(targetURL string, bypassModule string, opts *ScannerOpts) []payload.BypassPayload {
-				return module.payloadGen.GenerateUnicodePathNormalizationsPayloads(targetURL, bypassModule)
-			}
+// IsValidBypassModule checks if a module is valid
+func IsValidBypassModule(moduleName string) bool {
+	for _, module := range AvailableBypassModules {
+		if module == moduleName {
+			return true
 		}
 	}
+	return false
 }
 
 type BypassWorker struct {
@@ -189,12 +131,21 @@ func (s *Scanner) RunAllBypasses(targetURL string) int {
 
 // Run a specific Bypass Module and return the number of findings
 func (s *Scanner) RunBypassModule(bypassModule string, targetURL string) int {
-	moduleInstance, exists := bypassModules[bypassModule]
-	if !exists {
+	if !IsValidBypassModule(bypassModule) {
+		GB403Logger.Error().Msgf("Invalid bypass module: %s\n", bypassModule)
 		return 0
 	}
 
-	allJobs := moduleInstance.GenerateJobs(targetURL, bypassModule, s.scannerOpts)
+	pg := payload.NewPayloadGenerator(payload.PayloadGeneratorOptions{
+		TargetURL:    targetURL,
+		BypassModule: bypassModule,
+		ReconCache:   s.scannerOpts.ReconCache,
+		SpoofHeader:  s.scannerOpts.SpoofHeader,
+		SpoofIP:      s.scannerOpts.SpoofIP,
+	})
+
+	allJobs := pg.Generate()
+
 	totalJobs := len(allJobs)
 	if totalJobs == 0 {
 		GB403Logger.Warning().Msgf("No jobs generated for bypass module: %s\n", bypassModule)
@@ -204,7 +155,7 @@ func (s *Scanner) RunBypassModule(bypassModule string, targetURL string) int {
 	GB403Logger.Info().Msgf("[%s] Generated %d payloads for %s\n", bypassModule, totalJobs, targetURL)
 
 	maxModuleNameLength := 0
-	for module := range bypassModules {
+	for _, module := range AvailableBypassModules {
 		if len(module) > maxModuleNameLength {
 			maxModuleNameLength = len(module)
 		}
@@ -221,10 +172,10 @@ func (s *Scanner) RunBypassModule(bypassModule string, targetURL string) int {
 	cfg.UseColors = true
 	cfg.ExtraLines = 1
 
-	colors := []string{progressbar.RedBar, progressbar.GreenBar, progressbar.YellowBar, progressbar.BlueBar, progressbar.WhiteBar}
-	cfg.Color = colors[rand.Intn(len(colors))]
+	//colors := []string{progressbar.RedBar, progressbar.GreenBar, progressbar.YellowBar, progressbar.BlueBar, progressbar.WhiteBar}
+	//cfg.Color = colors[rand.Intn(len(colors))]
+	cfg.Color = progressbar.RedBar
 	// Create new progress bar
-
 	bar := cfg.NewBar()
 
 	responses := worker.requestPool.ProcessRequests(allJobs)
@@ -244,15 +195,22 @@ func (s *Scanner) RunBypassModule(bypassModule string, targetURL string) int {
 
 		// weird bug "overflowing" on the text above the progressbar ... spaces fixes it
 		msg := fmt.Sprintf(
-			"Workers [%d/%d] | Rate [%d req/s] Avg [%d req/s] | Completed %d/%d    ",
+			"  Workers [%d/%d] | Rate [%d req/s] Avg [%d req/s] | Completed %d/%d    ",
 			active, maxWorkers, currentRate, avgRate, completed, uint64(totalJobs),
 		)
 		bar.WriteAbove(msg)
 
 		if matchStatusCodes(response.StatusCode, s.scannerOpts.MatchStatusCodes) {
-			if len(s.scannerOpts.MatchContentTypeByte) > 0 {
-				if !bytes.Contains(response.ContentType, s.scannerOpts.MatchContentTypeByte) {
-					continue
+			if len(s.scannerOpts.MatchContentTypeBytes) > 0 {
+				contentTypeMatched := false
+				for _, matchType := range s.scannerOpts.MatchContentTypeBytes {
+					if bytes.Contains(response.ContentType, matchType) {
+						contentTypeMatched = true
+						break
+					}
+				}
+				if !contentTypeMatched {
+					continue // Skip this response
 				}
 			}
 
