@@ -67,6 +67,8 @@ func (pg *PayloadGenerator) Generate() []BypassPayload {
 		return pg.GenerateEndPathsPayloads(pg.targetURL, pg.bypassModule)
 	case "case_substitution":
 		return pg.GenerateCaseSubstitutionPayloads(pg.targetURL, pg.bypassModule)
+	case "http_methods":
+		return pg.GenerateHTTPMethodsPayloads(pg.targetURL, pg.bypassModule)
 	case "char_encode":
 		return pg.GenerateCharEncodePayloads(pg.targetURL, pg.bypassModule)
 	case "http_headers_scheme":
