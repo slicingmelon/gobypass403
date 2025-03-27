@@ -63,6 +63,7 @@ func parseFlags() (*CliOptions, error) {
 		{name: "v,verbose", usage: "Verbose output", value: &opts.Verbose, defVal: false},
 		{name: "d,debug", usage: "Debug mode with request canaries", value: &opts.Debug, defVal: false},
 		{name: "mc,match-status-code", usage: "Filter results by HTTP status codes (example: -mc 200, 301, 500, all). Default: All status codes", value: &opts.MatchStatusCodesStr},
+		{name: "mct,match-content-type", usage: "Filter results by content type substring (example: -mct application/json)", value: &opts.MatchContentType},
 		{name: "http2", usage: "Enable HTTP2 client", value: &opts.EnableHTTP2, defVal: false},
 		{name: "x,proxy", usage: "Proxy URL (format: http://proxy:port) (Example: -x http://127.0.0.1:8080)", value: &opts.Proxy},
 		{name: "spoof-header", usage: "Add more headers used to spoof IPs (example: X-SecretIP-Header,X-GO-IP)", value: &opts.SpoofHeader},
@@ -70,11 +71,11 @@ func parseFlags() (*CliOptions, error) {
 		{name: "fr,follow-redirects", usage: "Follow HTTP redirects", value: &opts.FollowRedirects},
 		{name: "rbps,response-body-preview-size", usage: "Maximum number of bytes to retrieve from response body", value: &opts.ResponseBodyPreviewSize, defVal: 1024},
 		{name: "drbs,disable-response-body-streaming", usage: "Disables streaming of response body (default: False)", value: &opts.DisableStreamResponseBody, defVal: false},
-		{name: "update-payloads", usage: "Update payload files to latest version", value: &opts.UpdatePayloads, defVal: false},
 		{name: "dpb,disable-progress-bar", usage: "Disable progress bar", value: &opts.DisableProgressBar, defVal: false},
 		{name: "r,resend,resend-request", usage: "Resend the exact request using the debug token (example: -r xyzdebugtoken)", value: &opts.ResendRequest},
 		{name: "rn,resend-num,resend-request-num", usage: "Number of times to resend the debugged request (Default: 1)", value: &opts.ResendNum, defVal: 1},
 		{name: "profile", usage: "Enable pprof profiler", value: &opts.Profile, defVal: false},
+		{name: "update-payloads", usage: "Update payload files to latest version", value: &opts.UpdatePayloads, defVal: false},
 	}
 
 	// Set up custom usage

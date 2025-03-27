@@ -2,6 +2,7 @@ package rawhttp
 
 import (
 	"context"
+	"errors"
 	"sync/atomic"
 	"time"
 
@@ -37,7 +38,8 @@ func NewRequestWorkerPool(opts *HTTPClientOptions, maxWorkers int) *RequestWorke
 		httpClient: NewHTTPClient(opts),
 		ctx:        ctx,
 		cancel:     cancel,
-		pool:       pond.NewPool(maxWorkers, pond.WithContext(ctx)),
+		pool:       pond.NewPool(maxWorkers),
+		//pool:       pond.NewPool(maxWorkers, pond.WithQueueSize(maxWorkers)),
 		maxWorkers: maxWorkers,
 	}
 
@@ -122,43 +124,59 @@ func (wp *RequestWorkerPool) ResetPeakRate() {
 
 // ProcessRequests handles multiple payload jobs
 func (wp *RequestWorkerPool) ProcessRequests(bypassPayloads []payload.BypassPayload) <-chan *RawHTTPResponseDetails {
-	results := make(chan *RawHTTPResponseDetails)
+	results := make(chan *RawHTTPResponseDetails, len(bypassPayloads))
+
+	// Create task group with context for cancellation
 	group := wp.pool.NewGroupContext(wp.ctx)
 
 	for _, bypassPayload := range bypassPayloads {
-		bypassPayload := bypassPayload // Capture for closure
-		group.Submit(func() {
+		bypassPayload := bypassPayload
+		group.SubmitErr(func() error {
+			// Check for cancellation
+			if wp.ctx.Err() != nil {
+				return nil
+			}
+
 			resp, err := wp.ProcessRequestResponseJob(bypassPayload)
 
-			// Check for the critical error that should cancel everything
-			if err == ErrReqFailedMaxConsecutiveFails {
-				wp.cancel() // Cancel context to stop all other jobs
-				return
+			// Only propagate critical errors to pond, swallow the rest
+			if err != nil {
+				if errors.Is(err, ErrReqFailedMaxConsecutiveFails) {
+					// Only return this specific error to pond
+					return ErrReqFailedMaxConsecutiveFails
+				}
+				// For all other errors, just log them but don't return to pond
+				//GB403Logger.Debug().Msgf("Request error (handled): %v", err)
+				return nil
 			}
 
-			// Only send valid responses to the results channel
-			if resp != nil {
-				select {
-				case <-wp.ctx.Done():
-					return
-				case results <- resp:
-				}
+			// Only send valid responses
+			if resp != nil && wp.ctx.Err() == nil {
+				results <- resp
 			}
+
+			return nil
 		})
 	}
 
+	// Handle completion or error
 	go func() {
 		defer close(results)
-		select {
-		case <-wp.ctx.Done():
-			// Context was cancelled (due to max consecutive failures)
-			GB403Logger.Warning().Msgf("Worker pool cancelled: max consecutive failures reached for module [%s]\n",
-				wp.httpClient.options.BypassModule)
-			wp.pool.StopAndWait() // Ensure all workers are stopped
-			return
-		case <-group.Done():
-			// Normal completion
+
+		err := group.Wait()
+
+		if err != nil {
+			if errors.Is(err, ErrReqFailedMaxConsecutiveFails) {
+				GB403Logger.Warning().Msgf("[!!!] Worker pool Wait() returned max consecutive failures for [%s]\n\n",
+					wp.httpClient.GetHTTPClientOptions().BypassModule)
+			} else if err != context.Canceled {
+				GB403Logger.Warning().Msgf("Worker pool for [%s] returned unexpected error: %v\n\n",
+					wp.httpClient.GetHTTPClientOptions().BypassModule, err)
+			}
 		}
+
+		// GB403Logger.Debug().Msgf("Worker pool for module [%s] completed\n\n",
+		// 	wp.httpClient.GetHTTPClientOptions().BypassModule)
 	}()
 
 	return results
@@ -189,7 +207,8 @@ func (wp *RequestWorkerPool) ProcessRequestResponseJob(bypassPayload payload.Byp
 	respTime, err := wp.httpClient.DoRequest(req, resp, bypassPayload)
 	if err != nil {
 		// Pass through the critical error for handling at higher level
-		if err == ErrReqFailedMaxConsecutiveFails {
+		if errors.Is(err, ErrReqFailedMaxConsecutiveFails) {
+			wp.cancel() // faster?
 			return nil, ErrReqFailedMaxConsecutiveFails
 		}
 		return nil, err

@@ -139,27 +139,6 @@ func (l *LimitedWriter) Write(p []byte) (n int, err error) {
 	return
 }
 
-var (
-	limitedWriterPool = sync.Pool{
-		New: func() any {
-			return &LimitedWriter{}
-		},
-	}
-)
-
-func AcquireLimitedWriter(w io.Writer, n int64) *LimitedWriter {
-	lw := limitedWriterPool.Get().(*LimitedWriter)
-	lw.W = w
-	lw.N = n
-	return lw
-}
-
-func ReleaseLimitedWriter(lw *LimitedWriter) {
-	lw.W = nil
-	lw.N = 0
-	limitedWriterPool.Put(lw)
-}
-
 func ProcessHTTPResponse(httpclient *HTTPClient, resp *fasthttp.Response, bypassPayload payload.BypassPayload) *RawHTTPResponseDetails {
 	// Acquire a single result
 	result := AcquireResponseDetails()
@@ -189,21 +168,21 @@ func ProcessHTTPResponse(httpclient *HTTPClient, resp *fasthttp.Response, bypass
 		previewSize := httpClientOpts.ResponseBodyPreviewSize
 
 		buf := respPreviewBufPool.Get()
+		defer respPreviewBufPool.Put(buf)
 
-		limitedWriter := AcquireLimitedWriter(buf, int64(previewSize))
+		limitedWriter := &LimitedWriter{
+			W: buf,
+			N: int64(previewSize),
+		}
 
 		if err := resp.BodyWriteTo(limitedWriter); err != nil && err != io.EOF {
 			GB403Logger.Debug().Msgf("Error reading body: %v", err)
 		}
 
-		ReleaseLimitedWriter(limitedWriter)
-
 		if len(buf.B) > 0 {
 			result.ResponsePreview = append(result.ResponsePreview, buf.B...)
 			result.ResponseBytes = len(buf.B)
 		}
-
-		respPreviewBufPool.Put(buf)
 	}
 
 	// 5. Extract title if HTML

@@ -1,13 +1,16 @@
 package scanner
 
 import (
+	"bytes"
 	"fmt"
+	"math/rand"
 	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 
+	"fortio.org/progressbar"
 	"github.com/slicingmelon/go-bypass-403/internal/engine/payload"
 	"github.com/slicingmelon/go-bypass-403/internal/engine/rawhttp"
 	GB403Logger "github.com/slicingmelon/go-bypass-403/internal/utils/logger"
@@ -187,48 +190,66 @@ func (s *Scanner) RunBypassModule(bypassModule string, targetURL string) int {
 	}
 
 	allJobs := moduleInstance.GenerateJobs(targetURL, bypassModule, s.scannerOpts)
-	if len(allJobs) == 0 {
+	totalJobs := len(allJobs)
+	if totalJobs == 0 {
 		GB403Logger.Warning().Msgf("No jobs generated for bypass module: %s\n", bypassModule)
 		return 0
 	}
 
-	GB403Logger.Info().Msgf("[%s] Generated %d payloads for %s\n", bypassModule, len(allJobs), targetURL)
+	GB403Logger.Info().Msgf("[%s] Generated %d payloads for %s\n", bypassModule, totalJobs, targetURL)
 
-	worker := NewBypassWorker(bypassModule, targetURL, s.scannerOpts, len(allJobs))
-	defer worker.Stop()
-
-	var progressBar *ProgressBar
-	if s.progressBarEnabled.Load() {
-		progressBar = NewProgressBar(bypassModule, targetURL, len(allJobs), s.scannerOpts.Threads)
-		progressBar.Start()
-		defer progressBar.Stop()
+	maxModuleNameLength := 0
+	for module := range bypassModules {
+		if len(module) > maxModuleNameLength {
+			maxModuleNameLength = len(module)
+		}
 	}
 
-	responses := worker.requestPool.ProcessRequests(allJobs)
+	worker := NewBypassWorker(bypassModule, targetURL, s.scannerOpts, totalJobs)
+	defer worker.Stop()
 
+	maxWorkers := s.scannerOpts.Threads
+	// Create new progress bar configuration
+	cfg := progressbar.DefaultConfig()
+	//cfg.Prefix = bypassModule
+	cfg.Prefix = bypassModule + strings.Repeat(" ", maxModuleNameLength-len(bypassModule))
+	cfg.UseColors = true
+	cfg.ExtraLines = 1
+
+	colors := []string{progressbar.RedBar, progressbar.GreenBar, progressbar.YellowBar, progressbar.BlueBar, progressbar.WhiteBar}
+	cfg.Color = colors[rand.Intn(len(colors))]
+	// Create new progress bar
+
+	bar := cfg.NewBar()
+
+	responses := worker.requestPool.ProcessRequests(allJobs)
 	var dbWg sync.WaitGroup
 	resultCount := atomic.Int32{}
 
-	// Process responses and update progress based on pool metrics
 	for response := range responses {
 		if response == nil {
 			continue
 		}
 
-		// Update progress bar to match pool state
-		if progressBar != nil {
-			progressBar.Increment()
-			progressBar.UpdateSpinnerText(
-				worker.requestPool.GetReqWPActiveWorkers(),
-				worker.requestPool.GetReqWPCompletedTasks(),
-				worker.requestPool.GetReqWPSubmittedTasks(),
-				worker.requestPool.GetRequestRate(),
-				worker.requestPool.GetAverageRequestRate(),
-			)
-		}
+		// Update progress bar with current stats
+		completed := worker.requestPool.GetReqWPCompletedTasks()
+		active := worker.requestPool.GetReqWPActiveWorkers()
+		currentRate := worker.requestPool.GetRequestRate()
+		avgRate := worker.requestPool.GetAverageRequestRate()
+
+		msg := fmt.Sprintf(
+			"Workers [%d/%d] | Rate [%d req/s] Avg [%d req/s] | Completed %d/%d --",
+			active, maxWorkers, currentRate, avgRate, completed, uint64(totalJobs),
+		)
+		bar.WriteAbove(msg)
 
 		if matchStatusCodes(response.StatusCode, s.scannerOpts.MatchStatusCodes) {
-			// Create Result struct from response
+			if len(s.scannerOpts.MatchContentTypeByte) > 0 {
+				if !bytes.Contains(response.ContentType, s.scannerOpts.MatchContentTypeByte) {
+					continue
+				}
+			}
+
 			result := &Result{
 				TargetURL:           string(response.URL),
 				BypassModule:        string(response.BypassModule),
@@ -246,34 +267,29 @@ func (s *Scanner) RunBypassModule(bypassModule string, targetURL string) int {
 				DebugToken:          string(response.DebugToken),
 			}
 
-			// Write to DB in a separate goroutine
 			dbWg.Add(1)
 			go func(res *Result) {
 				defer dbWg.Done()
 				if err := AppendResultsToDB([]*Result{res}); err != nil {
 					GB403Logger.Error().Msgf("Failed to write result to DB: %v\n\n", err)
 				} else {
-					resultCount.Add(1) // Only increment on successful DB write
+					resultCount.Add(1)
 				}
 			}(result)
 		}
 
-		// Release the RawHTTPResponseDetails back to its pool
 		rawhttp.ReleaseResponseDetails(response)
+
+		progressPercent := (float64(completed) / float64(totalJobs)) * 100.0
+		if progressPercent > 100.0 {
+			progressPercent = 100.0
+		}
+		bar.Progress(progressPercent)
 	}
 
-	// Before function returns, wait for all DB operations to complete
 	dbWg.Wait()
-
-	if progressBar != nil {
-		// Now show the success spinner - this directly handles completion tasks
-		progressBar.SpinnerSuccess(
-			worker.requestPool.GetReqWPCompletedTasks(),
-			worker.requestPool.GetReqWPSubmittedTasks(),
-			worker.requestPool.GetAverageRequestRate(),
-			worker.requestPool.GetPeakRequestRate(),
-		)
-	}
+	bar.End()
+	fmt.Println()
 
 	return int(resultCount.Load())
 }
@@ -281,6 +297,7 @@ func (s *Scanner) RunBypassModule(bypassModule string, targetURL string) int {
 // ResendRequestFromToken
 // Resend a request from a payload token (debug token)
 func (s *Scanner) ResendRequestFromToken(debugToken string, resendCount int) ([]*Result, error) {
+
 	tokenData, err := payload.DecodePayloadToken(debugToken)
 	if err != nil {
 		return nil, fmt.Errorf("failed to decode debug token: %w", err)

@@ -80,6 +80,8 @@ Usage:
         Debug mode with request canaries (Default: false)
   -mc, -match-status-code
         Filter results by HTTP status codes (example: -mc 200, 301, 500, all). Default: All status codes
+  -mct, -match-content-type
+        Filter results by content type substring (example: -mct application/json)
   -http2
         Enable HTTP2 client (Default: false)
   -x, -proxy
@@ -94,8 +96,6 @@ Usage:
         Maximum number of bytes to retrieve from response body (Default: 1024)
   -drbs, -disable-response-body-streaming
         Disables streaming of response body (default: False) (Default: false)
-  -update-payloads
-        Update payload files to latest version (Default: false)
   -dpb, -disable-progress-bar
         Disable progress bar (Default: false)
   -r, -resend
@@ -104,6 +104,8 @@ Usage:
         Number of times to resend the debugged request (Default: 1) (Default: 1)
   -profile
         Enable pprof profiler (Default: false)
+  -update-payloads
+        Update payload files to latest version (Default: false)
 ```
 
 ## Standard WAF 403/401 Bypass

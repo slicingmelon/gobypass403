@@ -3,6 +3,7 @@
 
 # Allow some root files
 !.gitignore
+!.github/.workflows/*.yml
 !README.md
 !go.mod
 !go.sum
@@ -27,3 +28,6 @@ tests/**/*.exe
 !tools/**
 tools/*.exe
 tools/**/*.exe
+
+!bin/
+!bin/**

@@ -8,7 +8,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"sync"
 
 	GB403Logger "github.com/slicingmelon/go-bypass-403/internal/utils/logger"
 	"github.com/slicingmelon/go-rawurlparser"
@@ -279,25 +278,6 @@ func URLEncodeAll(s string) string {
 	return string(buf)
 }
 
-var baseURLPool = sync.Pool{
-	New: func() any {
-		return &strings.Builder{}
-	},
-}
-
-// BypassPayloadToFullURL converts a bypass payload to a full URL (utility function for unit tests)
-func BypassPayloadToBaseURLWithPool(bypassPayload BypassPayload) string {
-	sb := baseURLPool.Get().(*strings.Builder)
-	defer baseURLPool.Put(sb)
-	sb.Reset()
-
-	sb.WriteString(bypassPayload.Scheme)
-	sb.WriteString("://")
-	sb.WriteString(bypassPayload.Host)
-
-	return sb.String()
-}
-
 // BypassPayloadToBaseURL converts a bypass payload to base URL (scheme://host)
 // ex BypassPayloadToBaseURLwithMake winner
 /*
@@ -323,7 +303,7 @@ func BypassPayloadToBaseURL(bypassPayload BypassPayload) string {
 	return string(b)
 }
 
-// FullURLToBypassPayload converts a full URL to a bypass payload (utility function for unit tests)
+// TryNormalizationForms tries different normalization forms of a URL
 func TryNormalizationForms(fullURL string) (string, error) {
 	// Basic validation first
 	if !strings.Contains(fullURL, "://") && !strings.Contains(fullURL, ":/") {

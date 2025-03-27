@@ -23,6 +23,8 @@ type Throttler struct {
 	lastDelay    atomic.Int64 // Last calculated delay in nanoseconds
 	isThrottling atomic.Bool  // Indicates if auto throttling is currently active
 	mu           sync.RWMutex
+	randSource   *rand.Rand
+	randMu       sync.Mutex
 }
 
 // DefaultThrottleConfig returns sensible defaults
@@ -38,7 +40,9 @@ func DefaultThrottleConfig() *ThrottleConfig {
 
 // NewThrottler creates a new throttler instance
 func NewThrottler(config *ThrottleConfig) *Throttler {
-	t := &Throttler{}
+	t := &Throttler{
+		randSource: rand.New(rand.NewSource(time.Now().UnixNano())),
+	}
 	if config == nil {
 		config = DefaultThrottleConfig()
 	}
@@ -88,8 +92,15 @@ func (t *Throttler) GetCurrentThrottleRate() time.Duration {
 	}
 
 	// Calculate jitter with bounds checking
+	t.randMu.Lock()
+	defer t.randMu.Unlock()
+
 	jitterPercent := min(max(float64(config.RequestDelayJitter), 0), 100)
-	jitter := time.Duration(rand.Int63n(int64(float64(baseDelay) * jitterPercent / 100)))
+	maxJitter := float64(baseDelay) * jitterPercent / 100
+	if maxJitter <= 0 {
+		return baseDelay
+	}
+	jitter := time.Duration(t.randSource.Int63n(int64(maxJitter)))
 
 	// Final delay with max cap
 	return min(config.MaxRequestDelay, baseDelay+jitter)

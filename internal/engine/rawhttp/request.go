@@ -3,7 +3,6 @@ package rawhttp
 import (
 	"bufio"
 	"bytes"
-	"strings"
 	"sync"
 
 	"github.com/slicingmelon/go-bypass-403/internal/engine/payload"
@@ -18,13 +17,7 @@ var (
 )
 
 var (
-	rawRequestBuilderPool = sync.Pool{
-		New: func() any {
-			return &strings.Builder{}
-		},
-	}
-
-	//rawRequestBytesPool bytesutil.ByteBufferPool
+	requestBufferPool = bytesutil.ByteBufferPool{}
 
 	rawRequestBuffReaderPool = sync.Pool{
 		New: func() any {
@@ -32,17 +25,6 @@ var (
 		},
 	}
 )
-
-// AcquireRawRequest gets a builder from the pool
-func AcquireRawRequest() *strings.Builder {
-	return rawRequestBuilderPool.Get().(*strings.Builder)
-}
-
-// ReleaseRawRequest returns a builder to the pool
-func ReleaseRawRequest(sb *strings.Builder) {
-	sb.Reset()
-	rawRequestBuilderPool.Put(sb)
-}
 
 /*
 Crucial information
@@ -75,15 +57,15 @@ func BuildRawHTTPRequest(httpclient *HTTPClient, req *fasthttp.Request, bypassPa
 		httpclient.GetHTTPClientOptions().DisableKeepAlive ||
 		httpclient.GetHTTPClientOptions().ProxyURL != ""
 
-	// Get raw request builder from pool
-	sb := AcquireRawRequest()
-	defer ReleaseRawRequest(sb)
+	// Get ByteBuffer from pool
+	bb := requestBufferPool.Get()
+	defer requestBufferPool.Put(bb)
 
-	// Build request line
-	sb.WriteString(bypassPayload.Method)
-	sb.WriteString(" ")
-	sb.WriteString(bypassPayload.RawURI)
-	sb.WriteString(" HTTP/1.1\r\n")
+	// Build request line directly into byte buffer
+	bb.B = append(bb.B, bypassPayload.Method...)
+	bb.B = append(bb.B, ' ')
+	bb.B = append(bb.B, bypassPayload.RawURI...)
+	bb.B = append(bb.B, " HTTP/1.1\r\n"...)
 
 	hasHostHeader := false
 	for _, h := range bypassPayload.Headers {
@@ -91,44 +73,43 @@ func BuildRawHTTPRequest(httpclient *HTTPClient, req *fasthttp.Request, bypassPa
 			hasHostHeader = true
 			shouldCloseConn = true
 		}
-		sb.WriteString(h.Header)
-		sb.WriteString(": ")
-		sb.WriteString(h.Value)
-		sb.WriteString("\r\n")
+		bb.B = append(bb.B, h.Header...)
+		bb.B = append(bb.B, ": "...)
+		bb.B = append(bb.B, h.Value...)
+		bb.B = append(bb.B, "\r\n"...)
 	}
 
 	// Add Host header if not present
 	if !hasHostHeader {
-		sb.WriteString("Host: ")
-		sb.WriteString(bypassPayload.Host)
-		sb.WriteString("\r\n")
+		bb.B = append(bb.B, "Host: "...)
+		bb.B = append(bb.B, bypassPayload.Host...)
+		bb.B = append(bb.B, "\r\n"...)
 	}
 
-	sb.WriteString(strUserAgentHeader)
-	sb.WriteString("\r\n")
-
-	sb.WriteString("Accept: */*\r\n")
+	bb.B = append(bb.B, strUserAgentHeader...)
+	bb.B = append(bb.B, "\r\n"...)
+	bb.B = append(bb.B, "Accept: */*\r\n"...)
 
 	// Debug token
 	if GB403Logger.IsDebugEnabled() {
-		sb.WriteString("X-GB403-Token: ")
-		sb.WriteString(bypassPayload.PayloadToken)
-		sb.WriteString("\r\n")
+		bb.B = append(bb.B, "X-GB403-Token: "...)
+		bb.B = append(bb.B, bypassPayload.PayloadToken...)
+		bb.B = append(bb.B, "\r\n"...)
 	}
 
 	// Connection handling
 	if shouldCloseConn {
-		sb.WriteString("Connection: close\r\n")
+		bb.B = append(bb.B, "Connection: close\r\n"...)
 	} else {
-		sb.WriteString("Connection: keep-alive\r\n")
+		bb.B = append(bb.B, "Connection: keep-alive\r\n"...)
 	}
 
 	// End of headers
-	sb.WriteString("\r\n")
+	bb.B = append(bb.B, "\r\n"...)
 
-	// Parse back into fasthttp.Request
+	// Get bufio.Reader from pool and reset it with our ByteBuffer reader
 	br := rawRequestBuffReaderPool.Get().(*bufio.Reader)
-	br.Reset(bytes.NewReader(bytesutil.ToUnsafeBytes(sb.String())))
+	br.Reset(bytes.NewReader(bb.B))
 	defer rawRequestBuffReaderPool.Put(br)
 
 	if err := req.ReadLimitBody(br, 0); err != nil {

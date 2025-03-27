@@ -57,13 +57,19 @@ func (pg *PayloadGenerator) GenerateDumbCheckPayload(targetURL string, bypassMod
 		return allJobs
 	}
 
+	// Extract path and query
+	rawURI := parsedURL.Path
+	if parsedURL.Query != "" {
+		rawURI += "?" + parsedURL.Query
+	}
+
 	// Just one job with the original URL
 	job := BypassPayload{
 		OriginalURL:  targetURL,
 		Method:       "GET",
 		Scheme:       parsedURL.Scheme,
 		Host:         parsedURL.Host,
-		RawURI:       parsedURL.Path,
+		RawURI:       rawURI,
 		BypassModule: bypassModule,
 	}
 
@@ -95,6 +101,12 @@ func (pg *PayloadGenerator) GenerateMidPathsPayloads(targetURL string, bypassMod
 		path = "/"
 	}
 
+	// Extract query string if it exists
+	query := ""
+	if parsedURL.Query != "" {
+		query = "?" + parsedURL.Query
+	}
+
 	slashCount := strings.Count(path, "/")
 	if slashCount == 0 {
 		slashCount = 1
@@ -108,16 +120,16 @@ func (pg *PayloadGenerator) GenerateMidPathsPayloads(targetURL string, bypassMod
 			// Post-slash variants (always)
 			pathPost := ReplaceNth(path, "/", "/"+payload, idxSlash+1)
 			if pathPost != path { // Only add if replacement was successful
-				uniquePaths[pathPost] = struct{}{}
-				uniquePaths["/"+pathPost] = struct{}{}
+				uniquePaths[pathPost+query] = struct{}{}
+				uniquePaths["/"+pathPost+query] = struct{}{}
 			}
 
 			// Pre-slash variants only if idxSlash > 1
 			if idxSlash > 1 {
 				pathPre := ReplaceNth(path, "/", payload+"/", idxSlash+1)
 				if pathPre != path { // Only add if replacement was successful
-					uniquePaths[pathPre] = struct{}{}
-					uniquePaths["/"+pathPre] = struct{}{}
+					uniquePaths[pathPre+query] = struct{}{}
+					uniquePaths["/"+pathPre+query] = struct{}{}
 				}
 			}
 		}
@@ -165,27 +177,33 @@ func (pg *PayloadGenerator) GenerateEndPathsPayloads(targetURL string, bypassMod
 		separator = "/"
 	}
 
+	// Extract query string if it exists
+	query := ""
+	if parsedURL.Query != "" {
+		query = "?" + parsedURL.Query
+	}
+
 	// map[rawURI]struct{} - we only need unique RawURIs
 	uniquePaths := make(map[string]struct{})
 
 	for _, payload := range payloads {
 		// First variant - 'url/suffix'
-		rawURI := basePath + separator + payload
+		rawURI := basePath + separator + payload + query
 		uniquePaths[rawURI] = struct{}{}
 
 		// Second variant - 'url/suffix/'
-		rawURIWithSlash := rawURI + "/"
+		rawURIWithSlash := basePath + separator + payload + "/" + query
 		uniquePaths[rawURIWithSlash] = struct{}{}
 
 		// Only if basePath is not "/" and payload doesn't start with a letter
 		if basePath != "/" {
 			if !isLetter(payload[0]) {
 				// Third variant - Add 'suffix'
-				rawURISuffix := basePath + payload
+				rawURISuffix := basePath + payload + query
 				uniquePaths[rawURISuffix] = struct{}{}
 
 				// Fourth variant - Add 'suffix/'
-				rawURISuffixSlash := rawURISuffix + "/"
+				rawURISuffixSlash := basePath + payload + "/" + query
 				uniquePaths[rawURISuffixSlash] = struct{}{}
 			}
 		}
@@ -256,13 +274,19 @@ func (pg *PayloadGenerator) GenerateHeaderIPPayloads(targetURL string, bypassMod
 		GB403Logger.Verbose().BypassModule(bypassModule).Msgf("Added [%s] custom IPs from -spoof-ip\n", strings.Join(customIPs, ","))
 	}
 
+	// Extract path and query
+	rawURI := parsedURL.Path
+	if parsedURL.Query != "" {
+		rawURI += "?" + parsedURL.Query
+	}
+
 	// Base job template
 	baseJob := BypassPayload{
 		OriginalURL:  targetURL,
 		Method:       "GET",
 		Scheme:       parsedURL.Scheme,
 		Host:         parsedURL.Host,
-		RawURI:       parsedURL.Path,
+		RawURI:       rawURI,
 		BypassModule: bypassModule,
 	}
 
@@ -321,6 +345,12 @@ func (pg *PayloadGenerator) GenerateCaseSubstitutionPayloads(targetURL string, b
 
 	basePath := parsedURL.Path
 
+	// Extract query string if it exists
+	query := ""
+	if parsedURL.Query != "" {
+		query = "?" + parsedURL.Query
+	}
+
 	// map[rawURI]struct{} - we only need unique RawURIs
 	uniquePaths := make(map[string]struct{})
 
@@ -336,7 +366,8 @@ func (pg *PayloadGenerator) GenerateCaseSubstitutionPayloads(targetURL string, b
 			}
 			newPath += basePath[i+1:]
 
-			uniquePaths[newPath] = struct{}{}
+			// Add query to the case-modified path
+			uniquePaths[newPath+query] = struct{}{}
 		}
 	}
 
@@ -371,6 +402,12 @@ func (pg *PayloadGenerator) GenerateCharEncodePayloads(targetURL string, bypassM
 
 	basePath := parsedURL.Path
 
+	// Extract query string if it exists
+	query := ""
+	if parsedURL.Query != "" {
+		query = "?" + parsedURL.Query
+	}
+
 	// Create three separate maps for different encoding levels
 	singlePaths := make(map[string]struct{})
 	doublePaths := make(map[string]struct{})
@@ -391,15 +428,15 @@ func (pg *PayloadGenerator) GenerateCharEncodePayloads(targetURL string, bypassM
 			// Single URL encoding
 			encoded := fmt.Sprintf("%%%02x", char)
 			singleEncoded := basePath[:i] + encoded + basePath[i+1:]
-			singlePaths[singleEncoded] = struct{}{}
+			singlePaths[singleEncoded+query] = struct{}{}
 
 			// Double URL encoding
 			doubleEncoded := basePath[:i] + "%25" + encoded[1:] + basePath[i+1:]
-			doublePaths[doubleEncoded] = struct{}{}
+			doublePaths[doubleEncoded+query] = struct{}{}
 
 			// Triple URL encoding
 			tripleEncoded := basePath[:i] + "%2525" + encoded[1:] + basePath[i+1:]
-			triplePaths[tripleEncoded] = struct{}{}
+			triplePaths[tripleEncoded+query] = struct{}{}
 		}
 	}
 
@@ -445,13 +482,19 @@ func (pg *PayloadGenerator) GenerateHeaderSchemePayloads(targetURL string, bypas
 		return allJobs
 	}
 
+	// Extract path and query
+	rawURI := parsedURL.Path
+	if parsedURL.Query != "" {
+		rawURI += "?" + parsedURL.Query
+	}
+
 	// Base job template
 	baseJob := BypassPayload{
 		OriginalURL:  targetURL,
 		Method:       "GET",
 		Scheme:       parsedURL.Scheme,
 		Host:         parsedURL.Host,
-		RawURI:       parsedURL.Path,
+		RawURI:       rawURI,
 		BypassModule: bypassModule,
 	}
 
@@ -518,6 +561,18 @@ func (pg *PayloadGenerator) GenerateHeaderURLPayloads(targetURL string, bypassMo
 		basePath = "/"
 	}
 
+	// Extract query string if it exists
+	query := ""
+	if parsedURL.Query != "" {
+		query = "?" + parsedURL.Query
+	}
+
+	// Create full path with query for RawURI
+	fullPathWithQuery := parsedURL.Path
+	if query != "" {
+		fullPathWithQuery += query
+	}
+
 	// Base job template
 	baseJob := BypassPayload{
 		OriginalURL:  targetURL,
@@ -528,7 +583,7 @@ func (pg *PayloadGenerator) GenerateHeaderURLPayloads(targetURL string, bypassMo
 	}
 
 	for _, headerURL := range headerURLs {
-		// First variant: base_path in header
+		// First variant: base_path in header (don't add query to header)
 		job := baseJob
 		job.RawURI = "/"
 		job.Headers = []Headers{{
@@ -538,7 +593,19 @@ func (pg *PayloadGenerator) GenerateHeaderURLPayloads(targetURL string, bypassMo
 		job.PayloadToken = GeneratePayloadToken(job)
 		allJobs = append(allJobs, job)
 
-		// Second variant: full target URL in header
+		// Optional: Add variant with query in header value
+		if query != "" {
+			job := baseJob
+			job.RawURI = "/"
+			job.Headers = []Headers{{
+				Header: headerURL,
+				Value:  basePath + query,
+			}}
+			job.PayloadToken = GeneratePayloadToken(job)
+			allJobs = append(allJobs, job)
+		}
+
+		// Second variant: full target URL in header (targetURL already includes query)
 		if strings.Contains(strings.ToLower(headerURL), "url") ||
 			strings.Contains(strings.ToLower(headerURL), "request") ||
 			strings.Contains(strings.ToLower(headerURL), "file") {
@@ -560,9 +627,9 @@ func (pg *PayloadGenerator) GenerateHeaderURLPayloads(targetURL string, bypassMo
 				parentPath = "/"
 			}
 
-			// Parent path in header
+			// Parent path in header, without query in header but with query in RawURI
 			job := baseJob
-			job.RawURI = parsedURL.Path
+			job.RawURI = fullPathWithQuery
 			job.Headers = []Headers{{
 				Header: headerURL,
 				Value:  parentPath,
@@ -570,18 +637,44 @@ func (pg *PayloadGenerator) GenerateHeaderURLPayloads(targetURL string, bypassMo
 			job.PayloadToken = GeneratePayloadToken(job)
 			allJobs = append(allJobs, job)
 
+			// Optional: Parent path + query in header
+			if query != "" {
+				job := baseJob
+				job.RawURI = fullPathWithQuery
+				job.Headers = []Headers{{
+					Header: headerURL,
+					Value:  parentPath + query,
+				}}
+				job.PayloadToken = GeneratePayloadToken(job)
+				allJobs = append(allJobs, job)
+			}
+
 			// Full URL with parent path in header
 			if strings.Contains(strings.ToLower(headerURL), "url") ||
 				strings.Contains(strings.ToLower(headerURL), "refer") {
+				// Without query in header
 				fullURL := fmt.Sprintf("%s://%s%s", parsedURL.Scheme, parsedURL.Host, parentPath)
 				job := baseJob
-				job.RawURI = parsedURL.Path
+				job.RawURI = fullPathWithQuery
 				job.Headers = []Headers{{
 					Header: headerURL,
 					Value:  fullURL,
 				}}
 				job.PayloadToken = GeneratePayloadToken(job)
 				allJobs = append(allJobs, job)
+
+				// With query in header
+				if query != "" {
+					fullURLWithQuery := fmt.Sprintf("%s://%s%s%s", parsedURL.Scheme, parsedURL.Host, parentPath, query)
+					job := baseJob
+					job.RawURI = fullPathWithQuery
+					job.Headers = []Headers{{
+						Header: headerURL,
+						Value:  fullURLWithQuery,
+					}}
+					job.PayloadToken = GeneratePayloadToken(job)
+					allJobs = append(allJobs, job)
+				}
 			}
 		}
 	}
@@ -611,13 +704,19 @@ func (pg *PayloadGenerator) GenerateHeaderPortPayloads(targetURL string, bypassM
 		return allJobs
 	}
 
+	// Extract path and query
+	rawURI := parsedURL.Path
+	if parsedURL.Query != "" {
+		rawURI += "?" + parsedURL.Query
+	}
+
 	// Base job template
 	baseJob := BypassPayload{
 		OriginalURL:  targetURL,
 		Method:       "GET",
 		Scheme:       parsedURL.Scheme,
 		Host:         parsedURL.Host,
-		RawURI:       parsedURL.Path,
+		RawURI:       rawURI,
 		BypassModule: bypassModule,
 	}
 
@@ -791,6 +890,12 @@ func (pg *PayloadGenerator) GenerateUnicodePathNormalizationsPayloads(targetURL 
 		path = "/"
 	}
 
+	// Extract query string if it exists
+	query := ""
+	if parsedURL.Query != "" {
+		query = "?" + parsedURL.Query
+	}
+
 	// Read Unicode mappings
 	unicodeMappings, err := ReadPayloadsFromFile("unicode_path_chars.lst")
 	if err != nil {
@@ -827,10 +932,13 @@ func (pg *PayloadGenerator) GenerateUnicodePathNormalizationsPayloads(targetURL 
 
 	// Helper to add both Unicode and URL-encoded versions
 	addPathVariants := func(path string) {
-		if _, exists := uniquePaths[path]; !exists {
-			uniquePaths[path] = struct{}{}
+		// Append query to the modified path
+		pathWithQuery := path + query
+
+		if _, exists := uniquePaths[pathWithQuery]; !exists {
+			uniquePaths[pathWithQuery] = struct{}{}
 			job := baseJob
-			job.RawURI = path
+			job.RawURI = pathWithQuery
 			job.PayloadToken = GeneratePayloadToken(job)
 			jobs = append(jobs, job)
 		}
@@ -898,3 +1006,127 @@ func (pg *PayloadGenerator) GenerateUnicodePathNormalizationsPayloads(targetURL 
 		Msgf("Generated %d unicode normalization payloads for %s\n", len(jobs), targetURL)
 	return jobs
 }
+
+// func (pg *PayloadGenerator) GenerateUnicodePathNormalizationsPayloads(targetURL string, bypassModule string) []BypassPayload {
+// 	var jobs []BypassPayload
+
+// 	// 1. Get midpaths payloads first
+// 	midPathsPayloads := pg.GenerateMidPathsPayloads(targetURL, "mid_paths")
+
+// 	// 2. Read Unicode mappings
+// 	unicodeMappings, err := ReadPayloadsFromFile("unicode_path_chars.lst")
+// 	if err != nil {
+// 		GB403Logger.Error().Msgf("Failed to read unicode path chars: %v\n", err)
+// 		return jobs
+// 	}
+
+// 	// 3. Build character mapping for '.' and '/'
+// 	targetChars := map[rune]bool{'.': true, '/': true}
+// 	charMap := make(map[rune][]string)
+
+// 	for _, mapping := range unicodeMappings {
+// 		parts := strings.Split(mapping, "=")
+// 		if len(parts) != 2 {
+// 			continue
+// 		}
+// 		asciiChar := []rune(parts[1])[0]
+// 		if !targetChars[asciiChar] {
+// 			continue
+// 		}
+// 		unicodeChar := strings.Split(parts[0], "(")[0]
+// 		charMap[asciiChar] = append(charMap[asciiChar], unicodeChar)
+// 	}
+
+// 	// 4. Filter midpaths payloads to only those containing dots or slashes
+// 	var filteredPayloads []BypassPayload
+// 	for _, payload := range midPathsPayloads {
+// 		if containsAny(payload.RawURI, []rune{'.', '/'}) {
+// 			filteredPayloads = append(filteredPayloads, payload)
+// 		}
+// 	}
+
+// 	// 5. Track unique paths to avoid duplicates
+// 	uniquePaths := make(map[string]struct{})
+
+// 	// 6. Process each filtered payload
+// 	for _, origPayload := range filteredPayloads {
+// 		path := origPayload.RawURI
+
+// 		// Find all positions of '.' and '/'
+// 		type CharPosition struct {
+// 			char     rune
+// 			position int
+// 		}
+// 		var positions []CharPosition
+// 		for i, char := range path {
+// 			if targetChars[char] {
+// 				positions = append(positions, CharPosition{char: char, position: i})
+// 			}
+// 		}
+
+// 		// Single character replacements
+// 		for _, pos := range positions {
+// 			unicodeChars := charMap[pos.char]
+// 			for _, unicodeChar := range unicodeChars {
+// 				// Create Unicode version
+// 				pathRunes := []rune(path)
+// 				pathRunes[pos.position] = []rune(unicodeChar)[0]
+// 				unicodePath := string(pathRunes)
+
+// 				if _, exists := uniquePaths[unicodePath]; !exists {
+// 					uniquePaths[unicodePath] = struct{}{}
+
+// 					// Create a new job based on the original payload
+// 					job := BypassPayload{
+// 						OriginalURL:  origPayload.OriginalURL,
+// 						Method:       origPayload.Method,
+// 						Scheme:       origPayload.Scheme,
+// 						Host:         origPayload.Host,
+// 						RawURI:       unicodePath,
+// 						Headers:      origPayload.Headers,
+// 						BypassModule: bypassModule,
+// 					}
+// 					job.PayloadToken = GeneratePayloadToken(job)
+// 					jobs = append(jobs, job)
+// 				}
+
+// 				// Create URL-encoded version
+// 				encodedChar := URLEncodeAll(unicodeChar)
+// 				encodedPath := path[:pos.position] + encodedChar + path[pos.position+1:]
+
+// 				if _, exists := uniquePaths[encodedPath]; !exists {
+// 					uniquePaths[encodedPath] = struct{}{}
+
+// 					// Create a new job based on the original payload
+// 					job := BypassPayload{
+// 						OriginalURL:  origPayload.OriginalURL,
+// 						Method:       origPayload.Method,
+// 						Scheme:       origPayload.Scheme,
+// 						Host:         origPayload.Host,
+// 						RawURI:       encodedPath,
+// 						Headers:      origPayload.Headers,
+// 						BypassModule: bypassModule,
+// 					}
+// 					job.PayloadToken = GeneratePayloadToken(job)
+// 					jobs = append(jobs, job)
+// 				}
+// 			}
+// 		}
+// 	}
+
+// 	GB403Logger.Debug().BypassModule(bypassModule).
+// 		Msgf("Generated %d unicode normalization payloads for %s\n", len(jobs), targetURL)
+// 	return jobs
+// }
+
+// // Helper function to check if a string contains any of the given runes
+// func containsAny(s string, chars []rune) bool {
+// 	for _, c := range s {
+// 		for _, t := range chars {
+// 			if c == t {
+// 				return true
+// 			}
+// 		}
+// 	}
+// 	return false
+// }
