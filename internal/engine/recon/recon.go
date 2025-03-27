@@ -267,11 +267,10 @@ func (r *ReconService) ProbePort(ip string, port string) (string, bool) {
 	addr := net.JoinHostPort(ip, port)
 
 	// For IP probing, we create a specialized dialer without DNS resolution
-	// This is correct because we're dealing with direct IPs, not hostnames
 	ipProbeDialer := &fasthttp.TCPDialer{
 		Concurrency:          1024,
 		DNSCacheDuration:     10 * time.Minute,
-		DisableDNSResolution: true, // Correct here because we're connecting directly to IPs
+		DisableDNSResolution: true,
 	}
 
 	// Try HTTPS first

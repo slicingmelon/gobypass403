@@ -319,16 +319,6 @@ func PeekResponseHeaderKeyCaseInsensitive(h *fasthttp.Response, key []byte) []by
 	return result
 }
 
-func PeekRequestHeaderKeyCaseInsensitive(h *fasthttp.Request, key []byte) []byte {
-	var result []byte
-	h.Header.VisitAll(func(k, v []byte) {
-		if result == nil && bytes.EqualFold(k, key) {
-			result = v
-		}
-	})
-	return result
-}
-
 // Helper function to extract title from HTML
 // Appends the result to dest slice
 func ExtractTitle(body []byte, dest []byte) []byte {

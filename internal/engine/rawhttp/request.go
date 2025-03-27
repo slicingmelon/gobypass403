@@ -172,3 +172,13 @@ func ReqCopyToWithSettings(src *fasthttp.Request, dst *fasthttp.Request) *fastht
 
 	return dst
 }
+
+func PeekRequestHeaderKeyCaseInsensitive(h *fasthttp.Request, key []byte) []byte {
+	var result []byte
+	h.Header.VisitAll(func(k, v []byte) {
+		if result == nil && bytes.EqualFold(k, key) {
+			result = v
+		}
+	})
+	return result
+}
