@@ -1,4 +1,4 @@
-# GObyPASS403
+# GoByPASS403
 
 A powerful WAF (HTTP 403/401) and URL parser bypass tool developed in Go, designed to preserve exact URL paths and structures during testing. Unlike Go's standard libraries, the tool enables true raw HTTP requests without any encoding or normalization, ensuring complete control over the request structure. This functionality is powered by a full-stack HTTP client, independent of Go's internals, and a custom URL parser.
 
@@ -47,7 +47,7 @@ go build .\cmd\go-bypass-403\
 # Usage
 
 ```
-GObyPASS403
+GoByPASS403
 
 Usage:
   -u, -url
