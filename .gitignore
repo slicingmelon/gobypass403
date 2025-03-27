@@ -16,17 +16,16 @@
 !images/**
 !internal/
 !internal/**
+!core/
+!core/*
+!core/**
 
 !tests/
+!tests/*
 !tests/**
-tests/*.exe
-tests/**/*.exe
-
-!tools/
-!tools/**
-tools/*.exe
-tools/**/*.exe
-
+!test-tools/
+!test-tools/*
+!test-tools/**
 !bin/
 !bin/*
 !bin/**

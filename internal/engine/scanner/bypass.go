@@ -1,3 +1,8 @@
+/*
+GoByPASS403
+Author: slicingmelon <github.com/slicingmelon>
+X: x.com/pedro_infosec
+*/
 package scanner
 
 import (
@@ -237,8 +242,9 @@ func (s *Scanner) RunBypassModule(bypassModule string, targetURL string) int {
 		currentRate := worker.requestPool.GetRequestRate()
 		avgRate := worker.requestPool.GetAverageRequestRate()
 
+		// weird bug "overflowing" on the text above the progressbar ... spaces fixes it
 		msg := fmt.Sprintf(
-			"Workers [%d/%d] | Rate [%d req/s] Avg [%d req/s] | Completed %d/%d --",
+			"Workers [%d/%d] | Rate [%d req/s] Avg [%d req/s] | Completed %d/%d    ",
 			active, maxWorkers, currentRate, avgRate, completed, uint64(totalJobs),
 		)
 		bar.WriteAbove(msg)

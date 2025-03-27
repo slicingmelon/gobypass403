@@ -1,3 +1,8 @@
+/*
+GOByPASS403
+Author: slicingmelon <github.com/slicingmelon>
+X: x.com/pedro_infosec
+*/
 package rawhttp
 
 import (
@@ -76,11 +81,12 @@ func IsRetryableError(err error) RetryDecision {
 		return RetryDecision{true, RetryWithoutResponseStreaming}
 	}
 
-	// Standard connection-related errors that require connection close
+	// Standard connection-related errors that are retryable and require connection close
 	if err == io.EOF ||
 		errors.Is(err, fasthttp.ErrConnectionClosed) ||
 		errors.Is(err, fasthttp.ErrTimeout) ||
 		strings.Contains(errStr, "timeout") ||
+		strings.Contains(errStr, "timed out") ||
 		strings.Contains(errStr, "was forcibly closed") ||
 		strings.Contains(errStr, "Only one usage of each socket address") ||
 		strings.Contains(errStr, "closed connection before returning the first response byte") ||

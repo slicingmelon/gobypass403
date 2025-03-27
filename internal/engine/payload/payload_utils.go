@@ -1,3 +1,8 @@
+/*
+GOBypass403
+Author: slicingmelon <github.com/slicingmelon>
+X: x.com/pedro_infosec
+*/
 package payload
 
 // This file contains various payload related utilities.

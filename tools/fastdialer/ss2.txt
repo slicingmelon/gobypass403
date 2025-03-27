@@ -1,6 +1,0 @@
-https://expired.badssl.com
-https://sha512.badssl.com
-https://localhost
-https://www.google.com
-https://104.154.89.105
-https://test-go-bypass-403-lh.com
