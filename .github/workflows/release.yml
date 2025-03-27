@@ -1,12 +1,13 @@
-# .github/workflows/release.yml
-name: Build GoByPASS403
+name: Release GoByPASS403
 
 on:
-  workflow_dispatch:
+  push:
+    tags:
+      - 'v*'  # Trigger on version tags like v1.0.0
 
 jobs:
-  build-linux-macos:
-    name: Build for Linux & macOS
+  build:
+    name: Build Binaries
     runs-on: ${{ matrix.os }}
 
     strategy:
@@ -18,6 +19,9 @@ jobs:
           - os: macos-latest
             goos: darwin
             goarch: amd64
+          - os: windows-latest
+            goos: windows
+            goarch: amd64
 
     steps:
       - name: Checkout
@@ -28,48 +32,24 @@ jobs:
         with:
           go-version: 1.23.6
 
-      - name: Install build dependencies
-        if: runner.os == 'Linux'
+      - name: Install dependencies (Linux only)
+        if: matrix.os == 'ubuntu-latest'
         run: sudo apt-get update && sudo apt-get install -y gcc-multilib
 
-      - name: Build
+      - name: Build binary
         env:
           CGO_ENABLED: 1
           GOOS: ${{ matrix.goos }}
           GOARCH: ${{ matrix.goarch }}
         run: |
           mkdir -p dist
-          go build -v -o dist/gobypass403-${{ matrix.goos }}-${{ matrix.goarch }} ./cmd/gobypass403
+          EXT=""
+          if [ "${{ matrix.goos }}" = "windows" ]; then EXT=".exe"; fi
+          go build -v -o dist/gobypass403-${{ matrix.goos }}-${{ matrix.goarch }}$EXT ./cmd/gobypass403
 
-      - name: Upload Binaries
-        uses: actions/upload-artifact@v4
+      - name: Upload Release Asset
+        uses: softprops/action-gh-release@v1
         with:
-          name: gobypass403-${{ matrix.goos }}-${{ matrix.goarch }}
-          path: dist/
-
-  build-windows:
-    name: Build for Windows
-    runs-on: windows-latest
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v3
-
-      - name: Set up Go
-        uses: actions/setup-go@v4
-        with:
-          go-version: 1.23.6
-
-      - name: Build
-        shell: pwsh
+          files: dist/*
         env:
-          CGO_ENABLED: 1
-        run: |
-          if (-not (Test-Path dist)) { New-Item -ItemType Directory -Path dist }
-          go build -v -o dist/gobypass403-windows-amd64.exe ./cmd/gobypass403
-
-      - name: Upload Windows Binary
-        uses: actions/upload-artifact@v4
-        with:
-          name: gobypass403-windows-amd64
-          path: dist/
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
