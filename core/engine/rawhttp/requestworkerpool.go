@@ -188,7 +188,7 @@ func (wp *RequestWorkerPool) ProcessRequests(bypassPayloads []payload.BypassPayl
 }
 
 func (wp *RequestWorkerPool) Close() {
-	wp.cancel()           // Cancel context if not already done
+	//wp.cancel()           // Cancel context if not already done
 	wp.pool.StopAndWait() // Ensure all workers are stopped
 	wp.ResetPeakRate()
 	wp.httpClient.Close()

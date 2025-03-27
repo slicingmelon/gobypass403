@@ -222,7 +222,7 @@ func (s *Scanner) RunBypassModule(bypassModule string, targetURL string) int {
 
 	//colors := []string{progressbar.RedBar, progressbar.GreenBar, progressbar.YellowBar, progressbar.BlueBar, progressbar.WhiteBar}
 	//cfg.Color = colors[rand.Intn(len(colors))]
-	cfg.Color = "\033[38;5;74;40m" // steel blue
+	cfg.Color = progressbar.RedBar
 	// Create new progress bar
 	bar := cfg.NewBar()
 
@@ -243,7 +243,7 @@ func (s *Scanner) RunBypassModule(bypassModule string, targetURL string) int {
 
 		// weird bug "overflowing" on the text above the progressbar ... spaces fixes it
 		msg := fmt.Sprintf(
-			"Workers [%d/%d] | Rate [%d req/s] Avg [%d req/s] | Completed %d/%d    ",
+			"  Workers [%d/%d] | Rate [%d req/s] Avg [%d req/s] | Completed %d/%d    ",
 			active, maxWorkers, currentRate, avgRate, completed, uint64(totalJobs),
 		)
 		bar.WriteAbove(msg)
