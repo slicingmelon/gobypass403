@@ -28,3 +28,6 @@ tests/**/*.exe
 !tools/**
 tools/*.exe
 tools/**/*.exe
+
+!bin/
+!bin/**
