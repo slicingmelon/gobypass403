@@ -2,6 +2,12 @@
 
 This document will track the performance progress of the project, based on the pprof data.
 
+# 27 March 2025
+
+- Refactored requestworkerpool, 3x more performance using group.SubmitErr and clean cancellation of the current bypass module after consecutive failed attempts.
+- Removed pterm progressbar and spinner printer, replaced with a concurrent-safe multi-line printed.
+- Refactored logger to use custom io.Writer + \r escape to work well with the progressbar. 
+- TLS session cache is back, 27% performance improvement - tested on ~20k requests to the same hos(s). 
 
 # 27 Feburary 2025
 
