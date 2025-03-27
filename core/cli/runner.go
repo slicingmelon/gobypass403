@@ -9,10 +9,10 @@ import (
 	"fmt"
 	"path/filepath"
 
-	"github.com/slicingmelon/go-bypass-403/internal/engine/payload"
-	"github.com/slicingmelon/go-bypass-403/internal/engine/scanner"
-	GB403ErrorHandler "github.com/slicingmelon/go-bypass-403/internal/utils/error"
-	GB403Logger "github.com/slicingmelon/go-bypass-403/internal/utils/logger"
+	"github.com/slicingmelon/go-bypass-403/core/engine/payload"
+	"github.com/slicingmelon/go-bypass-403/core/engine/scanner"
+	GB403ErrorHandler "github.com/slicingmelon/go-bypass-403/core/utils/error"
+	GB403Logger "github.com/slicingmelon/go-bypass-403/core/utils/logger"
 )
 
 type Runner struct {

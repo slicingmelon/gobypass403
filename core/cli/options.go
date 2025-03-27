@@ -17,8 +17,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/slicingmelon/go-bypass-403/internal/engine/payload"
-	GB403Logger "github.com/slicingmelon/go-bypass-403/internal/utils/logger"
+	"github.com/slicingmelon/go-bypass-403/core/engine/payload"
+	GB403Logger "github.com/slicingmelon/go-bypass-403/core/utils/logger"
 )
 
 // Options represents command-line options

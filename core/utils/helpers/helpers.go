@@ -14,7 +14,7 @@ import (
 	"runtime"
 	"strings"
 
-	GB403Logger "github.com/slicingmelon/go-bypass-403/internal/utils/logger"
+	GB403Logger "github.com/slicingmelon/go-bypass-403/core/utils/logger"
 )
 
 type Header struct {

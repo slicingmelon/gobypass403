@@ -15,7 +15,7 @@ import (
 	"sync"
 	"time"
 
-	GB403Logger "github.com/slicingmelon/go-bypass-403/internal/utils/logger"
+	GB403Logger "github.com/slicingmelon/go-bypass-403/core/utils/logger"
 	"github.com/slicingmelon/go-rawurlparser"
 	"github.com/valyala/fasthttp"
 )
