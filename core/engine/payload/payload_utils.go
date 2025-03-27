@@ -54,7 +54,7 @@ func GetToolDir() (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("failed to get user config directory: %v", err)
 	}
-	return filepath.Join(configDir, "go-bypass-403"), nil
+	return filepath.Join(configDir, "gobypass403"), nil
 }
 
 // GetPayloadsDir returns the payloads directory path
@@ -63,7 +63,7 @@ func GetPayloadsDir() (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("failed to get user config directory: %w", err)
 	}
-	return filepath.Join(configDir, "go-bypass-403", "payloads"), nil
+	return filepath.Join(configDir, "gobypass403", "payloads"), nil
 }
 
 // InitializePayloadsDir ensures all payload files exist in the user's config directory
