@@ -277,3 +277,23 @@ func PrintCyan(format string, args ...any) {
 	defer DefaultLogger.mu.Unlock()
 	pterm.FgCyan.Printf(format, args...)
 }
+
+// PrintBypassModuleInfo prints a specially formatted bypass module information message
+// with colored backgrounds for the module name and payload count
+func PrintBypassModuleInfo(bypassModule string, payloadCount int, targetURL string) {
+	DefaultLogger.mu.Lock()
+	defer DefaultLogger.mu.Unlock()
+
+	moduleText := pterm.NewStyle(pterm.BgCyan, pterm.FgBlack).Sprintf(" %s ", bypassModule)
+
+	payloadText := pterm.NewStyle(pterm.BgCyan, pterm.FgBlack).Sprintf(" %d PAYLOADS ", payloadCount)
+
+	urlText := pterm.FgYellow.Sprintf("%s", targetURL)
+
+	message := moduleText + " " + payloadText + " Scanning " + urlText + "\n"
+
+	pterm.Println(message)
+
+	// Force stdout to flush (extra safety measure)
+	os.Stdout.Sync()
+}

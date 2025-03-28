@@ -3,7 +3,7 @@ name: Release GoByPASS403
 on:
   push:
     tags:
-      - 'v*'  # Trigger on version tags like v1.0.0
+      - 'v*'
 
 jobs:
   build:
@@ -52,5 +52,6 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           files: dist/*
+          draft: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
