@@ -9,6 +9,7 @@ import (
 	"bufio"
 	"bytes"
 	"strconv"
+	"strings"
 	"sync"
 
 	"github.com/slicingmelon/gobypass403/core/engine/payload"
@@ -31,6 +32,45 @@ var (
 		},
 	}
 )
+
+// RawRequest stores a raw HTTP request
+type RawRequest struct {
+	Raw []byte
+	req *fasthttp.Request // Original request for reference
+}
+
+// NewRawRequest creates a new raw request
+func NewRawRequest(raw []byte, req *fasthttp.Request) *RawRequest {
+	return &RawRequest{
+		Raw: raw,
+		req: req,
+	}
+}
+
+// Write implements the httpWriter interface
+func (r *RawRequest) Write(w *bufio.Writer) error {
+	_, err := w.Write(r.Raw)
+	return err
+}
+
+// GetRawRequest retrieves a raw request
+func GetRawRequest(req *fasthttp.Request) (*RawRequest, bool) {
+	if raw, ok := rawRequests.Load(req); ok {
+		return raw.(*RawRequest), true
+	}
+	return nil, false
+}
+
+// CleanupRawRequest removes a raw request from storage
+func CleanupRawRequest(req *fasthttp.Request) {
+	rawRequests.Delete(req)
+}
+
+// StoreRawRequest stores raw bytes to be sent for a request
+func StoreRawRequest(req *fasthttp.Request, raw []byte) {
+	rawRequest := NewRawRequest(raw, req)
+	rawRequests.Store(req, rawRequest)
+}
 
 /*
 Crucial information
@@ -59,52 +99,59 @@ For this to work, everything must be set in order, Raw Request line, headers, th
 then set req.UseHostHeader = true and then req.URI().SetScheme() and req.URI().SetHost()
 */
 func BuildRawHTTPRequest(httpclient *HTTPClient, req *fasthttp.Request, bypassPayload payload.BypassPayload) error {
-	// Define shouldCloseConn
-	shouldCloseConn := len(bypassPayload.Headers) > 0 ||
-		httpclient.GetHTTPClientOptions().DisableKeepAlive ||
-		httpclient.GetHTTPClientOptions().ProxyURL != ""
-
 	// Get ByteBuffer from pool
 	bb := requestBufferPool.Get()
 	defer requestBufferPool.Put(bb)
 
-	// Build request line directly into byte buffer
+	// Reset buffer
+	bb.Reset()
+
+	// Build request line
 	bb.B = append(bb.B, bypassPayload.Method...)
 	bb.B = append(bb.B, ' ')
 	bb.B = append(bb.B, bypassPayload.RawURI...)
 	bb.B = append(bb.B, " HTTP/1.1\r\n"...)
 
-	// Add all headers
+	// Add Host header
+	if bypassPayload.Host != "" {
+		bb.B = append(bb.B, "Host: "...)
+		bb.B = append(bb.B, bypassPayload.Host...)
+		bb.B = append(bb.B, "\r\n"...)
+	}
+
+	// Flag to track if we need to add Connection: close
+	shouldCloseConn := httpclient.options.DisableKeepAlive
+
+	// Add remaining headers
 	hasHostHeader := false
 	hasContentLength := false
 	for _, h := range bypassPayload.Headers {
-		if h.Header == "Host" {
+		if strings.EqualFold(h.Header, "Host") {
 			hasHostHeader = true
-			shouldCloseConn = true
-		}
-		if h.Header == "Content-Length" {
+		} else if strings.EqualFold(h.Header, "Content-Length") {
 			hasContentLength = true
-		}
-		if h.Header == "Connection" {
-			// Skip Connection header here, we'll add it last
+		} else if strings.EqualFold(h.Header, "Connection") && strings.EqualFold(h.Value, "close") {
 			shouldCloseConn = true
-			continue
 		}
+
 		bb.B = append(bb.B, h.Header...)
 		bb.B = append(bb.B, ": "...)
 		bb.B = append(bb.B, h.Value...)
 		bb.B = append(bb.B, "\r\n"...)
 	}
 
-	// Add Host header if not present
-	if !hasHostHeader {
+	// Add host header if not already added
+	if !hasHostHeader && bypassPayload.Host != "" {
 		bb.B = append(bb.B, "Host: "...)
 		bb.B = append(bb.B, bypassPayload.Host...)
 		bb.B = append(bb.B, "\r\n"...)
 	}
 
-	// Add standard headers
-	bb.B = append(bb.B, strUserAgentHeader...)
+	// Default user agent unless explicitly disabled
+	if !httpclient.options.NoDefaultUserAgent {
+		bb.B = append(bb.B, "User-Agent: go-bypass-403\r\n"...)
+	}
+
 	bb.B = append(bb.B, "\r\n"...)
 	bb.B = append(bb.B, "Accept: */*\r\n"...)
 
@@ -137,17 +184,11 @@ func BuildRawHTTPRequest(httpclient *HTTPClient, req *fasthttp.Request, bypassPa
 		bb.B = append(bb.B, bypassPayload.Body...)
 	}
 
-	// Get bufio.Reader from pool and reset it with our ByteBuffer reader
-	br := rawRequestBuffReaderPool.Get().(*bufio.Reader)
-	br.Reset(bytes.NewReader(bb.B))
-	defer rawRequestBuffReaderPool.Put(br)
+	// IMPORTANT CHANGE: Instead of using ReadLimitBody, store the raw bytes
+	// for our custom transport to send directly
+	StoreRawRequest(req, bb.B)
 
-	// Let FastHTTP parse the entire request (headers + body)
-	if err := req.ReadLimitBody(br, 0); err != nil {
-		return err
-	}
-
-	// Set URI components after successful parsing
+	// Just set minimal routing info for the request
 	req.URI().DisablePathNormalizing = true
 	req.Header.DisableNormalizing()
 	req.Header.SetNoDefaultContentType(true)
