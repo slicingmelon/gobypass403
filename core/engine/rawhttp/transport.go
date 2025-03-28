@@ -2,15 +2,11 @@ package rawhttp
 
 import (
 	"io"
-	"sync"
 	"time"
 
 	GB403Logger "github.com/slicingmelon/gobypass403/core/utils/logger"
 	"github.com/valyala/fasthttp"
 )
-
-// Store raw requests in a sync.Map to avoid race conditions
-var rawRequests sync.Map
 
 // RawTransport implements the RoundTripper interface
 type RawTransport struct{}
@@ -53,16 +49,12 @@ func (t *RawTransport) RoundTrip(hc *fasthttp.HostClient, req *fasthttp.Request,
 		resetConnection = true
 	}
 
-	// Use proper method to acquire writer
+	// Get writer
 	bw := hc.AcquireWriter(conn)
 
-	// Always get and use the raw request bytes - we should always have them
-	// since BuildRawHTTPRequest always creates them
-	rawReq, _ := GetRawRequest(req)
-	// Write raw bytes directly
-	err = rawReq.Write(bw)
-	// Clean up to prevent memory leaks
-	CleanupRawRequest(req)
+	// Just write the raw request body directly
+	// The req.Body() function gets the request body, which in our case is the raw HTTP request
+	_, err = bw.Write(req.Body())
 
 	if resetConnection {
 		req.Header.ResetConnectionClose()

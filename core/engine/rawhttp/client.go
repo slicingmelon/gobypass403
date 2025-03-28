@@ -139,7 +139,7 @@ func NewHTTPClient(opts *HTTPClientOptions) *HTTPClient {
 		StreamResponseBody:            opts.StreamResponseBody,
 		Dial:                          opts.Dialer,
 		// Set our custom transport to handle raw HTTP requests
-		Transport: &RawTransport{},
+		//Transport: &RawTransport{},
 		TLSConfig: &tls.Config{
 			InsecureSkipVerify: true,
 			MinVersion:         tls.VersionTLS10,
