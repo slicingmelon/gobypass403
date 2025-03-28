@@ -40,11 +40,11 @@ Usage:
   -shf, -substitute-hosts-file
         File containing a list of hosts to substitute target URL's hostname (mostly used in CDN bypasses by providing a list of CDNs)
   -m, -module
-        Bypass module (all, mid_paths, end_paths, case_substitution, char_encode,unicode_path_normalization, http_headers_scheme, http_headers_ip, http_headers_port, http_headers_url, http_host) (Default: all)
+        Bypass module (all,mid_paths,end_paths,http_methods,case_substitution,char_encode,nginx_bypasses,unicode_path_normalization,http_headers_scheme,http_headers_ip,http_headers_port,http_headers_url,http_host) (Default: all)
   -o, -outdir
         Output directory
-  -t, -threads
-        Number of concurrent threads (Default: 15)
+  -cr, -concurrent-requests
+        Number of concurrent concurrent requests (Default: 15)
   -T, -timeout
         Total timeout (in milliseconds) (Default: 20000)
   -delay
@@ -64,7 +64,7 @@ Usage:
   -mc, -match-status-code
         Filter results by HTTP status codes (example: -mc 200, 301, 500, all). Default: All status codes
   -mct, -match-content-type
-        Filter results by content type substring (example: -mct application/json)
+        Filter results by content type(s) substring (example: -mct application/json,text/html)
   -http2
         Enable HTTP2 client (Default: false)
   -x, -proxy
@@ -96,8 +96,8 @@ Usage:
 Standard command(s):
 ```bash
 gobypass403 -u "https://go-test-webapp.com/admin" -mc "200"
-gobypass403 -u "https://go-test-webapp.com/admin" -mc "200,500" -t 10 -v 
-gobypass403 -u "https://go-test-webapp.com/admin" -mc "all" -t 10 -v 
+gobypass403 -u "https://go-test-webapp.com/admin" -mc "200,500" -cr 10
+gobypass403 -u "https://go-test-webapp.com/admin" -mc "mid_paths,nginx_bypasses,http_headers_ip" -cr 20 -mct "application/json,image/png"
 ```
 
 Using a list of target URLs:

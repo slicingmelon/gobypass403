@@ -28,6 +28,7 @@ var AvailableBypassModules = []string{
 	"http_methods",
 	"case_substitution",
 	"char_encode",
+	"nginx_bypasses",
 	"http_headers_ip",
 	"http_host",
 	"http_headers_scheme",
@@ -152,7 +153,8 @@ func (s *Scanner) RunBypassModule(bypassModule string, targetURL string) int {
 		return 0
 	}
 
-	GB403Logger.Info().Msgf("[%s] Generated %d payloads for %s\n", bypassModule, totalJobs, targetURL)
+	//GB403Logger.Info().Msgf("[%s] Generated %d payloads for %s\n", bypassModule, totalJobs, targetURL)
+	GB403Logger.PrintBypassModuleInfo(bypassModule, totalJobs, targetURL)
 
 	maxModuleNameLength := 0
 	for _, module := range AvailableBypassModules {
@@ -189,14 +191,14 @@ func (s *Scanner) RunBypassModule(bypassModule string, targetURL string) int {
 
 		// Update progress bar with current stats
 		completed := worker.requestPool.GetReqWPCompletedTasks()
-		active := worker.requestPool.GetReqWPActiveWorkers()
+		//active := worker.requestPool.GetReqWPActiveWorkers()
 		currentRate := worker.requestPool.GetRequestRate()
 		avgRate := worker.requestPool.GetAverageRequestRate()
 
 		// weird bug "overflowing" on the text above the progressbar ... spaces fixes it
 		msg := fmt.Sprintf(
-			"  Workers [%d/%d] | Rate [%d req/s] Avg [%d req/s] | Completed %d/%d    ",
-			active, maxWorkers, currentRate, avgRate, completed, uint64(totalJobs),
+			"Max Concurrent [%d req] | Rate [%d req/s] Avg [%d req/s] | Completed %d/%d    ",
+			maxWorkers, currentRate, avgRate, completed, uint64(totalJobs),
 		)
 		bar.WriteAbove(msg)
 

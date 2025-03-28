@@ -83,6 +83,7 @@ var AvailableModules = map[string]bool{
 	"http_methods":               true,
 	"case_substitution":          true,
 	"char_encode":                true,
+	"nginx_bypasses":             true,
 	"http_headers_scheme":        true,
 	"http_headers_ip":            true,
 	"http_headers_port":          true,
