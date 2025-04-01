@@ -245,9 +245,9 @@ import (
 	"sync"
 
 	"github.com/slicingmelon/gobypass403/core/engine/payload"
+	GB403Logger "github.com/slicingmelon/gobypass403/core/utils/logger"
 
 	"github.com/VictoriaMetrics/VictoriaMetrics/lib/bytesutil"
-	GB403Logger "github.com/slicingmelon/gobypass403/core/utils/logger"
 	"github.com/valyala/fasthttp"
 )
 
@@ -304,8 +304,7 @@ func BuildRawHTTPRequest(httpclient *HTTPClient, req *fasthttp.Request, bypassPa
 	// Build request line directly into byte buffer
 	bb.B = append(bb.B, bypassPayload.Method...)
 	bb.B = append(bb.B, ' ')
-	//bb.B = append(bb.B, bypassPayload.RawURI...)
-	bb.B = append(bb.B, "/test"...)
+	bb.B = append(bb.B, bypassPayload.RawURI...)
 	bb.B = append(bb.B, " HTTP/1.1\r\n"...)
 
 	// Add all headers
@@ -376,6 +375,9 @@ func BuildRawHTTPRequest(httpclient *HTTPClient, req *fasthttp.Request, bypassPa
 	br.Reset(bytes.NewReader(bb.B))
 	defer rawRequestBuffReaderPool.Put(br)
 
+	req.URI().DisablePathNormalizing = true
+	req.Header.DisableNormalizing()
+
 	// Let FastHTTP parse the entire request (headers + body)
 	if err := req.ReadLimitBody(br, 0); err != nil {
 		return err
@@ -386,8 +388,6 @@ func BuildRawHTTPRequest(httpclient *HTTPClient, req *fasthttp.Request, bypassPa
 	req.Header.DisableNormalizing()
 	req.Header.SetNoDefaultContentType(true)
 	req.UseHostHeader = true
-
-	req.SetRequestURI(bypassPayload.RawURI)
 
 	req.URI().SetScheme(bypassPayload.Scheme)
 	req.URI().SetHost(bypassPayload.Host)

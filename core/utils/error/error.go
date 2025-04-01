@@ -32,14 +32,14 @@ var (
 )
 
 var (
-	ErrBodyTooLarge          = fasthttp.ErrBodyTooLarge // "body size exceeds the given limit"
-	ErrInvalidResponseHeader = errors.New("invalid header")
+	ErrBodyTooLarge = fasthttp.ErrBodyTooLarge // "body size exceeds the given limit"
+	//ErrInvalidResponseHeader = errors.New("invalid header")
 	ErrConnForciblyClosedWin = errors.New("wsarecv: An existing connection was forcibly closed by the remote host")
 )
 
 var defaultWhitelistedErrorsStr = []string{
 	ErrBodyTooLarge.Error(),
-	ErrInvalidResponseHeader.Error(),
+	//ErrInvalidResponseHeader.Error(),
 }
 
 var (

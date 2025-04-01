@@ -100,19 +100,6 @@ func (sw *SafeWriter) Write(p []byte) (n int, err error) {
 	return sw.w.Write(newP)
 }
 
-// func (sw *SafeWriter) Write(p []byte) (n int, err error) {
-// 	sw.mu.Lock()
-// 	defer sw.mu.Unlock()
-
-// 	// Prepend \r and ensure \n
-// 	newP := make([]byte, 0, len(p)+3)
-// 	newP = append(newP, '\r')
-// 	newP = append(newP, p...)
-// 	newP = append(newP, '\n')
-
-// 	return sw.w.Write(newP)
-// }
-
 func (l *Logger) newEvent(printer pterm.PrefixPrinter) *Event {
 	return &Event{
 		logger:   l,
