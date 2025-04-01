@@ -37,3 +37,5 @@ X-URI
 X-URL
 X-Wap-Profile
 X-Waws-Unencoded-URL
+X-Forwaded-Prefix
+X-Forwaded-Context
