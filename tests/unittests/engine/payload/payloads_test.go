@@ -1,9 +1,14 @@
 package tests
 
 import (
+	"fmt"
+	"strings"
+	"sync"
 	"testing"
 
 	"github.com/slicingmelon/gobypass403/core/engine/payload"
+	"github.com/slicingmelon/gobypass403/core/engine/rawhttp"
+	"github.com/valyala/fasthttp"
 )
 
 func TestGenerateHeaderIPJobs_RequestFormat(t *testing.T) {
@@ -178,5 +183,93 @@ func TestPayloadSeedRoundTrip(t *testing.T) {
 		if recovered.Headers[i].Header != h.Header || recovered.Headers[i].Value != h.Value {
 			t.Errorf("Header %d mismatch: %+v != %+v", i, h, recovered.Headers[i])
 		}
+	}
+}
+
+func TestNginxACLsBypassPayloadsRawURI(t *testing.T) {
+	// Create a PayloadGenerator
+	pg := payload.NewPayloadGenerator(payload.PayloadGeneratorOptions{
+		TargetURL:    "http://localhost/admin",
+		BypassModule: "nginx_bypasses-test",
+	})
+
+	// Generate the payloads
+	payloads := pg.GenerateNginxACLsBypassPayloads("http://localhost/admin", "nginx_bypasses-test")
+	if len(payloads) == 0 {
+		t.Fatalf("No payloads were generated")
+	}
+
+	t.Logf("Generated %d payloads to test", len(payloads))
+
+	// Create HTTP client
+	httpClient := rawhttp.NewHTTPClient(rawhttp.DefaultHTTPClientOptions())
+
+	// Track failures
+	var failCount int
+	var failMu sync.Mutex
+
+	// Test each payload
+	for i, bypassPayload := range payloads { // Test all payloads
+		t.Run(fmt.Sprintf("Payload_%d", i), func(t *testing.T) {
+			// Create a new request and response for each payload
+			req := fasthttp.AcquireRequest()
+			defer fasthttp.ReleaseRequest(req)
+			resp := fasthttp.AcquireResponse()
+			defer fasthttp.ReleaseResponse(resp)
+
+			// Build the raw HTTP request
+			err := rawhttp.BuildRawHTTPRequest(httpClient, req, bypassPayload)
+			if err != nil {
+				t.Fatalf("Failed to build raw HTTP request: %v", err)
+			}
+
+			// Log the request details
+			t.Logf("Testing payload %d", i)
+			t.Logf("RawURI: %s", bypassPayload.RawURI)
+			t.Logf("Method: %s", bypassPayload.Method)
+			t.Logf("Request before sending: %s", req.String())
+
+			// Send request to the echo server
+			_, err = httpClient.DoRequest(req, resp, bypassPayload)
+			if err != nil {
+				failMu.Lock()
+				failCount++
+				failMu.Unlock()
+				t.Fatalf("Failed to send request: %v", err)
+			}
+
+			// Get the response body which should contain the exact request sent
+			responseBody := resp.Body()
+
+			// Split the response to get the first line (request line)
+			lines := strings.Split(string(responseBody), "\n")
+			if len(lines) == 0 {
+				failMu.Lock()
+				failCount++
+				failMu.Unlock()
+				t.Fatalf("Empty response from echo server")
+			}
+
+			firstLine := strings.TrimSpace(lines[0])
+			t.Logf("First line of response: %s", firstLine)
+
+			// Check if the raw URI was preserved correctly
+			expectedRequestLine := fmt.Sprintf("%s %s HTTP/1.1", bypassPayload.Method, bypassPayload.RawURI)
+			if !strings.HasPrefix(firstLine, expectedRequestLine) {
+				failMu.Lock()
+				failCount++
+				failMu.Unlock()
+				t.Errorf("Raw request line not correctly preserved. Got: '%s', Want: '%s'", firstLine, expectedRequestLine)
+			} else {
+				t.Logf("Raw request line matched successfully")
+			}
+		})
+	}
+
+	// Print summary
+	if failCount > 0 {
+		t.Logf("TEST SUMMARY: %d out of %d tests failed", failCount, len(payloads))
+	} else {
+		t.Logf("TEST SUMMARY: All %d tests passed successfully", len(payloads))
 	}
 }

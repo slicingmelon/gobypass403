@@ -138,6 +138,8 @@ func NewHTTPClient(opts *HTTPClientOptions) *HTTPClient {
 		WriteTimeout:                  opts.Timeout,
 		StreamResponseBody:            opts.StreamResponseBody,
 		Dial:                          opts.Dialer,
+		// Set our custom transport to handle raw HTTP requests
+		//Transport: &RawTransport{},
 		TLSConfig: &tls.Config{
 			InsecureSkipVerify: true,
 			MinVersion:         tls.VersionTLS10,

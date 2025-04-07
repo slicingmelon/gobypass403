@@ -3,9 +3,13 @@ package tests
 import (
 	"bufio"
 	"bytes"
+	"fmt"
 	"net"
+	"strings"
 	"testing"
 
+	"github.com/slicingmelon/gobypass403/core/engine/payload"
+	"github.com/slicingmelon/gobypass403/core/engine/rawhttp"
 	"github.com/stretchr/testify/assert"
 	"github.com/valyala/fasthttp"
 	"github.com/valyala/fasthttp/fasthttputil"
@@ -414,4 +418,66 @@ func TestManualRawRequestWithCustomRequestLineViaURIUPDATE(t *testing.T) {
 	// Verify the Host header was set correctly
 	assert.Equal(t, "evil.com", string(req.Header.Peek("Host")))
 	assert.Equal(t, "123", string(req.Header.Peek("X-Test-Header")))
+}
+
+func TestBuildRawHTTPRequestWithCustomRequestLine(t *testing.T) {
+	// Create a new HTTP client with default options
+	httpClient := rawhttp.NewHTTPClient(rawhttp.DefaultHTTPClientOptions())
+
+	// Create a bypass payload
+	bypassPayload := payload.BypassPayload{
+		Method:       "GET",
+		Scheme:       "http",
+		Host:         "localhost",
+		RawURI:       "@testrawline", // Custom raw URI with leading slash
+		BypassModule: "test",
+		PayloadToken: "test-token",
+	}
+
+	// Create a fasthttp request
+	req := fasthttp.AcquireRequest()
+	defer fasthttp.ReleaseRequest(req)
+	resp := fasthttp.AcquireResponse()
+	defer fasthttp.ReleaseResponse(resp)
+
+	// Build the raw HTTP request
+	err := rawhttp.BuildRawHTTPRequest(httpClient, req, bypassPayload)
+	if err != nil {
+		t.Fatalf("Failed to build raw HTTP request: %v", err)
+	}
+
+	// Log the request details before sending
+	t.Logf("Request before sending: %s", req.String())
+	t.Logf("Request URI: %s", req.URI().String())
+	t.Logf("Host: %s", string(req.Header.Host()))
+	t.Logf("Path: %s", string(req.URI().Path()))
+	t.Logf("Full URI: %s", string(req.URI().FullURI()))
+
+	// Send request to the echo server (assuming it's running on localhost:8080)
+	_, err = httpClient.DoRequest(req, resp, bypassPayload)
+	if err != nil {
+		t.Fatalf("Failed to send request: %v", err)
+	}
+
+	// Get the response body which should contain the exact request sent
+	responseBody := resp.Body()
+
+	// Split the response to get the first line (request line)
+	lines := strings.Split(string(responseBody), "\n")
+	if len(lines) == 0 {
+		t.Fatalf("Empty response from echo server")
+	}
+
+	firstLine := strings.TrimSpace(lines[0])
+	t.Logf("First line of response: %s", firstLine)
+
+	// Check if the raw URI was preserved correctly
+	// The expected first line should contain the exact raw URI from the payload
+	expectedRequestLine := fmt.Sprintf("GET @testrawline HTTP/1.1")
+	if !strings.HasPrefix(firstLine, expectedRequestLine) {
+		t.Errorf("Raw request line not correctly preserved. Got: '%s', Want: '%s'", firstLine, expectedRequestLine)
+	}
+
+	// Print full response for debugging
+	t.Logf("Full response from echo server:\n%s", string(responseBody))
 }

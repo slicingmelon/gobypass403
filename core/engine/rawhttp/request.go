@@ -12,9 +12,9 @@ import (
 	"sync"
 
 	"github.com/slicingmelon/gobypass403/core/engine/payload"
+	GB403Logger "github.com/slicingmelon/gobypass403/core/utils/logger"
 
 	"github.com/VictoriaMetrics/VictoriaMetrics/lib/bytesutil"
-	GB403Logger "github.com/slicingmelon/gobypass403/core/utils/logger"
 	"github.com/valyala/fasthttp"
 )
 
@@ -141,6 +141,9 @@ func BuildRawHTTPRequest(httpclient *HTTPClient, req *fasthttp.Request, bypassPa
 	br := rawRequestBuffReaderPool.Get().(*bufio.Reader)
 	br.Reset(bytes.NewReader(bb.B))
 	defer rawRequestBuffReaderPool.Put(br)
+
+	req.URI().DisablePathNormalizing = true
+	req.Header.DisableNormalizing()
 
 	// Let FastHTTP parse the entire request (headers + body)
 	if err := req.ReadLimitBody(br, 0); err != nil {
