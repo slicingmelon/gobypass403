@@ -26,3 +26,7 @@
 !test-tools/
 !test-tools/*
 !test-tools/**
+
+!pkg/
+!pkg/*
+!pkg/**
