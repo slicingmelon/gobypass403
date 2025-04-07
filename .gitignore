@@ -30,3 +30,6 @@
 !pkg/
 !pkg/*
 !pkg/**
+!pkg/fasthttp/
+!pkg/fasthttp/*
+!pkg/fasthttp/**
