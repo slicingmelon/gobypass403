@@ -1077,6 +1077,9 @@ func (pg *PayloadGenerator) GenerateNginxACLsBypassPayloads(targetURL string, by
 	return allJobs
 }
 
+/*
+GenerateHeaderSchemePayloads
+*/
 func (pg *PayloadGenerator) GenerateHeaderSchemePayloads(targetURL string, bypassModule string) []BypassPayload {
 	var allJobs []BypassPayload
 
@@ -1157,6 +1160,9 @@ func (pg *PayloadGenerator) GenerateHeaderSchemePayloads(targetURL string, bypas
 	return allJobs
 }
 
+/*
+GenerateHeaderURLPayloads
+*/
 func (pg *PayloadGenerator) GenerateHeaderURLPayloads(targetURL string, bypassModule string) []BypassPayload {
 	var allJobs []BypassPayload
 
