@@ -11,7 +11,7 @@ import (
 	"time"
 )
 
-//go:embed fasthttputil fs.go README.md testdata examples
+//go:embed fasthttputil fs.go testdata examples
 var fsTestFilesystem embed.FS
 
 func TestFSServeFileHead(t *testing.T) {
