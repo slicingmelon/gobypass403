@@ -2989,12 +2989,12 @@ func (h *ResponseHeader) parseHeaders(buf []byte) (int, error) {
 		}
 		normalizeHeaderKey(s.key, disableNormalizing)
 
-		for _, ch := range s.value {
-			if !validHeaderValueByte(ch) {
-				h.connectionClose = true
-				return 0, fmt.Errorf("invalid header value %q", s.value)
-			}
-		}
+		// for _, ch := range s.value {
+		// 	if !validHeaderValueByte(ch) {
+		// 		h.connectionClose = true
+		// 		return 0, fmt.Errorf("invalid header value %q", s.value)
+		// 	}
+		// }
 
 		switch s.key[0] | 0x20 {
 		case 'c':
