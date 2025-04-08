@@ -899,6 +899,7 @@ func (u *URI) parseQueryArgs() {
 // 	return false
 // }
 
+// PATCH gobypass403
 func stringContainsCTLByte(s []byte) bool {
 	return false
 }

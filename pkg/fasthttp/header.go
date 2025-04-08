@@ -2882,6 +2882,7 @@ func (h *RequestHeader) parseFirstLine(buf []byte) (int, error) {
 	}
 	h.method = append(h.method[:0], b[:n]...)
 
+	// PATCH gobypass403
 	// if !isValidMethod(h.method) {
 	// 	if h.secureErrorLogMessage {
 	// 		return 0, errors.New("unsupported http request method")
@@ -2904,6 +2905,7 @@ func (h *RequestHeader) parseFirstLine(buf []byte) (int, error) {
 
 	protoStr := b[n+1:]
 
+	// PATCH gobypass403
 	// Follow RFCs 7230 and 9112 and require that HTTP versions match the following pattern: HTTP/[0-9]\.[0-9]
 	// if len(protoStr) != len(strHTTP11) {
 	// 	if h.secureErrorLogMessage {
@@ -2989,6 +2991,7 @@ func (h *ResponseHeader) parseHeaders(buf []byte) (int, error) {
 		}
 		normalizeHeaderKey(s.key, disableNormalizing)
 
+		// PATCH gobypass403
 		// for _, ch := range s.value {
 		// 	if !validHeaderValueByte(ch) {
 		// 		h.connectionClose = true
