@@ -1569,194 +1569,194 @@ const normalizedMatches = new Set();
 
 normalizedMatches.forEach(match => console.log(match));
 */
-func (pg *PayloadGenerator) GenerateUnicodePathNormalizationsPayloads(targetURL string, bypassModule string) []BypassPayload {
-	var jobs []BypassPayload
+// func (pg *PayloadGenerator) GenerateUnicodePathNormalizationsPayloads(targetURL string, bypassModule string) []BypassPayload {
+// 	var jobs []BypassPayload
 
-	parsedURL, err := rawurlparser.RawURLParse(targetURL)
-	if err != nil {
-		GB403Logger.Error().Msgf("Failed to parse URL: %v\n", err)
-		return jobs
-	}
+// 	parsedURL, err := rawurlparser.RawURLParse(targetURL)
+// 	if err != nil {
+// 		GB403Logger.Error().Msgf("Failed to parse URL: %v\n", err)
+// 		return jobs
+// 	}
 
-	path := parsedURL.Path
-	if path == "" {
-		path = "/"
-	}
+// 	path := parsedURL.Path
+// 	if path == "" {
+// 		path = "/"
+// 	}
 
-	// Extract query string if it exists
-	query := ""
-	if parsedURL.Query != "" {
-		query = "?" + parsedURL.Query
-	}
+// 	// Extract query string if it exists
+// 	query := ""
+// 	if parsedURL.Query != "" {
+// 		query = "?" + parsedURL.Query
+// 	}
 
-	// Read Unicode mappings
-	unicodeMappings, err := ReadPayloadsFromFile("unicode_path_chars.lst")
-	if err != nil {
-		GB403Logger.Error().Msgf("Failed to read unicode path chars: %v\n", err)
-		return jobs
-	}
+// 	// Read Unicode mappings
+// 	unicodeMappings, err := ReadPayloadsFromFile("unicode_path_chars.lst")
+// 	if err != nil {
+// 		GB403Logger.Error().Msgf("Failed to read unicode path chars: %v\n", err)
+// 		return jobs
+// 	}
 
-	// Build character mapping for '.' and '/'
-	targetChars := map[rune]bool{'.': true, '/': true}
-	charMap := make(map[rune][]string)
+// 	// Build character mapping for '.' and '/'
+// 	targetChars := map[rune]bool{'.': true, '/': true}
+// 	charMap := make(map[rune][]string)
 
-	for _, mapping := range unicodeMappings {
-		parts := strings.Split(mapping, "=")
-		if len(parts) != 2 {
-			continue
-		}
-		asciiChar := []rune(parts[1])[0]
-		if !targetChars[asciiChar] {
-			continue
-		}
-		unicodeChar := strings.Split(parts[0], "(")[0]
-		charMap[asciiChar] = append(charMap[asciiChar], unicodeChar)
-	}
+// 	for _, mapping := range unicodeMappings {
+// 		parts := strings.Split(mapping, "=")
+// 		if len(parts) != 2 {
+// 			continue
+// 		}
+// 		asciiChar := []rune(parts[1])[0]
+// 		if !targetChars[asciiChar] {
+// 			continue
+// 		}
+// 		unicodeChar := strings.Split(parts[0], "(")[0]
+// 		charMap[asciiChar] = append(charMap[asciiChar], unicodeChar)
+// 	}
 
-	baseJob := BypassPayload{
-		OriginalURL:  targetURL,
-		Method:       "GET",
-		Scheme:       parsedURL.Scheme,
-		Host:         parsedURL.Host,
-		BypassModule: bypassModule,
-	}
+// 	baseJob := BypassPayload{
+// 		OriginalURL:  targetURL,
+// 		Method:       "GET",
+// 		Scheme:       parsedURL.Scheme,
+// 		Host:         parsedURL.Host,
+// 		BypassModule: bypassModule,
+// 	}
 
-	uniquePaths := make(map[string]struct{})
+// 	uniquePaths := make(map[string]struct{})
 
-	// Helper to add both Unicode and URL-encoded versions
-	addPathVariants := func(path string) {
-		// Append query to the modified path
-		pathWithQuery := path + query
+// 	// Helper to add both Unicode and URL-encoded versions
+// 	addPathVariants := func(path string) {
+// 		// Append query to the modified path
+// 		pathWithQuery := path + query
 
-		if _, exists := uniquePaths[pathWithQuery]; !exists {
-			uniquePaths[pathWithQuery] = struct{}{}
-			job := baseJob
-			job.RawURI = pathWithQuery
-			job.PayloadToken = GeneratePayloadToken(job)
-			jobs = append(jobs, job)
-		}
-	}
+// 		if _, exists := uniquePaths[pathWithQuery]; !exists {
+// 			uniquePaths[pathWithQuery] = struct{}{}
+// 			job := baseJob
+// 			job.RawURI = pathWithQuery
+// 			job.PayloadToken = GeneratePayloadToken(job)
+// 			jobs = append(jobs, job)
+// 		}
+// 	}
 
-	// Find all positions of '.' and '/'
-	type CharPosition struct {
-		char     rune
-		position int
-	}
-	var positions []CharPosition
-	for i, char := range path {
-		if targetChars[char] {
-			positions = append(positions, CharPosition{char: char, position: i})
-		}
-	}
+// 	// Find all positions of '.' and '/'
+// 	type CharPosition struct {
+// 		char     rune
+// 		position int
+// 	}
+// 	var positions []CharPosition
+// 	for i, char := range path {
+// 		if targetChars[char] {
+// 			positions = append(positions, CharPosition{char: char, position: i})
+// 		}
+// 	}
 
-	// 1. Single character replacements
-	for _, pos := range positions {
-		unicodeChars := charMap[pos.char]
-		for _, unicodeChar := range unicodeChars {
-			// Create Unicode version
-			pathRunes := []rune(path)
-			pathRunes[pos.position] = []rune(unicodeChar)[0]
-			unicodePath := string(pathRunes)
-			addPathVariants(unicodePath)
+// 	// 1. Single character replacements
+// 	for _, pos := range positions {
+// 		unicodeChars := charMap[pos.char]
+// 		for _, unicodeChar := range unicodeChars {
+// 			// Create Unicode version
+// 			pathRunes := []rune(path)
+// 			pathRunes[pos.position] = []rune(unicodeChar)[0]
+// 			unicodePath := string(pathRunes)
+// 			addPathVariants(unicodePath)
 
-			// Create URL-encoded version
-			encodedChar := URLEncodeAll(unicodeChar)
-			encodedPath := path[:pos.position] + encodedChar + path[pos.position+1:]
-			addPathVariants(encodedPath)
-		}
-	}
+// 			// Create URL-encoded version
+// 			encodedChar := URLEncodeAll(unicodeChar)
+// 			encodedPath := path[:pos.position] + encodedChar + path[pos.position+1:]
+// 			addPathVariants(encodedPath)
+// 		}
+// 	}
 
-	// 2. Replace all occurrences of each character
-	for char := range targetChars {
-		if unicodeChars, ok := charMap[char]; ok {
-			for _, unicodeChar := range unicodeChars {
-				// Replace all occurrences with Unicode
-				var unicodePath strings.Builder
-				var encodedPath strings.Builder
-				lastPos := 0
+// 	// 2. Replace all occurrences of each character
+// 	for char := range targetChars {
+// 		if unicodeChars, ok := charMap[char]; ok {
+// 			for _, unicodeChar := range unicodeChars {
+// 				// Replace all occurrences with Unicode
+// 				var unicodePath strings.Builder
+// 				var encodedPath strings.Builder
+// 				lastPos := 0
 
-				for i, c := range path {
-					if c == char {
-						unicodePath.WriteString(path[lastPos:i])
-						unicodePath.WriteString(unicodeChar)
+// 				for i, c := range path {
+// 					if c == char {
+// 						unicodePath.WriteString(path[lastPos:i])
+// 						unicodePath.WriteString(unicodeChar)
 
-						encodedPath.WriteString(path[lastPos:i])
-						encodedPath.WriteString(URLEncodeAll(unicodeChar))
+// 						encodedPath.WriteString(path[lastPos:i])
+// 						encodedPath.WriteString(URLEncodeAll(unicodeChar))
 
-						lastPos = i + 1
-					}
-				}
-				unicodePath.WriteString(path[lastPos:])
-				encodedPath.WriteString(path[lastPos:])
+// 						lastPos = i + 1
+// 					}
+// 				}
+// 				unicodePath.WriteString(path[lastPos:])
+// 				encodedPath.WriteString(path[lastPos:])
 
-				addPathVariants(unicodePath.String())
-				addPathVariants(encodedPath.String())
-			}
-		}
-	}
+// 				addPathVariants(unicodePath.String())
+// 				addPathVariants(encodedPath.String())
+// 			}
+// 		}
+// 	}
 
-	// 3. Special case: Add full-width slash before the last segment
-	segments := strings.Split(path, "/")
-	if len(segments) > 1 {
-		lastSegment := segments[len(segments)-1]
-		if lastSegment != "" {
-			// Create a new path with the full-width slash before the last segment
-			newSegments := make([]string, len(segments))
-			copy(newSegments, segments)
+// 	// 3. Special case: Add full-width slash before the last segment
+// 	segments := strings.Split(path, "/")
+// 	if len(segments) > 1 {
+// 		lastSegment := segments[len(segments)-1]
+// 		if lastSegment != "" {
+// 			// Create a new path with the full-width slash before the last segment
+// 			newSegments := make([]string, len(segments))
+// 			copy(newSegments, segments)
 
-			// Add the full-width slash before the last segment
-			// U+FF0F (／) = %ef%bc%8f
-			newSegments[len(newSegments)-1] = "%ef%bc%8f" + lastSegment
+// 			// Add the full-width slash before the last segment
+// 			// U+FF0F (／) = %ef%bc%8f
+// 			newSegments[len(newSegments)-1] = "%ef%bc%8f" + lastSegment
 
-			// Join the path back together
-			fullWidthSlashPath := strings.Join(newSegments, "/")
-			addPathVariants(fullWidthSlashPath)
+// 			// Join the path back together
+// 			fullWidthSlashPath := strings.Join(newSegments, "/")
+// 			addPathVariants(fullWidthSlashPath)
 
-			// Also try with the raw Unicode character version
-			newSegments[len(newSegments)-1] = "／" + lastSegment
-			unicodeFullWidthPath := strings.Join(newSegments, "/")
-			addPathVariants(unicodeFullWidthPath)
-		}
-	}
+// 			// Also try with the raw Unicode character version
+// 			newSegments[len(newSegments)-1] = "／" + lastSegment
+// 			unicodeFullWidthPath := strings.Join(newSegments, "/")
+// 			addPathVariants(unicodeFullWidthPath)
+// 		}
+// 	}
 
-	// 4. Enhanced technique: Add full-width slash after each slash in the path
-	if strings.Contains(path, "/") {
-		// For each slash position, create variants with fullwidth slash added after it
-		var lastPos int
-		var enhancedPathEncoded, enhancedPathUnicode strings.Builder
+// 	// 4. Enhanced technique: Add full-width slash after each slash in the path
+// 	if strings.Contains(path, "/") {
+// 		// For each slash position, create variants with fullwidth slash added after it
+// 		var lastPos int
+// 		var enhancedPathEncoded, enhancedPathUnicode strings.Builder
 
-		for i, char := range path {
-			if char == '/' {
-				// Add everything up to and including the slash
-				enhancedPathEncoded.WriteString(path[lastPos : i+1])
-				enhancedPathUnicode.WriteString(path[lastPos : i+1])
+// 		for i, char := range path {
+// 			if char == '/' {
+// 				// Add everything up to and including the slash
+// 				enhancedPathEncoded.WriteString(path[lastPos : i+1])
+// 				enhancedPathUnicode.WriteString(path[lastPos : i+1])
 
-				// Add fullwidth slash after the regular slash
-				enhancedPathEncoded.WriteString("%ef%bc%8f") // URL-encoded version
-				enhancedPathUnicode.WriteString("／")         // Unicode version
+// 				// Add fullwidth slash after the regular slash
+// 				enhancedPathEncoded.WriteString("%ef%bc%8f") // URL-encoded version
+// 				enhancedPathUnicode.WriteString("／")         // Unicode version
 
-				// Create and add the variant up to this point to catch all possible positions
-				enhancedPathSoFarEncoded := enhancedPathEncoded.String() + path[i+1:]
-				enhancedPathSoFarUnicode := enhancedPathUnicode.String() + path[i+1:]
+// 				// Create and add the variant up to this point to catch all possible positions
+// 				enhancedPathSoFarEncoded := enhancedPathEncoded.String() + path[i+1:]
+// 				enhancedPathSoFarUnicode := enhancedPathUnicode.String() + path[i+1:]
 
-				addPathVariants(enhancedPathSoFarEncoded)
-				addPathVariants(enhancedPathSoFarUnicode)
+// 				addPathVariants(enhancedPathSoFarEncoded)
+// 				addPathVariants(enhancedPathSoFarUnicode)
 
-				lastPos = i + 1
-			}
-		}
+// 				lastPos = i + 1
+// 			}
+// 		}
 
-		// Include remainder of the path if we ended on a non-slash
-		if lastPos < len(path) {
-			enhancedPathEncoded.WriteString(path[lastPos:])
-			enhancedPathUnicode.WriteString(path[lastPos:])
-		}
-	}
+// 		// Include remainder of the path if we ended on a non-slash
+// 		if lastPos < len(path) {
+// 			enhancedPathEncoded.WriteString(path[lastPos:])
+// 			enhancedPathUnicode.WriteString(path[lastPos:])
+// 		}
+// 	}
 
-	GB403Logger.Debug().BypassModule(bypassModule).
-		Msgf("Generated %d unicode normalization payloads for %s\n", len(jobs), targetURL)
-	return jobs
-}
+// 	GB403Logger.Debug().BypassModule(bypassModule).
+// 		Msgf("Generated %d unicode normalization payloads for %s\n", len(jobs), targetURL)
+// 	return jobs
+// }
 
 // func (pg *PayloadGenerator) GenerateUnicodePathNormalizationsPayloads(targetURL string, bypassModule string) []BypassPayload {
 // 	var jobs []BypassPayload
@@ -1881,3 +1881,211 @@ func (pg *PayloadGenerator) GenerateUnicodePathNormalizationsPayloads(targetURL 
 // 	}
 // 	return false
 // }
+
+func (pg *PayloadGenerator) GenerateUnicodePathNormalizationsPayloads(targetURL string, bypassModule string) []BypassPayload {
+	var jobs []BypassPayload
+
+	parsedURL, err := rawurlparser.RawURLParse(targetURL)
+	if err != nil {
+		GB403Logger.Error().BypassModule(bypassModule).Msgf("Failed to parse URL: %v", err)
+		return jobs
+	}
+
+	path := parsedURL.Path
+	if path == "" {
+		path = "/"
+	}
+
+	// Extract query string if it exists
+	query := ""
+	if parsedURL.Query != "" {
+		query = "?" + parsedURL.Query
+	}
+
+	// Read Unicode mappings
+	unicodeMappings, err := ReadPayloadsFromFile("unicode_path_chars.lst")
+	if err != nil {
+		GB403Logger.Error().BypassModule(bypassModule).Msgf("Failed to read unicode_path_chars.lst: %v", err)
+		return jobs
+	}
+
+	// Build character mapping: ASCII char -> list of Unicode variant strings
+	targetChars := map[rune]bool{'.': true, '/': true}
+	// charMap stores: ASCII rune -> list of Unicode variant strings
+	charMap := make(map[rune][]string)
+	// Store variants specifically for '/' to avoid hardcoding later
+	slashUnicodeVariants := []string{}
+
+	for _, mapping := range unicodeMappings {
+		parts := strings.SplitN(mapping, "=", 2) // Use SplitN for safety
+		if len(parts) != 2 {
+			GB403Logger.Warning().BypassModule(bypassModule).Msgf("Skipping malformed line in unicode_path_chars.lst: %s", mapping)
+			continue
+		}
+
+		// parts[0] contains the Unicode char + normalization info like "／(NFKC)"
+		// parts[1] contains the ASCII char like "/"
+		asciiStr := parts[1]
+		if len(asciiStr) == 0 {
+			continue // Skip if ASCII part is empty
+		}
+		asciiChar := []rune(asciiStr)[0] // Get the first rune of the ASCII string
+
+		// Check if this ASCII char is one we care about ('.' or '/')
+		if !targetChars[asciiChar] {
+			continue
+		}
+
+		// Extract only the Unicode character part from parts[0]
+		unicodeChar := strings.SplitN(parts[0], "(", 2)[0]
+		if unicodeChar == "" {
+			continue // Skip if Unicode part is empty
+		}
+
+		// Add to the general map
+		charMap[asciiChar] = append(charMap[asciiChar], unicodeChar)
+
+		// If it's a variant for '/', store it separately too
+		if asciiChar == '/' {
+			slashUnicodeVariants = append(slashUnicodeVariants, unicodeChar)
+		}
+	}
+
+	if len(charMap) == 0 {
+		GB403Logger.Warning().BypassModule(bypassModule).Msgf("No usable mappings found for '.' or '/' in unicode_path_chars.lst")
+		return jobs
+	}
+	if len(slashUnicodeVariants) == 0 {
+		GB403Logger.Warning().BypassModule(bypassModule).Msgf("No Unicode variants found for '/' in unicode_path_chars.lst for structural tests")
+		// Proceeding without structural tests might still be useful
+	}
+
+	baseJob := BypassPayload{
+		OriginalURL:  targetURL,
+		Method:       "GET",
+		Scheme:       parsedURL.Scheme,
+		Host:         parsedURL.Host,
+		BypassModule: bypassModule,
+	}
+
+	uniquePaths := make(map[string]struct{}) // Track generated URIs to avoid duplicates
+
+	// Helper to add a job if the URI is unique
+	addJob := func(uri string) {
+		if _, exists := uniquePaths[uri]; !exists {
+			uniquePaths[uri] = struct{}{}
+			job := baseJob
+			job.RawURI = uri
+			job.PayloadToken = GeneratePayloadToken(job) // Assuming this generates a unique token
+			jobs = append(jobs, job)
+		}
+	}
+
+	// Helper to add both Unicode and URL-encoded path variants if they are unique
+	addPathVariants := func(unicodePath, encodedPath string) {
+		addJob(unicodePath + query)
+		addJob(encodedPath + query)
+	}
+
+	// --- Payload Generation Logic ---
+
+	// 1. Single character replacements
+	pathRunes := []rune(path) // Work with runes for correct Unicode indexing
+	for i, currentRune := range pathRunes {
+		if unicodeVariants, found := charMap[currentRune]; found {
+			for _, unicodeVariant := range unicodeVariants {
+				// Create Unicode version
+				tempRunes := make([]rune, len(pathRunes))
+				copy(tempRunes, pathRunes)
+				tempRunes[i] = []rune(unicodeVariant)[0] // Replace with the first rune of the variant
+				unicodePath := string(tempRunes)
+
+				// Create URL-encoded version
+				encodedVariant := URLEncodeAll(unicodeVariant) // Encode the full variant string
+				encodedPath := string(pathRunes[:i]) + encodedVariant + string(pathRunes[i+1:])
+
+				addPathVariants(unicodePath, encodedPath)
+			}
+		}
+	}
+
+	// 2. Replace all occurrences of each target character
+	for targetChar, variants := range charMap {
+		targetStr := string(targetChar) // The character to replace (e.g., ".", "/")
+		for _, unicodeVariant := range variants {
+			// Replace all with Unicode variant
+			unicodePath := strings.ReplaceAll(path, targetStr, unicodeVariant)
+
+			// Replace all with URL-encoded variant (needs careful construction)
+			var encodedPathBuilder strings.Builder
+			encodedVariant := URLEncodeAll(unicodeVariant)
+			lastIndex := 0
+			for i := strings.Index(path[lastIndex:], targetStr); i != -1; i = strings.Index(path[lastIndex:], targetStr) {
+				currentIndex := lastIndex + i
+				encodedPathBuilder.WriteString(path[lastIndex:currentIndex]) // Part before the match
+				encodedPathBuilder.WriteString(encodedVariant)               // Encoded replacement
+				lastIndex = currentIndex + len(targetStr)                    // Move past the replaced character
+			}
+			encodedPathBuilder.WriteString(path[lastIndex:]) // Add any remaining part
+			encodedPath := encodedPathBuilder.String()
+
+			addPathVariants(unicodePath, encodedPath)
+		}
+	}
+
+	// 3. Special case: Add Unicode slash variant before the last segment
+	//    (Only if slash variants were found)
+	if len(slashUnicodeVariants) > 0 {
+		segments := strings.Split(path, "/")
+		// Handle paths like "/a/b/" vs "/a/b" correctly. Need >2 segments for structure like "/a/VARb"
+		// If path ends with /, last segment is "", need len > 2.
+		// If path doesn't end with /, last segment is "b", need len > 1.
+		meaningfulSegments := len(segments)
+		if meaningfulSegments > 0 && segments[meaningfulSegments-1] == "" {
+			meaningfulSegments-- // Adjust if path ends with a slash
+		}
+
+		if meaningfulSegments > 1 {
+			lastSegmentIndex := len(segments) - 1
+			if segments[lastSegmentIndex] == "" { // Handle trailing slash case
+				lastSegmentIndex--
+			}
+			lastSegment := segments[lastSegmentIndex]
+
+			prefix := strings.Join(segments[:lastSegmentIndex], "/")
+
+			for _, slashVariant := range slashUnicodeVariants {
+				// Unicode variant before last segment
+				unicodePath := prefix + "/" + slashVariant + lastSegment
+				// Encoded variant before last segment
+				encodedPath := prefix + "/" + URLEncodeAll(slashVariant) + lastSegment
+
+				addPathVariants(unicodePath, encodedPath)
+			}
+		}
+	}
+
+	// 4. Enhanced technique: Add Unicode slash variants after each existing slash
+	//    (Only if slash variants were found)
+	if len(slashUnicodeVariants) > 0 && strings.Contains(path, "/") {
+		pathRunes := []rune(path)
+		for i, currentRune := range pathRunes {
+			if currentRune == '/' {
+				// For each variant, create paths with variant inserted after this slash
+				for _, slashVariant := range slashUnicodeVariants {
+					// Path with raw Unicode variant inserted
+					unicodePath := string(pathRunes[:i+1]) + slashVariant + string(pathRunes[i+1:])
+
+					// Path with URL-encoded variant inserted
+					encodedPath := string(pathRunes[:i+1]) + URLEncodeAll(slashVariant) + string(pathRunes[i+1:])
+
+					addPathVariants(unicodePath, encodedPath)
+				}
+			}
+		}
+	}
+
+	GB403Logger.Debug().BypassModule(bypassModule).
+		Msgf("Generated %d unicode normalization payloads for %s", len(jobs), targetURL)
+	return jobs
+}
