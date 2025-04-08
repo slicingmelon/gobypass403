@@ -369,22 +369,6 @@ func matchStatusCodes(code int, codes []int) bool {
 	return slices.Contains(codes, code) // Different behavior for empty vs nil slices
 }
 
-// func sanitizeNonPrintableBytes(input []byte) string {
-// 	var sb strings.Builder
-// 	sb.Grow(len(input))
-
-// 	for _, b := range input {
-// 		// Keep printable ASCII (32-126), Tab (9), LF (10), CR (13)
-// 		if (b >= 32 && b <= 126) || b == 9 || b == 10 || b == 13 {
-// 			sb.WriteByte(b)
-// 		} else {
-// 			// Replace others with Go-style hex escape
-// 			sb.WriteString(fmt.Sprintf("\\x%02x", b))
-// 		}
-// 	}
-// 	return sb.String()
-// }
-
 func sanitizeNonPrintableBytes(input []byte) string {
 	var sb strings.Builder
 	sb.Grow(len(input))
