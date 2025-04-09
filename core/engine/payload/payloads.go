@@ -291,6 +291,9 @@ func (pg *PayloadGenerator) GenerateEndPathsPayloads(targetURL string, bypassMod
 	return jobs
 }
 
+/*
+GenerateHeaderIPPayloads
+*/
 func (pg *PayloadGenerator) GenerateHeaderIPPayloads(targetURL string, bypassModule string) []BypassPayload {
 	var allJobs []BypassPayload
 
@@ -309,13 +312,17 @@ func (pg *PayloadGenerator) GenerateHeaderIPPayloads(targetURL string, bypassMod
 	// Add custom headers (cli -spoof-header)
 	if pg.spoofHeader != "" {
 		customHeaders := strings.Split(pg.spoofHeader, ",")
+		var normalizedCustomHeaders []string // Store normalized headers for logging
 		for _, header := range customHeaders {
 			header = strings.TrimSpace(header)
 			if header != "" {
-				headerNames = append(headerNames, header)
+				normalizedHeader := NormalizeHeaderKey(header) // Apply normalization
+				headerNames = append(headerNames, normalizedHeader)
+				normalizedCustomHeaders = append(normalizedCustomHeaders, normalizedHeader)
 			}
 		}
-		GB403Logger.Verbose().BypassModule(bypassModule).Msgf("Added [%s] custom headers from -spoof-header\n", strings.Join(customHeaders, ","))
+		// Update logging to show normalized headers
+		GB403Logger.Verbose().BypassModule(bypassModule).Msgf("Added [%s] custom headers from -spoof-header\n", strings.Join(normalizedCustomHeaders, ","))
 	}
 
 	ips, err := ReadPayloadsFromFile("internal_ip_hosts.lst")

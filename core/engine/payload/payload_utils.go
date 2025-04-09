@@ -10,6 +10,7 @@ package payload
 import (
 	"embed"
 	"fmt"
+	"net/textproto"
 	"os"
 	"path/filepath"
 	"strings"
@@ -382,4 +383,10 @@ func BypassPayloadToFullURL(bypassPayload BypassPayload) string {
 	b = append(b, bypassPayload.Host...)
 	b = append(b, bypassPayload.RawURI...)
 	return string(b)
+}
+
+// NormalizeHeaderKey canonicalizes a header key string.
+// Example: "x-abc-test" becomes "X-Abc-Test"
+func NormalizeHeaderKey(key string) string {
+	return textproto.CanonicalMIMEHeaderKey(key)
 }

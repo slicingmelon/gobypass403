@@ -174,8 +174,6 @@ func (s *Scanner) RunBypassModule(bypassModule string, targetURL string) int {
 	cfg.UseColors = true
 	cfg.ExtraLines = 1
 
-	//colors := []string{progressbar.RedBar, progressbar.GreenBar, progressbar.YellowBar, progressbar.BlueBar, progressbar.WhiteBar}
-	//cfg.Color = colors[rand.Intn(len(colors))]
 	cfg.Color = progressbar.RedBar
 	// Create new progress bar
 	bar := cfg.NewBar()
