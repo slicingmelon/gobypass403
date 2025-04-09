@@ -401,10 +401,9 @@ func calculateSHA256(data []byte) string {
 
 // CheckPayloadsConsistency compares embedded payloads with local ones.
 // Returns true if consistent, false otherwise.
-func CheckPayloadsConsistency() (bool, error) {
+func CheckOutdatedPayloads() (bool, error) {
 	localPayloadsDir, err := GetPayloadsDir()
 	if err != nil {
-		// If we can't even get the local dir, assume inconsistency or issue
 		return false, fmt.Errorf("failed to get local payloads directory: %w", err)
 	}
 
@@ -415,29 +414,28 @@ func CheckPayloadsConsistency() (bool, error) {
 
 	for _, entry := range embeddedEntries {
 		if entry.IsDir() {
-			continue // Skip directories if any
+			continue
 		}
 
 		embeddedFileName := entry.Name()
 		localFilePath := filepath.Join(localPayloadsDir, embeddedFileName)
-		embeddedFilePath := filepath.Join("payloads", embeddedFileName) // Path for embed FS
+		embeddedFilePath := "payloads/" + embeddedFileName // Path for embed FS
 
-		// 1. Check if local file exists
+		// Check if local file exists
 		if _, err := os.Stat(localFilePath); os.IsNotExist(err) {
 			GB403Logger.Debug().Msgf("Local payload file missing: %s", localFilePath)
-			return false, nil // Inconsistent: local file missing
+			return false, nil
 		} else if err != nil {
-			// Other error accessing local file
 			return false, fmt.Errorf("error checking local file %s: %w", localFilePath, err)
 		}
 
-		// 2. Read embedded file content
+		// Read embedded file content
 		embeddedData, err := DefaultPayloadsDir.ReadFile(embeddedFilePath)
 		if err != nil {
 			return false, fmt.Errorf("failed to read embedded file %s: %w", embeddedFilePath, err)
 		}
 
-		// 3. Read local file content
+		// Read local file content
 		localData, err := os.ReadFile(localFilePath)
 		if err != nil {
 			return false, fmt.Errorf("failed to read local file %s: %w", localFilePath, err)
@@ -449,11 +447,10 @@ func CheckPayloadsConsistency() (bool, error) {
 
 		if embeddedHash != localHash {
 			GB403Logger.Debug().Msgf("Payload file mismatch (SHA256): %s (Embed: %s, Local: %s)",
-				embeddedFileName, embeddedHash[:8], localHash[:8]) // Log first 8 chars for brevity
-			return false, nil // Inconsistent: Hashes differ
+				embeddedFileName, embeddedHash[:8], localHash[:8])
+			return false, nil
 		}
 	}
 
-	// If loop completes without returning false, payloads are consistent
 	return true, nil
 }
