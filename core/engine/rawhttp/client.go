@@ -237,15 +237,6 @@ func (c *HTTPClient) GetHTTPClientOptions() *HTTPClientOptions {
 	return c.options
 }
 
-// SetHTTPClientOptions updates the client options with a copy
-func (c *HTTPClient) SetHTTPClientOptions(opts *HTTPClientOptions) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	newOpts := *opts
-	c.options = &newOpts
-}
-
 // SetDialer sets a custom dialer for the client
 func (c *HTTPClient) SetDialer(dialer fasthttp.DialFunc) *HTTPClient {
 	c.mu.Lock()
