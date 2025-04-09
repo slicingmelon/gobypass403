@@ -238,6 +238,19 @@ func (o *CliOptions) validate() error {
 		}
 	}
 
+	if !o.UpdatePayloads && o.ResendRequest != "" {
+		consistent, err := payload.CheckPayloadsConsistency()
+
+		if err != nil {
+			// Log error but continue scan, as it might be a permission issue
+			GB403Logger.Error().Msgf("Error checking payload consistency: %v", err)
+		} else if !consistent {
+			GB403Logger.Warning().Msgf("Local payloads may be outdated or modified. Run with -update-payloads to ensure you have the latest versions.\n\n")
+			// Optionally sleep ?
+			// time.Sleep(2 * time.Second)
+		}
+	}
+
 	return nil
 }
 
