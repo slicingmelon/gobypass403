@@ -150,6 +150,68 @@ func UpdatePayloads() error {
 	return nil
 }
 
+// calculateSHA256 computes the SHA256 hash of byte data.
+func calculateSHA256(data []byte) string {
+	hash := sha256.Sum256(data)
+	return hex.EncodeToString(hash[:])
+}
+
+// CheckPayloadsConsistency compares embedded payloads with local ones.
+// Returns true if consistent, false otherwise.
+func CheckOutdatedPayloads() (bool, error) {
+	localPayloadsDir, err := GetPayloadsDir()
+	if err != nil {
+		return false, fmt.Errorf("failed to get local payloads directory: %w", err)
+	}
+
+	embeddedEntries, err := DefaultPayloadsDir.ReadDir("payloads")
+	if err != nil {
+		return false, fmt.Errorf("failed to read embedded payloads directory: %w", err)
+	}
+
+	for _, entry := range embeddedEntries {
+		if entry.IsDir() {
+			continue
+		}
+
+		embeddedFileName := entry.Name()
+		localFilePath := filepath.Join(localPayloadsDir, embeddedFileName)
+		embeddedFilePath := "payloads/" + embeddedFileName // Path for embed FS
+
+		// Check if local file exists
+		if _, err := os.Stat(localFilePath); os.IsNotExist(err) {
+			GB403Logger.Debug().Msgf("Local payload file missing: %s", localFilePath)
+			return false, nil
+		} else if err != nil {
+			return false, fmt.Errorf("error checking local file %s: %w", localFilePath, err)
+		}
+
+		// Read embedded file content
+		embeddedData, err := DefaultPayloadsDir.ReadFile(embeddedFilePath)
+		if err != nil {
+			return false, fmt.Errorf("failed to read embedded file %s: %w", embeddedFilePath, err)
+		}
+
+		// Read local file content
+		localData, err := os.ReadFile(localFilePath)
+		if err != nil {
+			return false, fmt.Errorf("failed to read local file %s: %w", localFilePath, err)
+		}
+
+		// 4. Compare hashes
+		embeddedHash := calculateSHA256(embeddedData)
+		localHash := calculateSHA256(localData)
+
+		if embeddedHash != localHash {
+			GB403Logger.Debug().Msgf("Payload file mismatch (SHA256): %s (Embed: %s, Local: %s)",
+				embeddedFileName, embeddedHash[:8], localHash[:8])
+			return false, nil
+		}
+	}
+
+	return true, nil
+}
+
 // CopyPayloadFile reads a file from the embedded filesystem and writes it to the destination path
 func CopyPayloadFile(src, dst string) error {
 	data, err := DefaultPayloadsDir.ReadFile(src)
@@ -391,66 +453,4 @@ func BypassPayloadToFullURL(bypassPayload BypassPayload) string {
 // Example: "x-abc-test" becomes "X-Abc-Test"
 func NormalizeHeaderKey(key string) string {
 	return textproto.CanonicalMIMEHeaderKey(key)
-}
-
-// calculateSHA256 computes the SHA256 hash of byte data.
-func calculateSHA256(data []byte) string {
-	hash := sha256.Sum256(data)
-	return hex.EncodeToString(hash[:])
-}
-
-// CheckPayloadsConsistency compares embedded payloads with local ones.
-// Returns true if consistent, false otherwise.
-func CheckOutdatedPayloads() (bool, error) {
-	localPayloadsDir, err := GetPayloadsDir()
-	if err != nil {
-		return false, fmt.Errorf("failed to get local payloads directory: %w", err)
-	}
-
-	embeddedEntries, err := DefaultPayloadsDir.ReadDir("payloads")
-	if err != nil {
-		return false, fmt.Errorf("failed to read embedded payloads directory: %w", err)
-	}
-
-	for _, entry := range embeddedEntries {
-		if entry.IsDir() {
-			continue
-		}
-
-		embeddedFileName := entry.Name()
-		localFilePath := filepath.Join(localPayloadsDir, embeddedFileName)
-		embeddedFilePath := "payloads/" + embeddedFileName // Path for embed FS
-
-		// Check if local file exists
-		if _, err := os.Stat(localFilePath); os.IsNotExist(err) {
-			GB403Logger.Debug().Msgf("Local payload file missing: %s", localFilePath)
-			return false, nil
-		} else if err != nil {
-			return false, fmt.Errorf("error checking local file %s: %w", localFilePath, err)
-		}
-
-		// Read embedded file content
-		embeddedData, err := DefaultPayloadsDir.ReadFile(embeddedFilePath)
-		if err != nil {
-			return false, fmt.Errorf("failed to read embedded file %s: %w", embeddedFilePath, err)
-		}
-
-		// Read local file content
-		localData, err := os.ReadFile(localFilePath)
-		if err != nil {
-			return false, fmt.Errorf("failed to read local file %s: %w", localFilePath, err)
-		}
-
-		// 4. Compare hashes
-		embeddedHash := calculateSHA256(embeddedData)
-		localHash := calculateSHA256(localData)
-
-		if embeddedHash != localHash {
-			GB403Logger.Debug().Msgf("Payload file mismatch (SHA256): %s (Embed: %s, Local: %s)",
-				embeddedFileName, embeddedHash[:8], localHash[:8])
-			return false, nil
-		}
-	}
-
-	return true, nil
 }

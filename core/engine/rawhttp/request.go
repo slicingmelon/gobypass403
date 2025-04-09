@@ -60,9 +60,13 @@ then set req.UseHostHeader = true and then req.URI().SetScheme() and req.URI().S
 */
 func BuildRawHTTPRequest(httpclient *HTTPClient, req *fasthttp.Request, bypassPayload payload.BypassPayload) error {
 	// Define shouldCloseConn
-	shouldCloseConn := len(bypassPayload.Headers) > 0 ||
-		httpclient.GetHTTPClientOptions().DisableKeepAlive ||
-		httpclient.GetHTTPClientOptions().ProxyURL != ""
+	shouldCloseConn := httpclient.GetHTTPClientOptions().DisableKeepAlive ||
+		httpclient.GetHTTPClientOptions().ProxyURL != "" ||
+		bypassPayload.BypassModule == "http_headers_scheme" ||
+		bypassPayload.BypassModule == "http_headers_ip" ||
+		bypassPayload.BypassModule == "http_headers_port" ||
+		bypassPayload.BypassModule == "http_headers_url" ||
+		bypassPayload.BypassModule == "http_host"
 
 	// Get ByteBuffer from pool
 	bb := requestBufferPool.Get()
@@ -85,11 +89,11 @@ func BuildRawHTTPRequest(httpclient *HTTPClient, req *fasthttp.Request, bypassPa
 		if h.Header == "Content-Length" {
 			hasContentLength = true
 		}
-		if h.Header == "Connection" {
-			// Skip Connection header here, we'll add it last
-			shouldCloseConn = true
-			continue
-		}
+		// if h.Header == "Connection" {
+		// 	// Skip Connection header here, we'll add it last
+		// 	shouldCloseConn = true
+		// 	continue
+		// }
 		bb.B = append(bb.B, h.Header...)
 		bb.B = append(bb.B, ": "...)
 		bb.B = append(bb.B, h.Value...)

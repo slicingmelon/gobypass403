@@ -153,7 +153,6 @@ func (s *Scanner) RunBypassModule(bypassModule string, targetURL string) int {
 		return 0
 	}
 
-	//GB403Logger.Info().Msgf("[%s] Generated %d payloads for %s\n", bypassModule, totalJobs, targetURL)
 	GB403Logger.PrintBypassModuleInfo(bypassModule, totalJobs, targetURL)
 
 	maxModuleNameLength := 0
