@@ -381,8 +381,8 @@ func (c *HTTPClient) DoRequest(req *fasthttp.Request, resp *fasthttp.Response, b
 				GB403Logger.Debug().Msgf("Consecutive failures for %s: %d/%d (error: %v)\n",
 					bypassPayload.BypassModule, newCount, c.options.MaxConsecutiveFailedReqs, err)
 				if newCount >= int32(c.options.MaxConsecutiveFailedReqs) {
-					GB403Logger.Warning().Msgf("Max consecutive failures reached for %s: %d/%d -- Cancelling current bypass module\n",
-						bypassPayload.BypassModule, newCount, c.options.MaxConsecutiveFailedReqs)
+					//GB403Logger.Warning().Msgf("Max consecutive failures reached for %s: %d/%d -- Cancelling current bypass module\n",
+					//	bypassPayload.BypassModule, newCount, c.options.MaxConsecutiveFailedReqs)
 					return retryTime, ErrReqFailedMaxConsecutiveFails
 				}
 			}
