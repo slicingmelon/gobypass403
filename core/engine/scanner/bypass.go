@@ -279,47 +279,44 @@ func (s *Scanner) ResendRequestFromToken(debugToken string, resendCount int) ([]
 	}
 
 	targetURL := payload.BypassPayloadToBaseURL(bypassPayload)
+	totalJobs := resendCount // Total jobs for the progress bar
 
 	// Create a new worker for the bypass module
-	worker := NewBypassWorker(bypassPayload.BypassModule, targetURL, s.scannerOpts, resendCount)
+	worker := NewBypassWorker(bypassPayload.BypassModule, targetURL, s.scannerOpts, totalJobs)
 	defer worker.Stop()
 
-	// Create jobs array with pre-allocated capacity
-	jobs := make([]payload.BypassPayload, 0, resendCount)
-	for i := 0; i < resendCount; i++ {
+	jobs := make([]payload.BypassPayload, 0, totalJobs)
+	for i := 0; i < totalJobs; i++ {
 		jobCopy := bypassPayload // Create a copy to avoid sharing the same job reference
 		jobCopy.PayloadToken = payload.GeneratePayloadToken(bypassPayload)
 		jobs = append(jobs, jobCopy)
 	}
 
-	var progressBar *ProgressBar
-	if s.progressBarEnabled.Load() {
-		progressBar = NewProgressBar(bypassPayload.BypassModule, targetURL, resendCount, s.scannerOpts.Threads)
-		progressBar.Start()
-		defer progressBar.Stop()
-	}
+	cfg := progressbar.DefaultConfig()
+	cfg.Prefix = fmt.Sprintf("[Resend] %s", bypassPayload.BypassModule)
+	cfg.UseColors = true
+	cfg.ExtraLines = 1
+	cfg.Color = progressbar.BlueBar
+	bar := cfg.NewBar()
+	bar.Progress(0)
 
 	responses := worker.requestPool.ProcessRequests(jobs)
 	var results []*Result
 
 	for response := range responses {
+		completed := worker.requestPool.GetReqWPCompletedTasks()
+
 		if response == nil {
+			// Update progress based on the actual task completion count
+			progressPercent := (float64(completed) / float64(totalJobs)) * 100.0
+			if progressPercent > 100.0 {
+				progressPercent = 100.0
+			}
+			bar.Progress(progressPercent)
 			continue
 		}
 
-		// Update progress
-		if progressBar != nil {
-			progressBar.Increment()
-			progressBar.UpdateSpinnerText(
-				worker.requestPool.GetReqWPActiveWorkers(),
-				worker.requestPool.GetReqWPCompletedTasks(),
-				worker.requestPool.GetReqWPSubmittedTasks(),
-				worker.requestPool.GetRequestRate(),
-				worker.requestPool.GetAverageRequestRate(),
-			)
-		}
-
-		// Only add to results if status code matches
+		// --- Process Valid Response ---
 		if matchStatusCodes(response.StatusCode, s.scannerOpts.MatchStatusCodes) {
 			result := &Result{
 				TargetURL:           targetURL,
@@ -337,23 +334,40 @@ func (s *Scanner) ResendRequestFromToken(debugToken string, resendCount int) ([]
 				ResponseTime:        response.ResponseTime,
 				DebugToken:          string(response.DebugToken),
 			}
-
 			results = append(results, result)
 		}
 
-		// Release the response object immediately after processing - for all responses
 		rawhttp.ReleaseResponseDetails(response)
+
+		currentRate := worker.requestPool.GetRequestRate()
+		avgRate := worker.requestPool.GetAverageRequestRate()
+		maxWorkers := s.scannerOpts.Threads
+
+		msg := fmt.Sprintf(
+			"Max Concurrent [%d req] | Rate [%d req/s] Avg [%d req/s] | Completed %d/%d    ",
+			maxWorkers, currentRate, avgRate, completed, uint64(totalJobs),
+		)
+		bar.WriteAbove(msg)
+
+		progressPercent := (float64(completed) / float64(totalJobs)) * 100.0
+		if progressPercent > 100.0 {
+			progressPercent = 100.0
+		}
+		bar.Progress(progressPercent)
 	}
 
-	// Final progress update
-	if progressBar != nil {
-		progressBar.SpinnerSuccess(
-			worker.requestPool.GetReqWPCompletedTasks(),
-			worker.requestPool.GetReqWPSubmittedTasks(),
-			worker.requestPool.GetAverageRequestRate(),
-			worker.requestPool.GetPeakRequestRate(),
-		)
+	finalCompleted := worker.requestPool.GetReqWPCompletedTasks()
+
+	// Calculate the final, accurate progress percentage
+	finalProgressPercent := (float64(finalCompleted) / float64(totalJobs)) * 100.0
+	if finalProgressPercent > 100.0 {
+		finalProgressPercent = 100.0
 	}
+
+	bar.Progress(finalProgressPercent)
+	bar.End()
+
+	fmt.Println()
 
 	return results, nil
 }

@@ -10,3 +10,4 @@
 localhost
 norealhost
 null
+host.docker.internal
