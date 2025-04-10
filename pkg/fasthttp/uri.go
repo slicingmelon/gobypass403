@@ -690,6 +690,13 @@ func (u *URI) RequestURI() []byte {
 		dst = append(dst, '?')
 		dst = append(dst, u.queryString...)
 	}
+
+	// PATCH gobypass403
+	// append hash too
+	if len(u.hash) > 0 {
+		dst = append(dst, '#')
+		dst = append(dst, u.hash...)
+	}
 	u.requestURI = dst
 	return u.requestURI
 }
