@@ -58,6 +58,11 @@ type URI struct {
 	password        []byte
 	parsedQueryArgs bool
 
+	// GOBYPASS403 PATCH: Track original presence of delimiters
+	hasQueryString bool
+	hasHash        bool
+	// END GOBYPASS403 PATCH
+
 	// Path values are sent as-is without normalization.
 	//
 	// Disabled path normalization may be useful for proxying incoming requests
@@ -238,6 +243,8 @@ func (u *URI) Reset() {
 	u.host = u.host[:0]
 	u.queryArgs.Reset()
 	u.parsedQueryArgs = false
+	u.hasQueryString = false
+	u.hasHash = false
 	u.DisablePathNormalizing = false
 
 	// There is no need in u.fullURI = u.fullURI[:0], since full uri
@@ -322,9 +329,21 @@ func (u *URI) parse(host, uri []byte, isTLS bool) error {
 	b := uri
 	queryIndex := bytes.IndexByte(b, '?')
 	fragmentIndex := bytes.IndexByte(b, '#')
+
+	// GOBYPASS403 PATCH: Record delimiter presence
+	u.hasQueryString = (queryIndex >= 0)
+	// Ensure fragment check doesn't override query if fragment is inside query
+	if fragmentIndex >= 0 && (!u.hasQueryString || fragmentIndex > queryIndex) {
+		u.hasHash = true
+	} else {
+		u.hasHash = false // Reset if '#' was part of the query string
+	}
+	// END GOBYPASS403 PATCH
+
 	// Ignore query in fragment part
 	if fragmentIndex >= 0 && queryIndex > fragmentIndex {
 		queryIndex = -1
+		u.hasQueryString = false // Reset if '?' was part of the fragment
 	}
 
 	if queryIndex < 0 && fragmentIndex < 0 {
@@ -348,6 +367,7 @@ func (u *URI) parse(host, uri []byte, isTLS bool) error {
 	}
 
 	// fragmentIndex >= 0 && queryIndex < 0
+	// u.hasHash was already set above
 	// Path is up to the start of fragment
 	u.pathOriginal = append(u.pathOriginal, b[:fragmentIndex]...)
 	u.path = normalizePath(u.path, u.pathOriginal)
@@ -683,20 +703,25 @@ func (u *URI) RequestURI() []byte {
 	} else {
 		dst = appendQuotedPath(u.requestURI[:0], u.Path())
 	}
-	if u.parsedQueryArgs && u.queryArgs.Len() > 0 {
+
+	// GOBYPASS403 PATCH: Check flags instead of length
+	if u.hasQueryString {
 		dst = append(dst, '?')
-		dst = u.queryArgs.AppendBytes(dst)
-	} else if len(u.queryString) > 0 {
-		dst = append(dst, '?')
-		dst = append(dst, u.queryString...)
+		if u.parsedQueryArgs && u.queryArgs.Len() > 0 {
+			dst = u.queryArgs.AppendBytes(dst)
+		} else if len(u.queryString) > 0 { // Keep original string if not parsed or empty after parse
+			dst = append(dst, u.queryString...)
+		}
 	}
 
-	// PATCH gobypass403
-	// append hash too
-	if len(u.hash) > 0 {
+	if u.hasHash {
 		dst = append(dst, '#')
-		dst = append(dst, u.hash...)
+		if len(u.hash) > 0 {
+			dst = append(dst, u.hash...)
+		}
 	}
+	// END GOBYPASS403 PATCH
+
 	u.requestURI = dst
 	return u.requestURI
 }
