@@ -74,16 +74,6 @@ func initIndices() {
 	})
 }
 
-type SeedData struct {
-	Method       string
-	Scheme       string // Add separate scheme
-	Host         string // Add separate host
-	RawURI       string // Add separate RawURI
-	Headers      []Headers
-	Body         string
-	BypassModule string
-}
-
 type PayloadGenerator struct {
 	targetURL    string
 	bypassModule string
@@ -159,6 +149,16 @@ type BypassPayload struct {
 	Body         string    // this gets updated, represents everything that goes into the body of the request
 	BypassModule string    // always gets updated
 	PayloadToken string    // always gets updated
+}
+
+type SeedData struct {
+	Method       string
+	Scheme       string // Add separate scheme
+	Host         string // Add separate host
+	RawURI       string // Add separate RawURI
+	Headers      []Headers
+	Body         string
+	BypassModule string
 }
 
 // This function will generate a debug token that will act as a fingerprint of the request
