@@ -42,7 +42,7 @@ func (r *Runner) Initialize() error {
 	}
 
 	// Initialize database to save results
-	if err := scanner.InitDB(r.RunnerOptions.ResultsDBFile, r.RunnerOptions.Threads); err != nil {
+	if err := scanner.InitDB(r.RunnerOptions.ResultsDBFile, r.RunnerOptions.ConcurrentRequests); err != nil {
 		GB403Logger.Error().Msgf("Failed to initialize database: %v", err)
 	}
 
@@ -76,7 +76,7 @@ func (r *Runner) Initialize() error {
 		OutDir:                   r.RunnerOptions.OutDir,
 		ResultsDBFile:            r.RunnerOptions.ResultsDBFile,
 		Timeout:                  r.RunnerOptions.Timeout,
-		Threads:                  r.RunnerOptions.Threads,
+		ConcurrentRequests:       r.RunnerOptions.ConcurrentRequests,
 		RequestDelay:             r.RunnerOptions.Delay,
 		MaxRetries:               r.RunnerOptions.MaxRetries,
 		RetryDelay:               r.RunnerOptions.RetryDelay,
@@ -140,7 +140,7 @@ func (r *Runner) handleResendRequest() error {
 
 	// Create scanner with options
 	scannerOpts := &scanner.ScannerOpts{
-		Threads:                   r.RunnerOptions.Threads,
+		ConcurrentRequests:        r.RunnerOptions.ConcurrentRequests,
 		Timeout:                   r.RunnerOptions.Timeout,
 		MaxRetries:                r.RunnerOptions.MaxRetries,
 		RetryDelay:                r.RunnerOptions.RetryDelay,

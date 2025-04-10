@@ -34,7 +34,7 @@ type CliOptions struct {
 	MatchStatusCodes         []int
 	MatchContentType         string   // New field for multiple types
 	MatchContentTypeBytes    [][]byte // Multiple byte slices for efficient matching
-	Threads                  int
+	ConcurrentRequests       int
 	Timeout                  int
 	Delay                    int
 	MaxRetries               int
@@ -131,8 +131,8 @@ func (o *CliOptions) setDefaults() {
 	if o.Module == "" {
 		o.Module = "all"
 	}
-	if o.Threads == 0 {
-		o.Threads = 15
+	if o.ConcurrentRequests == 0 {
+		o.ConcurrentRequests = 15
 	}
 	if o.Timeout == 0 {
 		o.Timeout = 20000

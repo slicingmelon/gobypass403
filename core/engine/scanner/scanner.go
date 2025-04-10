@@ -17,7 +17,7 @@ import (
 
 type ScannerOpts struct {
 	Timeout                   int
-	Threads                   int
+	ConcurrentRequests        int
 	MatchStatusCodes          []int
 	MatchContentTypeBytes     [][]byte
 	Debug                     bool

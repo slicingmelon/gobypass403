@@ -91,7 +91,7 @@ func NewBypassWorker(bypassmodule string, targetURL string, scannerOpts *Scanner
 		once:         sync.Once{},
 		opts:         scannerOpts,
 		totalJobs:    totalJobs,
-		requestPool:  rawhttp.NewRequestWorkerPool(httpClientOpts, scannerOpts.Threads),
+		requestPool:  rawhttp.NewRequestWorkerPool(httpClientOpts, scannerOpts.ConcurrentRequests),
 	}
 }
 
@@ -165,7 +165,7 @@ func (s *Scanner) RunBypassModule(bypassModule string, targetURL string) int {
 	worker := NewBypassWorker(bypassModule, targetURL, s.scannerOpts, totalJobs)
 	defer worker.Stop()
 
-	maxWorkers := s.scannerOpts.Threads
+	maxWorkers := s.scannerOpts.ConcurrentRequests
 	// Create new progress bar configuration
 	cfg := progressbar.DefaultConfig()
 	//cfg.Prefix = bypassModule
@@ -281,7 +281,7 @@ func (s *Scanner) ResendRequestFromToken(debugToken string, resendCount int) ([]
 	totalJobs := resendCount // Total jobs for the progress bar
 
 	// Update concurrent requets to 1
-	s.scannerOpts.Threads = 1
+	s.scannerOpts.ConcurrentRequests = 1
 
 	// Create a new worker for the bypass module
 	worker := NewBypassWorker(bypassPayload.BypassModule, targetURL, s.scannerOpts, totalJobs)
@@ -343,7 +343,7 @@ func (s *Scanner) ResendRequestFromToken(debugToken string, resendCount int) ([]
 
 		currentRate := worker.requestPool.GetRequestRate()
 		avgRate := worker.requestPool.GetAverageRequestRate()
-		maxWorkers := s.scannerOpts.Threads
+		maxWorkers := s.scannerOpts.ConcurrentRequests
 
 		msg := fmt.Sprintf(
 			"Max Concurrent [%d req] | Rate [%d req/s] Avg [%d req/s] | Completed %d/%d    ",
