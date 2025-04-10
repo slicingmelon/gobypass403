@@ -280,6 +280,9 @@ func (s *Scanner) ResendRequestFromToken(debugToken string, resendCount int) ([]
 	targetURL := payload.BypassPayloadToBaseURL(bypassPayload)
 	totalJobs := resendCount // Total jobs for the progress bar
 
+	// Update concurrent requets to 1
+	s.scannerOpts.Threads = 1
+
 	// Create a new worker for the bypass module
 	worker := NewBypassWorker(bypassPayload.BypassModule, targetURL, s.scannerOpts, totalJobs)
 	defer worker.Stop()
