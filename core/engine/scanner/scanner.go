@@ -81,6 +81,9 @@ func (s *Scanner) Run() error {
 		_ = s.scanURL(url)
 	}
 
+	fmt.Println()
+	GB403Logger.Success().Msgf("Findings saved to %s\n\n",
+		s.scannerOpts.ResultsDBFile)
 	GB403ErrorHandler.GetErrorHandler().PrintErrorStats()
 	return nil
 }
