@@ -55,7 +55,7 @@ func parseFlags() (*CliOptions, error) {
 		{name: "u,url", usage: "Target URL (example: https://cms.facebook.com/login)", value: &opts.URL},
 		{name: "l,urls-file", usage: "File containing list of target URLs (one per line)", value: &opts.URLsFile},
 		{name: "shf,substitute-hosts-file", usage: "File containing a list of hosts to substitute target URL's hostname (mostly used in CDN bypasses by providing a list of CDNs)", value: &opts.SubstituteHostsFile},
-		{name: "m,module", usage: "Bypass module (all,mid_paths,end_paths,http_methods,case_substitution,char_encode,nginx_bypasses,unicode_path_normalization,http_headers_scheme,http_headers_ip,http_headers_port,http_headers_url,http_host)", value: &opts.Module, defVal: "all"},
+		{name: "m,module", usage: "Bypass module (all,mid_paths,end_paths,http_methods,case_substitution,char_encode,nginx_bypasses,unicode_path_normalization,headers_scheme,headers_ip,headers_port,headers_url,headers_host)", value: &opts.Module, defVal: "all"},
 		{name: "o,outdir", usage: "Output directory", value: &opts.OutDir},
 		{name: "cr,concurrent-requests", usage: "Number of concurrent concurrent requests", value: &opts.Threads, defVal: 15},
 		{name: "T,timeout", usage: "Total timeout (in milliseconds)", value: &opts.Timeout, defVal: 20000},

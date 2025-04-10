@@ -11,7 +11,7 @@ import (
 /*
 GenerateHeaderIPPayloads
 */
-func (pg *PayloadGenerator) GenerateHeaderIPPayloads(targetURL string, bypassModule string) []BypassPayload {
+func (pg *PayloadGenerator) GenerateHeadersIPPayloads(targetURL string, bypassModule string) []BypassPayload {
 	var allJobs []BypassPayload
 
 	parsedURL, err := rawurlparser.RawURLParse(targetURL)

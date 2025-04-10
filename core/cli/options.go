@@ -84,11 +84,11 @@ var AvailableModules = map[string]bool{
 	"case_substitution":          true,
 	"char_encode":                true,
 	"nginx_bypasses":             true,
-	"http_headers_scheme":        true,
-	"http_headers_ip":            true,
-	"http_headers_port":          true,
-	"http_headers_url":           true,
-	"http_host":                  true,
+	"headers_scheme":             true,
+	"headers_ip":                 true,
+	"headers_port":               true,
+	"headers_url":                true,
+	"headers_host":               true,
 	"unicode_path_normalization": true,
 }
 

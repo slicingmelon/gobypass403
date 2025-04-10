@@ -10,7 +10,7 @@ import (
 /*
 GenerateHeaderSchemePayloads
 */
-func (pg *PayloadGenerator) GenerateHeaderSchemePayloads(targetURL string, bypassModule string) []BypassPayload {
+func (pg *PayloadGenerator) GenerateHeadersSchemePayloads(targetURL string, bypassModule string) []BypassPayload {
 	var allJobs []BypassPayload
 
 	parsedURL, err := rawurlparser.RawURLParse(targetURL)

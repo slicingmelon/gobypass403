@@ -29,11 +29,11 @@ var AvailableBypassModules = []string{
 	"case_substitution",
 	"char_encode",
 	"nginx_bypasses",
-	"http_headers_ip",
-	"http_host",
-	"http_headers_scheme",
-	"http_headers_port",
-	"http_headers_url",
+	"headers_ip",
+	"headers_host",
+	"headers_scheme",
+	"headers_port",
+	"headers_url",
 	"unicode_path_normalization",
 }
 

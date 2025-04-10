@@ -27,11 +27,11 @@ var BypassModulesRegistry = []string{
 	"case_substitution",
 	"char_encode",
 	"nginx_bypasses",
-	"http_headers_scheme",
-	"http_headers_ip",
-	"http_headers_port",
-	"http_headers_url",
-	"http_host",
+	"headers_scheme",
+	"headers_ip",
+	"headers_port",
+	"headers_url",
+	"headers_host",
 	"unicode_path_normalization",
 }
 
@@ -126,16 +126,16 @@ func (pg *PayloadGenerator) Generate() []BypassPayload {
 		return pg.GenerateNginxACLsBypassPayloads(pg.targetURL, pg.bypassModule)
 	case "char_encode":
 		return pg.GenerateCharEncodePayloads(pg.targetURL, pg.bypassModule)
-	case "http_headers_scheme":
-		return pg.GenerateHeaderSchemePayloads(pg.targetURL, pg.bypassModule)
-	case "http_headers_ip":
-		return pg.GenerateHeaderIPPayloads(pg.targetURL, pg.bypassModule)
-	case "http_headers_port":
-		return pg.GenerateHeaderPortPayloads(pg.targetURL, pg.bypassModule)
-	case "http_headers_url":
-		return pg.GenerateHeaderURLPayloads(pg.targetURL, pg.bypassModule)
-	case "http_host":
-		return pg.GenerateHostHeaderPayloads(pg.targetURL, pg.bypassModule)
+	case "headers_scheme":
+		return pg.GenerateHeadersSchemePayloads(pg.targetURL, pg.bypassModule)
+	case "headers_ip":
+		return pg.GenerateHeadersIPPayloads(pg.targetURL, pg.bypassModule)
+	case "headers_port":
+		return pg.GenerateHeadersPortPayloads(pg.targetURL, pg.bypassModule)
+	case "headers_url":
+		return pg.GenerateHeadersURLPayloads(pg.targetURL, pg.bypassModule)
+	case "headers_host":
+		return pg.GenerateHeadersHostPayloads(pg.targetURL, pg.bypassModule)
 	case "unicode_path_normalization":
 		return pg.GenerateUnicodePathNormalizationsPayloads(pg.targetURL, pg.bypassModule)
 	default:

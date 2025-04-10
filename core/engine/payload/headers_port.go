@@ -8,7 +8,7 @@ import (
 /*
 GenerateHeaderPortPayloads
 */
-func (pg *PayloadGenerator) GenerateHeaderPortPayloads(targetURL string, bypassModule string) []BypassPayload {
+func (pg *PayloadGenerator) GenerateHeadersPortPayloads(targetURL string, bypassModule string) []BypassPayload {
 	var allJobs []BypassPayload
 
 	parsedURL, err := rawurlparser.RawURLParse(targetURL)

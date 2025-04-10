@@ -9,9 +9,9 @@ import (
 )
 
 /*
-GenerateHostHeaderPayloads
+GenerateHeadersHostPayloads
 */
-func (pg *PayloadGenerator) GenerateHostHeaderPayloads(targetURL string, bypassModule string) []BypassPayload {
+func (pg *PayloadGenerator) GenerateHeadersHostPayloads(targetURL string, bypassModule string) []BypassPayload {
 	var allJobs []BypassPayload
 
 	parsedURL, err := rawurlparser.RawURLParse(targetURL)
