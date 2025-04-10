@@ -11,9 +11,6 @@ import (
 	"github.com/slicingmelon/gobypass403/core/engine/rawhttp"
 )
 
-// NOTE: The helper functions startRawTestServer and handleRawTestConnection
-// are assumed to be present (either in this file or a shared helper file).
-
 func TestEndPathsPayloads(t *testing.T) {
 	targetURL := "http://localhost/admin/login" // Using localhost, port will be replaced
 	moduleName := "end_paths"
@@ -141,5 +138,3 @@ func TestEndPathsPayloads(t *testing.T) {
 		}
 	}
 }
-
-// --- Place or import startRawTestServer and handleRawTestConnection here ---

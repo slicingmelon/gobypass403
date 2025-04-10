@@ -1578,11 +1578,89 @@ func (req *Request) onlyMultipartForm() bool {
 	return req.multipartForm != nil && (req.body == nil || len(req.body.B) == 0)
 }
 
+// // Write writes request to w.
+// //
+// // Write doesn't flush request to w for performance reasons.
+// //
+// // See also WriteTo.
+// func (req *Request) Write(w *bufio.Writer) error {
+// 	if len(req.Header.Host()) == 0 || req.parsedURI {
+// 		uri := req.URI()
+// 		host := uri.Host()
+// 		if len(req.Header.Host()) == 0 {
+// 			if len(host) == 0 {
+// 				return errRequestHostRequired
+// 			}
+// 			req.Header.SetHostBytes(host)
+// 		} else if !req.UseHostHeader {
+// 			req.Header.SetHostBytes(host)
+// 		}
+// 		req.Header.SetRequestURIBytes(uri.RequestURI())
+
+// 		if len(uri.username) > 0 {
+// 			// RequestHeader.SetBytesKV only uses RequestHeader.bufKV.key
+// 			// So we are free to use RequestHeader.bufKV.value as a scratch pad for
+// 			// the base64 encoding.
+// 			nl := len(uri.username) + len(uri.password) + 1
+// 			nb := nl + len(strBasicSpace)
+// 			tl := nb + base64.StdEncoding.EncodedLen(nl)
+// 			if tl > cap(req.Header.bufV) {
+// 				req.Header.bufV = make([]byte, 0, tl)
+// 			}
+// 			buf := req.Header.bufV[:0]
+// 			buf = append(buf, uri.username...)
+// 			buf = append(buf, strColon...)
+// 			buf = append(buf, uri.password...)
+// 			buf = append(buf, strBasicSpace...)
+// 			base64.StdEncoding.Encode(buf[nb:tl], buf[:nl])
+// 			req.Header.SetBytesKV(strAuthorization, buf[nl:tl])
+// 		}
+// 	}
+
+// 	if req.bodyStream != nil {
+// 		return req.writeBodyStream(w)
+// 	}
+
+// 	body := req.bodyBytes()
+// 	var err error
+// 	if req.onlyMultipartForm() {
+// 		body, err = marshalMultipartForm(req.multipartForm, req.multipartFormBoundary)
+// 		if err != nil {
+// 			return fmt.Errorf("error when marshaling multipart form: %w", err)
+// 		}
+// 		req.Header.SetMultipartFormBoundary(req.multipartFormBoundary)
+// 	}
+
+// 	hasBody := false
+// 	if len(body) == 0 {
+// 		body = req.postArgs.QueryString()
+// 	}
+// 	if len(body) != 0 || !req.Header.ignoreBody() {
+// 		hasBody = true
+// 		req.Header.SetContentLength(len(body))
+// 	}
+// 	if err = req.Header.Write(w); err != nil {
+// 		return err
+// 	}
+// 	if hasBody {
+// 		_, err = w.Write(body)
+// 	} else if len(body) > 0 {
+// 		if req.secureErrorLogMessage {
+// 			return errors.New("non-zero body for non-POST request")
+// 		}
+// 		return fmt.Errorf("non-zero body for non-POST request. body=%q", body)
+// 	}
+// 	return err
+// }
+
 // Write writes request to w.
 //
 // Write doesn't flush request to w for performance reasons.
 //
 // See also WriteTo.
+// --- GOBYPASS403 PATCH: START ---
+// Patched to prevent overwriting the original RawURI
+// req.Header.SetRequestURIBytes(uri.RequestURI())
 func (req *Request) Write(w *bufio.Writer) error {
 	if len(req.Header.Host()) == 0 || req.parsedURI {
 		uri := req.URI()
@@ -1595,7 +1673,10 @@ func (req *Request) Write(w *bufio.Writer) error {
 		} else if !req.UseHostHeader {
 			req.Header.SetHostBytes(host)
 		}
-		req.Header.SetRequestURIBytes(uri.RequestURI())
+		// --- GOBYPASS403 PATCH: START ---
+		// Removed this line to prevent overwriting the original RawURI
+		// req.Header.SetRequestURIBytes(uri.RequestURI())
+		// --- GOBYPASS403 PATCH: END ---
 
 		if len(uri.username) > 0 {
 			// RequestHeader.SetBytesKV only uses RequestHeader.bufKV.key
