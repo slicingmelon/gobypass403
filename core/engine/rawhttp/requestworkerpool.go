@@ -44,7 +44,7 @@ func NewRequestWorkerPool(opts *HTTPClientOptions, maxWorkers int) *RequestWorke
 		ctx:        ctx,
 		cancel:     cancel,
 		pool:       pond.NewPool(maxWorkers),
-		//pool:       pond.NewPool(maxWorkers, pond.WithQueueSize(maxWorkers)),
+		//pool:       pond.NewPool(maxWorkers, pond.WithQueueSize(maxWorkers*2)),
 		maxWorkers: maxWorkers,
 	}
 
