@@ -62,11 +62,11 @@ func BuildRawHTTPRequest(httpclient *HTTPClient, req *fasthttp.Request, bypassPa
 	// Define shouldCloseConn
 	shouldCloseConn := httpclient.GetHTTPClientOptions().DisableKeepAlive ||
 		httpclient.GetHTTPClientOptions().ProxyURL != "" ||
-		bypassPayload.BypassModule == "http_headers_scheme" ||
-		bypassPayload.BypassModule == "http_headers_ip" ||
-		bypassPayload.BypassModule == "http_headers_port" ||
-		bypassPayload.BypassModule == "http_headers_url" ||
-		bypassPayload.BypassModule == "http_host"
+		bypassPayload.BypassModule == "headers_scheme" ||
+		bypassPayload.BypassModule == "headers_ip" ||
+		bypassPayload.BypassModule == "headers_port" ||
+		bypassPayload.BypassModule == "headers_url" ||
+		bypassPayload.BypassModule == "headers_host"
 
 	// Get ByteBuffer from pool
 	bb := requestBufferPool.Get()
