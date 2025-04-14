@@ -50,8 +50,6 @@ func IsValidBypassModule(moduleName string) bool {
 
 type BypassWorker struct {
 	bypassmodule string
-	cancel       chan struct{}
-	wg           *sync.WaitGroup
 	once         sync.Once
 	opts         *ScannerOpts
 	requestPool  *rawhttp.RequestWorkerPool
@@ -85,10 +83,16 @@ func NewBypassWorker(bypassmodule string, targetURL string, scannerOpts *Scanner
 		httpClientOpts.StreamResponseBody = false
 	}
 
+	// Adjust MaxConnsPerHost based on maxWorkers
+	// Add 50% more connections than workers for buffer, ensure it's at least the default
+	maxWorkers := scannerOpts.ConcurrentRequests
+	calculatedMaxConns := maxWorkers + (maxWorkers / 2)
+	if calculatedMaxConns > httpClientOpts.MaxConnsPerHost {
+		httpClientOpts.MaxConnsPerHost = calculatedMaxConns
+	}
+
 	return &BypassWorker{
 		bypassmodule: bypassmodule,
-		cancel:       make(chan struct{}),
-		wg:           &sync.WaitGroup{},
 		once:         sync.Once{},
 		opts:         scannerOpts,
 		totalJobs:    totalJobs,
@@ -100,14 +104,8 @@ func NewBypassWorker(bypassmodule string, targetURL string, scannerOpts *Scanner
 // Also close the requestworkerpool
 func (w *BypassWorker) Stop() {
 	w.once.Do(func() {
-		select {
-		case <-w.cancel:
-			return
-		default:
-			close(w.cancel)
-			if w.requestPool != nil {
-				w.requestPool.Close()
-			}
+		if w.requestPool != nil {
+			w.requestPool.Close()
 		}
 	})
 }
@@ -389,15 +387,11 @@ func sanitizeNonPrintableBytes(input []byte) string {
 	sb.Grow(len(input))
 
 	for _, b := range input {
-		// Keep printable ASCII (32-126), LF (10), CR (13)
-		if (b >= 32 && b <= 126) || b == 10 || b == 13 {
+		// Keep printable ASCII (32-126), LF (10), CR (13), and Tab (9)
+		if (b >= 32 && b <= 126) || b == 10 || b == 13 || b == 9 {
 			sb.WriteByte(b)
-			// Explicitly handle Tab separately and
-			// replace with its escape sequence -- to test
-		} else if b == 9 {
-			sb.WriteString("\\x09")
 		} else {
-			// Replace others with Go-style hex escape
+			// Replace other non-printable bytes with Go-style hex escape
 			sb.WriteString(fmt.Sprintf("\\x%02x", b))
 		}
 	}

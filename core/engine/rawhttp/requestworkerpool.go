@@ -34,17 +34,11 @@ type RequestWorkerPool struct {
 func NewRequestWorkerPool(opts *HTTPClientOptions, maxWorkers int) *RequestWorkerPool {
 	ctx, cancel := context.WithCancel(context.Background())
 
-	if maxWorkers > opts.MaxConnsPerHost {
-		// Add 50% more connections than workers for buffer
-		opts.MaxConnsPerHost = maxWorkers + (maxWorkers / 2)
-	}
-
 	wp := &RequestWorkerPool{
 		httpClient: NewHTTPClient(opts),
 		ctx:        ctx,
 		cancel:     cancel,
 		pool:       pond.NewPool(maxWorkers),
-		//pool:       pond.NewPool(maxWorkers, pond.WithQueueSize(maxWorkers*2)),
 		maxWorkers: maxWorkers,
 	}
 
@@ -188,7 +182,6 @@ func (wp *RequestWorkerPool) ProcessRequests(bypassPayloads []payload.BypassPayl
 }
 
 func (wp *RequestWorkerPool) Close() {
-	//wp.cancel()           // Cancel context if not already done
 	wp.pool.StopAndWait() // Ensure all workers are stopped
 	wp.ResetPeakRate()
 	wp.httpClient.Close()
