@@ -33,15 +33,13 @@ func buildPath(segments []string, leadingSlash, trailingSlash bool) string {
 
 	// Don't add trailing slash if it's just the root "/"
 	// Preserve original trailing slash only if no segments were truly added/modified at the end
-	// This check might need refinement depending on exact desired behavior for dummy segments vs modifications
 	if trailingSlash && path != "/" && !strings.HasSuffix(path, "/") {
-		// Heuristic: if the last segment looks like one of our added prefixes, don't add trailing slash back
-		// This is imperfect. A better way might be needed if strict trailing slash preservation is critical.
 		lastSegment := ""
 		if len(segments) > 0 {
 			lastSegment = segments[len(segments)-1]
 		}
 		// Simple check, might need expansion based on generated prefixes
+		// If the last segment is short and non-alphanumeric, assume it was added, don't restore slash.
 		if len(lastSegment) > 0 && len(lastSegment) < 4 && !isAlphanumeric(lastSegment[0]) {
 			// Likely an added prefix, don't restore trailing slash
 		} else {
@@ -62,8 +60,8 @@ func isAlphanumeric(b byte) bool {
 }
 
 // GeneratePathPrefixPayloads generates payloads by prefixing segments/path
-// with single bytes (excluding most alphanumerics), common bypass sequences,
-// double encodings, and two control bytes. Focuses only on prefixing.
+// with single bytes (excluding most alphanumerics + 'x'), double encodings,
+// and two control bytes. Focuses only on prefixing without common predefined sequences.
 func (pg *PayloadGenerator) GeneratePathPrefixPayloads(targetURL string, bypassModule string) []BypassPayload {
 	var jobs []BypassPayload
 	uniquePaths := make(map[string]struct{}) // Use map to ensure unique RawURIs
@@ -87,7 +85,6 @@ func (pg *PayloadGenerator) GeneratePathPrefixPayloads(targetURL string, bypassM
 
 	// Determine path structure
 	hasLeadingSlash := strings.HasPrefix(originalPath, "/")
-	// Trailing slash status is noted but buildPath will handle reconstruction based on modifications
 	hasTrailingSlash := strings.HasSuffix(originalPath, "/") && originalPath != "/"
 
 	// Get segments
@@ -101,32 +98,7 @@ func (pg *PayloadGenerator) GeneratePathPrefixPayloads(targetURL string, bypassM
 		originalSegments = strings.Split(trimmedPath, "/")
 	}
 
-	// --- Common Bypass Sequences ---
-	commonBypassChars := []string{".", ";", "..", "%2e", "%2f", "//", "%09", "%00"}
 	canModifySegments := len(originalSegments) > 0 && !(len(originalSegments) == 1 && originalSegments[0] == "")
-
-	for _, bypassChar := range commonBypassChars {
-		// Variation: Dummy Segment Prefix with common bypass chars
-		dummySegs := make([]string, 0, len(originalSegments)+1)
-		dummySegs = append(dummySegs, bypassChar)
-		dummySegs = append(dummySegs, originalSegments...)
-		// Pass original trailing slash status to buildPath
-		uniquePaths[buildPath(dummySegs, hasLeadingSlash, hasTrailingSlash)+query] = struct{}{}
-
-		// Variation: Prefix existing segments with common bypass chars
-		if canModifySegments {
-			for j := range originalSegments {
-				// Prefix Only
-				modSegsPfx := make([]string, len(originalSegments))
-				copy(modSegsPfx, originalSegments)
-				modSegsPfx[j] = bypassChar + originalSegments[j]
-				// Pass original trailing slash status to buildPath
-				uniquePaths[buildPath(modSegsPfx, hasLeadingSlash, hasTrailingSlash)+query] = struct{}{}
-
-				// --- Suffix part removed ---
-			}
-		}
-	}
 
 	// --- Byte Iteration Loop (Filtered) ---
 	for i := 0; i < 256; i++ {
@@ -151,7 +123,6 @@ func (pg *PayloadGenerator) GeneratePathPrefixPayloads(targetURL string, bypassM
 			dummySegments := make([]string, 0, len(originalSegments)+1)
 			dummySegments = append(dummySegments, prefix)
 			dummySegments = append(dummySegments, originalSegments...)
-			// Pass original trailing slash status to buildPath
 			uniquePaths[buildPath(dummySegments, hasLeadingSlash, hasTrailingSlash)+query] = struct{}{}
 		}
 
@@ -177,14 +148,12 @@ func (pg *PayloadGenerator) GeneratePathPrefixPayloads(targetURL string, bypassM
 					modSegs := make([]string, len(originalSegments))
 					copy(modSegs, originalSegments)
 					modSegs[j] = v.prefix + originalSegments[j] // Apply prefix
-					// Pass original trailing slash status to buildPath
 					uniquePaths[buildPath(modSegs, hasLeadingSlash, hasTrailingSlash)+query] = struct{}{}
 				}
 			}
 		}
 
 		// == Variation: Two-Byte Control Character Prefix (Multiple Encodings) ==
-		// Keep this as is, but it now operates on b1 which is already filtered
 		if canModifySegments && isControlByte(b1) {
 			for k := 0; k < 256; k++ {
 				b2 := byte(k)
@@ -206,10 +175,7 @@ func (pg *PayloadGenerator) GeneratePathPrefixPayloads(targetURL string, bypassM
 						modSegsPfx := make([]string, len(originalSegments))
 						copy(modSegsPfx, originalSegments)
 						modSegsPfx[j] = combo + originalSegments[j]
-						// Pass original trailing slash status to buildPath
 						uniquePaths[buildPath(modSegsPfx, hasLeadingSlash, hasTrailingSlash)+query] = struct{}{}
-
-						// --- Suffix part removed ---
 					}
 				}
 			}
@@ -230,6 +196,6 @@ func (pg *PayloadGenerator) GeneratePathPrefixPayloads(targetURL string, bypassM
 		jobs = append(jobs, job)
 	}
 
-	GB403Logger.Debug().BypassModule(bypassModule).Msgf("Generated %d prefix-only payloads for %s\n", len(jobs), targetURL)
+	GB403Logger.Debug().BypassModule(bypassModule).Msgf("Generated %d purely byte-based prefix payloads for %s\n", len(jobs), targetURL)
 	return jobs
 }
