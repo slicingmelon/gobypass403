@@ -208,15 +208,14 @@ func (s *Scanner) RunBypassModule(bypassModule string, targetURL string) int {
 					}
 				}
 				if !contentTypeMatched {
-					continue // Skip this response
+					continue
 				}
 			}
 
 			result := &Result{
-				TargetURL:    string(response.URL),
-				BypassModule: string(response.BypassModule),
-				StatusCode:   response.StatusCode,
-				//ResponseHeaders:     string(response.ResponseHeaders),
+				TargetURL:           string(response.URL),
+				BypassModule:        string(response.BypassModule),
+				StatusCode:          response.StatusCode,
 				ResponseHeaders:     sanitizeNonPrintableBytes(response.ResponseHeaders),
 				CurlCMD:             sanitizeNonPrintableBytes(response.CurlCommand),
 				ResponseBodyPreview: string(response.ResponsePreview),
@@ -387,11 +386,15 @@ func sanitizeNonPrintableBytes(input []byte) string {
 	sb.Grow(len(input))
 
 	for _, b := range input {
-		// Keep printable ASCII (32-126), LF (10), CR (13), and Tab (9)
-		if (b >= 32 && b <= 126) || b == 10 || b == 13 || b == 9 {
+		// Keep printable ASCII (32-126), LF (10), CR (13)
+		if (b >= 32 && b <= 126) || b == 10 || b == 13 {
 			sb.WriteByte(b)
+			// Explicitly handle Tab separately and
+			// replace with its escape sequence -- to test
+		} else if b == 9 {
+			sb.WriteString("\\x09")
 		} else {
-			// Replace other non-printable bytes with Go-style hex escape
+			// Replace others with Go-style hex escape
 			sb.WriteString(fmt.Sprintf("\\x%02x", b))
 		}
 	}
