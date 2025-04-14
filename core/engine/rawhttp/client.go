@@ -279,7 +279,6 @@ func (c *HTTPClient) handleRetries(req *fasthttp.Request, resp *fasthttp.Respons
 			reqCopy.SetConnectionClose()
 			start = time.Now()
 			err = tempClient.client.Do(reqCopy, resp)
-			//tempClient.client.CloseIdleConnections()
 
 		default:
 			start = time.Now()

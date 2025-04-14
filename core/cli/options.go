@@ -248,8 +248,6 @@ func (o *CliOptions) validate() error {
 			GB403Logger.Error().Msgf("Error checking for outdated payloads: %v", err)
 		} else if !consistent {
 			GB403Logger.Warning().Msgf("Local payloads may be outdated or modified. Run with -update-payloads to ensure you have the latest versions.\n\n")
-			// Optionally sleep ?
-			// time.Sleep(2 * time.Second)
 		}
 	}
 

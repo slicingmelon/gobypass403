@@ -7,6 +7,7 @@ package rawhttp
 
 import (
 	"bytes"
+	"errors"
 	"io"
 	"runtime"
 	"slices"
@@ -179,8 +180,13 @@ func ProcessHTTPResponse(httpclient *HTTPClient, resp *fasthttp.Response, bypass
 			N: int64(previewSize),
 		}
 
-		if err := resp.BodyWriteTo(limitedWriter); err != nil && err != io.EOF {
-			GB403Logger.Debug().Msgf("Error reading body: %v", err)
+		// Attempt to write body to the limited writer
+		err := resp.BodyWriteTo(limitedWriter)
+
+		// Log only unexpected errors. Ignore nil (success), io.EOF (limit reached),
+		// and io.ErrShortWrite (expected when body > previewSize).
+		if err != nil && err != io.EOF && !errors.Is(err, io.ErrShortWrite) {
+			GB403Logger.Debug().Msgf("Unexpected error reading body preview: %v", err)
 		}
 
 		if len(buf.B) > 0 {
