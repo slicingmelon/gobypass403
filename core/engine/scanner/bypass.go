@@ -23,6 +23,7 @@ import (
 // Registry of all bypass modules
 var AvailableBypassModules = []string{
 	"dumb_check",
+	"path_prefix",
 	"mid_paths",
 	"end_paths",
 	"http_methods",

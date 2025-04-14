@@ -78,6 +78,7 @@ type CliOptions struct {
 // AvailableModes defines all bypass modes and their status, true if enabled, false if disabled
 var AvailableModules = map[string]bool{
 	"dumb_check":                 true,
+	"path_prefix":                true,
 	"mid_paths":                  true,
 	"end_paths":                  true,
 	"http_methods":               true,

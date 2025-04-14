@@ -21,6 +21,7 @@ import (
 // This is used for debug token indexing and is independent of which modules are enabled for a scan
 var BypassModulesRegistry = []string{
 	"dumb_check",
+	"path_prefix",
 	"mid_paths",
 	"end_paths",
 	"http_methods",
@@ -104,6 +105,8 @@ func (pg *PayloadGenerator) Generate() []BypassPayload {
 	switch pg.bypassModule {
 	case "dumb_check":
 		return pg.GenerateDumbCheckPayload(pg.targetURL, pg.bypassModule)
+	case "path_prefix":
+		return pg.GeneratePathPrefixPayloads(pg.targetURL, pg.bypassModule)
 	case "mid_paths":
 		return pg.GenerateMidPathsPayloads(pg.targetURL, pg.bypassModule)
 	case "end_paths":

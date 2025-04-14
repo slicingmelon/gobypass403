@@ -214,7 +214,7 @@ func (wp *RequestWorkerPool) ProcessRequestResponseJob(bypassPayload payload.Byp
 		// Pass through the critical error for handling at higher level
 		if errors.Is(err, ErrReqFailedMaxConsecutiveFails) {
 			GB403Logger.Warning().Msgf("Max consecutive failures reached for %s: %d/%d -- Cancelling current bypass module\n\n",
-				bypassPayload.BypassModule, wp.httpClient.GetPerReqRetryAttempts(), wp.httpClient.GetHTTPClientOptions().MaxConsecutiveFailedReqs)
+				bypassPayload.BypassModule, wp.httpClient.GetConsecutiveFailures(), wp.httpClient.GetHTTPClientOptions().MaxConsecutiveFailedReqs)
 			wp.cancel() // faster?
 			return nil, ErrReqFailedMaxConsecutiveFails
 		}
