@@ -107,26 +107,6 @@ func ReleaseResponseDetails(rd *RawHTTPResponseDetails) {
 	responseDetailsPool.Put(rd)
 }
 
-func (r *RawHTTPResponseDetails) CopyTo(dst *RawHTTPResponseDetails) {
-	// Copy all byte slices
-	dst.URL = append(dst.URL[:0], r.URL...)
-	dst.BypassModule = append(dst.BypassModule[:0], r.BypassModule...)
-	dst.CurlCommand = append(dst.CurlCommand[:0], r.CurlCommand...)
-	dst.ResponseHeaders = append(dst.ResponseHeaders[:0], r.ResponseHeaders...)
-	dst.ResponsePreview = append(dst.ResponsePreview[:0], r.ResponsePreview...)
-	dst.ContentType = append(dst.ContentType[:0], r.ContentType...)
-	dst.ServerInfo = append(dst.ServerInfo[:0], r.ServerInfo...)
-	dst.Title = append(dst.Title[:0], r.Title...)
-	dst.RedirectURL = append(dst.RedirectURL[:0], r.RedirectURL...)
-	dst.DebugToken = append(dst.DebugToken[:0], r.DebugToken...)
-
-	// Copy scalar values
-	dst.StatusCode = r.StatusCode
-	dst.ContentLength = r.ContentLength
-	dst.ResponseBytes = r.ResponseBytes
-	dst.ResponseTime = r.ResponseTime
-}
-
 type LimitedWriter struct {
 	W io.Writer // Underlying writer
 	N int64     // Max bytes remaining
@@ -186,7 +166,7 @@ func ProcessHTTPResponse(httpclient *HTTPClient, resp *fasthttp.Response, bypass
 		// Log only unexpected errors. Ignore nil (success), io.EOF (limit reached),
 		// and io.ErrShortWrite (expected when body > previewSize).
 		if err != nil && err != io.EOF && !errors.Is(err, io.ErrShortWrite) {
-			GB403Logger.Debug().Msgf("Unexpected error reading body preview: %v", err)
+			GB403Logger.Error().Msgf("Unexpected error reading body preview: %v\n", err)
 		}
 
 		if len(buf.B) > 0 {
