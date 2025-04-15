@@ -212,6 +212,14 @@ func (s *Scanner) RunBypassModule(bypassModule string, targetURL string) int {
 				}
 			}
 
+			// Content length filtering
+			if s.scannerOpts.MinContentLength > 0 && response.ContentLength >= 0 && response.ContentLength < int64(s.scannerOpts.MinContentLength) {
+				continue
+			}
+			if s.scannerOpts.MaxContentLength > 0 && response.ContentLength >= 0 && response.ContentLength > int64(s.scannerOpts.MaxContentLength) {
+				continue
+			}
+
 			result := &Result{
 				TargetURL:           string(response.URL),
 				BypassModule:        string(response.BypassModule),

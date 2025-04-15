@@ -20,6 +20,8 @@ type ScannerOpts struct {
 	ConcurrentRequests        int
 	MatchStatusCodes          []int
 	MatchContentTypeBytes     [][]byte
+	MinContentLength          int
+	MaxContentLength          int
 	Debug                     bool
 	Verbose                   bool
 	BypassModule              string
