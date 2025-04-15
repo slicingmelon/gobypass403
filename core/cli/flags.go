@@ -129,8 +129,6 @@ func parseFlags() (*CliOptions, error) {
 					flag.BoolVar(v, name, false, f.usage)
 				}
 			case *onOffFlag: // Handle the custom on/off flag type
-				// The default was set on opts.AutoThrottle *before* this loop.
-				// We don't need the defStr check or f.Set here anymore.
 				flag.Var(v, name, f.usage) // Register using flag.Var
 			}
 		}

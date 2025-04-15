@@ -184,7 +184,7 @@ func PrintResultsTableFromDB(targetURL, bypassModule string) error {
 		rowCount++
 		var module, curlCmd, contentType, title, serverInfo string
 		var statusCode, responseBodyBytes int
-		var contentLength sql.NullInt64 // Using NullInt64 to handle potential NULL values
+		var contentLength sql.NullInt64
 
 		err := rows.Scan(
 			&module,
