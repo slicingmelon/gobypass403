@@ -69,6 +69,8 @@ func parseFlags() (*CliOptions, error) {
 		{name: "d,debug", usage: "Debug mode with request canaries", value: &opts.Debug, defVal: false},
 		{name: "mc,match-status-code", usage: "Filter results by HTTP status codes (example: -mc 200, 301, 500, all). Default: All status codes", value: &opts.MatchStatusCodesStr},
 		{name: "mct,match-content-type", usage: "Filter results by content type(s) substring (example: -mct application/json,text/html)", value: &opts.MatchContentType},
+		{name: "min-cl,min-content-length", usage: "Filter results by minimum Content-Length (example: -min-cl 100)", value: &opts.MinContentLengthStr},
+		{name: "max-cl,max-content-length", usage: "Filter results by maximum Content-Length (example: -max-cl 5000)", value: &opts.MaxContentLengthStr},
 		{name: "http2", usage: "Enable HTTP2 client", value: &opts.EnableHTTP2, defVal: false},
 		{name: "x,proxy", usage: "Proxy URL (format: http://proxy:port) (Example: -x http://127.0.0.1:8080)", value: &opts.Proxy},
 		{name: "spoof-header", usage: "Add more headers used to spoof IPs (example: X-SecretIP-Header,X-GO-IP)", value: &opts.SpoofHeader},
@@ -108,11 +110,11 @@ func parseFlags() (*CliOptions, error) {
 		for _, name := range strings.Split(f.name, ",") {
 			name = strings.TrimSpace(name)
 			switch v := f.value.(type) {
-			case *string:
+			case *string: // Handles opts.URL, opts.URLsFile, etc. AND the new Str flags
 				if def, ok := f.defVal.(string); ok {
 					flag.StringVar(v, name, def, f.usage)
 				} else {
-					flag.StringVar(v, name, "", f.usage)
+					flag.StringVar(v, name, "", f.usage) // Default empty string ""
 				}
 			case *int:
 				if def, ok := f.defVal.(int); ok {
@@ -126,6 +128,10 @@ func parseFlags() (*CliOptions, error) {
 				} else {
 					flag.BoolVar(v, name, false, f.usage)
 				}
+			case *onOffFlag: // Handle the custom on/off flag type
+				// The default was set on opts.AutoThrottle *before* this loop.
+				// We don't need the defStr check or f.Set here anymore.
+				flag.Var(v, name, f.usage) // Register using flag.Var
 			}
 		}
 	}

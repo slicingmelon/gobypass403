@@ -34,6 +34,8 @@ type CliOptions struct {
 	MatchStatusCodes         []int
 	MatchContentType         string   // New field for multiple types
 	MatchContentTypeBytes    [][]byte // Multiple byte slices for efficient matching
+	MinContentLengthStr      string   // Minimum Content-Length to match (as string)
+	MaxContentLengthStr      string   // Maximum Content-Length to match (as string)
 	ConcurrentRequests       int
 	Timeout                  int
 	Delay                    int
@@ -211,6 +213,29 @@ func (o *CliOptions) validate() error {
 	// Process and validate status codes
 	if err := o.processStatusCodes(); err != nil {
 		return err
+	}
+
+	// Validate content length options
+	var minCL, maxCL *int // Use pointers locally for easier comparison logic
+	var err error
+	if o.MinContentLengthStr != "" {
+		val, err := strconv.Atoi(o.MinContentLengthStr)
+		if err != nil {
+			return fmt.Errorf("invalid integer value for -min-cl: %w", err)
+		}
+		minCL = &val
+	}
+	if o.MaxContentLengthStr != "" {
+		val, err := strconv.Atoi(o.MaxContentLengthStr)
+		if err != nil {
+			return fmt.Errorf("invalid integer value for -max-cl: %w", err)
+		}
+		maxCL = &val
+	}
+
+	// Check min > max only if both were provided and parsed successfully
+	if minCL != nil && maxCL != nil && *minCL > *maxCL {
+		return fmt.Errorf("minimum content length (%d) cannot be greater than maximum content length (%d)", *minCL, *maxCL)
 	}
 
 	// Validate module
