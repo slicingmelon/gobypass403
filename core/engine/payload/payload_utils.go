@@ -348,6 +348,26 @@ func URLEncodeAll(s string) string {
 	return string(buf)
 }
 
+// encodePathSpecialChars replaces literal '?' and '#' within a path string
+// with their percent-encoded equivalents (%3F and %23).
+func encodePathSpecialChars(path string) string {
+	// Use strings.Builder for potentially better performance on multiple replacements
+	var builder strings.Builder
+	builder.Grow(len(path)) // Pre-allocate roughly the needed size
+	for i := 0; i < len(path); i++ {
+		char := path[i]
+		switch char {
+		case '?':
+			builder.WriteString("%3F")
+		case '#':
+			builder.WriteString("%23")
+		default:
+			builder.WriteByte(char)
+		}
+	}
+	return builder.String()
+}
+
 // BypassPayloadToBaseURL converts a bypass payload to base URL (scheme://host)
 // ex BypassPayloadToBaseURLwithMake winner
 /*
