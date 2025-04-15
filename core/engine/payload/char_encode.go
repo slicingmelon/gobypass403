@@ -59,7 +59,7 @@ func (pg *PayloadGenerator) GenerateCharEncodePayloads(targetURL string, bypassM
 		lastCharIndex := len(basePath) - 1
 		lastChar := basePath[lastCharIndex]
 
-		if isLetter(lastChar) {
+		if isLetterASCII(lastChar) {
 			encodedHex := fmt.Sprintf("%%%02x", lastChar)
 			pathPrefix := basePath[:lastCharIndex]
 
@@ -100,7 +100,7 @@ func (pg *PayloadGenerator) GenerateCharEncodePayloads(targetURL string, bypassM
 		if firstCharIndex < len(basePath) {
 			firstChar := basePath[firstCharIndex]
 
-			if isLetter(firstChar) {
+			if isLetterASCII(firstChar) {
 				encodedHex := fmt.Sprintf("%%%02x", firstChar)
 				pathPrefix := basePath[:firstCharIndex]
 				pathSuffix := basePath[firstCharIndex+1:]
@@ -171,7 +171,7 @@ func (pg *PayloadGenerator) GenerateCharEncodePayloads(targetURL string, bypassM
 
 			// Iterate through the characters of the identified last segment
 			for i, char := range lastSegment {
-				if isLetter(byte(char)) {
+				if isLetterASCII(byte(char)) {
 					encodedHex := fmt.Sprintf("%%%02x", char)
 					segmentPrefix := lastSegment[:i]
 					segmentSuffix := lastSegment[i+1:]
@@ -209,7 +209,7 @@ func (pg *PayloadGenerator) GenerateCharEncodePayloads(targetURL string, bypassM
 		lastSegment := basePath
 		prefix := "" // No prefix
 		for i, char := range lastSegment {
-			if isLetter(byte(char)) {
+			if isLetterASCII(byte(char)) {
 				encodedHex := fmt.Sprintf("%%%02x", char)
 				segmentPrefix := lastSegment[:i]
 				segmentSuffix := lastSegment[i+1:]
@@ -245,7 +245,7 @@ func (pg *PayloadGenerator) GenerateCharEncodePayloads(targetURL string, bypassM
 	// This might overlap with cases 1, 2, 3 but maps handle deduplication.
 	for i := 0; i < len(basePath); i++ {
 		char := basePath[i]
-		if isLetter(byte(char)) {
+		if isLetterASCII(byte(char)) {
 			encodedHex := fmt.Sprintf("%%%02x", char)
 			pathPrefix := basePath[:i]
 			pathSuffix := basePath[i+1:]

@@ -7,6 +7,9 @@ import (
 	GB403Logger "github.com/slicingmelon/gobypass403/core/utils/logger"
 )
 
+/*
+GenerateCaseSubstitutionPayloads
+*/
 func (pg *PayloadGenerator) GenerateCaseSubstitutionPayloads(targetURL string, bypassModule string) []BypassPayload {
 	var allJobs []BypassPayload
 
@@ -41,7 +44,7 @@ func (pg *PayloadGenerator) GenerateCaseSubstitutionPayloads(targetURL string, b
 		lastCharIndex := len(basePath) - 1
 		lastChar := basePath[lastCharIndex]
 
-		if isLetter(byte(lastChar)) && lastChar >= 'a' && lastChar <= 'z' {
+		if isLetterASCII(byte(lastChar)) && lastChar >= 'a' && lastChar <= 'z' {
 			// Create version with just the last letter uppercase
 			lastLetterUppercase := basePath[:lastCharIndex] + strings.ToUpper(string(lastChar))
 			uniquePaths[lastLetterUppercase+query] = struct{}{}
@@ -58,7 +61,7 @@ func (pg *PayloadGenerator) GenerateCaseSubstitutionPayloads(targetURL string, b
 
 	// 3. Find and invert case for all letter positions
 	for i, char := range basePath {
-		if isLetter(byte(char)) {
+		if isLetterASCII(byte(char)) {
 			// Create case-inverted version
 			newPath := basePath[:i]
 			if char >= 'a' && char <= 'z' {

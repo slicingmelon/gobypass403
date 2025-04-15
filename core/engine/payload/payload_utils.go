@@ -320,7 +320,7 @@ func ReplaceNth(s, old, new string, n int) string {
 }
 
 // Helper function to check if a byte is a letter
-func isLetter(c byte) bool {
+func isLetterASCII(c byte) bool {
 	return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')
 }
 

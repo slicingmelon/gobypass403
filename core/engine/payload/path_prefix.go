@@ -24,27 +24,22 @@ func buildPath(segments []string, leadingSlash, trailingSlash bool) string {
 	if path == "" && leadingSlash && len(segments) == 1 && segments[0] == "" {
 		return "/"
 	}
-	if leadingSlash && !strings.HasPrefix(path, "/") {
+	// Ensure leading slash if required, unless path itself is now empty (e.g., segment was just "/")
+	if leadingSlash && !strings.HasPrefix(path, "/") && path != "" {
 		path = "/" + path
 	}
+	// Handle case where path becomes empty after join but leading slash was expected
+	if leadingSlash && path == "" && len(segments) >= 1 {
+		path = "/"
+	}
+
 	if !leadingSlash && path == "" && len(segments) == 1 && segments[0] == "" {
 		return "" // Original was ""
 	}
 
 	// Don't add trailing slash if it's just the root "/"
-	// Preserve original trailing slash only if no segments were truly added/modified at the end
 	if trailingSlash && path != "/" && !strings.HasSuffix(path, "/") {
-		lastSegment := ""
-		if len(segments) > 0 {
-			lastSegment = segments[len(segments)-1]
-		}
-		// Simple check, might need expansion based on generated prefixes
-		// If the last segment is short and non-alphanumeric, assume it was added, don't restore slash.
-		if len(lastSegment) > 0 && len(lastSegment) < 4 && !isAlphanumericASCII(lastSegment[0]) {
-			// Likely an added prefix, don't restore trailing slash
-		} else {
-			path = path + "/"
-		}
+		path = path + "/"
 	}
 	return path
 }
@@ -53,6 +48,8 @@ func buildPath(segments []string, leadingSlash, trailingSlash bool) string {
 // with single bytes (ASCII ctrl, ASCII special, 'x') and two-byte combinations
 // (raw+raw, enc+enc) using these categories.
 // Dummy segment prefix uses single bytes (raw, encoded) only.
+// If introduced prefixes contain literal '?' or '#', additional payloads
+// are generated with these characters encoded to ensure query string validity.
 func (pg *PayloadGenerator) GeneratePathPrefixPayloads(targetURL string, bypassModule string) []BypassPayload {
 	var jobs []BypassPayload
 	uniquePaths := make(map[string]struct{}) // Use map to ensure unique RawURIs
@@ -64,9 +61,9 @@ func (pg *PayloadGenerator) GeneratePathPrefixPayloads(targetURL string, bypassM
 	}
 
 	originalPath := parsedURL.Path
-	if originalPath == "" {
-		originalPath = "/" // Treat empty path as root
-	}
+	// Treat empty path as root for consistency in segment handling?
+	// Let's preserve empty path as empty unless explicitly root "/"
+	isEmptyPath := originalPath == ""
 
 	// Extract query string if it exists
 	query := ""
@@ -75,21 +72,30 @@ func (pg *PayloadGenerator) GeneratePathPrefixPayloads(targetURL string, bypassM
 	}
 
 	// Determine path structure
-	hasLeadingSlash := strings.HasPrefix(originalPath, "/")
+	hasLeadingSlash := strings.HasPrefix(originalPath, "/") || originalPath == "/"
 	hasTrailingSlash := strings.HasSuffix(originalPath, "/") && originalPath != "/"
 
 	// Get segments
 	trimmedPath := strings.Trim(originalPath, "/")
 	var originalSegments []string
-	if trimmedPath == "" && originalPath == "/" {
-		originalSegments = []string{""} // Root path means one empty segment conceptually for prefixing/dummy
-	} else if trimmedPath == "" {
-		originalSegments = []string{} // Empty path
-	} else {
+	if !isEmptyPath && trimmedPath == "" && originalPath == "/" {
+		originalSegments = []string{""} // Root case: treat as having one empty segment for prefixing logic
+	} else if !isEmptyPath && trimmedPath != "" {
 		originalSegments = strings.Split(trimmedPath, "/")
+	} else { // Empty path "" has no segments
+		originalSegments = []string{}
 	}
 
-	canModifySegments := len(originalSegments) > 0 && !(len(originalSegments) == 1 && originalSegments[0] == "")
+	// Helper function to add path variants to the map
+	addPathVariants := func(pathPart string) {
+		uniquePaths[pathPart+query] = struct{}{} // Add standard
+		if strings.ContainsAny(pathPart, "?#") {
+			encodedPathPart := encodeQueryAndFragmentChars(pathPart)
+			if encodedPathPart != pathPart {
+				uniquePaths[encodedPathPart+query] = struct{}{} // Add encoded variant
+			}
+		}
+	}
 
 	// --- Byte Iteration Loop (Filtered: ASCII Control, ASCII Special, 'x') ---
 	for i := 0; i < 256; i++ {
@@ -101,63 +107,98 @@ func (pg *PayloadGenerator) GeneratePathPrefixPayloads(targetURL string, bypassM
 			continue
 		}
 
-		rawB1Str := string([]byte{b1})
+		// Only use non-problematic raw bytes directly in paths
+		rawB1Str := ""
+		if b1 != '?' && b1 != '#' && b1 != '\n' && b1 != '\r' { // Avoid chars that break URI structure raw
+			rawB1Str = string([]byte{b1})
+		}
 		encodedB1Str := fmt.Sprintf("%%%02X", b1)
 
 		// == Variation: Dummy Segment Prefix (Single Byte Only - Raw/Encoded) ==
-		// Using raw and single encoded bytes
-		for _, prefix := range []string{rawB1Str, encodedB1Str} {
+		// This adds a new segment at the beginning.
+		prefixesToTry := []string{}
+		if rawB1Str != "" {
+			prefixesToTry = append(prefixesToTry, rawB1Str)
+		}
+		prefixesToTry = append(prefixesToTry, encodedB1Str)
+
+		for _, prefix := range prefixesToTry {
+			// Handle empty original path correctly - prefix becomes the path
+			if isEmptyPath {
+				addPathVariants("/" + prefix) // Assume dummy segment makes it non-empty, add leading slash
+				continue
+			}
+
 			dummySegments := make([]string, 0, len(originalSegments)+1)
 			dummySegments = append(dummySegments, prefix)
 			dummySegments = append(dummySegments, originalSegments...)
-			uniquePaths[buildPath(dummySegments, hasLeadingSlash, hasTrailingSlash)+query] = struct{}{}
+			pathPart := buildPath(dummySegments, hasLeadingSlash, hasTrailingSlash)
+			addPathVariants(pathPart)
 		}
 
 		// == Segment-based Variations (Prefix Only - Single Byte - Raw/Encoded) ==
-		if canModifySegments {
+		// Modify existing segments, only if they exist
+		if len(originalSegments) > 0 && !(len(originalSegments) == 1 && originalSegments[0] == "") { // Check > 0 segments and not just the root placeholder ""
 			for j := range originalSegments {
 				// Only Prefix variations are kept
 				variations := []struct {
-					name   string
 					prefix string
 				}{
-					{"SingleByteRawPfx", rawB1Str},
-					{"SingleByteEncPfx", encodedB1Str},
+					{rawB1Str},
+					{encodedB1Str},
 				}
 
 				for _, v := range variations {
+					if v.prefix == "" {
+						continue
+					} // Skip if raw prefix was invalid
+
 					modSegs := make([]string, len(originalSegments))
 					copy(modSegs, originalSegments)
+					// Ensure original segment is not empty before prefixing?
+					// If original segment is "", like from "/a//b", prefixing gives "/a/PREFIX/b"
+					// This seems acceptable.
 					modSegs[j] = v.prefix + originalSegments[j] // Apply prefix
-					uniquePaths[buildPath(modSegs, hasLeadingSlash, hasTrailingSlash)+query] = struct{}{}
+					pathPart := buildPath(modSegs, hasLeadingSlash, hasTrailingSlash)
+					addPathVariants(pathPart)
 				}
 			}
 		}
 
 		// == Variation: Two-Byte Prefix for Existing Segments (ASCII Control/Special/'x') (Raw+Raw, Enc+Enc) ==
-		if canModifySegments {
+		// Modify existing segments, only if they exist
+		if len(originalSegments) > 0 && !(len(originalSegments) == 1 && originalSegments[0] == "") {
 			for k := 0; k < 256; k++ {
 				b2 := byte(k)
-				// Filter: Only include combinations where b2 is also an ASCII control char, ASCII special char, or 'x'
+				// Filter: Second byte must also be relevant
 				isRelevantByte2 := isControlByteASCII(b2) || isSpecialCharASCII(b2) || b2 == 'x'
 				if !isRelevantByte2 {
-					continue // Second byte must also be relevant
+					continue
 				}
 
-				// Generate 2 encoding variations for the two bytes (Raw+Raw, Enc+Enc)
-				encodings := []string{
-					string([]byte{b1, b2}),              // Raw+Raw
-					fmt.Sprintf("%%%02X%%%02X", b1, b2), // Enc+Enc
+				// Generate 2 encoding variations for the two bytes
+				// Only create raw+raw if *both* bytes are individually safe for raw inclusion
+				rawCombo := ""
+				if rawB1Str != "" && b2 != '?' && b2 != '#' && b2 != '\n' && b2 != '\r' {
+					rawCombo = string([]byte{b1, b2})
 				}
+				encodedCombo := fmt.Sprintf("%%%02X%%%02X", b1, b2)
+
+				encodingsToTry := []string{}
+				if rawCombo != "" {
+					encodingsToTry = append(encodingsToTry, rawCombo)
+				}
+				encodingsToTry = append(encodingsToTry, encodedCombo)
 
 				// Apply variations ONLY to existing segments
-				for _, combo := range encodings {
+				for _, combo := range encodingsToTry {
 					// Existing Segment Prefix: /HEREHEREadmin/login, /admin/HEREHERElogin etc.
 					for j := range originalSegments {
 						modSegsPfx := make([]string, len(originalSegments))
 						copy(modSegsPfx, originalSegments)
 						modSegsPfx[j] = combo + originalSegments[j]
-						uniquePaths[buildPath(modSegsPfx, hasLeadingSlash, hasTrailingSlash)+query] = struct{}{}
+						pathPart := buildPath(modSegsPfx, hasLeadingSlash, hasTrailingSlash)
+						addPathVariants(pathPart)
 					}
 				}
 			}
@@ -165,7 +206,13 @@ func (pg *PayloadGenerator) GeneratePathPrefixPayloads(targetURL string, bypassM
 	} // End main loop (i=0 to 255)
 
 	// Convert unique paths map to BypassPayload slice
+	finalJobs := make([]BypassPayload, 0, len(uniquePaths))
 	for rawURI := range uniquePaths {
+		// Basic validation: ensure RawURI is not empty or just the query string
+		if rawURI == "" || (query != "" && rawURI == query) {
+			continue
+		}
+
 		job := BypassPayload{
 			OriginalURL:  targetURL,
 			Method:       "GET", // Defaulting to GET
@@ -175,9 +222,9 @@ func (pg *PayloadGenerator) GeneratePathPrefixPayloads(targetURL string, bypassM
 			BypassModule: bypassModule,
 		}
 		job.PayloadToken = GeneratePayloadToken(job)
-		jobs = append(jobs, job)
+		finalJobs = append(finalJobs, job)
 	}
 
-	GB403Logger.Debug().BypassModule(bypassModule).Msgf("Generated %d ASCII-focused byte prefix payloads (raw/enc, ctrl/spec/'x', single-byte dummy) for %s\n", len(jobs), targetURL)
-	return jobs
+	GB403Logger.Debug().BypassModule(bypassModule).Msgf("Generated %d payloads for %s", len(finalJobs), targetURL)
+	return finalJobs
 }

@@ -52,7 +52,7 @@ func (pg *PayloadGenerator) GenerateMidPathsPayloads(targetURL string, bypassMod
 	// However, ReplaceNth requires the separator '/' to exist.
 	// If path is "admin", slashCount is 0. If path is "/admin", slashCount is 1. If path is "/", slashCount is 1.
 	// The original loop `idxSlash < slashCount` means it won't run if path is "admin".
-	// Let's adjust slightly: if path doesn't start with '/', consider insertions relative to a virtual root.
+	// Slight adjust?: if path doesn't start with '/', consider insertions relative to a virtual root.
 	effectivePathForReplace := basePath
 	if !strings.HasPrefix(basePath, "/") && basePath != "" {
 		effectivePathForReplace = "/" + basePath                 // Temporarily add slash for ReplaceNth
