@@ -214,8 +214,8 @@ func PrintResultsTableFromDB(targetURL, bypassModule string) error {
 			bytesutil.Itoa(statusCode),
 			formatBytes(lengthToDisplay),
 			formatContentType(contentType),
-			formatValue(title),
-			formatValue(serverInfo),
+			LimitStringWithSuffix(formatValue(title), 14),
+			LimitStringWithSuffix(formatValue(serverInfo), 14),
 		})
 	}
 
@@ -349,4 +349,23 @@ func FormatBytesH(bytes int64) string {
 		exp++
 	}
 	return fmt.Sprintf("%.1f%cB", float64(bytes)/float64(div), "KMGTPE"[exp])
+}
+
+func LimitStringWithSuffix(s string, maxLen int) string {
+	if len(s) <= maxLen {
+		return s
+	}
+
+	return s[:maxLen-2] + ".."
+}
+
+func LimitStringwithPreffixAndSuffix(s string, maxLen int) string {
+	if maxLen < 4 {
+		maxLen = 4
+	}
+	if len(s) <= maxLen {
+		return s
+	}
+	n := (maxLen / 2) - 1
+	return s[:n] + ".." + s[len(s)-n:]
 }
