@@ -321,11 +321,32 @@ func (o *CliOptions) processStatusCodes() error {
 
 	var codes []int
 	parts := strings.Split(o.MatchStatusCodesStr, ",")
-	for _, p := range strings.Fields(strings.Join(parts, " ")) {
-		code, err := strconv.Atoi(strings.TrimSpace(p))
-		if err != nil {
+
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		if part == "" {
 			continue
 		}
+
+		// Check for wildcard pattern (e.g., 2xx, 3xx, etc.)
+		if len(part) == 3 && strings.HasSuffix(part, "xx") {
+			firstDigit, err := strconv.Atoi(part[0:1])
+			if err == nil && firstDigit >= 1 && firstDigit <= 5 {
+				// Add all codes in the range (e.g., 200-299 for 2xx)
+				for i := 0; i < 100; i++ {
+					codes = append(codes, firstDigit*100+i)
+				}
+				continue
+			}
+		}
+
+		// Standard numeric code handling
+		code, err := strconv.Atoi(part)
+		if err != nil {
+			// Silently skip invalid codes
+			continue
+		}
+
 		// Accept any positive integer as a status code
 		if code > 0 {
 			codes = append(codes, code)

@@ -67,7 +67,7 @@ func parseFlags() (*CliOptions, error) {
 			value: &onOffFlag{val: &opts.AutoThrottle}, defVal: "on"},
 		{name: "v,verbose", usage: "Verbose output", value: &opts.Verbose, defVal: false},
 		{name: "d,debug", usage: "Debug mode with request canaries", value: &opts.Debug, defVal: false},
-		{name: "mc,match-status-code", usage: "Filter results by HTTP status codes (example: -mc 200, 301, 500, all). Default: All status codes", value: &opts.MatchStatusCodesStr},
+		{name: "mc,match-status-code", usage: "Filter results by HTTP status codes (example: -mc 200, 301, 5xx, all). Default: All status codes", value: &opts.MatchStatusCodesStr},
 		{name: "mct,match-content-type", usage: "Filter results by content type(s) substring (example: -mct application/json,text/html)", value: &opts.MatchContentType},
 		{name: "min-cl,min-content-length", usage: "Filter results by minimum Content-Length (example: -min-cl 100)", value: &opts.MinContentLengthStr},
 		{name: "max-cl,max-content-length", usage: "Filter results by maximum Content-Length (example: -max-cl 5000)", value: &opts.MaxContentLengthStr},
