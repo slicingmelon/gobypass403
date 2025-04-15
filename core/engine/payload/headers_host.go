@@ -9,7 +9,26 @@ import (
 )
 
 /*
-GenerateHeadersHostPayloads
+GenerateHeadersHostPayloads generates payloads by manipulating the Host header and the
+target host based on reconnaissance data (IP addresses, CNAMEs).
+
+It retrieves cached IP services (IPv4/IPv6 with schemes and ports) and CNAME records
+for the target hostname.
+
+Techniques include:
+1.  **IP Address Variations:**
+  - For each discovered IP service (IP:port):
+  - Use IP:port as URL host, original host in `Host` header.
+  - Use original URL host, IP:port in `Host` header.
+
+2.  **CNAME Variations:**
+  - For each discovered CNAME:
+  - Use original URL host, CNAME in `Host` header.
+  - Use CNAME as URL host, original host in `Host` header.
+  - Use CNAME as URL host, CNAME in `Host` header.
+  - Use original URL host, partial CNAME suffixes (e.g., sub.domain.com -> domain.com) in `Host` header.
+
+The original path and query string are preserved in all generated payloads.
 */
 func (pg *PayloadGenerator) GenerateHeadersHostPayloads(targetURL string, bypassModule string) []BypassPayload {
 	var allJobs []BypassPayload

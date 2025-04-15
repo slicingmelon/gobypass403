@@ -8,48 +8,38 @@ import (
 	GB403Logger "github.com/slicingmelon/gobypass403/core/utils/logger"
 )
 
-// buildPath reconstructs the path from segments, respecting original leading/trailing slashes.
-func buildPath(segments []string, leadingSlash, trailingSlash bool) string {
-	// Handle empty segments slice correctly
-	if len(segments) == 0 {
-		if leadingSlash {
-			return "/"
-		}
-		return ""
-	}
+/*
+GeneratePathPrefixPayloads generates payloads by prefixing path segments with specific
+byte patterns, focusing on ASCII control characters, special characters, and 'x'.
 
-	path := strings.Join(segments, "/")
+It iterates through bytes 0-255 (`b1`) and filters for those matching the criteria.
+For each relevant `b1`, it generates:
 
-	// Handle cases where original was "/" or segments were modified
-	if path == "" && leadingSlash && len(segments) == 1 && segments[0] == "" {
-		return "/"
-	}
-	// Ensure leading slash if required, unless path itself is now empty (e.g., segment was just "/")
-	if leadingSlash && !strings.HasPrefix(path, "/") && path != "" {
-		path = "/" + path
-	}
-	// Handle case where path becomes empty after join but leading slash was expected
-	if leadingSlash && path == "" && len(segments) >= 1 {
-		path = "/"
-	}
+1.  **Dummy Segment Prefix (Single Byte):**
+  - Adds `b1` as a new first segment.
+  - Variations: Raw byte (if safe), Percent-encoded (`%XX`).
+  - Example: `/admin/login` -> `/[b1]/admin/login` or `/%XX/admin/login`.
 
-	if !leadingSlash && path == "" && len(segments) == 1 && segments[0] == "" {
-		return "" // Original was ""
-	}
+2.  **Existing Segment Prefix (Single Byte):**
+  - Prepends `b1` to each *existing* segment individually.
+  - Variations: Raw byte (if safe), Percent-encoded (`%XX`).
+  - Example: `/admin/login` -> `/[b1]admin/login`, `/%XXadmin/login`, `/admin/[b1]login`, `/admin/%XXlogin`.
 
-	// Don't add trailing slash if it's just the root "/"
-	if trailingSlash && path != "/" && !strings.HasSuffix(path, "/") {
-		path = path + "/"
-	}
-	return path
-}
+It then iterates through a second byte `b2` (0-255), also filtered for relevance.
+For each relevant pair (`b1`, `b2`), it generates:
 
-// GeneratePathPrefixPayloads generates payloads by prefixing segments/path
-// with single bytes (ASCII ctrl, ASCII special, 'x') and two-byte combinations
-// (raw+raw, enc+enc) using these categories.
-// Dummy segment prefix uses single bytes (raw, encoded) only.
-// If introduced prefixes contain literal '?' or '#', additional payloads
-// are generated with these characters encoded to ensure query string validity.
+3.  **Existing Segment Prefix (Two Bytes):**
+  - Prepends the byte pair (`b1b2`) to each *existing* segment individually.
+  - Variations:
+  - Raw bytes (`b1b2`) if *both* are safe for raw inclusion.
+  - Double Percent-encoded (`%XX%YY`).
+  - Example: `/admin/login` -> `/[b1b2]admin/login`, `/%XX%YYadmin/login`, `/admin/[b1b2]login`, `/admin/%XX%YYlogin`.
+
+Helper functions `buildPath` and `addPathVariants` handle path reconstruction (preserving
+original slashes) and ensure that if introduced prefixes contain literal '?' or '#',
+additional payloads are generated with these characters encoded (%3F, %23) to maintain
+query string validity. The original query string is appended to all generated paths.
+*/
 func (pg *PayloadGenerator) GeneratePathPrefixPayloads(targetURL string, bypassModule string) []BypassPayload {
 	var jobs []BypassPayload
 	uniquePaths := make(map[string]struct{}) // Use map to ensure unique RawURIs
@@ -227,4 +217,40 @@ func (pg *PayloadGenerator) GeneratePathPrefixPayloads(targetURL string, bypassM
 
 	GB403Logger.Debug().BypassModule(bypassModule).Msgf("Generated %d payloads for %s", len(finalJobs), targetURL)
 	return finalJobs
+}
+
+// buildPath reconstructs the path from segments, respecting original leading/trailing slashes.
+func buildPath(segments []string, leadingSlash, trailingSlash bool) string {
+	// Handle empty segments slice correctly
+	if len(segments) == 0 {
+		if leadingSlash {
+			return "/"
+		}
+		return ""
+	}
+
+	path := strings.Join(segments, "/")
+
+	// Handle cases where original was "/" or segments were modified
+	if path == "" && leadingSlash && len(segments) == 1 && segments[0] == "" {
+		return "/"
+	}
+	// Ensure leading slash if required, unless path itself is now empty (e.g., segment was just "/")
+	if leadingSlash && !strings.HasPrefix(path, "/") && path != "" {
+		path = "/" + path
+	}
+	// Handle case where path becomes empty after join but leading slash was expected
+	if leadingSlash && path == "" && len(segments) >= 1 {
+		path = "/"
+	}
+
+	if !leadingSlash && path == "" && len(segments) == 1 && segments[0] == "" {
+		return "" // Original was ""
+	}
+
+	// Don't add trailing slash if it's just the root "/"
+	if trailingSlash && path != "/" && !strings.HasSuffix(path, "/") {
+		path = path + "/"
+	}
+	return path
 }

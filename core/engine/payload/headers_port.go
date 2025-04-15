@@ -6,7 +6,17 @@ import (
 )
 
 /*
-GenerateHeaderPortPayloads
+GenerateHeadersPortPayloads generates payloads by adding various headers related to ports
+with values sourced from predefined lists.
+
+It reads header names potentially indicating port information from header_ports.lst
+and a list of common or interesting port numbers from internal_ports.lst.
+
+For each header name, it creates payloads by pairing it with each port number from
+the internal list.
+
+The original URL's scheme, host, path, and query string are preserved in the
+base structure of each generated payload.
 */
 func (pg *PayloadGenerator) GenerateHeadersPortPayloads(targetURL string, bypassModule string) []BypassPayload {
 	var allJobs []BypassPayload

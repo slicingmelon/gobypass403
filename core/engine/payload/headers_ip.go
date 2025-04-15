@@ -9,12 +9,24 @@ import (
 )
 
 /*
-GenerateHeaderIPPayloads generates payloads by adding various IP/Host related headers.
+GenerateHeadersIPPayloads generates payloads by injecting various IP/Host related headers
+with values sourced from standard lists and user input.
 
-It reads base header names from header_ip_hosts.lst and IP values from internal_ip_hosts.lst.
-It incorporates custom headers provided via the '-spoof-header' CLI flag, adding both the
-original casing and the canonicalized (normalized) version for each custom header.
-It also incorporates custom IPs provided via the '-spoof-ip' CLI flag.
+It reads base header names from header_ip_hosts.lst and IP/host values from
+internal_ip_hosts.lst.
+
+Key functionalities include:
+ 1. **Standard Payloads:** Combines each header name with each IP/host value.
+ 2. **Custom Headers:** Incorporates headers provided via the '-spoof-header' CLI flag.
+    For each custom header, it adds payloads using both the original casing and the
+    canonicalized (normalized) version.
+ 3. **Custom IPs/Hosts:** Incorporates IP/host values provided via the '-spoof-ip' CLI flag.
+ 4. **Special Handling for 'Forwarded' Header:** Generates specific variations based on
+    RFC 7239 common parameters (`by=`, `for=`, `host=`) using the IP/host values.
+ 5. **Special Header Case:** Includes a payload for `X-AppEngine-Trusted-IP-Request: 1`.
+
+The original path and query string are preserved in all generated payloads.
+IP/host values and header names are deduplicated before use.
 */
 func (pg *PayloadGenerator) GenerateHeadersIPPayloads(targetURL string, bypassModule string) []BypassPayload {
 	var allJobs []BypassPayload

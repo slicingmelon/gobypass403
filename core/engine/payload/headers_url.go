@@ -9,7 +9,27 @@ import (
 )
 
 /*
-GenerateHeaderURLPayloads
+GenerateHeadersURLPayloads generates payloads by injecting various URL components
+(base path, parent paths, full URLs) into different headers.
+
+It reads header names potentially related to URL context (e.g., X-Original-URL,
+X-Rewrite-URL, Referer) from header_urls.lst.
+
+For each header name, it creates multiple payload variations:
+1.  **Path Injection (RawURI = '/'):**
+  - Header Value: Base path (original path without trailing slash).
+  - Header Value: Base path + original query string (if query exists).
+  - Header Value: Full original target URL (if header name suggests URL context).
+
+2.  **Path Injection (RawURI = Original Path + Query):**
+  - For each parent path derived from the original path:
+  - Header Value: Parent path.
+  - Header Value: Parent path + original query string (if query exists).
+  - Header Value: Full URL constructed with parent path (if header name suggests URL context).
+  - Header Value: Full URL constructed with parent path + original query string (if header name suggests URL context and query exists).
+
+The original URL's method, scheme, and host are preserved in the base structure,
+while the RawURI and Headers fields are manipulated according to the variations above.
 */
 func (pg *PayloadGenerator) GenerateHeadersURLPayloads(targetURL string, bypassModule string) []BypassPayload {
 	var allJobs []BypassPayload

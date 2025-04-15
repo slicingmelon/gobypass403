@@ -8,7 +8,19 @@ import (
 )
 
 /*
-GenerateHeaderSchemePayloads
+GenerateHeadersSchemePayloads generates payloads by adding headers related to protocol
+schemes (e.g., HTTP, HTTPS) with values sourced from predefined lists.
+
+It reads potential scheme-related header names from header_proto_schemes.lst and
+a list of protocol schemes (http, https, etc.) from internal_proto_schemes.lst.
+
+Key functionalities include:
+1.  **Standard Payloads:** Combines most header names with each protocol scheme value.
+2.  **Special HTTPS Headers:** Sets specific headers (`Front-End-Https`, `X-Forwarded-HTTPS`, `X-Forwarded-SSL`) to the value "on".
+3.  **Special Handling for 'Forwarded' Header:** Formats the value as `proto={scheme}`.
+
+The original URL's method, scheme, host, path, and query string are preserved in the
+base structure of each generated payload.
 */
 func (pg *PayloadGenerator) GenerateHeadersSchemePayloads(targetURL string, bypassModule string) []BypassPayload {
 	var allJobs []BypassPayload

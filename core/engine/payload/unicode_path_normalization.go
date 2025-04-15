@@ -8,34 +8,28 @@ import (
 )
 
 /*
-JS code used to fuzz unicode path chars
+GenerateUnicodePathNormalizationsPayloads generates payloads based on Unicode
+normalization bypass techniques, specifically targeting '.' and '/' characters in the path.
 
-const charsToCheck = ["\\", "/", ".", ":", "%", "~", "*", "<", ">", "|", "@", "!", "#", "+", "{", "}", "[", "]", ";", ",", "'", "\""];
-const normalizationForms = ["NFKC", "NFC", "NFD", "NFKD"];
+It reads mappings from ASCII characters ('.' and '/') to their Unicode lookalikes
+from the unicode_path_chars.lst file.
 
-const normalizedMatches = new Set();
+Payload generation techniques include:
+ 1. **Single Character Replacement:** Replaces individual occurrences of '.' or '/'
+    in the path with one of their corresponding Unicode variants.
+ 2. **Replace All Occurrences:** Replaces all instances of '.' or '/' in the path
+    with a specific Unicode variant.
+ 3. **Structural Slash Insertion (Before Last Segment):** Inserts a Unicode slash
+    variant immediately before the last path segment (e.g., `/a/VARIANTb`).
+ 4. **Structural Slash Insertion (After Each Slash):** Inserts a Unicode slash
+    variant immediately after each existing '/' in the path (e.g., `/a/VARIANTb/c`).
 
-// Loop through all code points (from 0x7f upwards)
+For each technique, two variations are typically generated:
+-   One using the raw Unicode character directly in the path.
+-   One using the percent-encoded representation of the Unicode character.
 
-	for (let i = 0x7f; i <= 0x10FFFF; i++) {
-	    const char = String.fromCodePoint(i);
-
-	    if (i > 0x7f) {
-	        normalizationForms.forEach(form => {
-	            const normalized = char.normalize(form);
-
-	            for (let charToCheck of charsToCheck) {
-	                if (charToCheck === normalized) {
-	                    normalizedMatches.add(`${char}(${form})=${charToCheck}`);
-	                }
-	            }
-	        });
-	    }
-	}
-
-normalizedMatches.forEach(match => console.log(match));
-/----------------------------------------------------------/
-GenerateUnicodePathNormalizationsPayloads
+The original query string, if present, is appended to all generated path variations.
+Duplicate payloads are automatically handled.
 */
 func (pg *PayloadGenerator) GenerateUnicodePathNormalizationsPayloads(targetURL string, bypassModule string) []BypassPayload {
 	var jobs []BypassPayload
@@ -244,3 +238,32 @@ func (pg *PayloadGenerator) GenerateUnicodePathNormalizationsPayloads(targetURL 
 		Msgf("Generated %d unicode normalization payloads for %s", len(jobs), targetURL)
 	return jobs
 }
+
+/**
+JS code used to fuzz unicode path chars
+
+const charsToCheck = ["\\", "/", ".", ":", "%", "~", "*", "<", ">", "|", "@", "!", "#", "+", "{", "}", "[", "]", ";", ",", "'", "\""];
+const normalizationForms = ["NFKC", "NFC", "NFD", "NFKD"];
+
+const normalizedMatches = new Set();
+
+// Loop through all code points (from 0x7f upwards)
+
+	for (let i = 0x7f; i <= 0x10FFFF; i++) {
+	    const char = String.fromCodePoint(i);
+
+	    if (i > 0x7f) {
+	        normalizationForms.forEach(form => {
+	            const normalized = char.normalize(form);
+
+	            for (let charToCheck of charsToCheck) {
+	                if (charToCheck === normalized) {
+	                    normalizedMatches.add(`${char}(${form})=${charToCheck}`);
+	                }
+	            }
+	        });
+	    }
+	}
+
+normalizedMatches.forEach(match => console.log(match));
+**/

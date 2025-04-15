@@ -8,7 +8,23 @@ import (
 )
 
 /*
-GenerateHTTPMethodsPayloads
+GenerateHTTPMethodsPayloads generates payloads by testing various HTTP methods against
+the target URL.
+
+It reads a list of HTTP methods (standard and non-standard) from internal_http_methods.lst.
+
+For each method in the list, it generates a payload:
+ 1. **Base Case:** Uses the specified method with the original URL's path and query string.
+ 2. **Content-Length:** If the method typically implies a request body (e.g., POST, PUT,
+    PATCH, DELETE), a `Content-Length: 0` header is added.
+ 3. **POST with Query as Body:** For POST requests that originally had a query string,
+    an *additional* payload is generated where:
+    - The RawURI contains only the path (query removed).
+    - The original query string is placed in the request body.
+    - `Content-Type: application/x-www-form-urlencoded` and the corresponding
+    `Content-Length` headers are added.
+
+The original URL's scheme and host are preserved in all generated payloads.
 */
 func (pg *PayloadGenerator) GenerateHTTPMethodsPayloads(targetURL string, bypassModule string) []BypassPayload {
 	var allJobs []BypassPayload

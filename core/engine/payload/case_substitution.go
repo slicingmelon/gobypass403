@@ -8,7 +8,17 @@ import (
 )
 
 /*
-GenerateCaseSubstitutionPayloads
+GenerateCaseSubstitutionPayloads generates payloads by applying various case
+manipulations to the URL path and HTTP method.
+
+Techniques include:
+1. Uppercasing only the last letter of the path (if lowercase).
+2. Uppercasing the HTTP method (e.g., "GET", "POST").
+3. Inverting the case of each letter in the path individually (a -> A, B -> b).
+4. Uppercasing the entire path string.
+
+The original query string, if present, is appended to all path variations.
+Unique resulting RawURIs are used to generate payloads.
 */
 func (pg *PayloadGenerator) GenerateCaseSubstitutionPayloads(targetURL string, bypassModule string) []BypassPayload {
 	var allJobs []BypassPayload
