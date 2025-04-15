@@ -40,7 +40,7 @@ Usage:
   -shf, -substitute-hosts-file
         File containing a list of hosts to substitute target URL's hostname (mostly used in CDN bypasses by providing a list of CDNs)
   -m, -module
-        Bypass module (all,mid_paths,end_paths,http_methods,case_substitution,char_encode,nginx_bypasses,unicode_path_normalization,headers_scheme,headers_ip,headers_port,headers_url,headers_host) (Default: all)
+        Bypass module (all,path_prefix,mid_paths,end_paths,http_methods,case_substitution,char_encode,nginx_bypasses,unicode_path_normalization,headers_scheme,headers_ip,headers_port,headers_url,headers_host) (Default: all)
   -o, -outdir
         Output directory
   -cr, -concurrent-requests
@@ -62,7 +62,7 @@ Usage:
   -d, -debug
         Debug mode with request canaries (Default: false)
   -mc, -match-status-code
-        Filter results by HTTP status codes (example: -mc 200, 301, 500, all). Default: All status codes
+        Filter results by HTTP status codes (example: -mc 200, 301, 5xx, all). Default: All status codes
   -mct, -match-content-type
         Filter results by content type(s) substring (example: -mct application/json,text/html)
   -min-cl, -min-content-length
