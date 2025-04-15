@@ -135,10 +135,11 @@ func (pg *PayloadGenerator) GenerateHeadersIPPayloads(targetURL string, bypassMo
 		for _, ip := range uniqueIPs {
 			// Special handling for "Forwarded" header according to RFC 7239
 			if headerName == "Forwarded" {
+				// Re-adding host={ip} variation for broader testing and parity
 				variations := []string{
-					fmt.Sprintf("by=%s", ip),  // Interface receiving the request
-					fmt.Sprintf("for=%s", ip), // Client initiating the request
-					// "host" refers to original Host header, not IP, usually. Removed this variation.
+					fmt.Sprintf("by=%s", ip),   // Interface receiving the request
+					fmt.Sprintf("for=%s", ip),  // Client initiating the request
+					fmt.Sprintf("host=%s", ip), // Original Host header (testing with IP value)
 					// "proto" handled by headers_scheme module
 				}
 				// Add combination if needed? e.g., for=ip;by=ip - Maybe too complex for now.
@@ -165,6 +166,6 @@ func (pg *PayloadGenerator) GenerateHeadersIPPayloads(targetURL string, bypassMo
 	}
 
 	// Update log message format to be consistent
-	GB403Logger.Debug().BypassModule(bypassModule).Msgf("Generated %d payloads for %s", len(allJobs), targetURL)
+	GB403Logger.Debug().BypassModule(bypassModule).Msgf("Generated %d payloads for %s\n", len(allJobs), targetURL)
 	return allJobs
 }

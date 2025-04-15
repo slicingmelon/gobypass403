@@ -74,7 +74,7 @@ func (pg *PayloadGenerator) GenerateMidPathsPayloads(targetURL string, bypassMod
 
 		// If special chars exist in the path, add the encoded variant
 		if pathContainsSpecial {
-			encodedPath := encodePathSpecialChars(pathCandidate)
+			encodedPath := encodeQueryAndFragmentChars(pathCandidate)
 			uniquePaths[encodedPath+query] = struct{}{} // Add special char encoded variant
 		}
 	}

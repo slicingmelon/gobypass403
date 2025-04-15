@@ -3,7 +3,6 @@ package payload
 import (
 	"fmt"
 	"strings"
-	"unicode"
 
 	"github.com/slicingmelon/go-rawurlparser"
 	GB403Logger "github.com/slicingmelon/gobypass403/core/utils/logger"
@@ -41,37 +40,13 @@ func buildPath(segments []string, leadingSlash, trailingSlash bool) string {
 		}
 		// Simple check, might need expansion based on generated prefixes
 		// If the last segment is short and non-alphanumeric, assume it was added, don't restore slash.
-		if len(lastSegment) > 0 && len(lastSegment) < 4 && !isAlphanumeric(lastSegment[0]) {
+		if len(lastSegment) > 0 && len(lastSegment) < 4 && !isAlphanumericASCII(lastSegment[0]) {
 			// Likely an added prefix, don't restore trailing slash
 		} else {
 			path = path + "/"
 		}
 	}
 	return path
-}
-
-// isControlByte checks if a byte is an ASCII control character (0x00-0x1F, 0x7F)
-func isControlByte(b byte) bool {
-	return (b >= 0x00 && b <= 0x1F) || b == 0x7F
-}
-
-// isSpecialCharASCII checks if a byte is an ASCII special character (punctuation or symbol within 0-127)
-// !\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~
-func isSpecialCharASCII(b byte) bool {
-	// Ensure it's within ASCII range first
-	if b > 127 {
-		return false
-	}
-	// Use standard Go functions for ASCII range checks which are efficient
-	// or check against a predefined string/map for ASCII punctuation/symbols if preferred.
-	// Using unicode functions is fine as they handle ASCII correctly and efficiently.
-	r := rune(b)
-	return unicode.IsPunct(r) || unicode.IsSymbol(r)
-}
-
-// isAlphanumeric checks if a byte is a standard ASCII letter or digit.
-func isAlphanumeric(b byte) bool {
-	return (b >= 'a' && b <= 'z') || (b >= 'A' && b <= 'Z') || (b >= '0' && b <= '9')
 }
 
 // GeneratePathPrefixPayloads generates payloads by prefixing segments/path
@@ -121,7 +96,7 @@ func (pg *PayloadGenerator) GeneratePathPrefixPayloads(targetURL string, bypassM
 		b1 := byte(i)
 
 		// Filter: Only include ASCII control chars, ASCII special chars, or 'x'
-		isRelevantByte1 := isControlByte(b1) || isSpecialCharASCII(b1) || b1 == 'x'
+		isRelevantByte1 := isControlByteASCII(b1) || isSpecialCharASCII(b1) || b1 == 'x'
 		if !isRelevantByte1 {
 			continue
 		}
@@ -164,7 +139,7 @@ func (pg *PayloadGenerator) GeneratePathPrefixPayloads(targetURL string, bypassM
 			for k := 0; k < 256; k++ {
 				b2 := byte(k)
 				// Filter: Only include combinations where b2 is also an ASCII control char, ASCII special char, or 'x'
-				isRelevantByte2 := isControlByte(b2) || isSpecialCharASCII(b2) || b2 == 'x'
+				isRelevantByte2 := isControlByteASCII(b2) || isSpecialCharASCII(b2) || b2 == 'x'
 				if !isRelevantByte2 {
 					continue // Second byte must also be relevant
 				}

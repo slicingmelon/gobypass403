@@ -67,7 +67,7 @@ func (pg *PayloadGenerator) GenerateCharEncodePayloads(targetURL string, bypassM
 			singleEncodedPath := pathPrefix + encodedHex
 			singlePaths[singleEncodedPath+query] = struct{}{} // Add base variant
 			if strings.ContainsAny(singleEncodedPath, "?#") {
-				encodedSpecialPath := encodePathSpecialChars(singleEncodedPath)
+				encodedSpecialPath := encodeQueryAndFragmentChars(singleEncodedPath)
 				singlePaths[encodedSpecialPath+query] = struct{}{} // Add special char encoded variant
 			}
 
@@ -75,7 +75,7 @@ func (pg *PayloadGenerator) GenerateCharEncodePayloads(targetURL string, bypassM
 			doubleEncodedPath := pathPrefix + "%25" + encodedHex[1:]
 			doublePaths[doubleEncodedPath+query] = struct{}{}
 			if strings.ContainsAny(doubleEncodedPath, "?#") {
-				encodedSpecialPath := encodePathSpecialChars(doubleEncodedPath)
+				encodedSpecialPath := encodeQueryAndFragmentChars(doubleEncodedPath)
 				doublePaths[encodedSpecialPath+query] = struct{}{}
 			}
 
@@ -83,7 +83,7 @@ func (pg *PayloadGenerator) GenerateCharEncodePayloads(targetURL string, bypassM
 			tripleEncodedPath := pathPrefix + "%2525" + encodedHex[1:]
 			triplePaths[tripleEncodedPath+query] = struct{}{}
 			if strings.ContainsAny(tripleEncodedPath, "?#") {
-				encodedSpecialPath := encodePathSpecialChars(tripleEncodedPath)
+				encodedSpecialPath := encodeQueryAndFragmentChars(tripleEncodedPath)
 				triplePaths[encodedSpecialPath+query] = struct{}{}
 			}
 		}
@@ -109,7 +109,7 @@ func (pg *PayloadGenerator) GenerateCharEncodePayloads(targetURL string, bypassM
 				singleEncodedPath := pathPrefix + encodedHex + pathSuffix
 				singlePaths[singleEncodedPath+query] = struct{}{}
 				if strings.ContainsAny(singleEncodedPath, "?#") {
-					encodedSpecialPath := encodePathSpecialChars(singleEncodedPath)
+					encodedSpecialPath := encodeQueryAndFragmentChars(singleEncodedPath)
 					singlePaths[encodedSpecialPath+query] = struct{}{}
 				}
 
@@ -117,7 +117,7 @@ func (pg *PayloadGenerator) GenerateCharEncodePayloads(targetURL string, bypassM
 				doubleEncodedPath := pathPrefix + "%25" + encodedHex[1:] + pathSuffix
 				doublePaths[doubleEncodedPath+query] = struct{}{}
 				if strings.ContainsAny(doubleEncodedPath, "?#") {
-					encodedSpecialPath := encodePathSpecialChars(doubleEncodedPath)
+					encodedSpecialPath := encodeQueryAndFragmentChars(doubleEncodedPath)
 					doublePaths[encodedSpecialPath+query] = struct{}{}
 				}
 
@@ -125,7 +125,7 @@ func (pg *PayloadGenerator) GenerateCharEncodePayloads(targetURL string, bypassM
 				tripleEncodedPath := pathPrefix + "%2525" + encodedHex[1:] + pathSuffix
 				triplePaths[tripleEncodedPath+query] = struct{}{}
 				if strings.ContainsAny(tripleEncodedPath, "?#") {
-					encodedSpecialPath := encodePathSpecialChars(tripleEncodedPath)
+					encodedSpecialPath := encodeQueryAndFragmentChars(tripleEncodedPath)
 					triplePaths[encodedSpecialPath+query] = struct{}{}
 				}
 			}
@@ -180,7 +180,7 @@ func (pg *PayloadGenerator) GenerateCharEncodePayloads(targetURL string, bypassM
 					singleEncodedPath := prefix + segmentPrefix + encodedHex + segmentSuffix
 					singlePaths[singleEncodedPath+query] = struct{}{}
 					if strings.ContainsAny(singleEncodedPath, "?#") {
-						encodedSpecialPath := encodePathSpecialChars(singleEncodedPath)
+						encodedSpecialPath := encodeQueryAndFragmentChars(singleEncodedPath)
 						singlePaths[encodedSpecialPath+query] = struct{}{}
 					}
 
@@ -188,7 +188,7 @@ func (pg *PayloadGenerator) GenerateCharEncodePayloads(targetURL string, bypassM
 					doubleEncodedPath := prefix + segmentPrefix + "%25" + encodedHex[1:] + segmentSuffix
 					doublePaths[doubleEncodedPath+query] = struct{}{}
 					if strings.ContainsAny(doubleEncodedPath, "?#") {
-						encodedSpecialPath := encodePathSpecialChars(doubleEncodedPath)
+						encodedSpecialPath := encodeQueryAndFragmentChars(doubleEncodedPath)
 						doublePaths[encodedSpecialPath+query] = struct{}{}
 					}
 
@@ -196,7 +196,7 @@ func (pg *PayloadGenerator) GenerateCharEncodePayloads(targetURL string, bypassM
 					tripleEncodedPath := prefix + segmentPrefix + "%2525" + encodedHex[1:] + segmentSuffix
 					triplePaths[tripleEncodedPath+query] = struct{}{}
 					if strings.ContainsAny(tripleEncodedPath, "?#") {
-						encodedSpecialPath := encodePathSpecialChars(tripleEncodedPath)
+						encodedSpecialPath := encodeQueryAndFragmentChars(tripleEncodedPath)
 						triplePaths[encodedSpecialPath+query] = struct{}{}
 					}
 				}
@@ -218,7 +218,7 @@ func (pg *PayloadGenerator) GenerateCharEncodePayloads(targetURL string, bypassM
 				singleEncodedPath := prefix + segmentPrefix + encodedHex + segmentSuffix
 				singlePaths[singleEncodedPath+query] = struct{}{}
 				if strings.ContainsAny(singleEncodedPath, "?#") {
-					encodedSpecialPath := encodePathSpecialChars(singleEncodedPath)
+					encodedSpecialPath := encodeQueryAndFragmentChars(singleEncodedPath)
 					singlePaths[encodedSpecialPath+query] = struct{}{}
 				}
 
@@ -226,7 +226,7 @@ func (pg *PayloadGenerator) GenerateCharEncodePayloads(targetURL string, bypassM
 				doubleEncodedPath := prefix + segmentPrefix + "%25" + encodedHex[1:] + segmentSuffix
 				doublePaths[doubleEncodedPath+query] = struct{}{}
 				if strings.ContainsAny(doubleEncodedPath, "?#") {
-					encodedSpecialPath := encodePathSpecialChars(doubleEncodedPath)
+					encodedSpecialPath := encodeQueryAndFragmentChars(doubleEncodedPath)
 					doublePaths[encodedSpecialPath+query] = struct{}{}
 				}
 
@@ -234,7 +234,7 @@ func (pg *PayloadGenerator) GenerateCharEncodePayloads(targetURL string, bypassM
 				tripleEncodedPath := prefix + segmentPrefix + "%2525" + encodedHex[1:] + segmentSuffix
 				triplePaths[tripleEncodedPath+query] = struct{}{}
 				if strings.ContainsAny(tripleEncodedPath, "?#") {
-					encodedSpecialPath := encodePathSpecialChars(tripleEncodedPath)
+					encodedSpecialPath := encodeQueryAndFragmentChars(tripleEncodedPath)
 					triplePaths[encodedSpecialPath+query] = struct{}{}
 				}
 			}
@@ -254,7 +254,7 @@ func (pg *PayloadGenerator) GenerateCharEncodePayloads(targetURL string, bypassM
 			singleEncodedPath := pathPrefix + encodedHex + pathSuffix
 			singlePaths[singleEncodedPath+query] = struct{}{}
 			if strings.ContainsAny(singleEncodedPath, "?#") {
-				encodedSpecialPath := encodePathSpecialChars(singleEncodedPath)
+				encodedSpecialPath := encodeQueryAndFragmentChars(singleEncodedPath)
 				singlePaths[encodedSpecialPath+query] = struct{}{}
 			}
 
@@ -262,7 +262,7 @@ func (pg *PayloadGenerator) GenerateCharEncodePayloads(targetURL string, bypassM
 			doubleEncodedPath := pathPrefix + "%25" + encodedHex[1:] + pathSuffix
 			doublePaths[doubleEncodedPath+query] = struct{}{}
 			if strings.ContainsAny(doubleEncodedPath, "?#") {
-				encodedSpecialPath := encodePathSpecialChars(doubleEncodedPath)
+				encodedSpecialPath := encodeQueryAndFragmentChars(doubleEncodedPath)
 				doublePaths[encodedSpecialPath+query] = struct{}{}
 			}
 
@@ -270,7 +270,7 @@ func (pg *PayloadGenerator) GenerateCharEncodePayloads(targetURL string, bypassM
 			tripleEncodedPath := pathPrefix + "%2525" + encodedHex[1:] + pathSuffix
 			triplePaths[tripleEncodedPath+query] = struct{}{}
 			if strings.ContainsAny(tripleEncodedPath, "?#") {
-				encodedSpecialPath := encodePathSpecialChars(tripleEncodedPath)
+				encodedSpecialPath := encodeQueryAndFragmentChars(tripleEncodedPath)
 				triplePaths[encodedSpecialPath+query] = struct{}{}
 			}
 		}

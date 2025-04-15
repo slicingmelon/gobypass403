@@ -59,7 +59,7 @@ func (pg *PayloadGenerator) GenerateEndPathsPayloads(targetURL string, bypassMod
 
 		// Check if the path part contains special chars before query is appended
 		if strings.ContainsAny(pathCandidate, "?#") {
-			encodedPath := encodePathSpecialChars(pathCandidate)
+			encodedPath := encodeQueryAndFragmentChars(pathCandidate)
 			uniquePaths[encodedPath+query] = struct{}{} // Add special char encoded variant
 		}
 	}

@@ -7,6 +7,9 @@ import (
 	GB403Logger "github.com/slicingmelon/gobypass403/core/utils/logger"
 )
 
+/*
+GenerateHTTPMethodsPayloads
+*/
 func (pg *PayloadGenerator) GenerateHTTPMethodsPayloads(targetURL string, bypassModule string) []BypassPayload {
 	var allJobs []BypassPayload
 

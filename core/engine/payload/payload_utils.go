@@ -16,6 +16,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"unicode"
 
 	"github.com/slicingmelon/go-rawurlparser"
 	GB403Logger "github.com/slicingmelon/gobypass403/core/utils/logger"
@@ -350,7 +351,7 @@ func URLEncodeAll(s string) string {
 
 // encodePathSpecialChars replaces literal '?' and '#' within a path string
 // with their percent-encoded equivalents (%3F and %23).
-func encodePathSpecialChars(path string) string {
+func encodeQueryAndFragmentChars(path string) string {
 	// Use strings.Builder for potentially better performance on multiple replacements
 	var builder strings.Builder
 	builder.Grow(len(path)) // Pre-allocate roughly the needed size
@@ -366,6 +367,30 @@ func encodePathSpecialChars(path string) string {
 		}
 	}
 	return builder.String()
+}
+
+// isControlByte checks if a byte is an ASCII control character (0x00-0x1F, 0x7F)
+func isControlByteASCII(b byte) bool {
+	return (b >= 0x00 && b <= 0x1F) || b == 0x7F
+}
+
+// isSpecialCharASCII checks if a byte is an ASCII special character (punctuation or symbol within 0-127)
+// !\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~
+func isSpecialCharASCII(b byte) bool {
+	// Ensure it's within ASCII range first
+	if b > 127 {
+		return false
+	}
+	// Use standard Go functions for ASCII range checks which are efficient
+	// or check against a predefined string/map for ASCII punctuation/symbols if preferred.
+	// Using unicode functions is fine as they handle ASCII correctly and efficiently.
+	r := rune(b)
+	return unicode.IsPunct(r) || unicode.IsSymbol(r)
+}
+
+// isAlphanumeric checks if a byte is a standard ASCII letter or digit.
+func isAlphanumericASCII(b byte) bool {
+	return (b >= 'a' && b <= 'z') || (b >= 'A' && b <= 'Z') || (b >= '0' && b <= '9')
 }
 
 // BypassPayloadToBaseURL converts a bypass payload to base URL (scheme://host)
