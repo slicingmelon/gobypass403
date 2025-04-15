@@ -65,6 +65,10 @@ Usage:
         Filter results by HTTP status codes (example: -mc 200, 301, 500, all). Default: All status codes
   -mct, -match-content-type
         Filter results by content type(s) substring (example: -mct application/json,text/html)
+  -min-cl, -min-content-length
+        Filter results by minimum Content-Length (example: -min-cl 100)
+  -max-cl, -max-content-length
+        Filter results by maximum Content-Length (example: -max-cl 5000)
   -http2
         Enable HTTP2 client (Default: false)
   -x, -proxy

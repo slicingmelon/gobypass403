@@ -144,11 +144,11 @@ func PrintResultsTableFromDB(targetURL, bypassModule string) error {
 	placeholders := strings.Repeat("?,", len(queryModules))
 	placeholders = placeholders[:len(placeholders)-1] // Remove trailing comma
 
-	// Optimized query - only fetch columns needed for display
+	// Updated query to include content_length column
 	query := fmt.Sprintf(`
         SELECT 
             bypass_module, curl_cmd, status_code, 
-            response_body_bytes, content_type, title, server_info
+            response_body_bytes, content_length, content_type, title, server_info
         FROM scan_results
         WHERE target_url = ? AND bypass_module IN (%s)
         ORDER BY status_code ASC, bypass_module ASC
@@ -184,12 +184,14 @@ func PrintResultsTableFromDB(targetURL, bypassModule string) error {
 		rowCount++
 		var module, curlCmd, contentType, title, serverInfo string
 		var statusCode, responseBodyBytes int
+		var contentLength sql.NullInt64 // Using NullInt64 to handle potential NULL values
 
 		err := rows.Scan(
 			&module,
 			&curlCmd,
 			&statusCode,
 			&responseBodyBytes,
+			&contentLength,
 			&contentType,
 			&title,
 			&serverInfo,
@@ -198,11 +200,19 @@ func PrintResultsTableFromDB(targetURL, bypassModule string) error {
 			return fmt.Errorf("failed to scan row: %v", err)
 		}
 
+		// Choose content length from Content-Length header when valid, otherwise use response body size
+		var lengthToDisplay int64
+		if contentLength.Valid && contentLength.Int64 >= 0 {
+			lengthToDisplay = contentLength.Int64
+		} else {
+			lengthToDisplay = int64(responseBodyBytes)
+		}
+
 		tableData = append(tableData, []string{
 			module,
 			curlCmd,
 			bytesutil.Itoa(statusCode),
-			formatBytes(int64(responseBodyBytes)),
+			formatBytes(lengthToDisplay),
 			formatContentType(contentType),
 			formatValue(title),
 			formatValue(serverInfo),
