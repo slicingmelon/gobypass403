@@ -3,6 +3,7 @@ package payload
 import (
 	"fmt"
 	"strings"
+	"unicode"
 
 	"github.com/slicingmelon/go-rawurlparser"
 	GB403Logger "github.com/slicingmelon/gobypass403/core/utils/logger"
@@ -54,14 +55,29 @@ func isControlByte(b byte) bool {
 	return (b >= 0x00 && b <= 0x1F) || b == 0x7F
 }
 
+// isSpecialCharASCII checks if a byte is an ASCII special character (punctuation or symbol within 0-127)
+// !\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~
+func isSpecialCharASCII(b byte) bool {
+	// Ensure it's within ASCII range first
+	if b > 127 {
+		return false
+	}
+	// Use standard Go functions for ASCII range checks which are efficient
+	// or check against a predefined string/map for ASCII punctuation/symbols if preferred.
+	// Using unicode functions is fine as they handle ASCII correctly and efficiently.
+	r := rune(b)
+	return unicode.IsPunct(r) || unicode.IsSymbol(r)
+}
+
 // isAlphanumeric checks if a byte is a standard ASCII letter or digit.
 func isAlphanumeric(b byte) bool {
 	return (b >= 'a' && b <= 'z') || (b >= 'A' && b <= 'Z') || (b >= '0' && b <= '9')
 }
 
 // GeneratePathPrefixPayloads generates payloads by prefixing segments/path
-// with single bytes (excluding most alphanumerics + 'x'), double encodings,
-// and two control bytes. Focuses only on prefixing without common predefined sequences.
+// with single bytes (ASCII ctrl, ASCII special, 'x') and two-byte combinations
+// (raw+raw, enc+enc) using these categories.
+// Dummy segment prefix uses single bytes (raw, encoded) only.
 func (pg *PayloadGenerator) GeneratePathPrefixPayloads(targetURL string, bypassModule string) []BypassPayload {
 	var jobs []BypassPayload
 	uniquePaths := make(map[string]struct{}) // Use map to ensure unique RawURIs
@@ -100,33 +116,29 @@ func (pg *PayloadGenerator) GeneratePathPrefixPayloads(targetURL string, bypassM
 
 	canModifySegments := len(originalSegments) > 0 && !(len(originalSegments) == 1 && originalSegments[0] == "")
 
-	// --- Byte Iteration Loop (Filtered) ---
+	// --- Byte Iteration Loop (Filtered: ASCII Control, ASCII Special, 'x') ---
 	for i := 0; i < 256; i++ {
 		b1 := byte(i)
 
-		// Skip most alphanumeric characters, keep 'x' as representative
-		if isAlphanumeric(b1) && b1 != 'x' {
+		// Filter: Only include ASCII control chars, ASCII special chars, or 'x'
+		isRelevantByte1 := isControlByte(b1) || isSpecialCharASCII(b1) || b1 == 'x'
+		if !isRelevantByte1 {
 			continue
 		}
 
 		rawB1Str := string([]byte{b1})
 		encodedB1Str := fmt.Sprintf("%%%02X", b1)
-		doubleEncodedB1Str := "%25" + fmt.Sprintf("%02X", b1) // Double encoding % -> %25
 
-		// == Variation: Dummy Segment Prefix (add new first segment) ==
-		// Using raw, single encoded, and double encoded bytes
-		for _, prefix := range []string{rawB1Str, encodedB1Str, doubleEncodedB1Str} {
-			// Skip double encoding non-printable or already encoded-like common chars to avoid noise like %25%2F
-			if prefix == doubleEncodedB1Str && (isControlByte(b1) || strings.HasPrefix(rawB1Str, "%") || strings.ContainsAny(rawB1Str, "./;")) {
-				continue
-			}
+		// == Variation: Dummy Segment Prefix (Single Byte Only - Raw/Encoded) ==
+		// Using raw and single encoded bytes
+		for _, prefix := range []string{rawB1Str, encodedB1Str} {
 			dummySegments := make([]string, 0, len(originalSegments)+1)
 			dummySegments = append(dummySegments, prefix)
 			dummySegments = append(dummySegments, originalSegments...)
 			uniquePaths[buildPath(dummySegments, hasLeadingSlash, hasTrailingSlash)+query] = struct{}{}
 		}
 
-		// == Segment-based Variations (Prefix Only) ==
+		// == Segment-based Variations (Prefix Only - Single Byte - Raw/Encoded) ==
 		if canModifySegments {
 			for j := range originalSegments {
 				// Only Prefix variations are kept
@@ -136,15 +148,9 @@ func (pg *PayloadGenerator) GeneratePathPrefixPayloads(targetURL string, bypassM
 				}{
 					{"SingleByteRawPfx", rawB1Str},
 					{"SingleByteEncPfx", encodedB1Str},
-					{"DoubleByteEncPfx", doubleEncodedB1Str},
 				}
 
 				for _, v := range variations {
-					// Skip double encoding non-printable or already encoded-like common chars here too
-					if v.prefix == doubleEncodedB1Str && (isControlByte(b1) || strings.HasPrefix(rawB1Str, "%") || strings.ContainsAny(rawB1Str, "./;")) {
-						continue
-					}
-
 					modSegs := make([]string, len(originalSegments))
 					copy(modSegs, originalSegments)
 					modSegs[j] = v.prefix + originalSegments[j] // Apply prefix
@@ -153,25 +159,26 @@ func (pg *PayloadGenerator) GeneratePathPrefixPayloads(targetURL string, bypassM
 			}
 		}
 
-		// == Variation: Two-Byte Control Character Prefix (Multiple Encodings) ==
-		if canModifySegments && isControlByte(b1) {
+		// == Variation: Two-Byte Prefix for Existing Segments (ASCII Control/Special/'x') (Raw+Raw, Enc+Enc) ==
+		if canModifySegments {
 			for k := 0; k < 256; k++ {
 				b2 := byte(k)
-				if !isControlByte(b2) {
-					continue // Both must be control bytes
+				// Filter: Only include combinations where b2 is also an ASCII control char, ASCII special char, or 'x'
+				isRelevantByte2 := isControlByte(b2) || isSpecialCharASCII(b2) || b2 == 'x'
+				if !isRelevantByte2 {
+					continue // Second byte must also be relevant
 				}
 
-				// Generate 4 encoding variations for the two bytes
+				// Generate 2 encoding variations for the two bytes (Raw+Raw, Enc+Enc)
 				encodings := []string{
-					string([]byte{b1, b2}),                         // Raw+Raw
-					fmt.Sprintf("%%%02X%%%02X", b1, b2),            // Enc+Enc
-					string([]byte{b1}) + fmt.Sprintf("%%%02X", b2), // Raw+Enc
-					fmt.Sprintf("%%%02X", b1) + string([]byte{b2}), // Enc+Raw
+					string([]byte{b1, b2}),              // Raw+Raw
+					fmt.Sprintf("%%%02X%%%02X", b1, b2), // Enc+Enc
 				}
 
+				// Apply variations ONLY to existing segments
 				for _, combo := range encodings {
+					// Existing Segment Prefix: /HEREHEREadmin/login, /admin/HEREHERElogin etc.
 					for j := range originalSegments {
-						// Apply as Prefix Only
 						modSegsPfx := make([]string, len(originalSegments))
 						copy(modSegsPfx, originalSegments)
 						modSegsPfx[j] = combo + originalSegments[j]
@@ -196,6 +203,6 @@ func (pg *PayloadGenerator) GeneratePathPrefixPayloads(targetURL string, bypassM
 		jobs = append(jobs, job)
 	}
 
-	GB403Logger.Debug().BypassModule(bypassModule).Msgf("Generated %d purely byte-based prefix payloads for %s\n", len(jobs), targetURL)
+	GB403Logger.Debug().BypassModule(bypassModule).Msgf("Generated %d ASCII-focused byte prefix payloads (raw/enc, ctrl/spec/'x', single-byte dummy) for %s\n", len(jobs), targetURL)
 	return jobs
 }
