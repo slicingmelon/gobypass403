@@ -149,7 +149,6 @@ func (s *Scanner) RunBypassModule(bypassModule string, targetURL string) int {
 	maxWorkers := s.scannerOpts.ConcurrentRequests
 	// Create new progress bar configuration
 	cfg := progressbar.DefaultConfig()
-	//cfg.Prefix = bypassModule
 	cfg.Prefix = bypassModule + strings.Repeat(" ", maxModuleNameLength-len(bypassModule))
 	cfg.UseColors = true
 	cfg.ExtraLines = 1
@@ -178,36 +177,45 @@ func (s *Scanner) RunBypassModule(bypassModule string, targetURL string) int {
 		)
 		bar.WriteAbove(msg)
 
-		// Combined check with OR logic
-		shouldKeep := false
-
-		// Check status code
-		if matchStatusCodes(response.StatusCode, s.scannerOpts.MatchStatusCodes) {
-			shouldKeep = true
-		}
-
-		// Check content type if configured
-		if !shouldKeep && len(s.scannerOpts.MatchContentTypeBytes) > 0 {
-			for _, matchType := range s.scannerOpts.MatchContentTypeBytes {
-				if bytes.Contains(response.ContentType, matchType) {
-					shouldKeep = true
-					break
-				}
-			}
-		}
-
-		// Check min content length if configured
-		if !shouldKeep && s.scannerOpts.MinContentLength > 0 {
-			if response.ContentLength >= 0 && response.ContentLength >= int64(s.scannerOpts.MinContentLength) {
-				shouldKeep = true
-			}
-		}
-
-		// Skip if none of the filters matched
-		if !shouldKeep {
+		// Check status code - if no match, skip
+		if !matchStatusCodes(response.StatusCode, s.scannerOpts.MatchStatusCodes) {
 			rawhttp.ReleaseResponseDetails(response)
 			bar.Progress((float64(completed) / float64(totalJobs)) * 100.0)
 			continue
+		}
+
+		// Check content type if required
+		if len(s.scannerOpts.MatchContentTypeBytes) > 0 {
+			contentTypeMatched := false
+			for _, matchType := range s.scannerOpts.MatchContentTypeBytes {
+				if bytes.Contains(response.ContentType, matchType) {
+					contentTypeMatched = true
+					break
+				}
+			}
+			if !contentTypeMatched {
+				rawhttp.ReleaseResponseDetails(response)
+				bar.Progress((float64(completed) / float64(totalJobs)) * 100.0)
+				continue
+			}
+		}
+
+		// Check min content length
+		if s.scannerOpts.MinContentLength > 0 {
+			if response.ContentLength < 0 || response.ContentLength < int64(s.scannerOpts.MinContentLength) {
+				rawhttp.ReleaseResponseDetails(response)
+				bar.Progress((float64(completed) / float64(totalJobs)) * 100.0)
+				continue
+			}
+		}
+
+		// Check max content length
+		if s.scannerOpts.MaxContentLength > 0 && response.ContentLength >= 0 {
+			if response.ContentLength > int64(s.scannerOpts.MaxContentLength) {
+				rawhttp.ReleaseResponseDetails(response)
+				bar.Progress((float64(completed) / float64(totalJobs)) * 100.0)
+				continue
+			}
 		}
 
 		// Process valid result
