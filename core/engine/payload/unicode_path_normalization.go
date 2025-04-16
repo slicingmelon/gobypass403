@@ -50,17 +50,14 @@ The function uses unicode_char_map.json which contains mappings from ASCII to
 Unicode characters that normalize to the ASCII character.
 
 Payload generation techniques include:
- 1. **Path Separator Variations:** Inserts Unicode variants of '/' (slash)
-    throughout the path.
- 2. **Segment Character Variations:** Optionally replaces the first or last character
-    of each path segment with a Unicode variant that normalizes to the same character.
- 3. **Double Character Insertion:** Adds duplicate slashes at strategic points.
+ 1. **Path Separator Variations:** Generates variations with double slashes (e.g., "//admin/login").
+ 2. **Unicode Path Character Variations:** Replaces path characters with their Unicode equivalents.
+    This includes raw Unicode, URL-encoded, and UTF-8 byte representations.
+ 3. **Path Segment Character Variations:** Replaces characters within path segments.
+    Focuses especially on first and last characters of each segment.
+ 4. **Mixed Character Variations:** Creates combinations of different Unicode representations.
 
-For each technique, two variations are typically generated:
--   One using the raw Unicode character (UTF-8 bytes).
--   One using the percent-encoded representation.
-
-Original query strings are preserved in all generated payloads.
+All variations preserve the original query string if present.
 */
 func (pg *PayloadGenerator) GenerateUnicodePathNormalizationsPayloads(targetURL string, bypassModule string) []BypassPayload {
 	var jobs []BypassPayload
@@ -89,21 +86,10 @@ func (pg *PayloadGenerator) GenerateUnicodePathNormalizationsPayloads(targetURL 
 		return jobs
 	}
 
-	// Extract mappings for slash (ASCII 47) and dot (ASCII 46)
-	var slashMappings []UnicodeMapping
-	var dotMappings []UnicodeMapping
-
+	// Build a more efficient lookup map: ASCII int -> []UnicodeMapping
+	asciiToMappings := make(map[int][]UnicodeMapping)
 	for _, entry := range charMap {
-		if entry.ASCII == 47 { // '/'
-			slashMappings = entry.Mappings
-		} else if entry.ASCII == 46 { // '.'
-			dotMappings = entry.Mappings
-		}
-	}
-
-	if len(slashMappings) == 0 && len(dotMappings) == 0 {
-		GB403Logger.Warning().BypassModule(bypassModule).Msgf("No Unicode mappings found for '/' or '.' in unicode_char_map.json")
-		return jobs
+		asciiToMappings[entry.ASCII] = entry.Mappings
 	}
 
 	baseJob := BypassPayload{
@@ -127,9 +113,7 @@ func (pg *PayloadGenerator) GenerateUnicodePathNormalizationsPayloads(targetURL 
 		}
 	}
 
-	// --- Payload Generation Logic ---
-
-	// 1. Double-slash variations
+	// --- 1. Double-slash variations ---
 	segments := strings.Split(path, "/")
 	if len(segments) > 1 {
 		// Insert double slashes at each path separator
@@ -170,207 +154,166 @@ func (pg *PayloadGenerator) GenerateUnicodePathNormalizationsPayloads(targetURL 
 		addJob(allDoubleSlashPath.String() + query)
 	}
 
-	// 2. Unicode slash replacements
-	for _, slashMapping := range slashMappings {
-		pathRunes := []rune(path)
+	// --- 2. Unicode path character variations ---
 
-		// Replace each slash individually
-		for i, r := range pathRunes {
-			if r == '/' {
-				// Create path with single Unicode slash replacement (raw)
-				rawReplacementPath := string(pathRunes[:i]) + slashMapping.Unicode + string(pathRunes[i+1:])
-				addJob(rawReplacementPath + query)
-
-				// Create path with single Unicode slash replacement (URL-encoded)
-				urlEncodedReplacementPath := string(pathRunes[:i]) + slashMapping.URLEncoded + string(pathRunes[i+1:])
-				addJob(urlEncodedReplacementPath + query)
-
-				// Create path with raw UTF-8 bytes
-				bytesReplacementPath := string(pathRunes[:i]) + slashMapping.UTF8Bytes + string(pathRunes[i+1:])
-				addJob(bytesReplacementPath + query)
+	// 2.1 Find all characters in the path
+	uniqueChars := make(map[int]bool)
+	for _, r := range path {
+		// Only handle ASCII chars that have Unicode mappings
+		if r <= 127 {
+			if mappings, exists := asciiToMappings[int(r)]; exists && len(mappings) > 0 {
+				uniqueChars[int(r)] = true
 			}
 		}
-
-		// Replace all slashes with Unicode variant (raw)
-		rawAllReplacementPath := strings.ReplaceAll(path, "/", slashMapping.Unicode)
-		addJob(rawAllReplacementPath + query)
-
-		// Replace all slashes with Unicode variant (URL-encoded)
-		urlEncodedAllReplacementPath := strings.ReplaceAll(path, "/", slashMapping.URLEncoded)
-		addJob(urlEncodedAllReplacementPath + query)
-
-		// Replace all slashes with raw UTF-8 bytes
-		bytesAllReplacementPath := strings.ReplaceAll(path, "/", slashMapping.UTF8Bytes)
-		addJob(bytesAllReplacementPath + query)
 	}
 
-	// 3. Unicode dot replacements
-	for _, dotMapping := range dotMappings {
-		pathRunes := []rune(path)
+	// 2.2 For each unique character in the path
+	for charCode := range uniqueChars {
+		mappings := asciiToMappings[charCode]
+		charStr := string(rune(charCode))
 
-		// Replace each dot individually
-		for i, r := range pathRunes {
-			if r == '.' {
-				// Create path with single Unicode dot replacement (raw)
-				rawReplacementPath := string(pathRunes[:i]) + dotMapping.Unicode + string(pathRunes[i+1:])
-				addJob(rawReplacementPath + query)
-
-				// Create path with single Unicode dot replacement (URL-encoded)
-				urlEncodedReplacementPath := string(pathRunes[:i]) + dotMapping.URLEncoded + string(pathRunes[i+1:])
-				addJob(urlEncodedReplacementPath + query)
-
-				// Create path with raw UTF-8 bytes
-				bytesReplacementPath := string(pathRunes[:i]) + dotMapping.UTF8Bytes + string(pathRunes[i+1:])
-				addJob(bytesReplacementPath + query)
-			}
-		}
-
-		// Replace all dots with Unicode variant (raw)
-		rawAllReplacementPath := strings.ReplaceAll(path, ".", dotMapping.Unicode)
-		addJob(rawAllReplacementPath + query)
-
-		// Replace all dots with Unicode variant (URL-encoded)
-		urlEncodedAllReplacementPath := strings.ReplaceAll(path, ".", dotMapping.URLEncoded)
-		addJob(urlEncodedAllReplacementPath + query)
-
-		// Replace all dots with raw UTF-8 bytes
-		bytesAllReplacementPath := strings.ReplaceAll(path, ".", dotMapping.UTF8Bytes)
-		addJob(bytesAllReplacementPath + query)
-	}
-
-	// 4. Unicode insertions - Insert after each slash
-	if len(slashMappings) > 0 {
-		for _, slashMapping := range slashMappings[:1] { // Use just the first mapping to avoid explosion
+		// For each Unicode mapping of this character
+		for _, mapping := range mappings {
+			// Single replacement - Replace one occurrence at a time
 			pathRunes := []rune(path)
-
 			for i, r := range pathRunes {
-				if r == '/' {
-					// Insert Unicode slash after real slash (raw)
-					insertRawPath := string(pathRunes[:i+1]) + slashMapping.Unicode + string(pathRunes[i+1:])
-					addJob(insertRawPath + query)
+				if int(r) == charCode {
+					// Raw Unicode replacement
+					rawPath := string(pathRunes[:i]) + mapping.Unicode + string(pathRunes[i+1:])
+					addJob(rawPath + query)
 
-					// Insert Unicode slash after real slash (URL-encoded)
-					insertUrlEncodedPath := string(pathRunes[:i+1]) + slashMapping.URLEncoded + string(pathRunes[i+1:])
-					addJob(insertUrlEncodedPath + query)
+					// URL-encoded replacement
+					encodedPath := string(pathRunes[:i]) + mapping.URLEncoded + string(pathRunes[i+1:])
+					addJob(encodedPath + query)
+
+					// UTF-8 bytes replacement
+					bytesPath := string(pathRunes[:i]) + mapping.UTF8Bytes + string(pathRunes[i+1:])
+					addJob(bytesPath + query)
 				}
 			}
+
+			// Replace all occurrences of this character
+			rawAllPath := strings.ReplaceAll(path, charStr, mapping.Unicode)
+			addJob(rawAllPath + query)
+
+			encodedAllPath := strings.ReplaceAll(path, charStr, mapping.URLEncoded)
+			addJob(encodedAllPath + query)
+
+			bytesAllPath := strings.ReplaceAll(path, charStr, mapping.UTF8Bytes)
+			addJob(bytesAllPath + query)
 		}
 	}
 
-	// 5. First/last character in path segment variations
+	// --- 3. Path segment character variations ---
 	if len(segments) > 1 {
-		// For each non-empty segment
 		for i := 1; i < len(segments); i++ {
-			if segments[i] == "" {
+			segment := segments[i]
+			if segment == "" {
 				continue
 			}
 
-			segmentRunes := []rune(segments[i])
-			if len(segmentRunes) == 0 {
-				continue
-			}
+			segmentRunes := []rune(segment)
 
-			// First character replacement
-			firstChar := segmentRunes[0]
-			firstCharAscii := int(firstChar)
+			// 3.1 First character variations
+			if len(segmentRunes) > 0 {
+				firstChar := segmentRunes[0]
+				if mappings, exists := asciiToMappings[int(firstChar)]; exists {
+					for _, mapping := range mappings {
+						// Create a new path with this segment's first char replaced
+						newSegment := mapping.Unicode + string(segmentRunes[1:])
+						newPath := createPathWithReplacedSegment(segments, i, newSegment)
+						addJob(newPath + query)
 
-			// Find mappings for this first character
-			for _, entry := range charMap {
-				if entry.ASCII == firstCharAscii && len(entry.Mappings) > 0 {
-					// Use just the first mapping to avoid explosion
-					mapping := entry.Mappings[0]
+						// URL-encoded version
+						encodedSegment := mapping.URLEncoded + string(segmentRunes[1:])
+						encodedPath := createPathWithReplacedSegment(segments, i, encodedSegment)
+						addJob(encodedPath + query)
 
-					// Create segment with first char replaced
-					updatedSegment := mapping.Unicode + string(segmentRunes[1:])
-
-					// Build full path with this segment replaced
-					var newPath strings.Builder
-					newPath.WriteString("/")
-					for j := 1; j < len(segments); j++ {
-						if j == i {
-							newPath.WriteString(updatedSegment)
-						} else {
-							newPath.WriteString(segments[j])
-						}
-						if j < len(segments)-1 && segments[j] != "" {
-							newPath.WriteString("/")
-						}
+						// UTF-8 bytes version
+						bytesSegment := mapping.UTF8Bytes + string(segmentRunes[1:])
+						bytesPath := createPathWithReplacedSegment(segments, i, bytesSegment)
+						addJob(bytesPath + query)
 					}
-
-					addJob(newPath.String() + query)
-
-					// URL-encoded version
-					encodedSegment := mapping.URLEncoded + string(segmentRunes[1:])
-					var encodedPath strings.Builder
-					encodedPath.WriteString("/")
-					for j := 1; j < len(segments); j++ {
-						if j == i {
-							encodedPath.WriteString(encodedSegment)
-						} else {
-							encodedPath.WriteString(segments[j])
-						}
-						if j < len(segments)-1 && segments[j] != "" {
-							encodedPath.WriteString("/")
-						}
-					}
-
-					addJob(encodedPath.String() + query)
-
-					// Only do one per segment to avoid explosion
-					break
 				}
 			}
 
-			// Last character replacement (if segment has more than one character)
+			// 3.2 Last character variations
 			if len(segmentRunes) > 1 {
 				lastChar := segmentRunes[len(segmentRunes)-1]
-				lastCharAscii := int(lastChar)
-
-				// Find mappings for this last character
-				for _, entry := range charMap {
-					if entry.ASCII == lastCharAscii && len(entry.Mappings) > 0 {
-						// Use just the first mapping to avoid explosion
-						mapping := entry.Mappings[0]
-
-						// Create segment with last char replaced
-						updatedSegment := string(segmentRunes[:len(segmentRunes)-1]) + mapping.Unicode
-
-						// Build full path with this segment replaced
-						var newPath strings.Builder
-						newPath.WriteString("/")
-						for j := 1; j < len(segments); j++ {
-							if j == i {
-								newPath.WriteString(updatedSegment)
-							} else {
-								newPath.WriteString(segments[j])
-							}
-							if j < len(segments)-1 && segments[j] != "" {
-								newPath.WriteString("/")
-							}
-						}
-
-						addJob(newPath.String() + query)
+				if mappings, exists := asciiToMappings[int(lastChar)]; exists {
+					for _, mapping := range mappings {
+						// Create a new path with this segment's last char replaced
+						newSegment := string(segmentRunes[:len(segmentRunes)-1]) + mapping.Unicode
+						newPath := createPathWithReplacedSegment(segments, i, newSegment)
+						addJob(newPath + query)
 
 						// URL-encoded version
 						encodedSegment := string(segmentRunes[:len(segmentRunes)-1]) + mapping.URLEncoded
-						var encodedPath strings.Builder
-						encodedPath.WriteString("/")
-						for j := 1; j < len(segments); j++ {
-							if j == i {
-								encodedPath.WriteString(encodedSegment)
-							} else {
-								encodedPath.WriteString(segments[j])
-							}
-							if j < len(segments)-1 && segments[j] != "" {
-								encodedPath.WriteString("/")
-							}
-						}
+						encodedPath := createPathWithReplacedSegment(segments, i, encodedSegment)
+						addJob(encodedPath + query)
 
-						addJob(encodedPath.String() + query)
-
-						// Only do one per segment to avoid explosion
-						break
+						// UTF-8 bytes version
+						bytesSegment := string(segmentRunes[:len(segmentRunes)-1]) + mapping.UTF8Bytes
+						bytesPath := createPathWithReplacedSegment(segments, i, bytesSegment)
+						addJob(bytesPath + query)
 					}
+				}
+			}
+
+			// 3.3 Every character in the segment
+			for j, char := range segmentRunes {
+				if mappings, exists := asciiToMappings[int(char)]; exists {
+					// Take just a few mappings to avoid explosion
+					maxMappings := 3
+					if len(mappings) < maxMappings {
+						maxMappings = len(mappings)
+					}
+
+					for k := 0; k < maxMappings; k++ {
+						mapping := mappings[k]
+
+						// Create segment with this character replaced
+						newRunes := make([]rune, len(segmentRunes))
+						copy(newRunes, segmentRunes)
+						newRunes[j] = []rune(mapping.Unicode)[0]
+
+						newSegment := string(newRunes)
+						newPath := createPathWithReplacedSegment(segments, i, newSegment)
+						addJob(newPath + query)
+					}
+				}
+			}
+		}
+	}
+
+	// --- 4. Special case: Unicode insertions ---
+	// Get slash mappings specifically
+	slashMappings, exists := asciiToMappings[47] // '/'
+	if exists && len(slashMappings) > 0 {
+		// Limit to a few mappings to prevent explosion
+		maxMappings := 3
+		if len(slashMappings) < maxMappings {
+			maxMappings = len(slashMappings)
+		}
+
+		for i := 0; i < maxMappings; i++ {
+			mapping := slashMappings[i]
+
+			// Insert Unicode slash after each real slash
+			pathRunes := []rune(path)
+			for j := 0; j < len(pathRunes); j++ {
+				if pathRunes[j] == '/' {
+					// Raw Unicode insertion
+					insertPath := string(pathRunes[:j+1]) + mapping.Unicode + string(pathRunes[j+1:])
+					addJob(insertPath + query)
+
+					// URL-encoded insertion
+					encodedPath := string(pathRunes[:j+1]) + mapping.URLEncoded + string(pathRunes[j+1:])
+					addJob(encodedPath + query)
+
+					// UTF-8 bytes insertion
+					bytesPath := string(pathRunes[:j+1]) + mapping.UTF8Bytes + string(pathRunes[j+1:])
+					addJob(bytesPath + query)
 				}
 			}
 		}
@@ -379,6 +322,26 @@ func (pg *PayloadGenerator) GenerateUnicodePathNormalizationsPayloads(targetURL 
 	GB403Logger.Debug().BypassModule(bypassModule).
 		Msgf("Generated %d unicode normalization payloads for %s", len(jobs), targetURL)
 	return jobs
+}
+
+// Helper function to create a path with a replaced segment
+func createPathWithReplacedSegment(segments []string, index int, newSegment string) string {
+	var newPath strings.Builder
+	newPath.WriteString("/")
+
+	for i := 1; i < len(segments); i++ {
+		if i == index {
+			newPath.WriteString(newSegment)
+		} else {
+			newPath.WriteString(segments[i])
+		}
+
+		if i < len(segments)-1 && segments[i] != "" {
+			newPath.WriteString("/")
+		}
+	}
+
+	return newPath.String()
 }
 
 /**
