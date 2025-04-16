@@ -1,0 +1,3569 @@
+[
+  {
+    "ascii": 0,
+    "char": "\\0",
+    "mappings": []
+  },
+  {
+    "ascii": 1,
+    "char": "\\x01",
+    "mappings": []
+  },
+  {
+    "ascii": 2,
+    "char": "\\x02",
+    "mappings": []
+  },
+  {
+    "ascii": 3,
+    "char": "\\x03",
+    "mappings": []
+  },
+  {
+    "ascii": 4,
+    "char": "\\x04",
+    "mappings": []
+  },
+  {
+    "ascii": 5,
+    "char": "\\x05",
+    "mappings": []
+  },
+  {
+    "ascii": 6,
+    "char": "\\x06",
+    "mappings": []
+  },
+  {
+    "ascii": 7,
+    "char": "\\x07",
+    "mappings": []
+  },
+  {
+    "ascii": 8,
+    "char": "\\x08",
+    "mappings": []
+  },
+  {
+    "ascii": 9,
+    "char": "\\t",
+    "mappings": []
+  },
+  {
+    "ascii": 10,
+    "char": "\\n",
+    "mappings": []
+  },
+  {
+    "ascii": 11,
+    "char": "\\x0B",
+    "mappings": []
+  },
+  {
+    "ascii": 12,
+    "char": "\\x0C",
+    "mappings": []
+  },
+  {
+    "ascii": 13,
+    "char": "\\r",
+    "mappings": []
+  },
+  {
+    "ascii": 14,
+    "char": "\\x0E",
+    "mappings": []
+  },
+  {
+    "ascii": 15,
+    "char": "\\x0F",
+    "mappings": []
+  },
+  {
+    "ascii": 16,
+    "char": "\\x10",
+    "mappings": []
+  },
+  {
+    "ascii": 17,
+    "char": "\\x11",
+    "mappings": []
+  },
+  {
+    "ascii": 18,
+    "char": "\\x12",
+    "mappings": []
+  },
+  {
+    "ascii": 19,
+    "char": "\\x13",
+    "mappings": []
+  },
+  {
+    "ascii": 20,
+    "char": "\\x14",
+    "mappings": []
+  },
+  {
+    "ascii": 21,
+    "char": "\\x15",
+    "mappings": []
+  },
+  {
+    "ascii": 22,
+    "char": "\\x16",
+    "mappings": []
+  },
+  {
+    "ascii": 23,
+    "char": "\\x17",
+    "mappings": []
+  },
+  {
+    "ascii": 24,
+    "char": "\\x18",
+    "mappings": []
+  },
+  {
+    "ascii": 25,
+    "char": "\\x19",
+    "mappings": []
+  },
+  {
+    "ascii": 26,
+    "char": "\\x1A",
+    "mappings": []
+  },
+  {
+    "ascii": 27,
+    "char": "\\x1B",
+    "mappings": []
+  },
+  {
+    "ascii": 28,
+    "char": "\\x1C",
+    "mappings": []
+  },
+  {
+    "ascii": 29,
+    "char": "\\x1D",
+    "mappings": []
+  },
+  {
+    "ascii": 30,
+    "char": "\\x1E",
+    "mappings": []
+  },
+  {
+    "ascii": 31,
+    "char": "\\x1F",
+    "mappings": []
+  },
+  {
+    "ascii": 32,
+    "char": " ",
+    "mappings": [
+      {
+        "unicode": " ",
+        "utf8_bytes": "\\xC2\\xA0",
+        "url_encoded": "%C2%A0",
+        "normalizes_as": " ",
+        "normalizes_as_hex": "\\x20",
+        "form": "NFKC"
+      },
+      {
+        "unicode": " ",
+        "utf8_bytes": "\\xE2\\x80\\x80",
+        "url_encoded": "%E2%80%80",
+        "normalizes_as": " ",
+        "normalizes_as_hex": "\\x20",
+        "form": "NFKC"
+      },
+      {
+        "unicode": " ",
+        "utf8_bytes": "\\xE2\\x80\\x81",
+        "url_encoded": "%E2%80%81",
+        "normalizes_as": " ",
+        "normalizes_as_hex": "\\x20",
+        "form": "NFKC"
+      },
+      {
+        "unicode": " ",
+        "utf8_bytes": "\\xE2\\x80\\x82",
+        "url_encoded": "%E2%80%82",
+        "normalizes_as": " ",
+        "normalizes_as_hex": "\\x20",
+        "form": "NFKC"
+      },
+      {
+        "unicode": " ",
+        "utf8_bytes": "\\xE2\\x80\\x83",
+        "url_encoded": "%E2%80%83",
+        "normalizes_as": " ",
+        "normalizes_as_hex": "\\x20",
+        "form": "NFKC"
+      },
+      {
+        "unicode": " ",
+        "utf8_bytes": "\\xE2\\x80\\x84",
+        "url_encoded": "%E2%80%84",
+        "normalizes_as": " ",
+        "normalizes_as_hex": "\\x20",
+        "form": "NFKC"
+      },
+      {
+        "unicode": " ",
+        "utf8_bytes": "\\xE2\\x80\\x85",
+        "url_encoded": "%E2%80%85",
+        "normalizes_as": " ",
+        "normalizes_as_hex": "\\x20",
+        "form": "NFKC"
+      },
+      {
+        "unicode": " ",
+        "utf8_bytes": "\\xE2\\x80\\x86",
+        "url_encoded": "%E2%80%86",
+        "normalizes_as": " ",
+        "normalizes_as_hex": "\\x20",
+        "form": "NFKC"
+      },
+      {
+        "unicode": " ",
+        "utf8_bytes": "\\xE2\\x80\\x87",
+        "url_encoded": "%E2%80%87",
+        "normalizes_as": " ",
+        "normalizes_as_hex": "\\x20",
+        "form": "NFKC"
+      },
+      {
+        "unicode": " ",
+        "utf8_bytes": "\\xE2\\x80\\x88",
+        "url_encoded": "%E2%80%88",
+        "normalizes_as": " ",
+        "normalizes_as_hex": "\\x20",
+        "form": "NFKC"
+      },
+      {
+        "unicode": " ",
+        "utf8_bytes": "\\xE2\\x80\\x89",
+        "url_encoded": "%E2%80%89",
+        "normalizes_as": " ",
+        "normalizes_as_hex": "\\x20",
+        "form": "NFKC"
+      },
+      {
+        "unicode": " ",
+        "utf8_bytes": "\\xE2\\x80\\x8A",
+        "url_encoded": "%E2%80%8A",
+        "normalizes_as": " ",
+        "normalizes_as_hex": "\\x20",
+        "form": "NFKC"
+      },
+      {
+        "unicode": " ",
+        "utf8_bytes": "\\xE2\\x80\\xAF",
+        "url_encoded": "%E2%80%AF",
+        "normalizes_as": " ",
+        "normalizes_as_hex": "\\x20",
+        "form": "NFKC"
+      },
+      {
+        "unicode": " ",
+        "utf8_bytes": "\\xE2\\x81\\x9F",
+        "url_encoded": "%E2%81%9F",
+        "normalizes_as": " ",
+        "normalizes_as_hex": "\\x20",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "　",
+        "utf8_bytes": "\\xE3\\x80\\x80",
+        "url_encoded": "%E3%80%80",
+        "normalizes_as": " ",
+        "normalizes_as_hex": "\\x20",
+        "form": "NFKC"
+      }
+    ]
+  },
+  {
+    "ascii": 33,
+    "char": "!",
+    "mappings": [
+      {
+        "unicode": "︕",
+        "utf8_bytes": "\\xEF\\xB8\\x95",
+        "url_encoded": "%EF%B8%95",
+        "normalizes_as": "!",
+        "normalizes_as_hex": "\\x21",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "﹗",
+        "utf8_bytes": "\\xEF\\xB9\\x97",
+        "url_encoded": "%EF%B9%97",
+        "normalizes_as": "!",
+        "normalizes_as_hex": "\\x21",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "！",
+        "utf8_bytes": "\\xEF\\xBC\\x81",
+        "url_encoded": "%EF%BC%81",
+        "normalizes_as": "!",
+        "normalizes_as_hex": "\\x21",
+        "form": "NFKC"
+      }
+    ]
+  },
+  {
+    "ascii": 34,
+    "char": "\"",
+    "mappings": [
+      {
+        "unicode": "＂",
+        "utf8_bytes": "\\xEF\\xBC\\x82",
+        "url_encoded": "%EF%BC%82",
+        "normalizes_as": "\"",
+        "normalizes_as_hex": "\\x22",
+        "form": "NFKC"
+      }
+    ]
+  },
+  {
+    "ascii": 35,
+    "char": "#",
+    "mappings": [
+      {
+        "unicode": "﹟",
+        "utf8_bytes": "\\xEF\\xB9\\x9F",
+        "url_encoded": "%EF%B9%9F",
+        "normalizes_as": "#",
+        "normalizes_as_hex": "\\x23",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "＃",
+        "utf8_bytes": "\\xEF\\xBC\\x83",
+        "url_encoded": "%EF%BC%83",
+        "normalizes_as": "#",
+        "normalizes_as_hex": "\\x23",
+        "form": "NFKC"
+      }
+    ]
+  },
+  {
+    "ascii": 36,
+    "char": "$",
+    "mappings": [
+      {
+        "unicode": "﹩",
+        "utf8_bytes": "\\xEF\\xB9\\xA9",
+        "url_encoded": "%EF%B9%A9",
+        "normalizes_as": "$",
+        "normalizes_as_hex": "\\x24",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "＄",
+        "utf8_bytes": "\\xEF\\xBC\\x84",
+        "url_encoded": "%EF%BC%84",
+        "normalizes_as": "$",
+        "normalizes_as_hex": "\\x24",
+        "form": "NFKC"
+      }
+    ]
+  },
+  {
+    "ascii": 37,
+    "char": "%",
+    "mappings": [
+      {
+        "unicode": "﹪",
+        "utf8_bytes": "\\xEF\\xB9\\xAA",
+        "url_encoded": "%EF%B9%AA",
+        "normalizes_as": "%",
+        "normalizes_as_hex": "\\x25",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "％",
+        "utf8_bytes": "\\xEF\\xBC\\x85",
+        "url_encoded": "%EF%BC%85",
+        "normalizes_as": "%",
+        "normalizes_as_hex": "\\x25",
+        "form": "NFKC"
+      }
+    ]
+  },
+  {
+    "ascii": 38,
+    "char": "\u0026",
+    "mappings": [
+      {
+        "unicode": "﹠",
+        "utf8_bytes": "\\xEF\\xB9\\xA0",
+        "url_encoded": "%EF%B9%A0",
+        "normalizes_as": "\u0026",
+        "normalizes_as_hex": "\\x26",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "＆",
+        "utf8_bytes": "\\xEF\\xBC\\x86",
+        "url_encoded": "%EF%BC%86",
+        "normalizes_as": "\u0026",
+        "normalizes_as_hex": "\\x26",
+        "form": "NFKC"
+      }
+    ]
+  },
+  {
+    "ascii": 39,
+    "char": "'",
+    "mappings": [
+      {
+        "unicode": "＇",
+        "utf8_bytes": "\\xEF\\xBC\\x87",
+        "url_encoded": "%EF%BC%87",
+        "normalizes_as": "'",
+        "normalizes_as_hex": "\\x27",
+        "form": "NFKC"
+      }
+    ]
+  },
+  {
+    "ascii": 40,
+    "char": "(",
+    "mappings": [
+      {
+        "unicode": "⁽",
+        "utf8_bytes": "\\xE2\\x81\\xBD",
+        "url_encoded": "%E2%81%BD",
+        "normalizes_as": "(",
+        "normalizes_as_hex": "\\x28",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "₍",
+        "utf8_bytes": "\\xE2\\x82\\x8D",
+        "url_encoded": "%E2%82%8D",
+        "normalizes_as": "(",
+        "normalizes_as_hex": "\\x28",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "︵",
+        "utf8_bytes": "\\xEF\\xB8\\xB5",
+        "url_encoded": "%EF%B8%B5",
+        "normalizes_as": "(",
+        "normalizes_as_hex": "\\x28",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "﹙",
+        "utf8_bytes": "\\xEF\\xB9\\x99",
+        "url_encoded": "%EF%B9%99",
+        "normalizes_as": "(",
+        "normalizes_as_hex": "\\x28",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "（",
+        "utf8_bytes": "\\xEF\\xBC\\x88",
+        "url_encoded": "%EF%BC%88",
+        "normalizes_as": "(",
+        "normalizes_as_hex": "\\x28",
+        "form": "NFKC"
+      }
+    ]
+  },
+  {
+    "ascii": 41,
+    "char": ")",
+    "mappings": [
+      {
+        "unicode": "⁾",
+        "utf8_bytes": "\\xE2\\x81\\xBE",
+        "url_encoded": "%E2%81%BE",
+        "normalizes_as": ")",
+        "normalizes_as_hex": "\\x29",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "₎",
+        "utf8_bytes": "\\xE2\\x82\\x8E",
+        "url_encoded": "%E2%82%8E",
+        "normalizes_as": ")",
+        "normalizes_as_hex": "\\x29",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "︶",
+        "utf8_bytes": "\\xEF\\xB8\\xB6",
+        "url_encoded": "%EF%B8%B6",
+        "normalizes_as": ")",
+        "normalizes_as_hex": "\\x29",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "﹚",
+        "utf8_bytes": "\\xEF\\xB9\\x9A",
+        "url_encoded": "%EF%B9%9A",
+        "normalizes_as": ")",
+        "normalizes_as_hex": "\\x29",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "）",
+        "utf8_bytes": "\\xEF\\xBC\\x89",
+        "url_encoded": "%EF%BC%89",
+        "normalizes_as": ")",
+        "normalizes_as_hex": "\\x29",
+        "form": "NFKC"
+      }
+    ]
+  },
+  {
+    "ascii": 42,
+    "char": "*",
+    "mappings": [
+      {
+        "unicode": "﹡",
+        "utf8_bytes": "\\xEF\\xB9\\xA1",
+        "url_encoded": "%EF%B9%A1",
+        "normalizes_as": "*",
+        "normalizes_as_hex": "\\x2A",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "＊",
+        "utf8_bytes": "\\xEF\\xBC\\x8A",
+        "url_encoded": "%EF%BC%8A",
+        "normalizes_as": "*",
+        "normalizes_as_hex": "\\x2A",
+        "form": "NFKC"
+      }
+    ]
+  },
+  {
+    "ascii": 43,
+    "char": "+",
+    "mappings": [
+      {
+        "unicode": "⁺",
+        "utf8_bytes": "\\xE2\\x81\\xBA",
+        "url_encoded": "%E2%81%BA",
+        "normalizes_as": "+",
+        "normalizes_as_hex": "\\x2B",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "₊",
+        "utf8_bytes": "\\xE2\\x82\\x8A",
+        "url_encoded": "%E2%82%8A",
+        "normalizes_as": "+",
+        "normalizes_as_hex": "\\x2B",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "﬩",
+        "utf8_bytes": "\\xEF\\xAC\\xA9",
+        "url_encoded": "%EF%AC%A9",
+        "normalizes_as": "+",
+        "normalizes_as_hex": "\\x2B",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "﹢",
+        "utf8_bytes": "\\xEF\\xB9\\xA2",
+        "url_encoded": "%EF%B9%A2",
+        "normalizes_as": "+",
+        "normalizes_as_hex": "\\x2B",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "＋",
+        "utf8_bytes": "\\xEF\\xBC\\x8B",
+        "url_encoded": "%EF%BC%8B",
+        "normalizes_as": "+",
+        "normalizes_as_hex": "\\x2B",
+        "form": "NFKC"
+      }
+    ]
+  },
+  {
+    "ascii": 44,
+    "char": ",",
+    "mappings": [
+      {
+        "unicode": "︐",
+        "utf8_bytes": "\\xEF\\xB8\\x90",
+        "url_encoded": "%EF%B8%90",
+        "normalizes_as": ",",
+        "normalizes_as_hex": "\\x2C",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "﹐",
+        "utf8_bytes": "\\xEF\\xB9\\x90",
+        "url_encoded": "%EF%B9%90",
+        "normalizes_as": ",",
+        "normalizes_as_hex": "\\x2C",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "，",
+        "utf8_bytes": "\\xEF\\xBC\\x8C",
+        "url_encoded": "%EF%BC%8C",
+        "normalizes_as": ",",
+        "normalizes_as_hex": "\\x2C",
+        "form": "NFKC"
+      }
+    ]
+  },
+  {
+    "ascii": 45,
+    "char": "-",
+    "mappings": [
+      {
+        "unicode": "﹣",
+        "utf8_bytes": "\\xEF\\xB9\\xA3",
+        "url_encoded": "%EF%B9%A3",
+        "normalizes_as": "-",
+        "normalizes_as_hex": "\\x2D",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "－",
+        "utf8_bytes": "\\xEF\\xBC\\x8D",
+        "url_encoded": "%EF%BC%8D",
+        "normalizes_as": "-",
+        "normalizes_as_hex": "\\x2D",
+        "form": "NFKC"
+      }
+    ]
+  },
+  {
+    "ascii": 46,
+    "char": ".",
+    "mappings": [
+      {
+        "unicode": "․",
+        "utf8_bytes": "\\xE2\\x80\\xA4",
+        "url_encoded": "%E2%80%A4",
+        "normalizes_as": ".",
+        "normalizes_as_hex": "\\x2E",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "﹒",
+        "utf8_bytes": "\\xEF\\xB9\\x92",
+        "url_encoded": "%EF%B9%92",
+        "normalizes_as": ".",
+        "normalizes_as_hex": "\\x2E",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "．",
+        "utf8_bytes": "\\xEF\\xBC\\x8E",
+        "url_encoded": "%EF%BC%8E",
+        "normalizes_as": ".",
+        "normalizes_as_hex": "\\x2E",
+        "form": "NFKC"
+      }
+    ]
+  },
+  {
+    "ascii": 47,
+    "char": "/",
+    "mappings": [
+      {
+        "unicode": "／",
+        "utf8_bytes": "\\xEF\\xBC\\x8F",
+        "url_encoded": "%EF%BC%8F",
+        "normalizes_as": "/",
+        "normalizes_as_hex": "\\x2F",
+        "form": "NFKC"
+      }
+    ]
+  },
+  {
+    "ascii": 48,
+    "char": "0",
+    "mappings": [
+      {
+        "unicode": "⁰",
+        "utf8_bytes": "\\xE2\\x81\\xB0",
+        "url_encoded": "%E2%81%B0",
+        "normalizes_as": "0",
+        "normalizes_as_hex": "\\x30",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "₀",
+        "utf8_bytes": "\\xE2\\x82\\x80",
+        "url_encoded": "%E2%82%80",
+        "normalizes_as": "0",
+        "normalizes_as_hex": "\\x30",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "⓪",
+        "utf8_bytes": "\\xE2\\x93\\xAA",
+        "url_encoded": "%E2%93%AA",
+        "normalizes_as": "0",
+        "normalizes_as_hex": "\\x30",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "０",
+        "utf8_bytes": "\\xEF\\xBC\\x90",
+        "url_encoded": "%EF%BC%90",
+        "normalizes_as": "0",
+        "normalizes_as_hex": "\\x30",
+        "form": "NFKC"
+      }
+    ]
+  },
+  {
+    "ascii": 49,
+    "char": "1",
+    "mappings": [
+      {
+        "unicode": "¹",
+        "utf8_bytes": "\\xC2\\xB9",
+        "url_encoded": "%C2%B9",
+        "normalizes_as": "1",
+        "normalizes_as_hex": "\\x31",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "₁",
+        "utf8_bytes": "\\xE2\\x82\\x81",
+        "url_encoded": "%E2%82%81",
+        "normalizes_as": "1",
+        "normalizes_as_hex": "\\x31",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "①",
+        "utf8_bytes": "\\xE2\\x91\\xA0",
+        "url_encoded": "%E2%91%A0",
+        "normalizes_as": "1",
+        "normalizes_as_hex": "\\x31",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "１",
+        "utf8_bytes": "\\xEF\\xBC\\x91",
+        "url_encoded": "%EF%BC%91",
+        "normalizes_as": "1",
+        "normalizes_as_hex": "\\x31",
+        "form": "NFKC"
+      }
+    ]
+  },
+  {
+    "ascii": 50,
+    "char": "2",
+    "mappings": [
+      {
+        "unicode": "²",
+        "utf8_bytes": "\\xC2\\xB2",
+        "url_encoded": "%C2%B2",
+        "normalizes_as": "2",
+        "normalizes_as_hex": "\\x32",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "₂",
+        "utf8_bytes": "\\xE2\\x82\\x82",
+        "url_encoded": "%E2%82%82",
+        "normalizes_as": "2",
+        "normalizes_as_hex": "\\x32",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "②",
+        "utf8_bytes": "\\xE2\\x91\\xA1",
+        "url_encoded": "%E2%91%A1",
+        "normalizes_as": "2",
+        "normalizes_as_hex": "\\x32",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "２",
+        "utf8_bytes": "\\xEF\\xBC\\x92",
+        "url_encoded": "%EF%BC%92",
+        "normalizes_as": "2",
+        "normalizes_as_hex": "\\x32",
+        "form": "NFKC"
+      }
+    ]
+  },
+  {
+    "ascii": 51,
+    "char": "3",
+    "mappings": [
+      {
+        "unicode": "³",
+        "utf8_bytes": "\\xC2\\xB3",
+        "url_encoded": "%C2%B3",
+        "normalizes_as": "3",
+        "normalizes_as_hex": "\\x33",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "₃",
+        "utf8_bytes": "\\xE2\\x82\\x83",
+        "url_encoded": "%E2%82%83",
+        "normalizes_as": "3",
+        "normalizes_as_hex": "\\x33",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "③",
+        "utf8_bytes": "\\xE2\\x91\\xA2",
+        "url_encoded": "%E2%91%A2",
+        "normalizes_as": "3",
+        "normalizes_as_hex": "\\x33",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "３",
+        "utf8_bytes": "\\xEF\\xBC\\x93",
+        "url_encoded": "%EF%BC%93",
+        "normalizes_as": "3",
+        "normalizes_as_hex": "\\x33",
+        "form": "NFKC"
+      }
+    ]
+  },
+  {
+    "ascii": 52,
+    "char": "4",
+    "mappings": [
+      {
+        "unicode": "⁴",
+        "utf8_bytes": "\\xE2\\x81\\xB4",
+        "url_encoded": "%E2%81%B4",
+        "normalizes_as": "4",
+        "normalizes_as_hex": "\\x34",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "₄",
+        "utf8_bytes": "\\xE2\\x82\\x84",
+        "url_encoded": "%E2%82%84",
+        "normalizes_as": "4",
+        "normalizes_as_hex": "\\x34",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "④",
+        "utf8_bytes": "\\xE2\\x91\\xA3",
+        "url_encoded": "%E2%91%A3",
+        "normalizes_as": "4",
+        "normalizes_as_hex": "\\x34",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "４",
+        "utf8_bytes": "\\xEF\\xBC\\x94",
+        "url_encoded": "%EF%BC%94",
+        "normalizes_as": "4",
+        "normalizes_as_hex": "\\x34",
+        "form": "NFKC"
+      }
+    ]
+  },
+  {
+    "ascii": 53,
+    "char": "5",
+    "mappings": [
+      {
+        "unicode": "⁵",
+        "utf8_bytes": "\\xE2\\x81\\xB5",
+        "url_encoded": "%E2%81%B5",
+        "normalizes_as": "5",
+        "normalizes_as_hex": "\\x35",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "₅",
+        "utf8_bytes": "\\xE2\\x82\\x85",
+        "url_encoded": "%E2%82%85",
+        "normalizes_as": "5",
+        "normalizes_as_hex": "\\x35",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "⑤",
+        "utf8_bytes": "\\xE2\\x91\\xA4",
+        "url_encoded": "%E2%91%A4",
+        "normalizes_as": "5",
+        "normalizes_as_hex": "\\x35",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "５",
+        "utf8_bytes": "\\xEF\\xBC\\x95",
+        "url_encoded": "%EF%BC%95",
+        "normalizes_as": "5",
+        "normalizes_as_hex": "\\x35",
+        "form": "NFKC"
+      }
+    ]
+  },
+  {
+    "ascii": 54,
+    "char": "6",
+    "mappings": [
+      {
+        "unicode": "⁶",
+        "utf8_bytes": "\\xE2\\x81\\xB6",
+        "url_encoded": "%E2%81%B6",
+        "normalizes_as": "6",
+        "normalizes_as_hex": "\\x36",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "₆",
+        "utf8_bytes": "\\xE2\\x82\\x86",
+        "url_encoded": "%E2%82%86",
+        "normalizes_as": "6",
+        "normalizes_as_hex": "\\x36",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "⑥",
+        "utf8_bytes": "\\xE2\\x91\\xA5",
+        "url_encoded": "%E2%91%A5",
+        "normalizes_as": "6",
+        "normalizes_as_hex": "\\x36",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "６",
+        "utf8_bytes": "\\xEF\\xBC\\x96",
+        "url_encoded": "%EF%BC%96",
+        "normalizes_as": "6",
+        "normalizes_as_hex": "\\x36",
+        "form": "NFKC"
+      }
+    ]
+  },
+  {
+    "ascii": 55,
+    "char": "7",
+    "mappings": [
+      {
+        "unicode": "⁷",
+        "utf8_bytes": "\\xE2\\x81\\xB7",
+        "url_encoded": "%E2%81%B7",
+        "normalizes_as": "7",
+        "normalizes_as_hex": "\\x37",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "₇",
+        "utf8_bytes": "\\xE2\\x82\\x87",
+        "url_encoded": "%E2%82%87",
+        "normalizes_as": "7",
+        "normalizes_as_hex": "\\x37",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "⑦",
+        "utf8_bytes": "\\xE2\\x91\\xA6",
+        "url_encoded": "%E2%91%A6",
+        "normalizes_as": "7",
+        "normalizes_as_hex": "\\x37",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "７",
+        "utf8_bytes": "\\xEF\\xBC\\x97",
+        "url_encoded": "%EF%BC%97",
+        "normalizes_as": "7",
+        "normalizes_as_hex": "\\x37",
+        "form": "NFKC"
+      }
+    ]
+  },
+  {
+    "ascii": 56,
+    "char": "8",
+    "mappings": [
+      {
+        "unicode": "⁸",
+        "utf8_bytes": "\\xE2\\x81\\xB8",
+        "url_encoded": "%E2%81%B8",
+        "normalizes_as": "8",
+        "normalizes_as_hex": "\\x38",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "₈",
+        "utf8_bytes": "\\xE2\\x82\\x88",
+        "url_encoded": "%E2%82%88",
+        "normalizes_as": "8",
+        "normalizes_as_hex": "\\x38",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "⑧",
+        "utf8_bytes": "\\xE2\\x91\\xA7",
+        "url_encoded": "%E2%91%A7",
+        "normalizes_as": "8",
+        "normalizes_as_hex": "\\x38",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "８",
+        "utf8_bytes": "\\xEF\\xBC\\x98",
+        "url_encoded": "%EF%BC%98",
+        "normalizes_as": "8",
+        "normalizes_as_hex": "\\x38",
+        "form": "NFKC"
+      }
+    ]
+  },
+  {
+    "ascii": 57,
+    "char": "9",
+    "mappings": [
+      {
+        "unicode": "⁹",
+        "utf8_bytes": "\\xE2\\x81\\xB9",
+        "url_encoded": "%E2%81%B9",
+        "normalizes_as": "9",
+        "normalizes_as_hex": "\\x39",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "₉",
+        "utf8_bytes": "\\xE2\\x82\\x89",
+        "url_encoded": "%E2%82%89",
+        "normalizes_as": "9",
+        "normalizes_as_hex": "\\x39",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "⑨",
+        "utf8_bytes": "\\xE2\\x91\\xA8",
+        "url_encoded": "%E2%91%A8",
+        "normalizes_as": "9",
+        "normalizes_as_hex": "\\x39",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "９",
+        "utf8_bytes": "\\xEF\\xBC\\x99",
+        "url_encoded": "%EF%BC%99",
+        "normalizes_as": "9",
+        "normalizes_as_hex": "\\x39",
+        "form": "NFKC"
+      }
+    ]
+  },
+  {
+    "ascii": 58,
+    "char": ":",
+    "mappings": [
+      {
+        "unicode": "︓",
+        "utf8_bytes": "\\xEF\\xB8\\x93",
+        "url_encoded": "%EF%B8%93",
+        "normalizes_as": ":",
+        "normalizes_as_hex": "\\x3A",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "﹕",
+        "utf8_bytes": "\\xEF\\xB9\\x95",
+        "url_encoded": "%EF%B9%95",
+        "normalizes_as": ":",
+        "normalizes_as_hex": "\\x3A",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "：",
+        "utf8_bytes": "\\xEF\\xBC\\x9A",
+        "url_encoded": "%EF%BC%9A",
+        "normalizes_as": ":",
+        "normalizes_as_hex": "\\x3A",
+        "form": "NFKC"
+      }
+    ]
+  },
+  {
+    "ascii": 59,
+    "char": ";",
+    "mappings": [
+      {
+        "unicode": ";",
+        "utf8_bytes": "\\xCD\\xBE",
+        "url_encoded": "%CD%BE",
+        "normalizes_as": ";",
+        "normalizes_as_hex": "\\x3B",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "︔",
+        "utf8_bytes": "\\xEF\\xB8\\x94",
+        "url_encoded": "%EF%B8%94",
+        "normalizes_as": ";",
+        "normalizes_as_hex": "\\x3B",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "﹔",
+        "utf8_bytes": "\\xEF\\xB9\\x94",
+        "url_encoded": "%EF%B9%94",
+        "normalizes_as": ";",
+        "normalizes_as_hex": "\\x3B",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "；",
+        "utf8_bytes": "\\xEF\\xBC\\x9B",
+        "url_encoded": "%EF%BC%9B",
+        "normalizes_as": ";",
+        "normalizes_as_hex": "\\x3B",
+        "form": "NFKC"
+      }
+    ]
+  },
+  {
+    "ascii": 60,
+    "char": "\u003c",
+    "mappings": [
+      {
+        "unicode": "﹤",
+        "utf8_bytes": "\\xEF\\xB9\\xA4",
+        "url_encoded": "%EF%B9%A4",
+        "normalizes_as": "\u003c",
+        "normalizes_as_hex": "\\x3C",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "＜",
+        "utf8_bytes": "\\xEF\\xBC\\x9C",
+        "url_encoded": "%EF%BC%9C",
+        "normalizes_as": "\u003c",
+        "normalizes_as_hex": "\\x3C",
+        "form": "NFKC"
+      }
+    ]
+  },
+  {
+    "ascii": 61,
+    "char": "=",
+    "mappings": [
+      {
+        "unicode": "⁼",
+        "utf8_bytes": "\\xE2\\x81\\xBC",
+        "url_encoded": "%E2%81%BC",
+        "normalizes_as": "=",
+        "normalizes_as_hex": "\\x3D",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "₌",
+        "utf8_bytes": "\\xE2\\x82\\x8C",
+        "url_encoded": "%E2%82%8C",
+        "normalizes_as": "=",
+        "normalizes_as_hex": "\\x3D",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "﹦",
+        "utf8_bytes": "\\xEF\\xB9\\xA6",
+        "url_encoded": "%EF%B9%A6",
+        "normalizes_as": "=",
+        "normalizes_as_hex": "\\x3D",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "＝",
+        "utf8_bytes": "\\xEF\\xBC\\x9D",
+        "url_encoded": "%EF%BC%9D",
+        "normalizes_as": "=",
+        "normalizes_as_hex": "\\x3D",
+        "form": "NFKC"
+      }
+    ]
+  },
+  {
+    "ascii": 62,
+    "char": "\u003e",
+    "mappings": [
+      {
+        "unicode": "﹥",
+        "utf8_bytes": "\\xEF\\xB9\\xA5",
+        "url_encoded": "%EF%B9%A5",
+        "normalizes_as": "\u003e",
+        "normalizes_as_hex": "\\x3E",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "＞",
+        "utf8_bytes": "\\xEF\\xBC\\x9E",
+        "url_encoded": "%EF%BC%9E",
+        "normalizes_as": "\u003e",
+        "normalizes_as_hex": "\\x3E",
+        "form": "NFKC"
+      }
+    ]
+  },
+  {
+    "ascii": 63,
+    "char": "?",
+    "mappings": [
+      {
+        "unicode": "︖",
+        "utf8_bytes": "\\xEF\\xB8\\x96",
+        "url_encoded": "%EF%B8%96",
+        "normalizes_as": "?",
+        "normalizes_as_hex": "\\x3F",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "﹖",
+        "utf8_bytes": "\\xEF\\xB9\\x96",
+        "url_encoded": "%EF%B9%96",
+        "normalizes_as": "?",
+        "normalizes_as_hex": "\\x3F",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "？",
+        "utf8_bytes": "\\xEF\\xBC\\x9F",
+        "url_encoded": "%EF%BC%9F",
+        "normalizes_as": "?",
+        "normalizes_as_hex": "\\x3F",
+        "form": "NFKC"
+      }
+    ]
+  },
+  {
+    "ascii": 64,
+    "char": "@",
+    "mappings": [
+      {
+        "unicode": "﹫",
+        "utf8_bytes": "\\xEF\\xB9\\xAB",
+        "url_encoded": "%EF%B9%AB",
+        "normalizes_as": "@",
+        "normalizes_as_hex": "\\x40",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "＠",
+        "utf8_bytes": "\\xEF\\xBC\\xA0",
+        "url_encoded": "%EF%BC%A0",
+        "normalizes_as": "@",
+        "normalizes_as_hex": "\\x40",
+        "form": "NFKC"
+      }
+    ]
+  },
+  {
+    "ascii": 65,
+    "char": "A",
+    "mappings": [
+      {
+        "unicode": "ᴬ",
+        "utf8_bytes": "\\xE1\\xB4\\xAC",
+        "url_encoded": "%E1%B4%AC",
+        "normalizes_as": "A",
+        "normalizes_as_hex": "\\x41",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "Ⓐ",
+        "utf8_bytes": "\\xE2\\x92\\xB6",
+        "url_encoded": "%E2%92%B6",
+        "normalizes_as": "A",
+        "normalizes_as_hex": "\\x41",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "Ａ",
+        "utf8_bytes": "\\xEF\\xBC\\xA1",
+        "url_encoded": "%EF%BC%A1",
+        "normalizes_as": "A",
+        "normalizes_as_hex": "\\x41",
+        "form": "NFKC"
+      }
+    ]
+  },
+  {
+    "ascii": 66,
+    "char": "B",
+    "mappings": [
+      {
+        "unicode": "ᴮ",
+        "utf8_bytes": "\\xE1\\xB4\\xAE",
+        "url_encoded": "%E1%B4%AE",
+        "normalizes_as": "B",
+        "normalizes_as_hex": "\\x42",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ℬ",
+        "utf8_bytes": "\\xE2\\x84\\xAC",
+        "url_encoded": "%E2%84%AC",
+        "normalizes_as": "B",
+        "normalizes_as_hex": "\\x42",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "Ⓑ",
+        "utf8_bytes": "\\xE2\\x92\\xB7",
+        "url_encoded": "%E2%92%B7",
+        "normalizes_as": "B",
+        "normalizes_as_hex": "\\x42",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "Ｂ",
+        "utf8_bytes": "\\xEF\\xBC\\xA2",
+        "url_encoded": "%EF%BC%A2",
+        "normalizes_as": "B",
+        "normalizes_as_hex": "\\x42",
+        "form": "NFKC"
+      }
+    ]
+  },
+  {
+    "ascii": 67,
+    "char": "C",
+    "mappings": [
+      {
+        "unicode": "ℂ",
+        "utf8_bytes": "\\xE2\\x84\\x82",
+        "url_encoded": "%E2%84%82",
+        "normalizes_as": "C",
+        "normalizes_as_hex": "\\x43",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ℭ",
+        "utf8_bytes": "\\xE2\\x84\\xAD",
+        "url_encoded": "%E2%84%AD",
+        "normalizes_as": "C",
+        "normalizes_as_hex": "\\x43",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "Ⅽ",
+        "utf8_bytes": "\\xE2\\x85\\xAD",
+        "url_encoded": "%E2%85%AD",
+        "normalizes_as": "C",
+        "normalizes_as_hex": "\\x43",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "Ⓒ",
+        "utf8_bytes": "\\xE2\\x92\\xB8",
+        "url_encoded": "%E2%92%B8",
+        "normalizes_as": "C",
+        "normalizes_as_hex": "\\x43",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ꟲ",
+        "utf8_bytes": "\\xEA\\x9F\\xB2",
+        "url_encoded": "%EA%9F%B2",
+        "normalizes_as": "C",
+        "normalizes_as_hex": "\\x43",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "Ｃ",
+        "utf8_bytes": "\\xEF\\xBC\\xA3",
+        "url_encoded": "%EF%BC%A3",
+        "normalizes_as": "C",
+        "normalizes_as_hex": "\\x43",
+        "form": "NFKC"
+      }
+    ]
+  },
+  {
+    "ascii": 68,
+    "char": "D",
+    "mappings": [
+      {
+        "unicode": "ᴰ",
+        "utf8_bytes": "\\xE1\\xB4\\xB0",
+        "url_encoded": "%E1%B4%B0",
+        "normalizes_as": "D",
+        "normalizes_as_hex": "\\x44",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ⅅ",
+        "utf8_bytes": "\\xE2\\x85\\x85",
+        "url_encoded": "%E2%85%85",
+        "normalizes_as": "D",
+        "normalizes_as_hex": "\\x44",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "Ⅾ",
+        "utf8_bytes": "\\xE2\\x85\\xAE",
+        "url_encoded": "%E2%85%AE",
+        "normalizes_as": "D",
+        "normalizes_as_hex": "\\x44",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "Ⓓ",
+        "utf8_bytes": "\\xE2\\x92\\xB9",
+        "url_encoded": "%E2%92%B9",
+        "normalizes_as": "D",
+        "normalizes_as_hex": "\\x44",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "Ｄ",
+        "utf8_bytes": "\\xEF\\xBC\\xA4",
+        "url_encoded": "%EF%BC%A4",
+        "normalizes_as": "D",
+        "normalizes_as_hex": "\\x44",
+        "form": "NFKC"
+      }
+    ]
+  },
+  {
+    "ascii": 69,
+    "char": "E",
+    "mappings": [
+      {
+        "unicode": "ᴱ",
+        "utf8_bytes": "\\xE1\\xB4\\xB1",
+        "url_encoded": "%E1%B4%B1",
+        "normalizes_as": "E",
+        "normalizes_as_hex": "\\x45",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ℰ",
+        "utf8_bytes": "\\xE2\\x84\\xB0",
+        "url_encoded": "%E2%84%B0",
+        "normalizes_as": "E",
+        "normalizes_as_hex": "\\x45",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "Ⓔ",
+        "utf8_bytes": "\\xE2\\x92\\xBA",
+        "url_encoded": "%E2%92%BA",
+        "normalizes_as": "E",
+        "normalizes_as_hex": "\\x45",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "Ｅ",
+        "utf8_bytes": "\\xEF\\xBC\\xA5",
+        "url_encoded": "%EF%BC%A5",
+        "normalizes_as": "E",
+        "normalizes_as_hex": "\\x45",
+        "form": "NFKC"
+      }
+    ]
+  },
+  {
+    "ascii": 70,
+    "char": "F",
+    "mappings": [
+      {
+        "unicode": "ℱ",
+        "utf8_bytes": "\\xE2\\x84\\xB1",
+        "url_encoded": "%E2%84%B1",
+        "normalizes_as": "F",
+        "normalizes_as_hex": "\\x46",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "Ⓕ",
+        "utf8_bytes": "\\xE2\\x92\\xBB",
+        "url_encoded": "%E2%92%BB",
+        "normalizes_as": "F",
+        "normalizes_as_hex": "\\x46",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ꟳ",
+        "utf8_bytes": "\\xEA\\x9F\\xB3",
+        "url_encoded": "%EA%9F%B3",
+        "normalizes_as": "F",
+        "normalizes_as_hex": "\\x46",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "Ｆ",
+        "utf8_bytes": "\\xEF\\xBC\\xA6",
+        "url_encoded": "%EF%BC%A6",
+        "normalizes_as": "F",
+        "normalizes_as_hex": "\\x46",
+        "form": "NFKC"
+      }
+    ]
+  },
+  {
+    "ascii": 71,
+    "char": "G",
+    "mappings": [
+      {
+        "unicode": "ᴳ",
+        "utf8_bytes": "\\xE1\\xB4\\xB3",
+        "url_encoded": "%E1%B4%B3",
+        "normalizes_as": "G",
+        "normalizes_as_hex": "\\x47",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "Ⓖ",
+        "utf8_bytes": "\\xE2\\x92\\xBC",
+        "url_encoded": "%E2%92%BC",
+        "normalizes_as": "G",
+        "normalizes_as_hex": "\\x47",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "Ｇ",
+        "utf8_bytes": "\\xEF\\xBC\\xA7",
+        "url_encoded": "%EF%BC%A7",
+        "normalizes_as": "G",
+        "normalizes_as_hex": "\\x47",
+        "form": "NFKC"
+      }
+    ]
+  },
+  {
+    "ascii": 72,
+    "char": "H",
+    "mappings": [
+      {
+        "unicode": "ᴴ",
+        "utf8_bytes": "\\xE1\\xB4\\xB4",
+        "url_encoded": "%E1%B4%B4",
+        "normalizes_as": "H",
+        "normalizes_as_hex": "\\x48",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ℋ",
+        "utf8_bytes": "\\xE2\\x84\\x8B",
+        "url_encoded": "%E2%84%8B",
+        "normalizes_as": "H",
+        "normalizes_as_hex": "\\x48",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ℌ",
+        "utf8_bytes": "\\xE2\\x84\\x8C",
+        "url_encoded": "%E2%84%8C",
+        "normalizes_as": "H",
+        "normalizes_as_hex": "\\x48",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ℍ",
+        "utf8_bytes": "\\xE2\\x84\\x8D",
+        "url_encoded": "%E2%84%8D",
+        "normalizes_as": "H",
+        "normalizes_as_hex": "\\x48",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "Ⓗ",
+        "utf8_bytes": "\\xE2\\x92\\xBD",
+        "url_encoded": "%E2%92%BD",
+        "normalizes_as": "H",
+        "normalizes_as_hex": "\\x48",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "Ｈ",
+        "utf8_bytes": "\\xEF\\xBC\\xA8",
+        "url_encoded": "%EF%BC%A8",
+        "normalizes_as": "H",
+        "normalizes_as_hex": "\\x48",
+        "form": "NFKC"
+      }
+    ]
+  },
+  {
+    "ascii": 73,
+    "char": "I",
+    "mappings": [
+      {
+        "unicode": "ᴵ",
+        "utf8_bytes": "\\xE1\\xB4\\xB5",
+        "url_encoded": "%E1%B4%B5",
+        "normalizes_as": "I",
+        "normalizes_as_hex": "\\x49",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ℐ",
+        "utf8_bytes": "\\xE2\\x84\\x90",
+        "url_encoded": "%E2%84%90",
+        "normalizes_as": "I",
+        "normalizes_as_hex": "\\x49",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ℑ",
+        "utf8_bytes": "\\xE2\\x84\\x91",
+        "url_encoded": "%E2%84%91",
+        "normalizes_as": "I",
+        "normalizes_as_hex": "\\x49",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "Ⅰ",
+        "utf8_bytes": "\\xE2\\x85\\xA0",
+        "url_encoded": "%E2%85%A0",
+        "normalizes_as": "I",
+        "normalizes_as_hex": "\\x49",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "Ⓘ",
+        "utf8_bytes": "\\xE2\\x92\\xBE",
+        "url_encoded": "%E2%92%BE",
+        "normalizes_as": "I",
+        "normalizes_as_hex": "\\x49",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "Ｉ",
+        "utf8_bytes": "\\xEF\\xBC\\xA9",
+        "url_encoded": "%EF%BC%A9",
+        "normalizes_as": "I",
+        "normalizes_as_hex": "\\x49",
+        "form": "NFKC"
+      }
+    ]
+  },
+  {
+    "ascii": 74,
+    "char": "J",
+    "mappings": [
+      {
+        "unicode": "ᴶ",
+        "utf8_bytes": "\\xE1\\xB4\\xB6",
+        "url_encoded": "%E1%B4%B6",
+        "normalizes_as": "J",
+        "normalizes_as_hex": "\\x4A",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "Ⓙ",
+        "utf8_bytes": "\\xE2\\x92\\xBF",
+        "url_encoded": "%E2%92%BF",
+        "normalizes_as": "J",
+        "normalizes_as_hex": "\\x4A",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "Ｊ",
+        "utf8_bytes": "\\xEF\\xBC\\xAA",
+        "url_encoded": "%EF%BC%AA",
+        "normalizes_as": "J",
+        "normalizes_as_hex": "\\x4A",
+        "form": "NFKC"
+      }
+    ]
+  },
+  {
+    "ascii": 75,
+    "char": "K",
+    "mappings": [
+      {
+        "unicode": "ᴷ",
+        "utf8_bytes": "\\xE1\\xB4\\xB7",
+        "url_encoded": "%E1%B4%B7",
+        "normalizes_as": "K",
+        "normalizes_as_hex": "\\x4B",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "K",
+        "utf8_bytes": "\\xE2\\x84\\xAA",
+        "url_encoded": "%E2%84%AA",
+        "normalizes_as": "K",
+        "normalizes_as_hex": "\\x4B",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "Ⓚ",
+        "utf8_bytes": "\\xE2\\x93\\x80",
+        "url_encoded": "%E2%93%80",
+        "normalizes_as": "K",
+        "normalizes_as_hex": "\\x4B",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "Ｋ",
+        "utf8_bytes": "\\xEF\\xBC\\xAB",
+        "url_encoded": "%EF%BC%AB",
+        "normalizes_as": "K",
+        "normalizes_as_hex": "\\x4B",
+        "form": "NFKC"
+      }
+    ]
+  },
+  {
+    "ascii": 76,
+    "char": "L",
+    "mappings": [
+      {
+        "unicode": "ᴸ",
+        "utf8_bytes": "\\xE1\\xB4\\xB8",
+        "url_encoded": "%E1%B4%B8",
+        "normalizes_as": "L",
+        "normalizes_as_hex": "\\x4C",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ℒ",
+        "utf8_bytes": "\\xE2\\x84\\x92",
+        "url_encoded": "%E2%84%92",
+        "normalizes_as": "L",
+        "normalizes_as_hex": "\\x4C",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "Ⅼ",
+        "utf8_bytes": "\\xE2\\x85\\xAC",
+        "url_encoded": "%E2%85%AC",
+        "normalizes_as": "L",
+        "normalizes_as_hex": "\\x4C",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "Ⓛ",
+        "utf8_bytes": "\\xE2\\x93\\x81",
+        "url_encoded": "%E2%93%81",
+        "normalizes_as": "L",
+        "normalizes_as_hex": "\\x4C",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "Ｌ",
+        "utf8_bytes": "\\xEF\\xBC\\xAC",
+        "url_encoded": "%EF%BC%AC",
+        "normalizes_as": "L",
+        "normalizes_as_hex": "\\x4C",
+        "form": "NFKC"
+      }
+    ]
+  },
+  {
+    "ascii": 77,
+    "char": "M",
+    "mappings": [
+      {
+        "unicode": "ᴹ",
+        "utf8_bytes": "\\xE1\\xB4\\xB9",
+        "url_encoded": "%E1%B4%B9",
+        "normalizes_as": "M",
+        "normalizes_as_hex": "\\x4D",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ℳ",
+        "utf8_bytes": "\\xE2\\x84\\xB3",
+        "url_encoded": "%E2%84%B3",
+        "normalizes_as": "M",
+        "normalizes_as_hex": "\\x4D",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "Ⅿ",
+        "utf8_bytes": "\\xE2\\x85\\xAF",
+        "url_encoded": "%E2%85%AF",
+        "normalizes_as": "M",
+        "normalizes_as_hex": "\\x4D",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "Ⓜ",
+        "utf8_bytes": "\\xE2\\x93\\x82",
+        "url_encoded": "%E2%93%82",
+        "normalizes_as": "M",
+        "normalizes_as_hex": "\\x4D",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "Ｍ",
+        "utf8_bytes": "\\xEF\\xBC\\xAD",
+        "url_encoded": "%EF%BC%AD",
+        "normalizes_as": "M",
+        "normalizes_as_hex": "\\x4D",
+        "form": "NFKC"
+      }
+    ]
+  },
+  {
+    "ascii": 78,
+    "char": "N",
+    "mappings": [
+      {
+        "unicode": "ᴺ",
+        "utf8_bytes": "\\xE1\\xB4\\xBA",
+        "url_encoded": "%E1%B4%BA",
+        "normalizes_as": "N",
+        "normalizes_as_hex": "\\x4E",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ℕ",
+        "utf8_bytes": "\\xE2\\x84\\x95",
+        "url_encoded": "%E2%84%95",
+        "normalizes_as": "N",
+        "normalizes_as_hex": "\\x4E",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "Ⓝ",
+        "utf8_bytes": "\\xE2\\x93\\x83",
+        "url_encoded": "%E2%93%83",
+        "normalizes_as": "N",
+        "normalizes_as_hex": "\\x4E",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "Ｎ",
+        "utf8_bytes": "\\xEF\\xBC\\xAE",
+        "url_encoded": "%EF%BC%AE",
+        "normalizes_as": "N",
+        "normalizes_as_hex": "\\x4E",
+        "form": "NFKC"
+      }
+    ]
+  },
+  {
+    "ascii": 79,
+    "char": "O",
+    "mappings": [
+      {
+        "unicode": "ᴼ",
+        "utf8_bytes": "\\xE1\\xB4\\xBC",
+        "url_encoded": "%E1%B4%BC",
+        "normalizes_as": "O",
+        "normalizes_as_hex": "\\x4F",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "Ⓞ",
+        "utf8_bytes": "\\xE2\\x93\\x84",
+        "url_encoded": "%E2%93%84",
+        "normalizes_as": "O",
+        "normalizes_as_hex": "\\x4F",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "Ｏ",
+        "utf8_bytes": "\\xEF\\xBC\\xAF",
+        "url_encoded": "%EF%BC%AF",
+        "normalizes_as": "O",
+        "normalizes_as_hex": "\\x4F",
+        "form": "NFKC"
+      }
+    ]
+  },
+  {
+    "ascii": 80,
+    "char": "P",
+    "mappings": [
+      {
+        "unicode": "ᴾ",
+        "utf8_bytes": "\\xE1\\xB4\\xBE",
+        "url_encoded": "%E1%B4%BE",
+        "normalizes_as": "P",
+        "normalizes_as_hex": "\\x50",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ℙ",
+        "utf8_bytes": "\\xE2\\x84\\x99",
+        "url_encoded": "%E2%84%99",
+        "normalizes_as": "P",
+        "normalizes_as_hex": "\\x50",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "Ⓟ",
+        "utf8_bytes": "\\xE2\\x93\\x85",
+        "url_encoded": "%E2%93%85",
+        "normalizes_as": "P",
+        "normalizes_as_hex": "\\x50",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "Ｐ",
+        "utf8_bytes": "\\xEF\\xBC\\xB0",
+        "url_encoded": "%EF%BC%B0",
+        "normalizes_as": "P",
+        "normalizes_as_hex": "\\x50",
+        "form": "NFKC"
+      }
+    ]
+  },
+  {
+    "ascii": 81,
+    "char": "Q",
+    "mappings": [
+      {
+        "unicode": "ℚ",
+        "utf8_bytes": "\\xE2\\x84\\x9A",
+        "url_encoded": "%E2%84%9A",
+        "normalizes_as": "Q",
+        "normalizes_as_hex": "\\x51",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "Ⓠ",
+        "utf8_bytes": "\\xE2\\x93\\x86",
+        "url_encoded": "%E2%93%86",
+        "normalizes_as": "Q",
+        "normalizes_as_hex": "\\x51",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ꟴ",
+        "utf8_bytes": "\\xEA\\x9F\\xB4",
+        "url_encoded": "%EA%9F%B4",
+        "normalizes_as": "Q",
+        "normalizes_as_hex": "\\x51",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "Ｑ",
+        "utf8_bytes": "\\xEF\\xBC\\xB1",
+        "url_encoded": "%EF%BC%B1",
+        "normalizes_as": "Q",
+        "normalizes_as_hex": "\\x51",
+        "form": "NFKC"
+      }
+    ]
+  },
+  {
+    "ascii": 82,
+    "char": "R",
+    "mappings": [
+      {
+        "unicode": "ᴿ",
+        "utf8_bytes": "\\xE1\\xB4\\xBF",
+        "url_encoded": "%E1%B4%BF",
+        "normalizes_as": "R",
+        "normalizes_as_hex": "\\x52",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ℛ",
+        "utf8_bytes": "\\xE2\\x84\\x9B",
+        "url_encoded": "%E2%84%9B",
+        "normalizes_as": "R",
+        "normalizes_as_hex": "\\x52",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ℜ",
+        "utf8_bytes": "\\xE2\\x84\\x9C",
+        "url_encoded": "%E2%84%9C",
+        "normalizes_as": "R",
+        "normalizes_as_hex": "\\x52",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ℝ",
+        "utf8_bytes": "\\xE2\\x84\\x9D",
+        "url_encoded": "%E2%84%9D",
+        "normalizes_as": "R",
+        "normalizes_as_hex": "\\x52",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "Ⓡ",
+        "utf8_bytes": "\\xE2\\x93\\x87",
+        "url_encoded": "%E2%93%87",
+        "normalizes_as": "R",
+        "normalizes_as_hex": "\\x52",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "Ｒ",
+        "utf8_bytes": "\\xEF\\xBC\\xB2",
+        "url_encoded": "%EF%BC%B2",
+        "normalizes_as": "R",
+        "normalizes_as_hex": "\\x52",
+        "form": "NFKC"
+      }
+    ]
+  },
+  {
+    "ascii": 83,
+    "char": "S",
+    "mappings": [
+      {
+        "unicode": "Ⓢ",
+        "utf8_bytes": "\\xE2\\x93\\x88",
+        "url_encoded": "%E2%93%88",
+        "normalizes_as": "S",
+        "normalizes_as_hex": "\\x53",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "Ｓ",
+        "utf8_bytes": "\\xEF\\xBC\\xB3",
+        "url_encoded": "%EF%BC%B3",
+        "normalizes_as": "S",
+        "normalizes_as_hex": "\\x53",
+        "form": "NFKC"
+      }
+    ]
+  },
+  {
+    "ascii": 84,
+    "char": "T",
+    "mappings": [
+      {
+        "unicode": "ᵀ",
+        "utf8_bytes": "\\xE1\\xB5\\x80",
+        "url_encoded": "%E1%B5%80",
+        "normalizes_as": "T",
+        "normalizes_as_hex": "\\x54",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "Ⓣ",
+        "utf8_bytes": "\\xE2\\x93\\x89",
+        "url_encoded": "%E2%93%89",
+        "normalizes_as": "T",
+        "normalizes_as_hex": "\\x54",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "Ｔ",
+        "utf8_bytes": "\\xEF\\xBC\\xB4",
+        "url_encoded": "%EF%BC%B4",
+        "normalizes_as": "T",
+        "normalizes_as_hex": "\\x54",
+        "form": "NFKC"
+      }
+    ]
+  },
+  {
+    "ascii": 85,
+    "char": "U",
+    "mappings": [
+      {
+        "unicode": "ᵁ",
+        "utf8_bytes": "\\xE1\\xB5\\x81",
+        "url_encoded": "%E1%B5%81",
+        "normalizes_as": "U",
+        "normalizes_as_hex": "\\x55",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "Ⓤ",
+        "utf8_bytes": "\\xE2\\x93\\x8A",
+        "url_encoded": "%E2%93%8A",
+        "normalizes_as": "U",
+        "normalizes_as_hex": "\\x55",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "Ｕ",
+        "utf8_bytes": "\\xEF\\xBC\\xB5",
+        "url_encoded": "%EF%BC%B5",
+        "normalizes_as": "U",
+        "normalizes_as_hex": "\\x55",
+        "form": "NFKC"
+      }
+    ]
+  },
+  {
+    "ascii": 86,
+    "char": "V",
+    "mappings": [
+      {
+        "unicode": "Ⅴ",
+        "utf8_bytes": "\\xE2\\x85\\xA4",
+        "url_encoded": "%E2%85%A4",
+        "normalizes_as": "V",
+        "normalizes_as_hex": "\\x56",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "Ⓥ",
+        "utf8_bytes": "\\xE2\\x93\\x8B",
+        "url_encoded": "%E2%93%8B",
+        "normalizes_as": "V",
+        "normalizes_as_hex": "\\x56",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ⱽ",
+        "utf8_bytes": "\\xE2\\xB1\\xBD",
+        "url_encoded": "%E2%B1%BD",
+        "normalizes_as": "V",
+        "normalizes_as_hex": "\\x56",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "Ｖ",
+        "utf8_bytes": "\\xEF\\xBC\\xB6",
+        "url_encoded": "%EF%BC%B6",
+        "normalizes_as": "V",
+        "normalizes_as_hex": "\\x56",
+        "form": "NFKC"
+      }
+    ]
+  },
+  {
+    "ascii": 87,
+    "char": "W",
+    "mappings": [
+      {
+        "unicode": "ᵂ",
+        "utf8_bytes": "\\xE1\\xB5\\x82",
+        "url_encoded": "%E1%B5%82",
+        "normalizes_as": "W",
+        "normalizes_as_hex": "\\x57",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "Ⓦ",
+        "utf8_bytes": "\\xE2\\x93\\x8C",
+        "url_encoded": "%E2%93%8C",
+        "normalizes_as": "W",
+        "normalizes_as_hex": "\\x57",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "Ｗ",
+        "utf8_bytes": "\\xEF\\xBC\\xB7",
+        "url_encoded": "%EF%BC%B7",
+        "normalizes_as": "W",
+        "normalizes_as_hex": "\\x57",
+        "form": "NFKC"
+      }
+    ]
+  },
+  {
+    "ascii": 88,
+    "char": "X",
+    "mappings": [
+      {
+        "unicode": "Ⅹ",
+        "utf8_bytes": "\\xE2\\x85\\xA9",
+        "url_encoded": "%E2%85%A9",
+        "normalizes_as": "X",
+        "normalizes_as_hex": "\\x58",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "Ⓧ",
+        "utf8_bytes": "\\xE2\\x93\\x8D",
+        "url_encoded": "%E2%93%8D",
+        "normalizes_as": "X",
+        "normalizes_as_hex": "\\x58",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "Ｘ",
+        "utf8_bytes": "\\xEF\\xBC\\xB8",
+        "url_encoded": "%EF%BC%B8",
+        "normalizes_as": "X",
+        "normalizes_as_hex": "\\x58",
+        "form": "NFKC"
+      }
+    ]
+  },
+  {
+    "ascii": 89,
+    "char": "Y",
+    "mappings": [
+      {
+        "unicode": "Ⓨ",
+        "utf8_bytes": "\\xE2\\x93\\x8E",
+        "url_encoded": "%E2%93%8E",
+        "normalizes_as": "Y",
+        "normalizes_as_hex": "\\x59",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "Ｙ",
+        "utf8_bytes": "\\xEF\\xBC\\xB9",
+        "url_encoded": "%EF%BC%B9",
+        "normalizes_as": "Y",
+        "normalizes_as_hex": "\\x59",
+        "form": "NFKC"
+      }
+    ]
+  },
+  {
+    "ascii": 90,
+    "char": "Z",
+    "mappings": [
+      {
+        "unicode": "ℤ",
+        "utf8_bytes": "\\xE2\\x84\\xA4",
+        "url_encoded": "%E2%84%A4",
+        "normalizes_as": "Z",
+        "normalizes_as_hex": "\\x5A",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ℨ",
+        "utf8_bytes": "\\xE2\\x84\\xA8",
+        "url_encoded": "%E2%84%A8",
+        "normalizes_as": "Z",
+        "normalizes_as_hex": "\\x5A",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "Ⓩ",
+        "utf8_bytes": "\\xE2\\x93\\x8F",
+        "url_encoded": "%E2%93%8F",
+        "normalizes_as": "Z",
+        "normalizes_as_hex": "\\x5A",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "Ｚ",
+        "utf8_bytes": "\\xEF\\xBC\\xBA",
+        "url_encoded": "%EF%BC%BA",
+        "normalizes_as": "Z",
+        "normalizes_as_hex": "\\x5A",
+        "form": "NFKC"
+      }
+    ]
+  },
+  {
+    "ascii": 91,
+    "char": "[",
+    "mappings": [
+      {
+        "unicode": "﹇",
+        "utf8_bytes": "\\xEF\\xB9\\x87",
+        "url_encoded": "%EF%B9%87",
+        "normalizes_as": "[",
+        "normalizes_as_hex": "\\x5B",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "［",
+        "utf8_bytes": "\\xEF\\xBC\\xBB",
+        "url_encoded": "%EF%BC%BB",
+        "normalizes_as": "[",
+        "normalizes_as_hex": "\\x5B",
+        "form": "NFKC"
+      }
+    ]
+  },
+  {
+    "ascii": 92,
+    "char": "\\",
+    "mappings": [
+      {
+        "unicode": "﹨",
+        "utf8_bytes": "\\xEF\\xB9\\xA8",
+        "url_encoded": "%EF%B9%A8",
+        "normalizes_as": "\\",
+        "normalizes_as_hex": "\\x5C",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "＼",
+        "utf8_bytes": "\\xEF\\xBC\\xBC",
+        "url_encoded": "%EF%BC%BC",
+        "normalizes_as": "\\",
+        "normalizes_as_hex": "\\x5C",
+        "form": "NFKC"
+      }
+    ]
+  },
+  {
+    "ascii": 93,
+    "char": "]",
+    "mappings": [
+      {
+        "unicode": "﹈",
+        "utf8_bytes": "\\xEF\\xB9\\x88",
+        "url_encoded": "%EF%B9%88",
+        "normalizes_as": "]",
+        "normalizes_as_hex": "\\x5D",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "］",
+        "utf8_bytes": "\\xEF\\xBC\\xBD",
+        "url_encoded": "%EF%BC%BD",
+        "normalizes_as": "]",
+        "normalizes_as_hex": "\\x5D",
+        "form": "NFKC"
+      }
+    ]
+  },
+  {
+    "ascii": 94,
+    "char": "^",
+    "mappings": [
+      {
+        "unicode": "＾",
+        "utf8_bytes": "\\xEF\\xBC\\xBE",
+        "url_encoded": "%EF%BC%BE",
+        "normalizes_as": "^",
+        "normalizes_as_hex": "\\x5E",
+        "form": "NFKC"
+      }
+    ]
+  },
+  {
+    "ascii": 95,
+    "char": "_",
+    "mappings": [
+      {
+        "unicode": "︳",
+        "utf8_bytes": "\\xEF\\xB8\\xB3",
+        "url_encoded": "%EF%B8%B3",
+        "normalizes_as": "_",
+        "normalizes_as_hex": "\\x5F",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "︴",
+        "utf8_bytes": "\\xEF\\xB8\\xB4",
+        "url_encoded": "%EF%B8%B4",
+        "normalizes_as": "_",
+        "normalizes_as_hex": "\\x5F",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "﹍",
+        "utf8_bytes": "\\xEF\\xB9\\x8D",
+        "url_encoded": "%EF%B9%8D",
+        "normalizes_as": "_",
+        "normalizes_as_hex": "\\x5F",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "﹎",
+        "utf8_bytes": "\\xEF\\xB9\\x8E",
+        "url_encoded": "%EF%B9%8E",
+        "normalizes_as": "_",
+        "normalizes_as_hex": "\\x5F",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "﹏",
+        "utf8_bytes": "\\xEF\\xB9\\x8F",
+        "url_encoded": "%EF%B9%8F",
+        "normalizes_as": "_",
+        "normalizes_as_hex": "\\x5F",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "＿",
+        "utf8_bytes": "\\xEF\\xBC\\xBF",
+        "url_encoded": "%EF%BC%BF",
+        "normalizes_as": "_",
+        "normalizes_as_hex": "\\x5F",
+        "form": "NFKC"
+      }
+    ]
+  },
+  {
+    "ascii": 96,
+    "char": "`",
+    "mappings": [
+      {
+        "unicode": "`",
+        "utf8_bytes": "\\xE1\\xBF\\xAF",
+        "url_encoded": "%E1%BF%AF",
+        "normalizes_as": "`",
+        "normalizes_as_hex": "\\x60",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "｀",
+        "utf8_bytes": "\\xEF\\xBD\\x80",
+        "url_encoded": "%EF%BD%80",
+        "normalizes_as": "`",
+        "normalizes_as_hex": "\\x60",
+        "form": "NFKC"
+      }
+    ]
+  },
+  {
+    "ascii": 97,
+    "char": "a",
+    "mappings": [
+      {
+        "unicode": "ª",
+        "utf8_bytes": "\\xC2\\xAA",
+        "url_encoded": "%C2%AA",
+        "normalizes_as": "a",
+        "normalizes_as_hex": "\\x61",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ᵃ",
+        "utf8_bytes": "\\xE1\\xB5\\x83",
+        "url_encoded": "%E1%B5%83",
+        "normalizes_as": "a",
+        "normalizes_as_hex": "\\x61",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ₐ",
+        "utf8_bytes": "\\xE2\\x82\\x90",
+        "url_encoded": "%E2%82%90",
+        "normalizes_as": "a",
+        "normalizes_as_hex": "\\x61",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ⓐ",
+        "utf8_bytes": "\\xE2\\x93\\x90",
+        "url_encoded": "%E2%93%90",
+        "normalizes_as": "a",
+        "normalizes_as_hex": "\\x61",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ａ",
+        "utf8_bytes": "\\xEF\\xBD\\x81",
+        "url_encoded": "%EF%BD%81",
+        "normalizes_as": "a",
+        "normalizes_as_hex": "\\x61",
+        "form": "NFKC"
+      }
+    ]
+  },
+  {
+    "ascii": 98,
+    "char": "b",
+    "mappings": [
+      {
+        "unicode": "ᵇ",
+        "utf8_bytes": "\\xE1\\xB5\\x87",
+        "url_encoded": "%E1%B5%87",
+        "normalizes_as": "b",
+        "normalizes_as_hex": "\\x62",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ⓑ",
+        "utf8_bytes": "\\xE2\\x93\\x91",
+        "url_encoded": "%E2%93%91",
+        "normalizes_as": "b",
+        "normalizes_as_hex": "\\x62",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ｂ",
+        "utf8_bytes": "\\xEF\\xBD\\x82",
+        "url_encoded": "%EF%BD%82",
+        "normalizes_as": "b",
+        "normalizes_as_hex": "\\x62",
+        "form": "NFKC"
+      }
+    ]
+  },
+  {
+    "ascii": 99,
+    "char": "c",
+    "mappings": [
+      {
+        "unicode": "ᶜ",
+        "utf8_bytes": "\\xE1\\xB6\\x9C",
+        "url_encoded": "%E1%B6%9C",
+        "normalizes_as": "c",
+        "normalizes_as_hex": "\\x63",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ⅽ",
+        "utf8_bytes": "\\xE2\\x85\\xBD",
+        "url_encoded": "%E2%85%BD",
+        "normalizes_as": "c",
+        "normalizes_as_hex": "\\x63",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ⓒ",
+        "utf8_bytes": "\\xE2\\x93\\x92",
+        "url_encoded": "%E2%93%92",
+        "normalizes_as": "c",
+        "normalizes_as_hex": "\\x63",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ｃ",
+        "utf8_bytes": "\\xEF\\xBD\\x83",
+        "url_encoded": "%EF%BD%83",
+        "normalizes_as": "c",
+        "normalizes_as_hex": "\\x63",
+        "form": "NFKC"
+      }
+    ]
+  },
+  {
+    "ascii": 100,
+    "char": "d",
+    "mappings": [
+      {
+        "unicode": "ᵈ",
+        "utf8_bytes": "\\xE1\\xB5\\x88",
+        "url_encoded": "%E1%B5%88",
+        "normalizes_as": "d",
+        "normalizes_as_hex": "\\x64",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ⅆ",
+        "utf8_bytes": "\\xE2\\x85\\x86",
+        "url_encoded": "%E2%85%86",
+        "normalizes_as": "d",
+        "normalizes_as_hex": "\\x64",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ⅾ",
+        "utf8_bytes": "\\xE2\\x85\\xBE",
+        "url_encoded": "%E2%85%BE",
+        "normalizes_as": "d",
+        "normalizes_as_hex": "\\x64",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ⓓ",
+        "utf8_bytes": "\\xE2\\x93\\x93",
+        "url_encoded": "%E2%93%93",
+        "normalizes_as": "d",
+        "normalizes_as_hex": "\\x64",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ｄ",
+        "utf8_bytes": "\\xEF\\xBD\\x84",
+        "url_encoded": "%EF%BD%84",
+        "normalizes_as": "d",
+        "normalizes_as_hex": "\\x64",
+        "form": "NFKC"
+      }
+    ]
+  },
+  {
+    "ascii": 101,
+    "char": "e",
+    "mappings": [
+      {
+        "unicode": "ᵉ",
+        "utf8_bytes": "\\xE1\\xB5\\x89",
+        "url_encoded": "%E1%B5%89",
+        "normalizes_as": "e",
+        "normalizes_as_hex": "\\x65",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ₑ",
+        "utf8_bytes": "\\xE2\\x82\\x91",
+        "url_encoded": "%E2%82%91",
+        "normalizes_as": "e",
+        "normalizes_as_hex": "\\x65",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ℯ",
+        "utf8_bytes": "\\xE2\\x84\\xAF",
+        "url_encoded": "%E2%84%AF",
+        "normalizes_as": "e",
+        "normalizes_as_hex": "\\x65",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ⅇ",
+        "utf8_bytes": "\\xE2\\x85\\x87",
+        "url_encoded": "%E2%85%87",
+        "normalizes_as": "e",
+        "normalizes_as_hex": "\\x65",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ⓔ",
+        "utf8_bytes": "\\xE2\\x93\\x94",
+        "url_encoded": "%E2%93%94",
+        "normalizes_as": "e",
+        "normalizes_as_hex": "\\x65",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ｅ",
+        "utf8_bytes": "\\xEF\\xBD\\x85",
+        "url_encoded": "%EF%BD%85",
+        "normalizes_as": "e",
+        "normalizes_as_hex": "\\x65",
+        "form": "NFKC"
+      }
+    ]
+  },
+  {
+    "ascii": 102,
+    "char": "f",
+    "mappings": [
+      {
+        "unicode": "ᶠ",
+        "utf8_bytes": "\\xE1\\xB6\\xA0",
+        "url_encoded": "%E1%B6%A0",
+        "normalizes_as": "f",
+        "normalizes_as_hex": "\\x66",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ⓕ",
+        "utf8_bytes": "\\xE2\\x93\\x95",
+        "url_encoded": "%E2%93%95",
+        "normalizes_as": "f",
+        "normalizes_as_hex": "\\x66",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ｆ",
+        "utf8_bytes": "\\xEF\\xBD\\x86",
+        "url_encoded": "%EF%BD%86",
+        "normalizes_as": "f",
+        "normalizes_as_hex": "\\x66",
+        "form": "NFKC"
+      }
+    ]
+  },
+  {
+    "ascii": 103,
+    "char": "g",
+    "mappings": [
+      {
+        "unicode": "ᵍ",
+        "utf8_bytes": "\\xE1\\xB5\\x8D",
+        "url_encoded": "%E1%B5%8D",
+        "normalizes_as": "g",
+        "normalizes_as_hex": "\\x67",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ℊ",
+        "utf8_bytes": "\\xE2\\x84\\x8A",
+        "url_encoded": "%E2%84%8A",
+        "normalizes_as": "g",
+        "normalizes_as_hex": "\\x67",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ⓖ",
+        "utf8_bytes": "\\xE2\\x93\\x96",
+        "url_encoded": "%E2%93%96",
+        "normalizes_as": "g",
+        "normalizes_as_hex": "\\x67",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ｇ",
+        "utf8_bytes": "\\xEF\\xBD\\x87",
+        "url_encoded": "%EF%BD%87",
+        "normalizes_as": "g",
+        "normalizes_as_hex": "\\x67",
+        "form": "NFKC"
+      }
+    ]
+  },
+  {
+    "ascii": 104,
+    "char": "h",
+    "mappings": [
+      {
+        "unicode": "ʰ",
+        "utf8_bytes": "\\xCA\\xB0",
+        "url_encoded": "%CA%B0",
+        "normalizes_as": "h",
+        "normalizes_as_hex": "\\x68",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ₕ",
+        "utf8_bytes": "\\xE2\\x82\\x95",
+        "url_encoded": "%E2%82%95",
+        "normalizes_as": "h",
+        "normalizes_as_hex": "\\x68",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ℎ",
+        "utf8_bytes": "\\xE2\\x84\\x8E",
+        "url_encoded": "%E2%84%8E",
+        "normalizes_as": "h",
+        "normalizes_as_hex": "\\x68",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ⓗ",
+        "utf8_bytes": "\\xE2\\x93\\x97",
+        "url_encoded": "%E2%93%97",
+        "normalizes_as": "h",
+        "normalizes_as_hex": "\\x68",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ｈ",
+        "utf8_bytes": "\\xEF\\xBD\\x88",
+        "url_encoded": "%EF%BD%88",
+        "normalizes_as": "h",
+        "normalizes_as_hex": "\\x68",
+        "form": "NFKC"
+      }
+    ]
+  },
+  {
+    "ascii": 105,
+    "char": "i",
+    "mappings": [
+      {
+        "unicode": "ᵢ",
+        "utf8_bytes": "\\xE1\\xB5\\xA2",
+        "url_encoded": "%E1%B5%A2",
+        "normalizes_as": "i",
+        "normalizes_as_hex": "\\x69",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ⁱ",
+        "utf8_bytes": "\\xE2\\x81\\xB1",
+        "url_encoded": "%E2%81%B1",
+        "normalizes_as": "i",
+        "normalizes_as_hex": "\\x69",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ℹ",
+        "utf8_bytes": "\\xE2\\x84\\xB9",
+        "url_encoded": "%E2%84%B9",
+        "normalizes_as": "i",
+        "normalizes_as_hex": "\\x69",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ⅈ",
+        "utf8_bytes": "\\xE2\\x85\\x88",
+        "url_encoded": "%E2%85%88",
+        "normalizes_as": "i",
+        "normalizes_as_hex": "\\x69",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ⅰ",
+        "utf8_bytes": "\\xE2\\x85\\xB0",
+        "url_encoded": "%E2%85%B0",
+        "normalizes_as": "i",
+        "normalizes_as_hex": "\\x69",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ⓘ",
+        "utf8_bytes": "\\xE2\\x93\\x98",
+        "url_encoded": "%E2%93%98",
+        "normalizes_as": "i",
+        "normalizes_as_hex": "\\x69",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ｉ",
+        "utf8_bytes": "\\xEF\\xBD\\x89",
+        "url_encoded": "%EF%BD%89",
+        "normalizes_as": "i",
+        "normalizes_as_hex": "\\x69",
+        "form": "NFKC"
+      }
+    ]
+  },
+  {
+    "ascii": 106,
+    "char": "j",
+    "mappings": [
+      {
+        "unicode": "ʲ",
+        "utf8_bytes": "\\xCA\\xB2",
+        "url_encoded": "%CA%B2",
+        "normalizes_as": "j",
+        "normalizes_as_hex": "\\x6A",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ⅉ",
+        "utf8_bytes": "\\xE2\\x85\\x89",
+        "url_encoded": "%E2%85%89",
+        "normalizes_as": "j",
+        "normalizes_as_hex": "\\x6A",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ⓙ",
+        "utf8_bytes": "\\xE2\\x93\\x99",
+        "url_encoded": "%E2%93%99",
+        "normalizes_as": "j",
+        "normalizes_as_hex": "\\x6A",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ⱼ",
+        "utf8_bytes": "\\xE2\\xB1\\xBC",
+        "url_encoded": "%E2%B1%BC",
+        "normalizes_as": "j",
+        "normalizes_as_hex": "\\x6A",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ｊ",
+        "utf8_bytes": "\\xEF\\xBD\\x8A",
+        "url_encoded": "%EF%BD%8A",
+        "normalizes_as": "j",
+        "normalizes_as_hex": "\\x6A",
+        "form": "NFKC"
+      }
+    ]
+  },
+  {
+    "ascii": 107,
+    "char": "k",
+    "mappings": [
+      {
+        "unicode": "ᵏ",
+        "utf8_bytes": "\\xE1\\xB5\\x8F",
+        "url_encoded": "%E1%B5%8F",
+        "normalizes_as": "k",
+        "normalizes_as_hex": "\\x6B",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ₖ",
+        "utf8_bytes": "\\xE2\\x82\\x96",
+        "url_encoded": "%E2%82%96",
+        "normalizes_as": "k",
+        "normalizes_as_hex": "\\x6B",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ⓚ",
+        "utf8_bytes": "\\xE2\\x93\\x9A",
+        "url_encoded": "%E2%93%9A",
+        "normalizes_as": "k",
+        "normalizes_as_hex": "\\x6B",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ｋ",
+        "utf8_bytes": "\\xEF\\xBD\\x8B",
+        "url_encoded": "%EF%BD%8B",
+        "normalizes_as": "k",
+        "normalizes_as_hex": "\\x6B",
+        "form": "NFKC"
+      }
+    ]
+  },
+  {
+    "ascii": 108,
+    "char": "l",
+    "mappings": [
+      {
+        "unicode": "ˡ",
+        "utf8_bytes": "\\xCB\\xA1",
+        "url_encoded": "%CB%A1",
+        "normalizes_as": "l",
+        "normalizes_as_hex": "\\x6C",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ₗ",
+        "utf8_bytes": "\\xE2\\x82\\x97",
+        "url_encoded": "%E2%82%97",
+        "normalizes_as": "l",
+        "normalizes_as_hex": "\\x6C",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ℓ",
+        "utf8_bytes": "\\xE2\\x84\\x93",
+        "url_encoded": "%E2%84%93",
+        "normalizes_as": "l",
+        "normalizes_as_hex": "\\x6C",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ⅼ",
+        "utf8_bytes": "\\xE2\\x85\\xBC",
+        "url_encoded": "%E2%85%BC",
+        "normalizes_as": "l",
+        "normalizes_as_hex": "\\x6C",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ⓛ",
+        "utf8_bytes": "\\xE2\\x93\\x9B",
+        "url_encoded": "%E2%93%9B",
+        "normalizes_as": "l",
+        "normalizes_as_hex": "\\x6C",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ｌ",
+        "utf8_bytes": "\\xEF\\xBD\\x8C",
+        "url_encoded": "%EF%BD%8C",
+        "normalizes_as": "l",
+        "normalizes_as_hex": "\\x6C",
+        "form": "NFKC"
+      }
+    ]
+  },
+  {
+    "ascii": 109,
+    "char": "m",
+    "mappings": [
+      {
+        "unicode": "ᵐ",
+        "utf8_bytes": "\\xE1\\xB5\\x90",
+        "url_encoded": "%E1%B5%90",
+        "normalizes_as": "m",
+        "normalizes_as_hex": "\\x6D",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ₘ",
+        "utf8_bytes": "\\xE2\\x82\\x98",
+        "url_encoded": "%E2%82%98",
+        "normalizes_as": "m",
+        "normalizes_as_hex": "\\x6D",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ⅿ",
+        "utf8_bytes": "\\xE2\\x85\\xBF",
+        "url_encoded": "%E2%85%BF",
+        "normalizes_as": "m",
+        "normalizes_as_hex": "\\x6D",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ⓜ",
+        "utf8_bytes": "\\xE2\\x93\\x9C",
+        "url_encoded": "%E2%93%9C",
+        "normalizes_as": "m",
+        "normalizes_as_hex": "\\x6D",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ｍ",
+        "utf8_bytes": "\\xEF\\xBD\\x8D",
+        "url_encoded": "%EF%BD%8D",
+        "normalizes_as": "m",
+        "normalizes_as_hex": "\\x6D",
+        "form": "NFKC"
+      }
+    ]
+  },
+  {
+    "ascii": 110,
+    "char": "n",
+    "mappings": [
+      {
+        "unicode": "ⁿ",
+        "utf8_bytes": "\\xE2\\x81\\xBF",
+        "url_encoded": "%E2%81%BF",
+        "normalizes_as": "n",
+        "normalizes_as_hex": "\\x6E",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ₙ",
+        "utf8_bytes": "\\xE2\\x82\\x99",
+        "url_encoded": "%E2%82%99",
+        "normalizes_as": "n",
+        "normalizes_as_hex": "\\x6E",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ⓝ",
+        "utf8_bytes": "\\xE2\\x93\\x9D",
+        "url_encoded": "%E2%93%9D",
+        "normalizes_as": "n",
+        "normalizes_as_hex": "\\x6E",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ｎ",
+        "utf8_bytes": "\\xEF\\xBD\\x8E",
+        "url_encoded": "%EF%BD%8E",
+        "normalizes_as": "n",
+        "normalizes_as_hex": "\\x6E",
+        "form": "NFKC"
+      }
+    ]
+  },
+  {
+    "ascii": 111,
+    "char": "o",
+    "mappings": [
+      {
+        "unicode": "º",
+        "utf8_bytes": "\\xC2\\xBA",
+        "url_encoded": "%C2%BA",
+        "normalizes_as": "o",
+        "normalizes_as_hex": "\\x6F",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ᵒ",
+        "utf8_bytes": "\\xE1\\xB5\\x92",
+        "url_encoded": "%E1%B5%92",
+        "normalizes_as": "o",
+        "normalizes_as_hex": "\\x6F",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ₒ",
+        "utf8_bytes": "\\xE2\\x82\\x92",
+        "url_encoded": "%E2%82%92",
+        "normalizes_as": "o",
+        "normalizes_as_hex": "\\x6F",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ℴ",
+        "utf8_bytes": "\\xE2\\x84\\xB4",
+        "url_encoded": "%E2%84%B4",
+        "normalizes_as": "o",
+        "normalizes_as_hex": "\\x6F",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ⓞ",
+        "utf8_bytes": "\\xE2\\x93\\x9E",
+        "url_encoded": "%E2%93%9E",
+        "normalizes_as": "o",
+        "normalizes_as_hex": "\\x6F",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ｏ",
+        "utf8_bytes": "\\xEF\\xBD\\x8F",
+        "url_encoded": "%EF%BD%8F",
+        "normalizes_as": "o",
+        "normalizes_as_hex": "\\x6F",
+        "form": "NFKC"
+      }
+    ]
+  },
+  {
+    "ascii": 112,
+    "char": "p",
+    "mappings": [
+      {
+        "unicode": "ᵖ",
+        "utf8_bytes": "\\xE1\\xB5\\x96",
+        "url_encoded": "%E1%B5%96",
+        "normalizes_as": "p",
+        "normalizes_as_hex": "\\x70",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ₚ",
+        "utf8_bytes": "\\xE2\\x82\\x9A",
+        "url_encoded": "%E2%82%9A",
+        "normalizes_as": "p",
+        "normalizes_as_hex": "\\x70",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ⓟ",
+        "utf8_bytes": "\\xE2\\x93\\x9F",
+        "url_encoded": "%E2%93%9F",
+        "normalizes_as": "p",
+        "normalizes_as_hex": "\\x70",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ｐ",
+        "utf8_bytes": "\\xEF\\xBD\\x90",
+        "url_encoded": "%EF%BD%90",
+        "normalizes_as": "p",
+        "normalizes_as_hex": "\\x70",
+        "form": "NFKC"
+      }
+    ]
+  },
+  {
+    "ascii": 113,
+    "char": "q",
+    "mappings": [
+      {
+        "unicode": "ⓠ",
+        "utf8_bytes": "\\xE2\\x93\\xA0",
+        "url_encoded": "%E2%93%A0",
+        "normalizes_as": "q",
+        "normalizes_as_hex": "\\x71",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ｑ",
+        "utf8_bytes": "\\xEF\\xBD\\x91",
+        "url_encoded": "%EF%BD%91",
+        "normalizes_as": "q",
+        "normalizes_as_hex": "\\x71",
+        "form": "NFKC"
+      }
+    ]
+  },
+  {
+    "ascii": 114,
+    "char": "r",
+    "mappings": [
+      {
+        "unicode": "ʳ",
+        "utf8_bytes": "\\xCA\\xB3",
+        "url_encoded": "%CA%B3",
+        "normalizes_as": "r",
+        "normalizes_as_hex": "\\x72",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ᵣ",
+        "utf8_bytes": "\\xE1\\xB5\\xA3",
+        "url_encoded": "%E1%B5%A3",
+        "normalizes_as": "r",
+        "normalizes_as_hex": "\\x72",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ⓡ",
+        "utf8_bytes": "\\xE2\\x93\\xA1",
+        "url_encoded": "%E2%93%A1",
+        "normalizes_as": "r",
+        "normalizes_as_hex": "\\x72",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ｒ",
+        "utf8_bytes": "\\xEF\\xBD\\x92",
+        "url_encoded": "%EF%BD%92",
+        "normalizes_as": "r",
+        "normalizes_as_hex": "\\x72",
+        "form": "NFKC"
+      }
+    ]
+  },
+  {
+    "ascii": 115,
+    "char": "s",
+    "mappings": [
+      {
+        "unicode": "ſ",
+        "utf8_bytes": "\\xC5\\xBF",
+        "url_encoded": "%C5%BF",
+        "normalizes_as": "s",
+        "normalizes_as_hex": "\\x73",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ˢ",
+        "utf8_bytes": "\\xCB\\xA2",
+        "url_encoded": "%CB%A2",
+        "normalizes_as": "s",
+        "normalizes_as_hex": "\\x73",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ₛ",
+        "utf8_bytes": "\\xE2\\x82\\x9B",
+        "url_encoded": "%E2%82%9B",
+        "normalizes_as": "s",
+        "normalizes_as_hex": "\\x73",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ⓢ",
+        "utf8_bytes": "\\xE2\\x93\\xA2",
+        "url_encoded": "%E2%93%A2",
+        "normalizes_as": "s",
+        "normalizes_as_hex": "\\x73",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ｓ",
+        "utf8_bytes": "\\xEF\\xBD\\x93",
+        "url_encoded": "%EF%BD%93",
+        "normalizes_as": "s",
+        "normalizes_as_hex": "\\x73",
+        "form": "NFKC"
+      }
+    ]
+  },
+  {
+    "ascii": 116,
+    "char": "t",
+    "mappings": [
+      {
+        "unicode": "ᵗ",
+        "utf8_bytes": "\\xE1\\xB5\\x97",
+        "url_encoded": "%E1%B5%97",
+        "normalizes_as": "t",
+        "normalizes_as_hex": "\\x74",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ₜ",
+        "utf8_bytes": "\\xE2\\x82\\x9C",
+        "url_encoded": "%E2%82%9C",
+        "normalizes_as": "t",
+        "normalizes_as_hex": "\\x74",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ⓣ",
+        "utf8_bytes": "\\xE2\\x93\\xA3",
+        "url_encoded": "%E2%93%A3",
+        "normalizes_as": "t",
+        "normalizes_as_hex": "\\x74",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ｔ",
+        "utf8_bytes": "\\xEF\\xBD\\x94",
+        "url_encoded": "%EF%BD%94",
+        "normalizes_as": "t",
+        "normalizes_as_hex": "\\x74",
+        "form": "NFKC"
+      }
+    ]
+  },
+  {
+    "ascii": 117,
+    "char": "u",
+    "mappings": [
+      {
+        "unicode": "ᵘ",
+        "utf8_bytes": "\\xE1\\xB5\\x98",
+        "url_encoded": "%E1%B5%98",
+        "normalizes_as": "u",
+        "normalizes_as_hex": "\\x75",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ᵤ",
+        "utf8_bytes": "\\xE1\\xB5\\xA4",
+        "url_encoded": "%E1%B5%A4",
+        "normalizes_as": "u",
+        "normalizes_as_hex": "\\x75",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ⓤ",
+        "utf8_bytes": "\\xE2\\x93\\xA4",
+        "url_encoded": "%E2%93%A4",
+        "normalizes_as": "u",
+        "normalizes_as_hex": "\\x75",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ｕ",
+        "utf8_bytes": "\\xEF\\xBD\\x95",
+        "url_encoded": "%EF%BD%95",
+        "normalizes_as": "u",
+        "normalizes_as_hex": "\\x75",
+        "form": "NFKC"
+      }
+    ]
+  },
+  {
+    "ascii": 118,
+    "char": "v",
+    "mappings": [
+      {
+        "unicode": "ᵛ",
+        "utf8_bytes": "\\xE1\\xB5\\x9B",
+        "url_encoded": "%E1%B5%9B",
+        "normalizes_as": "v",
+        "normalizes_as_hex": "\\x76",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ᵥ",
+        "utf8_bytes": "\\xE1\\xB5\\xA5",
+        "url_encoded": "%E1%B5%A5",
+        "normalizes_as": "v",
+        "normalizes_as_hex": "\\x76",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ⅴ",
+        "utf8_bytes": "\\xE2\\x85\\xB4",
+        "url_encoded": "%E2%85%B4",
+        "normalizes_as": "v",
+        "normalizes_as_hex": "\\x76",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ⓥ",
+        "utf8_bytes": "\\xE2\\x93\\xA5",
+        "url_encoded": "%E2%93%A5",
+        "normalizes_as": "v",
+        "normalizes_as_hex": "\\x76",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ｖ",
+        "utf8_bytes": "\\xEF\\xBD\\x96",
+        "url_encoded": "%EF%BD%96",
+        "normalizes_as": "v",
+        "normalizes_as_hex": "\\x76",
+        "form": "NFKC"
+      }
+    ]
+  },
+  {
+    "ascii": 119,
+    "char": "w",
+    "mappings": [
+      {
+        "unicode": "ʷ",
+        "utf8_bytes": "\\xCA\\xB7",
+        "url_encoded": "%CA%B7",
+        "normalizes_as": "w",
+        "normalizes_as_hex": "\\x77",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ⓦ",
+        "utf8_bytes": "\\xE2\\x93\\xA6",
+        "url_encoded": "%E2%93%A6",
+        "normalizes_as": "w",
+        "normalizes_as_hex": "\\x77",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ｗ",
+        "utf8_bytes": "\\xEF\\xBD\\x97",
+        "url_encoded": "%EF%BD%97",
+        "normalizes_as": "w",
+        "normalizes_as_hex": "\\x77",
+        "form": "NFKC"
+      }
+    ]
+  },
+  {
+    "ascii": 120,
+    "char": "x",
+    "mappings": [
+      {
+        "unicode": "ˣ",
+        "utf8_bytes": "\\xCB\\xA3",
+        "url_encoded": "%CB%A3",
+        "normalizes_as": "x",
+        "normalizes_as_hex": "\\x78",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ₓ",
+        "utf8_bytes": "\\xE2\\x82\\x93",
+        "url_encoded": "%E2%82%93",
+        "normalizes_as": "x",
+        "normalizes_as_hex": "\\x78",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ⅹ",
+        "utf8_bytes": "\\xE2\\x85\\xB9",
+        "url_encoded": "%E2%85%B9",
+        "normalizes_as": "x",
+        "normalizes_as_hex": "\\x78",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ⓧ",
+        "utf8_bytes": "\\xE2\\x93\\xA7",
+        "url_encoded": "%E2%93%A7",
+        "normalizes_as": "x",
+        "normalizes_as_hex": "\\x78",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ｘ",
+        "utf8_bytes": "\\xEF\\xBD\\x98",
+        "url_encoded": "%EF%BD%98",
+        "normalizes_as": "x",
+        "normalizes_as_hex": "\\x78",
+        "form": "NFKC"
+      }
+    ]
+  },
+  {
+    "ascii": 121,
+    "char": "y",
+    "mappings": [
+      {
+        "unicode": "ʸ",
+        "utf8_bytes": "\\xCA\\xB8",
+        "url_encoded": "%CA%B8",
+        "normalizes_as": "y",
+        "normalizes_as_hex": "\\x79",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ⓨ",
+        "utf8_bytes": "\\xE2\\x93\\xA8",
+        "url_encoded": "%E2%93%A8",
+        "normalizes_as": "y",
+        "normalizes_as_hex": "\\x79",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ｙ",
+        "utf8_bytes": "\\xEF\\xBD\\x99",
+        "url_encoded": "%EF%BD%99",
+        "normalizes_as": "y",
+        "normalizes_as_hex": "\\x79",
+        "form": "NFKC"
+      }
+    ]
+  },
+  {
+    "ascii": 122,
+    "char": "z",
+    "mappings": [
+      {
+        "unicode": "ᶻ",
+        "utf8_bytes": "\\xE1\\xB6\\xBB",
+        "url_encoded": "%E1%B6%BB",
+        "normalizes_as": "z",
+        "normalizes_as_hex": "\\x7A",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ⓩ",
+        "utf8_bytes": "\\xE2\\x93\\xA9",
+        "url_encoded": "%E2%93%A9",
+        "normalizes_as": "z",
+        "normalizes_as_hex": "\\x7A",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ｚ",
+        "utf8_bytes": "\\xEF\\xBD\\x9A",
+        "url_encoded": "%EF%BD%9A",
+        "normalizes_as": "z",
+        "normalizes_as_hex": "\\x7A",
+        "form": "NFKC"
+      }
+    ]
+  },
+  {
+    "ascii": 123,
+    "char": "{",
+    "mappings": [
+      {
+        "unicode": "︷",
+        "utf8_bytes": "\\xEF\\xB8\\xB7",
+        "url_encoded": "%EF%B8%B7",
+        "normalizes_as": "{",
+        "normalizes_as_hex": "\\x7B",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "﹛",
+        "utf8_bytes": "\\xEF\\xB9\\x9B",
+        "url_encoded": "%EF%B9%9B",
+        "normalizes_as": "{",
+        "normalizes_as_hex": "\\x7B",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "｛",
+        "utf8_bytes": "\\xEF\\xBD\\x9B",
+        "url_encoded": "%EF%BD%9B",
+        "normalizes_as": "{",
+        "normalizes_as_hex": "\\x7B",
+        "form": "NFKC"
+      }
+    ]
+  },
+  {
+    "ascii": 124,
+    "char": "|",
+    "mappings": [
+      {
+        "unicode": "｜",
+        "utf8_bytes": "\\xEF\\xBD\\x9C",
+        "url_encoded": "%EF%BD%9C",
+        "normalizes_as": "|",
+        "normalizes_as_hex": "\\x7C",
+        "form": "NFKC"
+      }
+    ]
+  },
+  {
+    "ascii": 125,
+    "char": "}",
+    "mappings": [
+      {
+        "unicode": "︸",
+        "utf8_bytes": "\\xEF\\xB8\\xB8",
+        "url_encoded": "%EF%B8%B8",
+        "normalizes_as": "}",
+        "normalizes_as_hex": "\\x7D",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "﹜",
+        "utf8_bytes": "\\xEF\\xB9\\x9C",
+        "url_encoded": "%EF%B9%9C",
+        "normalizes_as": "}",
+        "normalizes_as_hex": "\\x7D",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "｝",
+        "utf8_bytes": "\\xEF\\xBD\\x9D",
+        "url_encoded": "%EF%BD%9D",
+        "normalizes_as": "}",
+        "normalizes_as_hex": "\\x7D",
+        "form": "NFKC"
+      }
+    ]
+  },
+  {
+    "ascii": 126,
+    "char": "~",
+    "mappings": [
+      {
+        "unicode": "～",
+        "utf8_bytes": "\\xEF\\xBD\\x9E",
+        "url_encoded": "%EF%BD%9E",
+        "normalizes_as": "~",
+        "normalizes_as_hex": "\\x7E",
+        "form": "NFKC"
+      }
+    ]
+  },
+  {
+    "ascii": 127,
+    "char": "\\x7F",
+    "mappings": []
+  }
+]

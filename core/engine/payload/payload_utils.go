@@ -49,7 +49,7 @@ var (
 	hexChars = []byte("0123456789ABCDEF")
 )
 
-//go:embed payloads/*.lst
+//go:embed payloads/*.lst payloads/*.json
 var DefaultPayloadsDir embed.FS
 
 // GetToolDir returns the tool's data directory path
@@ -288,6 +288,24 @@ func ReadMaxPayloadsFromFile(filename string, maxNum int) ([]string, error) {
 
 	GB403Logger.Verbose().Msgf("Processed %d valid payloads", len(payloads))
 	return payloads, nil
+}
+
+// Helper to read a JSON file
+func ReadPayloadsFromJSONFile(filename string) ([]byte, error) {
+	// Try reading from local directory first
+	payloadsDir, err := GetPayloadsDir()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get payloads directory: %w", err)
+	}
+
+	localFile := payloadsDir + "/" + filename
+	content, err := os.ReadFile(localFile)
+	if err == nil {
+		return content, nil
+	}
+
+	// Fallback to embedded FS
+	return DefaultPayloadsDir.ReadFile("payloads/" + filename)
 }
 
 // ReplaceNth replaces the Nth  occurrence of old with new in s
