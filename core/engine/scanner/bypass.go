@@ -20,27 +20,9 @@ import (
 	GB403Logger "github.com/slicingmelon/gobypass403/core/utils/logger"
 )
 
-// Registry of all bypass modules
-var AvailableBypassModules = []string{
-	"dumb_check",
-	"path_prefix",
-	"mid_paths",
-	"end_paths",
-	"http_methods",
-	"case_substitution",
-	"char_encode",
-	"nginx_bypasses",
-	"headers_ip",
-	"headers_host",
-	"headers_scheme",
-	"headers_port",
-	"headers_url",
-	"unicode_path_normalization",
-}
-
 // IsValidBypassModule checks if a module is valid
 func IsValidBypassModule(moduleName string) bool {
-	for _, module := range AvailableBypassModules {
+	for _, module := range payload.BypassModulesRegistry {
 		if module == moduleName {
 			return true
 		}
@@ -155,7 +137,7 @@ func (s *Scanner) RunBypassModule(bypassModule string, targetURL string) int {
 	GB403Logger.PrintBypassModuleInfo(bypassModule, totalJobs, targetURL)
 
 	maxModuleNameLength := 0
-	for _, module := range AvailableBypassModules {
+	for _, module := range payload.BypassModulesRegistry {
 		if len(module) > maxModuleNameLength {
 			maxModuleNameLength = len(module)
 		}
@@ -185,75 +167,78 @@ func (s *Scanner) RunBypassModule(bypassModule string, targetURL string) int {
 			continue
 		}
 
-		// Update progress bar with current stats
+		// Update progress bar stats here
 		completed := worker.requestPool.GetReqWPCompletedTasks()
-		//active := worker.requestPool.GetReqWPActiveWorkers()
 		currentRate := worker.requestPool.GetRequestRate()
 		avgRate := worker.requestPool.GetAverageRequestRate()
 
-		// weird bug "overflowing" on the text above the progressbar ... spaces fixes it
 		msg := fmt.Sprintf(
 			"Max Concurrent [%d req] | Rate [%d req/s] Avg [%d req/s] | Completed %d/%d    ",
 			maxWorkers, currentRate, avgRate, completed, uint64(totalJobs),
 		)
 		bar.WriteAbove(msg)
 
+		// Combined check with OR logic
+		shouldKeep := false
+
+		// Check status code
 		if matchStatusCodes(response.StatusCode, s.scannerOpts.MatchStatusCodes) {
-			if len(s.scannerOpts.MatchContentTypeBytes) > 0 {
-				contentTypeMatched := false
-				for _, matchType := range s.scannerOpts.MatchContentTypeBytes {
-					if bytes.Contains(response.ContentType, matchType) {
-						contentTypeMatched = true
-						break
-					}
-				}
-				if !contentTypeMatched {
-					continue
-				}
-			}
-
-			// Content length filtering
-			if s.scannerOpts.MinContentLength > 0 {
-				if response.ContentLength < 0 || response.ContentLength < int64(s.scannerOpts.MinContentLength) {
-					continue
-				}
-			}
-			if s.scannerOpts.MaxContentLength > 0 && response.ContentLength >= 0 {
-				if response.ContentLength > int64(s.scannerOpts.MaxContentLength) {
-					continue
-				}
-			}
-
-			result := &Result{
-				TargetURL:           string(response.URL),
-				BypassModule:        string(response.BypassModule),
-				StatusCode:          response.StatusCode,
-				ResponseHeaders:     sanitizeNonPrintableBytes(response.ResponseHeaders),
-				CurlCMD:             sanitizeNonPrintableBytes(response.CurlCommand),
-				ResponseBodyPreview: string(response.ResponsePreview),
-				ContentType:         string(response.ContentType),
-				ContentLength:       response.ContentLength,
-				ResponseBodyBytes:   response.ResponseBytes,
-				Title:               string(response.Title),
-				ServerInfo:          string(response.ServerInfo),
-				RedirectURL:         sanitizeNonPrintableBytes(response.RedirectURL),
-				ResponseTime:        response.ResponseTime,
-				DebugToken:          string(response.DebugToken),
-			}
-
-			dbWg.Add(1)
-			go func(res *Result) {
-				defer dbWg.Done()
-				if err := AppendResultsToDB([]*Result{res}); err != nil {
-					GB403Logger.Error().Msgf("Failed to write result to DB: %v\n\n", err)
-				} else {
-					resultCount.Add(1)
-				}
-			}(result)
+			shouldKeep = true
 		}
 
-		rawhttp.ReleaseResponseDetails(response)
+		// Check content type if configured
+		if !shouldKeep && len(s.scannerOpts.MatchContentTypeBytes) > 0 {
+			for _, matchType := range s.scannerOpts.MatchContentTypeBytes {
+				if bytes.Contains(response.ContentType, matchType) {
+					shouldKeep = true
+					break
+				}
+			}
+		}
 
+		// Check min content length if configured
+		if !shouldKeep && s.scannerOpts.MinContentLength > 0 {
+			if response.ContentLength >= 0 && response.ContentLength >= int64(s.scannerOpts.MinContentLength) {
+				shouldKeep = true
+			}
+		}
+
+		// Skip if none of the filters matched
+		if !shouldKeep {
+			rawhttp.ReleaseResponseDetails(response)
+			bar.Progress((float64(completed) / float64(totalJobs)) * 100.0)
+			continue
+		}
+
+		// Process valid result
+		result := &Result{
+			TargetURL:           string(response.URL),
+			BypassModule:        string(response.BypassModule),
+			StatusCode:          response.StatusCode,
+			ResponseHeaders:     sanitizeNonPrintableBytes(response.ResponseHeaders),
+			CurlCMD:             sanitizeNonPrintableBytes(response.CurlCommand),
+			ResponseBodyPreview: string(response.ResponsePreview),
+			ContentType:         string(response.ContentType),
+			ContentLength:       response.ContentLength,
+			ResponseBodyBytes:   response.ResponseBytes,
+			Title:               string(response.Title),
+			ServerInfo:          string(response.ServerInfo),
+			RedirectURL:         sanitizeNonPrintableBytes(response.RedirectURL),
+			ResponseTime:        response.ResponseTime,
+			DebugToken:          string(response.DebugToken),
+		}
+
+		dbWg.Add(1)
+		go func(res *Result) {
+			defer dbWg.Done()
+			if err := AppendResultsToDB([]*Result{res}); err != nil {
+				GB403Logger.Error().Msgf("Failed to write result to DB: %v\n\n", err)
+			} else {
+				resultCount.Add(1)
+			}
+		}(result)
+
+		rawhttp.ReleaseResponseDetails(response)
 		progressPercent := (float64(completed) / float64(totalJobs)) * 100.0
 		if progressPercent > 100.0 {
 			progressPercent = 100.0
