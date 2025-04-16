@@ -144,14 +144,15 @@ func PrintResultsTableFromDB(targetURL, bypassModule string) error {
 	placeholders := strings.Repeat("?,", len(queryModules))
 	placeholders = placeholders[:len(placeholders)-1] // Remove trailing comma
 
-	// Updated query to include content_length column
+	// Modified query to order correctly
 	query := fmt.Sprintf(`
         SELECT 
             bypass_module, curl_cmd, status_code, 
             response_body_bytes, content_length, content_type, title, server_info
         FROM scan_results
         WHERE target_url = ? AND bypass_module IN (%s)
-        ORDER BY status_code ASC, bypass_module ASC
+        ORDER BY bypass_module ASC, status_code ASC, 
+                 CASE WHEN content_length > 0 THEN content_length ELSE response_body_bytes END ASC
     `, placeholders)
 
 	// Prepare query arguments
@@ -175,48 +176,93 @@ func PrintResultsTableFromDB(targetURL, bypassModule string) error {
 	}
 	defer rows.Close()
 
-	// Build table rows from query results
-	var tableData pterm.TableData
-	tableData = append(tableData, getTableHeader())
+	// New code: Group results by module -> status code -> content length
+	type ResultGroup struct {
+		rows [][]string
+		size int
+	}
 
+	tableData := pterm.TableData{getTableHeader()}
 	rowCount := 0
+
+	var currentModule, currentStatus string
+	var currentLength int64 = -9999 // Impossible initial value
+	var currentGroup ResultGroup
+
 	for rows.Next() {
-		rowCount++
 		var module, curlCmd, contentType, title, serverInfo string
 		var statusCode, responseBodyBytes int
 		var contentLength sql.NullInt64
 
-		err := rows.Scan(
-			&module,
-			&curlCmd,
-			&statusCode,
-			&responseBodyBytes,
-			&contentLength,
-			&contentType,
-			&title,
-			&serverInfo,
-		)
+		err := rows.Scan(&module, &curlCmd, &statusCode, &responseBodyBytes,
+			&contentLength, &contentType, &title, &serverInfo)
 		if err != nil {
 			return fmt.Errorf("failed to scan row: %v", err)
 		}
 
-		// Choose content length from Content-Length header when valid, otherwise use response body size
+		// Choose content length or body size
 		var lengthToDisplay int64
-		if contentLength.Valid && contentLength.Int64 >= 0 {
+		if contentLength.Valid && contentLength.Int64 > 0 {
 			lengthToDisplay = contentLength.Int64
 		} else {
 			lengthToDisplay = int64(responseBodyBytes)
 		}
 
-		tableData = append(tableData, []string{
+		statusStr := bytesutil.Itoa(statusCode)
+		lengthStr := formatBytes(lengthToDisplay)
+
+		// Check if we need to start a new group
+		if module != currentModule || statusStr != currentStatus || lengthToDisplay != currentLength {
+			// Add separator if we're changing groups (not for the first one)
+			if currentModule != "" && (module != currentModule || statusStr != currentStatus) {
+				// Add the current group to the table
+				if currentGroup.size > 0 {
+					tableData = append(tableData, currentGroup.rows...)
+
+					// Add separator with dots matching previous module length
+					dotCount := len(currentModule)
+					if dotCount < 4 {
+						dotCount = 4
+					}
+
+					separator := make([]string, len(tableData[0]))
+					separator[0] = strings.Repeat(".", dotCount)
+					tableData = append(tableData, separator)
+				}
+			}
+
+			// Start new group
+			currentModule = module
+			currentStatus = statusStr
+			currentLength = lengthToDisplay
+			currentGroup = ResultGroup{
+				rows: make([][]string, 0, 5),
+				size: 0,
+			}
+		}
+
+		// Skip if we already have 5 results for this content length
+		if currentGroup.size >= 5 {
+			continue
+		}
+
+		// Add to current group
+		currentGroup.rows = append(currentGroup.rows, []string{
 			module,
 			curlCmd,
-			bytesutil.Itoa(statusCode),
-			formatBytes(lengthToDisplay),
+			statusStr,
+			lengthStr,
 			formatContentType(contentType),
 			LimitStringWithSuffix(formatValue(title), 14),
 			LimitStringWithSuffix(formatValue(serverInfo), 14),
 		})
+		currentGroup.size++
+		rowCount++
+	}
+
+	// Don't forget to add the last group
+	if currentGroup.size > 0 {
+		tableData = append(tableData, currentGroup.rows...)
 	}
 
 	if err := rows.Err(); err != nil {
