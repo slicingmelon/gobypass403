@@ -169,7 +169,7 @@ func (pg *PayloadGenerator) GeneratePathPrefixPayloads(targetURL string, bypassM
 				// Generate 2 encoding variations for the two bytes
 				// Only create raw+raw if *both* bytes are individually safe for raw inclusion
 				rawCombo := ""
-				if rawB1Str != "" && b2 != '?' && b2 != '#' && b2 != '\n' && b2 != '\r' {
+				if rawB1Str != "" && b2 != '?' && b2 != '#' && b2 != '\n' && b2 != '\r' && b2 != ' ' {
 					rawCombo = string([]byte{b1, b2})
 				}
 				encodedCombo := fmt.Sprintf("%%%02X%%%02X", b1, b2)
