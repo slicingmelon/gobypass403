@@ -207,7 +207,7 @@ func TestPathPrefixPayloadsWithBurpProxy(t *testing.T) {
 
 	t.Logf("(WithProxy) Client configured to use proxy: %s, Timeout: %s, RequestDelay: %s", clientOpts.ProxyURL, clientOpts.Timeout, clientOpts.RequestDelay)
 
-	wp := rawhttp.NewRequestWorkerPool(clientOpts, 50) // Reduced workers to 10
+	wp := rawhttp.NewRequestWorkerPool(clientOpts, 50) // Reduced workers ...
 	resultsChan := wp.ProcessRequests(generatedPayloads)
 
 	// 6. Drain client results
