@@ -151,7 +151,7 @@ func PrintResultsTableFromDB(targetURL, bypassModule string) error {
             response_body_bytes, content_length, content_type, title, server_info
         FROM scan_results
         WHERE target_url = ? AND bypass_module IN (%s)
-        ORDER BY bypass_module ASC, status_code ASC, 
+        ORDER BY status_code ASC, bypass_module ASC, 
                  CASE WHEN content_length > 0 THEN content_length ELSE response_body_bytes END ASC
     `, placeholders)
 
