@@ -99,7 +99,7 @@ func (pg *PayloadGenerator) GeneratePathPrefixPayloads(targetURL string, bypassM
 
 		// Only use non-problematic raw bytes directly in paths
 		rawB1Str := ""
-		if b1 != '?' && b1 != '#' && b1 != '\n' && b1 != '\r' && b1 != 0x20 && b1 != '.' { // Avoid chars that break URI structure raw
+		if b1 != '?' && b1 != '#' && b1 != '\n' && b1 != '\r' && b1 != 0x20 { // Avoid chars that break URI structure raw
 			rawB1Str = string([]byte{b1})
 		}
 		encodedB1Str := fmt.Sprintf("%%%02X", b1)

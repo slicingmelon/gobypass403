@@ -72,9 +72,9 @@ func startRawTestServer(t *testing.T, receivedURIsChan chan<- string) (string, f
 		t.Log("Test server listener closed.")
 	}()
 
+	wg.Add(1) // Add to WaitGroup for the accept loop goroutine
 	go func() {
 		defer wg.Done() // Decrement wait group when accept loop finishes
-		wg.Add(1)
 		for {
 			conn, err := listener.Accept()
 			if err != nil {

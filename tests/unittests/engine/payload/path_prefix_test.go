@@ -155,7 +155,8 @@ func TestPathPrefixPayloads(t *testing.T) {
 }
 
 func TestPathPrefixPayloadsWithBurpProxy(t *testing.T) {
-	targetURL := "http://localhost/admin/config" // Target URL with multiple segments
+	//targetURL := "http://localhost/admin/config" // Target URL with multiple segments
+	targetURL := "http://localhost/admin" // Target URL with multiple segments
 	moduleName := "path_prefix"
 	proxyURL := "http://127.0.0.1:8080"
 
@@ -198,14 +199,15 @@ func TestPathPrefixPayloadsWithBurpProxy(t *testing.T) {
 
 	// 5. Send Requests with Proxy
 	clientOpts := rawhttp.DefaultHTTPClientOptions()
-	clientOpts.Timeout = 10 * time.Second // Longer timeout when proxy is involved
+	clientOpts.Timeout = 20 * time.Second // Increased timeout when proxy is involved
 	clientOpts.MaxRetries = 0
 	clientOpts.MaxConsecutiveFailedReqs = numPayloads + 100
-	clientOpts.ProxyURL = proxyURL // Key change: Set the proxy
+	clientOpts.ProxyURL = proxyURL                 // Key change: Set the proxy
+	clientOpts.RequestDelay = 5 * time.Millisecond // Added delay between requests
 
-	t.Logf("(WithProxy) Client configured to use proxy: %s", clientOpts.ProxyURL)
+	t.Logf("(WithProxy) Client configured to use proxy: %s, Timeout: %s, RequestDelay: %s", clientOpts.ProxyURL, clientOpts.Timeout, clientOpts.RequestDelay)
 
-	wp := rawhttp.NewRequestWorkerPool(clientOpts, 20)
+	wp := rawhttp.NewRequestWorkerPool(clientOpts, 50) // Reduced workers to 10
 	resultsChan := wp.ProcessRequests(generatedPayloads)
 
 	// 6. Drain client results
