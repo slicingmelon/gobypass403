@@ -144,11 +144,12 @@ func PrintResultsTableFromDB(targetURL, bypassModule string) error {
 	placeholders := strings.Repeat("?,", len(queryModules))
 	placeholders = placeholders[:len(placeholders)-1] // Remove trailing comma
 
-	// Modified query to order correctly
+	// Modified query to order correctly and include new fields
 	query := fmt.Sprintf(`
         SELECT 
             bypass_module, curl_cmd, status_code, 
-            response_body_bytes, content_length, content_type, title, server_info
+            response_body_bytes, content_length, content_type, title, server_info,
+            response_body_preview
         FROM scan_results
         WHERE target_url = ? AND bypass_module IN (%s)
         ORDER BY status_code ASC, bypass_module ASC, 
@@ -186,21 +187,23 @@ func PrintResultsTableFromDB(targetURL, bypassModule string) error {
 	rowCount := 0
 
 	var currentModule, currentStatus string
-	var currentLength int64 = -9999 // Impossible initial value
+	var currentLength int64 = -9999 // Reverted: Identifier for the current sub-group (content/body length)
 	var currentGroup ResultGroup
 
 	for rows.Next() {
 		var module, curlCmd, contentType, title, serverInfo string
+		var responseBodyPreview string // Still needed for potential future logic, but not primary grouper now
 		var statusCode, responseBodyBytes int
 		var contentLength sql.NullInt64
 
 		err := rows.Scan(&module, &curlCmd, &statusCode, &responseBodyBytes,
-			&contentLength, &contentType, &title, &serverInfo)
+			&contentLength, &contentType, &title, &serverInfo,
+			&responseBodyPreview) // Reverted scan (removed responseHeaders)
 		if err != nil {
 			return fmt.Errorf("failed to scan row: %v", err)
 		}
 
-		// Choose content length or body size
+		// Determine effective content length (lengthToDisplay)
 		var lengthToDisplay int64
 		if contentLength.Valid && contentLength.Int64 > 0 {
 			lengthToDisplay = contentLength.Int64
@@ -209,39 +212,43 @@ func PrintResultsTableFromDB(targetURL, bypassModule string) error {
 		}
 
 		statusStr := bytesutil.Itoa(statusCode)
-		lengthStr := formatBytes(lengthToDisplay)
+		lengthStr := formatBytes(lengthToDisplay) // Reverted: length for display column
 
-		// Check if we need to start a new group
+		// Check if we need to start a new group (major: module/status, or minor: lengthToDisplay)
 		if module != currentModule || statusStr != currentStatus || lengthToDisplay != currentLength {
-			// Add separator if we're changing groups (not for the first one)
+			// If it's a major group change (module or status differs)
 			if currentModule != "" && (module != currentModule || statusStr != currentStatus) {
-				// Add the current group to the table
-				if currentGroup.size > 0 {
+				if currentGroup.size > 0 { // Flush previous group's items
 					tableData = append(tableData, currentGroup.rows...)
 
 					// Add separator with dots matching previous module length
-					dotCount := len(currentModule)
+					dotCount := len(currentModule) // currentModule is still the *old* module here
 					if dotCount < 4 {
 						dotCount = 4
 					}
-
-					separator := make([]string, len(tableData[0]))
-					separator[0] = strings.Repeat(".", dotCount)
-					tableData = append(tableData, separator)
+					// Ensure tableData[0] (header) exists before trying to get its length for separator
+					if len(tableData) > 0 && len(tableData[0]) > 0 {
+						separator := make([]string, len(tableData[0]))
+						separator[0] = strings.Repeat(".", dotCount)
+						tableData = append(tableData, separator)
+					}
 				}
+			} else if currentGroup.size > 0 { // Else, it's only a sub-group change (same module, same status, different length)
+				// Just flush the previous group's items, no separator
+				tableData = append(tableData, currentGroup.rows...)
 			}
 
 			// Start new group
 			currentModule = module
 			currentStatus = statusStr
-			currentLength = lengthToDisplay
+			currentLength = lengthToDisplay // Reverted: Update to the new sub-group key (content/body length)
 			currentGroup = ResultGroup{
-				rows: make([][]string, 0, 5),
+				rows: make([][]string, 0, 5), // Max 5 items per sub-group
 				size: 0,
 			}
 		}
 
-		// Skip if we already have 5 results for this content length
+		// Skip if we already have 5 results for this (module, status, length)
 		if currentGroup.size >= 5 {
 			continue
 		}
@@ -251,7 +258,7 @@ func PrintResultsTableFromDB(targetURL, bypassModule string) error {
 			module,
 			curlCmd,
 			statusStr,
-			lengthStr,
+			lengthStr, // Reverted: Use the original length string for display
 			formatContentType(contentType),
 			LimitStringWithSuffix(formatValue(title), 14),
 			LimitStringWithSuffix(formatValue(serverInfo), 14),
