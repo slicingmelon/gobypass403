@@ -99,7 +99,7 @@ func (pg *PayloadGenerator) GeneratePathPrefixPayloads(targetURL string, bypassM
 
 		// Only use non-problematic raw bytes directly in paths
 		rawB1Str := ""
-		if b1 != '?' && b1 != '#' && b1 != '\n' && b1 != '\r' && b1 != ' ' { // Avoid chars that break URI structure raw
+		if b1 != '?' && b1 != '#' && b1 != '\n' && b1 != '\r' && b1 != 0x20 && b1 != '.' { // Avoid chars that break URI structure raw
 			rawB1Str = string([]byte{b1})
 		}
 		encodedB1Str := fmt.Sprintf("%%%02X", b1)
@@ -169,7 +169,7 @@ func (pg *PayloadGenerator) GeneratePathPrefixPayloads(targetURL string, bypassM
 				// Generate 2 encoding variations for the two bytes
 				// Only create raw+raw if *both* bytes are individually safe for raw inclusion
 				rawCombo := ""
-				if rawB1Str != "" && b2 != '?' && b2 != '#' && b2 != '\n' && b2 != '\r' && b2 != ' ' {
+				if rawB1Str != "" && b2 != '?' && b2 != '#' && b2 != '\n' && b2 != '\r' && b2 != 0x20 {
 					rawCombo = string([]byte{b1, b2})
 				}
 				encodedCombo := fmt.Sprintf("%%%02X%%%02X", b1, b2)

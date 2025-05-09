@@ -406,6 +406,10 @@ func isSpecialCharASCII(b byte) bool {
 	return unicode.IsPunct(r) || unicode.IsSymbol(r)
 }
 
+func isSpaceASCII(b byte) bool {
+	return b == ' '
+}
+
 // isAlphanumeric checks if a byte is a standard ASCII letter or digit.
 func isAlphanumericASCII(b byte) bool {
 	return (b >= 'a' && b <= 'z') || (b >= 'A' && b <= 'Z') || (b >= '0' && b <= '9')
