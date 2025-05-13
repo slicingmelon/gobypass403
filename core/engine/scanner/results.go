@@ -256,7 +256,7 @@ func PrintResultsTableFromDB(targetURL, bypassModule string) error {
 		// Add to current group
 		currentGroup.rows = append(currentGroup.rows, []string{
 			module,
-			curlCmd,
+			LimitStringWithSuffix(curlCmd, 115),
 			statusStr,
 			lengthStr, // Reverted: Use the original length string for display
 			formatContentType(contentType),
