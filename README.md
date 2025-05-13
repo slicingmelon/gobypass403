@@ -44,7 +44,7 @@ Usage:
   -o, -outdir
         Output directory
   -cr, -concurrent-requests
-        Number of concurrent concurrent requests (Default: 15)
+        Number of concurrent requests (Default: 15)
   -T, -timeout
         Total timeout (in milliseconds) (Default: 20000)
   -delay
