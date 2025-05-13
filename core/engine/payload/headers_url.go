@@ -28,7 +28,8 @@ For each header name, it creates multiple payload variations:
   - Header Value: Full URL constructed with parent path (if header name suggests URL context).
   - Header Value: Full URL constructed with parent path + original query string (if header name suggests URL context and query exists).
 
-3.  **Special CVE-2025-29927 Handling**
+3.  **CVE-2025-29927**
+  - Bypass via "x-middleware-subrequest" header
   - Special values like "middleware", "middleware:middleware", etc. up to 6-7 repetitions
   - Also variations with "src/middleware", "src/middleware:src/middleware", etc.
 
