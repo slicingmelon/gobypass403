@@ -34,7 +34,11 @@ type CliOptions struct {
 	MatchStatusCodes         []int
 	MatchContentType         string   // New field for multiple types
 	MatchContentTypeBytes    [][]byte // Multiple byte slices for efficient matching
-	Threads                  int
+	MinContentLengthStr      string   // Minimum Content-Length to match (as string)
+	MaxContentLengthStr      string   // Maximum Content-Length to match (as string)
+	MinContentLength         int      // Parsed min content length value
+	MaxContentLength         int      // Parsed max content length value
+	ConcurrentRequests       int
 	Timeout                  int
 	Delay                    int
 	MaxRetries               int
@@ -78,17 +82,18 @@ type CliOptions struct {
 // AvailableModes defines all bypass modes and their status, true if enabled, false if disabled
 var AvailableModules = map[string]bool{
 	"dumb_check":                 true,
+	"path_prefix":                true,
 	"mid_paths":                  true,
 	"end_paths":                  true,
 	"http_methods":               true,
 	"case_substitution":          true,
 	"char_encode":                true,
 	"nginx_bypasses":             true,
-	"http_headers_scheme":        true,
-	"http_headers_ip":            true,
-	"http_headers_port":          true,
-	"http_headers_url":           true,
-	"http_host":                  true,
+	"headers_scheme":             true,
+	"headers_ip":                 true,
+	"headers_port":               true,
+	"headers_url":                true,
+	"headers_host":               true,
 	"unicode_path_normalization": true,
 }
 
@@ -131,8 +136,8 @@ func (o *CliOptions) setDefaults() {
 	if o.Module == "" {
 		o.Module = "all"
 	}
-	if o.Threads == 0 {
-		o.Threads = 15
+	if o.ConcurrentRequests == 0 {
+		o.ConcurrentRequests = 15
 	}
 	if o.Timeout == 0 {
 		o.Timeout = 20000
@@ -212,6 +217,29 @@ func (o *CliOptions) validate() error {
 		return err
 	}
 
+	// Validate content length options
+	if o.MinContentLengthStr != "" {
+		minCL, err := strconv.Atoi(o.MinContentLengthStr)
+		if err != nil {
+			return fmt.Errorf("invalid integer value for -min-cl: %w", err)
+		}
+		o.MinContentLength = minCL
+	}
+
+	if o.MaxContentLengthStr != "" {
+		maxCL, err := strconv.Atoi(o.MaxContentLengthStr)
+		if err != nil {
+			return fmt.Errorf("invalid integer value for -max-cl: %w", err)
+		}
+		o.MaxContentLength = maxCL
+	}
+
+	// Check min > max only if both are set
+	if o.MinContentLength > 0 && o.MaxContentLength > 0 && o.MinContentLength > o.MaxContentLength {
+		return fmt.Errorf("minimum content length (%d) cannot be greater than maximum content length (%d)",
+			o.MinContentLength, o.MaxContentLength)
+	}
+
 	// Validate module
 	if err := o.validateModule(); err != nil {
 		return err
@@ -235,6 +263,18 @@ func (o *CliOptions) validate() error {
 			if t != "" {
 				o.MatchContentTypeBytes = append(o.MatchContentTypeBytes, bytes.ToLower([]byte(t)))
 			}
+		}
+	}
+
+	// Check if payloads are outdated
+	if !o.UpdatePayloads && o.ResendRequest == "" {
+		consistent, err := payload.CheckOutdatedPayloads()
+
+		if err != nil {
+			// Log error but continue scan, as it might be a permission issue
+			GB403Logger.Error().Msgf("Error checking for outdated payloads: %v", err)
+		} else if !consistent {
+			GB403Logger.Warning().Msgf("Local payloads may be outdated or modified. Run with -update-payloads to ensure you have the latest versions.\n\n")
 		}
 	}
 
@@ -281,11 +321,32 @@ func (o *CliOptions) processStatusCodes() error {
 
 	var codes []int
 	parts := strings.Split(o.MatchStatusCodesStr, ",")
-	for _, p := range strings.Fields(strings.Join(parts, " ")) {
-		code, err := strconv.Atoi(strings.TrimSpace(p))
-		if err != nil {
+
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		if part == "" {
 			continue
 		}
+
+		// Check for wildcard pattern (e.g., 2xx, 3xx, etc.)
+		if len(part) == 3 && strings.HasSuffix(part, "xx") {
+			firstDigit, err := strconv.Atoi(part[0:1])
+			if err == nil && firstDigit >= 1 && firstDigit <= 5 {
+				// Add all codes in the range (e.g., 200-299 for 2xx)
+				for i := 0; i < 100; i++ {
+					codes = append(codes, firstDigit*100+i)
+				}
+				continue
+			}
+		}
+
+		// Standard numeric code handling
+		code, err := strconv.Atoi(part)
+		if err != nil {
+			// Silently skip invalid codes
+			continue
+		}
+
 		// Accept any positive integer as a status code
 		if code > 0 {
 			codes = append(codes, code)

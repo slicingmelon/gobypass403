@@ -20,26 +20,9 @@ import (
 	GB403Logger "github.com/slicingmelon/gobypass403/core/utils/logger"
 )
 
-// Registry of all bypass modules
-var AvailableBypassModules = []string{
-	"dumb_check",
-	"mid_paths",
-	"end_paths",
-	"http_methods",
-	"case_substitution",
-	"char_encode",
-	"nginx_bypasses",
-	"http_headers_ip",
-	"http_host",
-	"http_headers_scheme",
-	"http_headers_port",
-	"http_headers_url",
-	"unicode_path_normalization",
-}
-
 // IsValidBypassModule checks if a module is valid
 func IsValidBypassModule(moduleName string) bool {
-	for _, module := range AvailableBypassModules {
+	for _, module := range payload.BypassModulesRegistry {
 		if module == moduleName {
 			return true
 		}
@@ -49,8 +32,6 @@ func IsValidBypassModule(moduleName string) bool {
 
 type BypassWorker struct {
 	bypassmodule string
-	cancel       chan struct{}
-	wg           *sync.WaitGroup
 	once         sync.Once
 	opts         *ScannerOpts
 	requestPool  *rawhttp.RequestWorkerPool
@@ -84,14 +65,20 @@ func NewBypassWorker(bypassmodule string, targetURL string, scannerOpts *Scanner
 		httpClientOpts.StreamResponseBody = false
 	}
 
+	// Adjust MaxConnsPerHost based on maxWorkers
+	// Add 50% more connections than workers for buffer, ensure it's at least the default
+	maxWorkers := scannerOpts.ConcurrentRequests
+	calculatedMaxConns := maxWorkers + (maxWorkers / 2)
+	if calculatedMaxConns > httpClientOpts.MaxConnsPerHost {
+		httpClientOpts.MaxConnsPerHost = calculatedMaxConns
+	}
+
 	return &BypassWorker{
 		bypassmodule: bypassmodule,
-		cancel:       make(chan struct{}),
-		wg:           &sync.WaitGroup{},
 		once:         sync.Once{},
 		opts:         scannerOpts,
 		totalJobs:    totalJobs,
-		requestPool:  rawhttp.NewRequestWorkerPool(httpClientOpts, scannerOpts.Threads),
+		requestPool:  rawhttp.NewRequestWorkerPool(httpClientOpts, scannerOpts.ConcurrentRequests),
 	}
 }
 
@@ -99,14 +86,8 @@ func NewBypassWorker(bypassmodule string, targetURL string, scannerOpts *Scanner
 // Also close the requestworkerpool
 func (w *BypassWorker) Stop() {
 	w.once.Do(func() {
-		select {
-		case <-w.cancel:
-			return
-		default:
-			close(w.cancel)
-			if w.requestPool != nil {
-				w.requestPool.Close()
-			}
+		if w.requestPool != nil {
+			w.requestPool.Close()
 		}
 	})
 }
@@ -153,11 +134,10 @@ func (s *Scanner) RunBypassModule(bypassModule string, targetURL string) int {
 		return 0
 	}
 
-	//GB403Logger.Info().Msgf("[%s] Generated %d payloads for %s\n", bypassModule, totalJobs, targetURL)
 	GB403Logger.PrintBypassModuleInfo(bypassModule, totalJobs, targetURL)
 
 	maxModuleNameLength := 0
-	for _, module := range AvailableBypassModules {
+	for _, module := range payload.BypassModulesRegistry {
 		if len(module) > maxModuleNameLength {
 			maxModuleNameLength = len(module)
 		}
@@ -166,16 +146,13 @@ func (s *Scanner) RunBypassModule(bypassModule string, targetURL string) int {
 	worker := NewBypassWorker(bypassModule, targetURL, s.scannerOpts, totalJobs)
 	defer worker.Stop()
 
-	maxWorkers := s.scannerOpts.Threads
+	maxWorkers := s.scannerOpts.ConcurrentRequests
 	// Create new progress bar configuration
 	cfg := progressbar.DefaultConfig()
-	//cfg.Prefix = bypassModule
 	cfg.Prefix = bypassModule + strings.Repeat(" ", maxModuleNameLength-len(bypassModule))
 	cfg.UseColors = true
 	cfg.ExtraLines = 1
 
-	//colors := []string{progressbar.RedBar, progressbar.GreenBar, progressbar.YellowBar, progressbar.BlueBar, progressbar.WhiteBar}
-	//cfg.Color = colors[rand.Intn(len(colors))]
 	cfg.Color = progressbar.RedBar
 	// Create new progress bar
 	bar := cfg.NewBar()
@@ -189,64 +166,87 @@ func (s *Scanner) RunBypassModule(bypassModule string, targetURL string) int {
 			continue
 		}
 
-		// Update progress bar with current stats
+		// Update progress bar stats here
 		completed := worker.requestPool.GetReqWPCompletedTasks()
-		//active := worker.requestPool.GetReqWPActiveWorkers()
 		currentRate := worker.requestPool.GetRequestRate()
 		avgRate := worker.requestPool.GetAverageRequestRate()
 
-		// weird bug "overflowing" on the text above the progressbar ... spaces fixes it
 		msg := fmt.Sprintf(
 			"Max Concurrent [%d req] | Rate [%d req/s] Avg [%d req/s] | Completed %d/%d    ",
 			maxWorkers, currentRate, avgRate, completed, uint64(totalJobs),
 		)
 		bar.WriteAbove(msg)
 
-		if matchStatusCodes(response.StatusCode, s.scannerOpts.MatchStatusCodes) {
-			if len(s.scannerOpts.MatchContentTypeBytes) > 0 {
-				contentTypeMatched := false
-				for _, matchType := range s.scannerOpts.MatchContentTypeBytes {
-					if bytes.Contains(response.ContentType, matchType) {
-						contentTypeMatched = true
-						break
-					}
-				}
-				if !contentTypeMatched {
-					continue // Skip this response
-				}
-			}
-
-			result := &Result{
-				TargetURL:    string(response.URL),
-				BypassModule: string(response.BypassModule),
-				StatusCode:   response.StatusCode,
-				//ResponseHeaders:     string(response.ResponseHeaders),
-				ResponseHeaders:     sanitizeNonPrintableBytes(response.ResponseHeaders),
-				CurlCMD:             sanitizeNonPrintableBytes(response.CurlCommand),
-				ResponseBodyPreview: string(response.ResponsePreview),
-				ContentType:         string(response.ContentType),
-				ContentLength:       response.ContentLength,
-				ResponseBodyBytes:   response.ResponseBytes,
-				Title:               string(response.Title),
-				ServerInfo:          string(response.ServerInfo),
-				RedirectURL:         sanitizeNonPrintableBytes(response.RedirectURL),
-				ResponseTime:        response.ResponseTime,
-				DebugToken:          string(response.DebugToken),
-			}
-
-			dbWg.Add(1)
-			go func(res *Result) {
-				defer dbWg.Done()
-				if err := AppendResultsToDB([]*Result{res}); err != nil {
-					GB403Logger.Error().Msgf("Failed to write result to DB: %v\n\n", err)
-				} else {
-					resultCount.Add(1)
-				}
-			}(result)
+		// Check status code - if no match, skip
+		if !matchStatusCodes(response.StatusCode, s.scannerOpts.MatchStatusCodes) {
+			rawhttp.ReleaseResponseDetails(response)
+			bar.Progress((float64(completed) / float64(totalJobs)) * 100.0)
+			continue
 		}
 
-		rawhttp.ReleaseResponseDetails(response)
+		// Check content type if required
+		if len(s.scannerOpts.MatchContentTypeBytes) > 0 {
+			contentTypeMatched := false
+			for _, matchType := range s.scannerOpts.MatchContentTypeBytes {
+				if bytes.Contains(response.ContentType, matchType) {
+					contentTypeMatched = true
+					break
+				}
+			}
+			if !contentTypeMatched {
+				rawhttp.ReleaseResponseDetails(response)
+				bar.Progress((float64(completed) / float64(totalJobs)) * 100.0)
+				continue
+			}
+		}
 
+		// Check min content length
+		if s.scannerOpts.MinContentLength > 0 {
+			if response.ContentLength < 0 || response.ContentLength < int64(s.scannerOpts.MinContentLength) {
+				rawhttp.ReleaseResponseDetails(response)
+				bar.Progress((float64(completed) / float64(totalJobs)) * 100.0)
+				continue
+			}
+		}
+
+		// Check max content length
+		if s.scannerOpts.MaxContentLength > 0 && response.ContentLength >= 0 {
+			if response.ContentLength > int64(s.scannerOpts.MaxContentLength) {
+				rawhttp.ReleaseResponseDetails(response)
+				bar.Progress((float64(completed) / float64(totalJobs)) * 100.0)
+				continue
+			}
+		}
+
+		// Process valid result
+		result := &Result{
+			TargetURL:           string(response.URL),
+			BypassModule:        string(response.BypassModule),
+			StatusCode:          response.StatusCode,
+			ResponseHeaders:     sanitizeNonPrintableBytes(response.ResponseHeaders),
+			CurlCMD:             sanitizeNonPrintableBytes(response.CurlCommand),
+			ResponseBodyPreview: string(response.ResponsePreview),
+			ContentType:         string(response.ContentType),
+			ContentLength:       response.ContentLength,
+			ResponseBodyBytes:   response.ResponseBytes,
+			Title:               string(response.Title),
+			ServerInfo:          string(response.ServerInfo),
+			RedirectURL:         sanitizeNonPrintableBytes(response.RedirectURL),
+			ResponseTime:        response.ResponseTime,
+			DebugToken:          string(response.DebugToken),
+		}
+
+		dbWg.Add(1)
+		go func(res *Result) {
+			defer dbWg.Done()
+			if err := AppendResultsToDB([]*Result{res}); err != nil {
+				GB403Logger.Error().Msgf("Failed to write result to DB: %v\n\n", err)
+			} else {
+				resultCount.Add(1)
+			}
+		}(result)
+
+		rawhttp.ReleaseResponseDetails(response)
 		progressPercent := (float64(completed) / float64(totalJobs)) * 100.0
 		if progressPercent > 100.0 {
 			progressPercent = 100.0
@@ -281,47 +281,47 @@ func (s *Scanner) ResendRequestFromToken(debugToken string, resendCount int) ([]
 	}
 
 	targetURL := payload.BypassPayloadToBaseURL(bypassPayload)
+	totalJobs := resendCount // Total jobs for the progress bar
+
+	// Update concurrent requets to 1
+	s.scannerOpts.ConcurrentRequests = 1
 
 	// Create a new worker for the bypass module
-	worker := NewBypassWorker(bypassPayload.BypassModule, targetURL, s.scannerOpts, resendCount)
+	worker := NewBypassWorker(bypassPayload.BypassModule, targetURL, s.scannerOpts, totalJobs)
 	defer worker.Stop()
 
-	// Create jobs array with pre-allocated capacity
-	jobs := make([]payload.BypassPayload, 0, resendCount)
-	for i := 0; i < resendCount; i++ {
+	jobs := make([]payload.BypassPayload, 0, totalJobs)
+	for i := 0; i < totalJobs; i++ {
 		jobCopy := bypassPayload // Create a copy to avoid sharing the same job reference
 		jobCopy.PayloadToken = payload.GeneratePayloadToken(bypassPayload)
 		jobs = append(jobs, jobCopy)
 	}
 
-	var progressBar *ProgressBar
-	if s.progressBarEnabled.Load() {
-		progressBar = NewProgressBar(bypassPayload.BypassModule, targetURL, resendCount, s.scannerOpts.Threads)
-		progressBar.Start()
-		defer progressBar.Stop()
-	}
+	cfg := progressbar.DefaultConfig()
+	cfg.Prefix = fmt.Sprintf("[Resend] %s", bypassPayload.BypassModule)
+	cfg.UseColors = true
+	cfg.ExtraLines = 1
+	cfg.Color = progressbar.BlueBar
+	bar := cfg.NewBar()
+	bar.Progress(0)
 
 	responses := worker.requestPool.ProcessRequests(jobs)
 	var results []*Result
 
 	for response := range responses {
+		completed := worker.requestPool.GetReqWPCompletedTasks()
+
 		if response == nil {
+			// Update progress based on the actual task completion count
+			progressPercent := (float64(completed) / float64(totalJobs)) * 100.0
+			if progressPercent > 100.0 {
+				progressPercent = 100.0
+			}
+			bar.Progress(progressPercent)
 			continue
 		}
 
-		// Update progress
-		if progressBar != nil {
-			progressBar.Increment()
-			progressBar.UpdateSpinnerText(
-				worker.requestPool.GetReqWPActiveWorkers(),
-				worker.requestPool.GetReqWPCompletedTasks(),
-				worker.requestPool.GetReqWPSubmittedTasks(),
-				worker.requestPool.GetRequestRate(),
-				worker.requestPool.GetAverageRequestRate(),
-			)
-		}
-
-		// Only add to results if status code matches
+		// --- Process Valid Response ---
 		if matchStatusCodes(response.StatusCode, s.scannerOpts.MatchStatusCodes) {
 			result := &Result{
 				TargetURL:           targetURL,
@@ -339,23 +339,40 @@ func (s *Scanner) ResendRequestFromToken(debugToken string, resendCount int) ([]
 				ResponseTime:        response.ResponseTime,
 				DebugToken:          string(response.DebugToken),
 			}
-
 			results = append(results, result)
 		}
 
-		// Release the response object immediately after processing - for all responses
 		rawhttp.ReleaseResponseDetails(response)
+
+		currentRate := worker.requestPool.GetRequestRate()
+		avgRate := worker.requestPool.GetAverageRequestRate()
+		maxWorkers := s.scannerOpts.ConcurrentRequests
+
+		msg := fmt.Sprintf(
+			"Max Concurrent [%d req] | Rate [%d req/s] Avg [%d req/s] | Completed %d/%d    ",
+			maxWorkers, currentRate, avgRate, completed, uint64(totalJobs),
+		)
+		bar.WriteAbove(msg)
+
+		progressPercent := (float64(completed) / float64(totalJobs)) * 100.0
+		if progressPercent > 100.0 {
+			progressPercent = 100.0
+		}
+		bar.Progress(progressPercent)
 	}
 
-	// Final progress update
-	if progressBar != nil {
-		progressBar.SpinnerSuccess(
-			worker.requestPool.GetReqWPCompletedTasks(),
-			worker.requestPool.GetReqWPSubmittedTasks(),
-			worker.requestPool.GetAverageRequestRate(),
-			worker.requestPool.GetPeakRequestRate(),
-		)
+	finalCompleted := worker.requestPool.GetReqWPCompletedTasks()
+
+	// Calculate the final, accurate progress percentage
+	finalProgressPercent := (float64(finalCompleted) / float64(totalJobs)) * 100.0
+	if finalProgressPercent > 100.0 {
+		finalProgressPercent = 100.0
 	}
+
+	bar.Progress(finalProgressPercent)
+	bar.End()
+
+	fmt.Println()
 
 	return results, nil
 }

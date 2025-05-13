@@ -40,11 +40,11 @@ Usage:
   -shf, -substitute-hosts-file
         File containing a list of hosts to substitute target URL's hostname (mostly used in CDN bypasses by providing a list of CDNs)
   -m, -module
-        Bypass module (all,mid_paths,end_paths,http_methods,case_substitution,char_encode,nginx_bypasses,unicode_path_normalization,http_headers_scheme,http_headers_ip,http_headers_port,http_headers_url,http_host) (Default: all)
+        Bypass module (all,path_prefix,mid_paths,end_paths,http_methods,case_substitution,char_encode,nginx_bypasses,unicode_path_normalization,headers_scheme,headers_ip,headers_port,headers_url,headers_host) (Default: all)
   -o, -outdir
         Output directory
   -cr, -concurrent-requests
-        Number of concurrent concurrent requests (Default: 15)
+        Number of concurrent requests (Default: 15)
   -T, -timeout
         Total timeout (in milliseconds) (Default: 20000)
   -delay
@@ -56,15 +56,19 @@ Usage:
   -max-cfr, -max-consecutive-fails
         Maximum number of consecutive failed requests before cancelling the current bypass module (Default: 15)
   -at, -auto-throttle
-        Enable automatic request throttling (on/off, 1/0) (Default: on) (Default: on)
+        Enable automatic request throttling (on/off, 1/0) (Default: on)
   -v, -verbose
         Verbose output (Default: false)
   -d, -debug
         Debug mode with request canaries (Default: false)
   -mc, -match-status-code
-        Filter results by HTTP status codes (example: -mc 200, 301, 500, all). Default: All status codes
+        Filter results by HTTP status codes (example: -mc 200, 301, 5xx, all). Default: All status codes
   -mct, -match-content-type
         Filter results by content type(s) substring (example: -mct application/json,text/html)
+  -min-cl, -min-content-length
+        Filter results by minimum Content-Length (example: -min-cl 100)
+  -max-cl, -max-content-length
+        Filter results by maximum Content-Length (example: -max-cl 5000)
   -http2
         Enable HTTP2 client (Default: false)
   -x, -proxy
@@ -84,7 +88,7 @@ Usage:
   -r, -resend
         Resend the exact request using the debug token (example: -r xyzdebugtoken)
   -rn, -resend-num
-        Number of times to resend the debugged request (Default: 1) (Default: 1)
+        Number of times to resend the debugged request (Default: 1)
   -profile
         Enable pprof profiler (Default: false)
   -update-payloads
@@ -97,7 +101,7 @@ Standard command(s):
 ```bash
 gobypass403 -u "https://go-test-webapp.com/admin" -mc "200"
 gobypass403 -u "https://go-test-webapp.com/admin" -mc "200,500" -cr 10
-gobypass403 -u "https://go-test-webapp.com/admin" -mc "mid_paths,nginx_bypasses,http_headers_ip" -cr 20 -mct "application/json,image/png"
+gobypass403 -u "https://go-test-webapp.com/admin" -mc "mid_paths,nginx_bypasses,headers_ip" -cr 20 -mct "application/json,image/png"
 ```
 
 Using a list of target URLs:
@@ -119,13 +123,32 @@ Example Results 1
 
 # Changelog
 
-## 27 March 2027
+
+## 0.7.8
+
+- Updated internal HTTP client to fasthttp 1.62.0. All gobypass403 patches applied.
+- Added CVE-2025-29927 bypass, via `x-middleware-subrequest`.
+- Proper unit-tests for most of the bypass modules.
+- Payload files version detection. Updated the `-update-payloads` CLI command.
+- Important updates on the final output table. The results table now includes only a summary of the findings, up to 5 unique results, sorted per url -> bypass module -> status code -> number of bytes in the HTTP response. 
+- New CLI options:
+  -   `-mct, -match-content-type` Filter results by content type(s) substring (example: -mct application/json,text/html)
+  -   `-min-cl, -min-content-length` Filter results by minimum Content-Length (example: -min-cl 100).
+  -   `max-cl, -max-content-length`  Filter results by maximum Content-Length (example: -max-cl 5000).
+- Modular bypass modules. Each bypass module has its own .go file. 
+- New bypass modules: `nginx_bypasses`, `unicode_path_normalization`, `path_prefix`.
+- All bypass modules generating unicode/reverse unicode normalization payloads now rely on a pre-built charmap available in the payloads directory.  
+- Updated support for `Transfer-Encoding: identity` HTTP responses.
+- Several code refactors, including performance updates.
+- New, fully refactored, progressbar. 
+
+## 27 March 2025
 
 - Major release.
 
 ## 14 February 2025
 
-- Implemented retry attempts on failed requests, using linear backoff algorthm to increase the delay between retries.
+- Implemented retry attempts on failed requests, using linear backoff algorithm to increase the delay between retries.
 - Autothrottler, throttles the requests exponentially based on known status codes.
 - Option to resend the exact request at any time using the debug token.
 - Refactored most of the core engine/rawhttp modules to improve performance and reduce allocations.
@@ -133,7 +156,7 @@ Example Results 1
 
 ## 09 January 2025
 
-- Refacted the entire codebase. Everything will be documented separately. 
+- Refactored the entire codebase. Everything will be documented separately. 
 
 ## 05 November 2024
 

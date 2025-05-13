@@ -130,12 +130,11 @@ func TestRawHTTPClientBuildAndSendRequest(t *testing.T) {
 }
 
 func TestRawHTTPClientBuildAndSendRequestDirectLocalhost(t *testing.T) {
-	// Create rawhttp.HTTPClient with default options
-	client := rawhttp.NewHTTPClient(rawhttp.DefaultHTTPClientOptions())
-
 	opts := rawhttp.DefaultHTTPClientOptions()
 	opts.Dialer = rawhttp.CreateHTTPClientDialer(opts.DialTimeout, opts.ProxyURL)
-	client.SetHTTPClientOptions(opts)
+
+	// Create rawhttp.HTTPClient with default options
+	client := rawhttp.NewHTTPClient(opts)
 
 	// Create a PayloadJob with Unicode in the path and headers
 	job := payload.BypassPayload{

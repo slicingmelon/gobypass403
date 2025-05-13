@@ -55,20 +55,22 @@ func parseFlags() (*CliOptions, error) {
 		{name: "u,url", usage: "Target URL (example: https://cms.facebook.com/login)", value: &opts.URL},
 		{name: "l,urls-file", usage: "File containing list of target URLs (one per line)", value: &opts.URLsFile},
 		{name: "shf,substitute-hosts-file", usage: "File containing a list of hosts to substitute target URL's hostname (mostly used in CDN bypasses by providing a list of CDNs)", value: &opts.SubstituteHostsFile},
-		{name: "m,module", usage: "Bypass module (all,mid_paths,end_paths,http_methods,case_substitution,char_encode,nginx_bypasses,unicode_path_normalization,http_headers_scheme,http_headers_ip,http_headers_port,http_headers_url,http_host)", value: &opts.Module, defVal: "all"},
+		{name: "m,module", usage: "Bypass module (all,path_prefix,mid_paths,end_paths,http_methods,case_substitution,char_encode,nginx_bypasses,unicode_path_normalization,headers_scheme,headers_ip,headers_port,headers_url,headers_host)", value: &opts.Module, defVal: "all"},
 		{name: "o,outdir", usage: "Output directory", value: &opts.OutDir},
-		{name: "cr,concurrent-requests", usage: "Number of concurrent concurrent requests", value: &opts.Threads, defVal: 15},
+		{name: "cr,concurrent-requests", usage: "Number of concurrent requests", value: &opts.ConcurrentRequests, defVal: 15},
 		{name: "T,timeout", usage: "Total timeout (in milliseconds)", value: &opts.Timeout, defVal: 20000},
 		{name: "delay", usage: "Delay between requests (in milliseconds) (0 means no delay)", value: &opts.Delay, defVal: 0},
 		{name: "max-retries", usage: "Maximum number of retries for failed requests (0 means no retries)", value: &opts.MaxRetries, defVal: 2},
 		{name: "retry-delay", usage: "Delay between retries (in milliseconds)", value: &opts.RetryDelay, defVal: 500},
 		{name: "max-cfr,max-consecutive-fails", usage: "Maximum number of consecutive failed requests before cancelling the current bypass module", value: &opts.MaxConsecutiveFailedReqs, defVal: 15},
-		{name: "at,auto-throttle", usage: "Enable automatic request throttling (on/off, 1/0) (Default: on)",
+		{name: "at,auto-throttle", usage: "Enable automatic request throttling (on/off, 1/0)",
 			value: &onOffFlag{val: &opts.AutoThrottle}, defVal: "on"},
 		{name: "v,verbose", usage: "Verbose output", value: &opts.Verbose, defVal: false},
 		{name: "d,debug", usage: "Debug mode with request canaries", value: &opts.Debug, defVal: false},
-		{name: "mc,match-status-code", usage: "Filter results by HTTP status codes (example: -mc 200, 301, 500, all). Default: All status codes", value: &opts.MatchStatusCodesStr},
+		{name: "mc,match-status-code", usage: "Filter results by HTTP status codes (example: -mc 200, 301, 5xx, all). Default: All status codes", value: &opts.MatchStatusCodesStr},
 		{name: "mct,match-content-type", usage: "Filter results by content type(s) substring (example: -mct application/json,text/html)", value: &opts.MatchContentType},
+		{name: "min-cl,min-content-length", usage: "Filter results by minimum Content-Length (example: -min-cl 100)", value: &opts.MinContentLengthStr},
+		{name: "max-cl,max-content-length", usage: "Filter results by maximum Content-Length (example: -max-cl 5000)", value: &opts.MaxContentLengthStr},
 		{name: "http2", usage: "Enable HTTP2 client", value: &opts.EnableHTTP2, defVal: false},
 		{name: "x,proxy", usage: "Proxy URL (format: http://proxy:port) (Example: -x http://127.0.0.1:8080)", value: &opts.Proxy},
 		{name: "spoof-header", usage: "Add more headers used to spoof IPs (example: X-SecretIP-Header,X-GO-IP)", value: &opts.SpoofHeader},
@@ -78,7 +80,7 @@ func parseFlags() (*CliOptions, error) {
 		{name: "drbs,disable-response-body-streaming", usage: "Disables streaming of response body (default: False)", value: &opts.DisableStreamResponseBody, defVal: false},
 		{name: "dpb,disable-progress-bar", usage: "Disable progress bar", value: &opts.DisableProgressBar, defVal: false},
 		{name: "r,resend,resend-request", usage: "Resend the exact request using the debug token (example: -r xyzdebugtoken)", value: &opts.ResendRequest},
-		{name: "rn,resend-num,resend-request-num", usage: "Number of times to resend the debugged request (Default: 1)", value: &opts.ResendNum, defVal: 1},
+		{name: "rn,resend-num,resend-request-num", usage: "Number of times to resend the debugged request", value: &opts.ResendNum, defVal: 1},
 		{name: "profile", usage: "Enable pprof profiler", value: &opts.Profile, defVal: false},
 		{name: "update-payloads", usage: "Update payload files to latest version", value: &opts.UpdatePayloads, defVal: false},
 	}
@@ -108,11 +110,11 @@ func parseFlags() (*CliOptions, error) {
 		for _, name := range strings.Split(f.name, ",") {
 			name = strings.TrimSpace(name)
 			switch v := f.value.(type) {
-			case *string:
+			case *string: // Handles opts.URL, opts.URLsFile, etc. AND the new Str flags
 				if def, ok := f.defVal.(string); ok {
 					flag.StringVar(v, name, def, f.usage)
 				} else {
-					flag.StringVar(v, name, "", f.usage)
+					flag.StringVar(v, name, "", f.usage) // Default empty string ""
 				}
 			case *int:
 				if def, ok := f.defVal.(int); ok {
@@ -126,6 +128,8 @@ func parseFlags() (*CliOptions, error) {
 				} else {
 					flag.BoolVar(v, name, false, f.usage)
 				}
+			case *onOffFlag: // Handle the custom on/off flag type
+				flag.Var(v, name, f.usage) // Register using flag.Var
 			}
 		}
 	}

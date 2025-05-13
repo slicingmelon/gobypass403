@@ -8,11 +8,15 @@ package payload
 // This file contains various payload related utilities.
 
 import (
+	"crypto/sha256"
 	"embed"
+	"encoding/hex"
 	"fmt"
+	"net/textproto"
 	"os"
 	"path/filepath"
 	"strings"
+	"unicode"
 
 	"github.com/slicingmelon/go-rawurlparser"
 	GB403Logger "github.com/slicingmelon/gobypass403/core/utils/logger"
@@ -45,7 +49,7 @@ var (
 	hexChars = []byte("0123456789ABCDEF")
 )
 
-//go:embed payloads/*.lst
+//go:embed payloads/*.lst payloads/*.json
 var DefaultPayloadsDir embed.FS
 
 // GetToolDir returns the tool's data directory path
@@ -147,6 +151,68 @@ func UpdatePayloads() error {
 	return nil
 }
 
+// calculateSHA256 computes the SHA256 hash of byte data.
+func calculateSHA256(data []byte) string {
+	hash := sha256.Sum256(data)
+	return hex.EncodeToString(hash[:])
+}
+
+// CheckPayloadsConsistency compares embedded payloads with local ones.
+// Returns true if consistent, false otherwise.
+func CheckOutdatedPayloads() (bool, error) {
+	localPayloadsDir, err := GetPayloadsDir()
+	if err != nil {
+		return false, fmt.Errorf("failed to get local payloads directory: %w", err)
+	}
+
+	embeddedEntries, err := DefaultPayloadsDir.ReadDir("payloads")
+	if err != nil {
+		return false, fmt.Errorf("failed to read embedded payloads directory: %w", err)
+	}
+
+	for _, entry := range embeddedEntries {
+		if entry.IsDir() {
+			continue
+		}
+
+		embeddedFileName := entry.Name()
+		localFilePath := filepath.Join(localPayloadsDir, embeddedFileName)
+		embeddedFilePath := "payloads/" + embeddedFileName // Path for embed FS
+
+		// Check if local file exists
+		if _, err := os.Stat(localFilePath); os.IsNotExist(err) {
+			GB403Logger.Debug().Msgf("Local payload file missing: %s", localFilePath)
+			return false, nil
+		} else if err != nil {
+			return false, fmt.Errorf("error checking local file %s: %w", localFilePath, err)
+		}
+
+		// Read embedded file content
+		embeddedData, err := DefaultPayloadsDir.ReadFile(embeddedFilePath)
+		if err != nil {
+			return false, fmt.Errorf("failed to read embedded file %s: %w", embeddedFilePath, err)
+		}
+
+		// Read local file content
+		localData, err := os.ReadFile(localFilePath)
+		if err != nil {
+			return false, fmt.Errorf("failed to read local file %s: %w", localFilePath, err)
+		}
+
+		// 4. Compare hashes
+		embeddedHash := calculateSHA256(embeddedData)
+		localHash := calculateSHA256(localData)
+
+		if embeddedHash != localHash {
+			GB403Logger.Debug().Msgf("Payload file mismatch (SHA256): %s (Embed: %s, Local: %s)",
+				embeddedFileName, embeddedHash[:8], localHash[:8])
+			return false, nil
+		}
+	}
+
+	return true, nil
+}
+
 // CopyPayloadFile reads a file from the embedded filesystem and writes it to the destination path
 func CopyPayloadFile(src, dst string) error {
 	data, err := DefaultPayloadsDir.ReadFile(src)
@@ -224,6 +290,24 @@ func ReadMaxPayloadsFromFile(filename string, maxNum int) ([]string, error) {
 	return payloads, nil
 }
 
+// Helper to read a JSON file
+func ReadPayloadsFromJSONFile(filename string) ([]byte, error) {
+	// Try reading from local directory first
+	payloadsDir, err := GetPayloadsDir()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get payloads directory: %w", err)
+	}
+
+	localFile := payloadsDir + "/" + filename
+	content, err := os.ReadFile(localFile)
+	if err == nil {
+		return content, nil
+	}
+
+	// Fallback to embedded FS
+	return DefaultPayloadsDir.ReadFile("payloads/" + filename)
+}
+
 // ReplaceNth replaces the Nth  occurrence of old with new in s
 func ReplaceNth(s, old, new string, n int) string {
 	if n < 1 {
@@ -254,7 +338,7 @@ func ReplaceNth(s, old, new string, n int) string {
 }
 
 // Helper function to check if a byte is a letter
-func isLetter(c byte) bool {
+func isLetterASCII(c byte) bool {
 	return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')
 }
 
@@ -281,6 +365,54 @@ func URLEncodeAll(s string) string {
 	}
 
 	return string(buf)
+}
+
+// encodePathSpecialChars replaces literal '?' and '#' within a path string
+// with their percent-encoded equivalents (%3F and %23).
+func encodeQueryAndFragmentChars(path string) string {
+	// Use strings.Builder for potentially better performance on multiple replacements
+	var builder strings.Builder
+	builder.Grow(len(path)) // Pre-allocate roughly the needed size
+	for i := 0; i < len(path); i++ {
+		char := path[i]
+		switch char {
+		case '?':
+			builder.WriteString("%3F")
+		case '#':
+			builder.WriteString("%23")
+		default:
+			builder.WriteByte(char)
+		}
+	}
+	return builder.String()
+}
+
+// isControlByte checks if a byte is an ASCII control character (0x00-0x1F, 0x7F)
+func isControlByteASCII(b byte) bool {
+	return (b >= 0x00 && b <= 0x1F) || b == 0x7F
+}
+
+// isSpecialCharASCII checks if a byte is an ASCII special character (punctuation or symbol within 0-127)
+// !\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~
+func isSpecialCharASCII(b byte) bool {
+	// Ensure it's within ASCII range first
+	if b > 127 {
+		return false
+	}
+	// Use standard Go functions for ASCII range checks which are efficient
+	// or check against a predefined string/map for ASCII punctuation/symbols if preferred.
+	// Using unicode functions is fine as they handle ASCII correctly and efficiently.
+	r := rune(b)
+	return unicode.IsPunct(r) || unicode.IsSymbol(r)
+}
+
+func isSpaceASCII(b byte) bool {
+	return b == ' '
+}
+
+// isAlphanumeric checks if a byte is a standard ASCII letter or digit.
+func isAlphanumericASCII(b byte) bool {
+	return (b >= 'a' && b <= 'z') || (b >= 'A' && b <= 'Z') || (b >= '0' && b <= '9')
 }
 
 // BypassPayloadToBaseURL converts a bypass payload to base URL (scheme://host)
@@ -382,4 +514,10 @@ func BypassPayloadToFullURL(bypassPayload BypassPayload) string {
 	b = append(b, bypassPayload.Host...)
 	b = append(b, bypassPayload.RawURI...)
 	return string(b)
+}
+
+// NormalizeHeaderKey canonicalizes a header key string.
+// Example: "x-abc-test" becomes "X-Abc-Test"
+func NormalizeHeaderKey(key string) string {
+	return textproto.CanonicalMIMEHeaderKey(key)
 }

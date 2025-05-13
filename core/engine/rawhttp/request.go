@@ -59,10 +59,14 @@ For this to work, everything must be set in order, Raw Request line, headers, th
 then set req.UseHostHeader = true and then req.URI().SetScheme() and req.URI().SetHost()
 */
 func BuildRawHTTPRequest(httpclient *HTTPClient, req *fasthttp.Request, bypassPayload payload.BypassPayload) error {
-	// Define shouldCloseConn
-	shouldCloseConn := len(bypassPayload.Headers) > 0 ||
-		httpclient.GetHTTPClientOptions().DisableKeepAlive ||
-		httpclient.GetHTTPClientOptions().ProxyURL != ""
+	// Define shouldCloseConn based on general factors
+	shouldCloseConn := httpclient.GetHTTPClientOptions().DisableKeepAlive ||
+		httpclient.GetHTTPClientOptions().ProxyURL != "" ||
+		bypassPayload.BypassModule == "headers_scheme" ||
+		bypassPayload.BypassModule == "headers_ip" ||
+		bypassPayload.BypassModule == "headers_port" ||
+		bypassPayload.BypassModule == "headers_url" ||
+		bypassPayload.BypassModule == "headers_host"
 
 	// Get ByteBuffer from pool
 	bb := requestBufferPool.Get()
@@ -77,6 +81,8 @@ func BuildRawHTTPRequest(httpclient *HTTPClient, req *fasthttp.Request, bypassPa
 	// Add all headers
 	hasHostHeader := false
 	hasContentLength := false
+	hasConnectionHeader := false
+
 	for _, h := range bypassPayload.Headers {
 		if h.Header == "Host" {
 			hasHostHeader = true
@@ -86,50 +92,52 @@ func BuildRawHTTPRequest(httpclient *HTTPClient, req *fasthttp.Request, bypassPa
 			hasContentLength = true
 		}
 		if h.Header == "Connection" {
-			// Skip Connection header here, we'll add it last
+			hasConnectionHeader = true
 			shouldCloseConn = true
-			continue
 		}
+		// Append the header from the payload directly
 		bb.B = append(bb.B, h.Header...)
 		bb.B = append(bb.B, ": "...)
 		bb.B = append(bb.B, h.Value...)
 		bb.B = append(bb.B, "\r\n"...)
 	}
 
-	// Add Host header if not present
+	// Add Host header if not explicitly provided in the payload
 	if !hasHostHeader {
 		bb.B = append(bb.B, "Host: "...)
 		bb.B = append(bb.B, bypassPayload.Host...)
 		bb.B = append(bb.B, "\r\n"...)
 	}
 
-	// Add standard headers
+	// Add standard headers (User-Agent, Accept)
 	bb.B = append(bb.B, strUserAgentHeader...)
 	bb.B = append(bb.B, "\r\n"...)
 	bb.B = append(bb.B, "Accept: */*\r\n"...)
 
-	// Debug token
+	// Add Debug token if debug mode is enabled
 	if GB403Logger.IsDebugEnabled() {
 		bb.B = append(bb.B, "X-GB403-Token: "...)
 		bb.B = append(bb.B, bypassPayload.PayloadToken...)
 		bb.B = append(bb.B, "\r\n"...)
 	}
 
-	// Add Content-Length header if body exists and header wasn't explicitly set
+	// Add Content-Length header if body exists and wasn't explicitly set in payload
 	if len(bypassPayload.Body) > 0 && !hasContentLength {
 		bb.B = append(bb.B, "Content-Length: "...)
 		bb.B = append(bb.B, strconv.Itoa(len(bypassPayload.Body))...)
 		bb.B = append(bb.B, "\r\n"...)
 	}
 
-	// Add Connection header LAST
-	if shouldCloseConn {
-		bb.B = append(bb.B, "Connection: close\r\n"...)
-	} else {
-		bb.B = append(bb.B, "Connection: keep-alive\r\n"...)
+	// Add Connection header LAST, prioritizing payload's value if provided
+	if !hasConnectionHeader { // Only add default if payload didn't specify one
+		if shouldCloseConn {
+			bb.B = append(bb.B, "Connection: close\r\n"...)
+		} else {
+			bb.B = append(bb.B, "Connection: keep-alive\r\n"...)
+		}
 	}
 
-	// End of headers
+	// End of headers marker
 	bb.B = append(bb.B, "\r\n"...)
 
 	// Add body if present

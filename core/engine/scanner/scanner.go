@@ -17,9 +17,11 @@ import (
 
 type ScannerOpts struct {
 	Timeout                   int
-	Threads                   int
+	ConcurrentRequests        int
 	MatchStatusCodes          []int
 	MatchContentTypeBytes     [][]byte
+	MinContentLength          int
+	MaxContentLength          int
 	Debug                     bool
 	Verbose                   bool
 	BypassModule              string
@@ -81,6 +83,9 @@ func (s *Scanner) Run() error {
 		_ = s.scanURL(url)
 	}
 
+	fmt.Println()
+	GB403Logger.Success().Msgf("Findings saved to %s\n\n",
+		s.scannerOpts.ResultsDBFile)
 	GB403ErrorHandler.GetErrorHandler().PrintErrorStats()
 	return nil
 }

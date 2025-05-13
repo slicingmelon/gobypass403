@@ -10,3 +10,5 @@
 localhost
 norealhost
 null
+host.docker.internal
+169.254.169.254

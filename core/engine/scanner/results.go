@@ -144,14 +144,16 @@ func PrintResultsTableFromDB(targetURL, bypassModule string) error {
 	placeholders := strings.Repeat("?,", len(queryModules))
 	placeholders = placeholders[:len(placeholders)-1] // Remove trailing comma
 
-	// Optimized query - only fetch columns needed for display
+	// Modified query to order correctly and include new fields
 	query := fmt.Sprintf(`
         SELECT 
             bypass_module, curl_cmd, status_code, 
-            response_body_bytes, content_type, title, server_info
+            response_body_bytes, content_length, content_type, title, server_info,
+            response_body_preview
         FROM scan_results
         WHERE target_url = ? AND bypass_module IN (%s)
-        ORDER BY status_code ASC, bypass_module ASC
+        ORDER BY status_code ASC, bypass_module ASC, 
+                 CASE WHEN content_length > 0 THEN content_length ELSE response_body_bytes END ASC
     `, placeholders)
 
 	// Prepare query arguments
@@ -175,38 +177,99 @@ func PrintResultsTableFromDB(targetURL, bypassModule string) error {
 	}
 	defer rows.Close()
 
-	// Build table rows from query results
-	var tableData pterm.TableData
-	tableData = append(tableData, getTableHeader())
+	// New code: Group results by module -> status code -> content length
+	type ResultGroup struct {
+		rows [][]string
+		size int
+	}
 
+	tableData := pterm.TableData{getTableHeader()}
 	rowCount := 0
-	for rows.Next() {
-		rowCount++
-		var module, curlCmd, contentType, title, serverInfo string
-		var statusCode, responseBodyBytes int
 
-		err := rows.Scan(
-			&module,
-			&curlCmd,
-			&statusCode,
-			&responseBodyBytes,
-			&contentType,
-			&title,
-			&serverInfo,
-		)
+	var currentModule, currentStatus string
+	var currentLength int64 = -9999 // Reverted: Identifier for the current sub-group (content/body length)
+	var currentGroup ResultGroup
+
+	for rows.Next() {
+		var module, curlCmd, contentType, title, serverInfo string
+		var responseBodyPreview string // Still needed for potential future logic, but not primary grouper now
+		var statusCode, responseBodyBytes int
+		var contentLength sql.NullInt64
+
+		err := rows.Scan(&module, &curlCmd, &statusCode, &responseBodyBytes,
+			&contentLength, &contentType, &title, &serverInfo,
+			&responseBodyPreview) // Reverted scan (removed responseHeaders)
 		if err != nil {
 			return fmt.Errorf("failed to scan row: %v", err)
 		}
 
-		tableData = append(tableData, []string{
+		// Determine effective content length (lengthToDisplay)
+		var lengthToDisplay int64
+		if contentLength.Valid && contentLength.Int64 > 0 {
+			lengthToDisplay = contentLength.Int64
+		} else {
+			lengthToDisplay = int64(responseBodyBytes)
+		}
+
+		statusStr := bytesutil.Itoa(statusCode)
+		lengthStr := formatBytes(lengthToDisplay) // Reverted: length for display column
+
+		// Check if we need to start a new group (major: module/status, or minor: lengthToDisplay)
+		if module != currentModule || statusStr != currentStatus || lengthToDisplay != currentLength {
+			// If it's a major group change (module or status differs)
+			if currentModule != "" && (module != currentModule || statusStr != currentStatus) {
+				if currentGroup.size > 0 { // Flush previous group's items
+					tableData = append(tableData, currentGroup.rows...)
+
+					// Add separator with dots matching previous module length
+					dotCount := len(currentModule) // currentModule is still the *old* module here
+					if dotCount < 4 {
+						dotCount = 4
+					}
+					// Ensure tableData[0] (header) exists before trying to get its length for separator
+					if len(tableData) > 0 && len(tableData[0]) > 0 {
+						separator := make([]string, len(tableData[0]))
+						separator[0] = strings.Repeat(".", dotCount)
+						tableData = append(tableData, separator)
+					}
+				}
+			} else if currentGroup.size > 0 { // Else, it's only a sub-group change (same module, same status, different length)
+				// Just flush the previous group's items, no separator
+				tableData = append(tableData, currentGroup.rows...)
+			}
+
+			// Start new group
+			currentModule = module
+			currentStatus = statusStr
+			currentLength = lengthToDisplay // Reverted: Update to the new sub-group key (content/body length)
+			currentGroup = ResultGroup{
+				rows: make([][]string, 0, 5), // Max 5 items per sub-group
+				size: 0,
+			}
+		}
+
+		// Skip if we already have 5 results for this (module, status, length)
+		if currentGroup.size >= 5 {
+			continue
+		}
+
+		// Add to current group
+		currentGroup.rows = append(currentGroup.rows, []string{
 			module,
 			curlCmd,
-			bytesutil.Itoa(statusCode),
-			formatBytes(int64(responseBodyBytes)),
+			statusStr,
+			lengthStr, // Reverted: Use the original length string for display
 			formatContentType(contentType),
-			formatValue(title),
-			formatValue(serverInfo),
+			LimitStringWithSuffix(formatValue(title), 14),
+			LimitStringWithSuffix(formatValue(serverInfo), 14),
 		})
+		currentGroup.size++
+		rowCount++
+	}
+
+	// Don't forget to add the last group
+	if currentGroup.size > 0 {
+		tableData = append(tableData, currentGroup.rows...)
 	}
 
 	if err := rows.Err(); err != nil {
@@ -339,4 +402,23 @@ func FormatBytesH(bytes int64) string {
 		exp++
 	}
 	return fmt.Sprintf("%.1f%cB", float64(bytes)/float64(div), "KMGTPE"[exp])
+}
+
+func LimitStringWithSuffix(s string, maxLen int) string {
+	if len(s) <= maxLen {
+		return s
+	}
+
+	return s[:maxLen-2] + ".."
+}
+
+func LimitStringwithPreffixAndSuffix(s string, maxLen int) string {
+	if maxLen < 4 {
+		maxLen = 4
+	}
+	if len(s) <= maxLen {
+		return s
+	}
+	n := (maxLen / 2) - 1
+	return s[:n] + ".." + s[len(s)-n:]
 }

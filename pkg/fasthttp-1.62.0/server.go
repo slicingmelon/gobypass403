@@ -611,8 +611,6 @@ type RequestCtx struct {
 	formValueFunc FormValueFunc
 	fbr           firstByteReader
 
-	userValues userData
-
 	// Incoming request.
 	//
 	// Copying Request by value is forbidden. Use pointer to Request instead.
@@ -621,6 +619,72 @@ type RequestCtx struct {
 	connID           uint64
 	connRequestNum   uint64
 	hijackNoResponse bool
+}
+
+// EarlyHints allows the server to hint to the browser what resources a page would need
+// so the browser can preload them while waiting for the server's full response. Only Link
+// headers already written to the response will be transmitted as Early Hints.
+//
+// This is a HTTP/2+ feature but all browsers will either understand it or safely ignore it.
+//
+// NOTE: Older HTTP/1.1 non-browser clients may face compatibility issues.
+//
+// See: https://developer.chrome.com/docs/web-platform/early-hints and
+// https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Link#syntax
+//
+// Example:
+//
+//	func(ctx *fasthttp.RequestCtx) {
+//	   ctx.Response.Header.Add("Link", "<https://fonts.google.com>; rel=preconnect")
+//	   ctx.EarlyHints()
+//	   time.Sleep(5*time.Second) // some time-consuming task
+//	   ctx.SetStatusCode(fasthttp.StatusOK)
+//	   ctx.SetBody([]byte("<html><head></head><body><h1>Hello from Fasthttp</h1></body></html>"))
+//	}
+func (ctx *RequestCtx) EarlyHints() error {
+	links := ctx.Response.Header.PeekAll(b2s(strLink))
+	if len(links) > 0 {
+		c := acquireWriter(ctx)
+		defer releaseWriter(ctx.s, c)
+		_, err := c.Write(strEarlyHints)
+		if err != nil {
+			return err
+		}
+		for _, l := range links {
+			if len(l) == 0 {
+				continue
+			}
+			_, err = c.Write(strLink)
+			if err != nil {
+				return err
+			}
+			_, err = c.Write(strColon)
+			if err != nil {
+				return err
+			}
+			_, err = c.Write(strSpace)
+			if err != nil {
+				return err
+			}
+			_, err = c.Write(l)
+			if err != nil {
+				return err
+			}
+			_, err = c.Write(strCRLF)
+			if err != nil {
+				return err
+			}
+		}
+		_, err = c.Write(strCRLF)
+		if err != nil {
+			return err
+		}
+		err = c.Flush()
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // HijackHandler must process the hijacked connection c.
@@ -677,42 +741,42 @@ func (ctx *RequestCtx) Hijacked() bool {
 }
 
 // SetUserValue stores the given value (arbitrary object)
-// under the given key in ctx.
+// under the given key in Request.
 //
-// The value stored in ctx may be obtained by UserValue*.
+// The value stored in Request may be obtained by UserValue*.
 //
 // This functionality may be useful for passing arbitrary values between
 // functions involved in request processing.
 //
-// All the values are removed from ctx after returning from the top
+// All the values are removed from Request after returning from the top
 // RequestHandler. Additionally, Close method is called on each value
-// implementing io.Closer before removing the value from ctx.
+// implementing io.Closer before removing the value from Request.
 func (ctx *RequestCtx) SetUserValue(key, value any) {
-	ctx.userValues.Set(key, value)
+	ctx.Request.SetUserValue(key, value)
 }
 
 // SetUserValueBytes stores the given value (arbitrary object)
-// under the given key in ctx.
+// under the given key in Request.
 //
-// The value stored in ctx may be obtained by UserValue*.
+// The value stored in Request may be obtained by UserValue*.
 //
 // This functionality may be useful for passing arbitrary values between
 // functions involved in request processing.
 //
-// All the values stored in ctx are deleted after returning from RequestHandler.
+// All the values stored in Request are deleted after returning from RequestHandler.
 func (ctx *RequestCtx) SetUserValueBytes(key []byte, value any) {
-	ctx.userValues.SetBytes(key, value)
+	ctx.Request.SetUserValueBytes(key, value)
 }
 
 // UserValue returns the value stored via SetUserValue* under the given key.
 func (ctx *RequestCtx) UserValue(key any) any {
-	return ctx.userValues.Get(key)
+	return ctx.Request.UserValue(key)
 }
 
 // UserValueBytes returns the value stored via SetUserValue*
 // under the given key.
 func (ctx *RequestCtx) UserValueBytes(key []byte) any {
-	return ctx.userValues.GetBytes(key)
+	return ctx.Request.UserValueBytes(key)
 }
 
 // VisitUserValues calls visitor for each existing userValue with a key that is a string or []byte.
@@ -720,12 +784,7 @@ func (ctx *RequestCtx) UserValueBytes(key []byte) any {
 // visitor must not retain references to key and value after returning.
 // Make key and/or value copies if you need storing them after returning.
 func (ctx *RequestCtx) VisitUserValues(visitor func([]byte, any)) {
-	for i, n := 0, len(ctx.userValues); i < n; i++ {
-		kv := &ctx.userValues[i]
-		if _, ok := kv.key.(string); ok {
-			visitor(s2b(kv.key.(string)), kv.value)
-		}
-	}
+	ctx.Request.VisitUserValues(visitor)
 }
 
 // VisitUserValuesAll calls visitor for each existing userValue.
@@ -733,25 +792,22 @@ func (ctx *RequestCtx) VisitUserValues(visitor func([]byte, any)) {
 // visitor must not retain references to key and value after returning.
 // Make key and/or value copies if you need storing them after returning.
 func (ctx *RequestCtx) VisitUserValuesAll(visitor func(any, any)) {
-	for i, n := 0, len(ctx.userValues); i < n; i++ {
-		kv := &ctx.userValues[i]
-		visitor(kv.key, kv.value)
-	}
+	ctx.Request.VisitUserValuesAll(visitor)
 }
 
-// ResetUserValues allows to reset user values from Request Context.
+// ResetUserValues allows to reset user values from Request.
 func (ctx *RequestCtx) ResetUserValues() {
-	ctx.userValues.Reset()
+	ctx.Request.ResetUserValues()
 }
 
-// RemoveUserValue removes the given key and the value under it in ctx.
+// RemoveUserValue removes the given key and the value under it in Request.
 func (ctx *RequestCtx) RemoveUserValue(key any) {
-	ctx.userValues.Remove(key)
+	ctx.Request.RemoveUserValue(key)
 }
 
-// RemoveUserValueBytes removes the given key and the value under it in ctx.
+// RemoveUserValueBytes removes the given key and the value under it in Request.
 func (ctx *RequestCtx) RemoveUserValueBytes(key []byte) {
-	ctx.userValues.RemoveBytes(key)
+	ctx.Request.RemoveUserValueBytes(key)
 }
 
 type connTLSer interface {
@@ -807,7 +863,6 @@ func (ctx *RequestCtx) Conn() net.Conn {
 }
 
 func (ctx *RequestCtx) reset() {
-	ctx.userValues.Reset()
 	ctx.Request.Reset()
 	ctx.Response.Reset()
 	ctx.fbr.reset()
@@ -1924,6 +1979,12 @@ func (s *Server) ShutdownWithContext(ctx context.Context) (err error) {
 	}
 }
 
+type connKeepAliveer interface {
+	SetKeepAlive(keepalive bool) error
+	SetKeepAlivePeriod(d time.Duration) error
+	io.Closer
+}
+
 func acceptConn(s *Server, ln net.Listener, lastPerIPErrorTime *time.Time) (net.Conn, error) {
 	for {
 		c, err := ln.Accept()
@@ -1940,7 +2001,7 @@ func acceptConn(s *Server, ln net.Listener, lastPerIPErrorTime *time.Time) (net.
 			return nil, io.EOF
 		}
 
-		if tc, ok := c.(*net.TCPConn); ok && s.TCPKeepalive {
+		if tc, ok := c.(connKeepAliveer); ok && s.TCPKeepalive {
 			if err := tc.SetKeepAlive(s.TCPKeepalive); err != nil {
 				_ = tc.Close()
 				return nil, err
@@ -2499,7 +2560,6 @@ func (s *Server) serveConn(c net.Conn) (err error) {
 		}
 
 		s.setState(c, StateIdle)
-		ctx.userValues.Reset()
 		ctx.Request.Reset()
 		ctx.Response.Reset()
 

@@ -138,8 +138,6 @@ func NewHTTPClient(opts *HTTPClientOptions) *HTTPClient {
 		WriteTimeout:                  opts.Timeout,
 		StreamResponseBody:            opts.StreamResponseBody,
 		Dial:                          opts.Dialer,
-		// Set our custom transport to handle raw HTTP requests
-		//Transport: &RawTransport{},
 		TLSConfig: &tls.Config{
 			InsecureSkipVerify: true,
 			MinVersion:         tls.VersionTLS10,
@@ -237,15 +235,6 @@ func (c *HTTPClient) GetHTTPClientOptions() *HTTPClientOptions {
 	return c.options
 }
 
-// SetHTTPClientOptions updates the client options with a copy
-func (c *HTTPClient) SetHTTPClientOptions(opts *HTTPClientOptions) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	newOpts := *opts
-	c.options = &newOpts
-}
-
 // SetDialer sets a custom dialer for the client
 func (c *HTTPClient) SetDialer(dialer fasthttp.DialFunc) *HTTPClient {
 	c.mu.Lock()
@@ -290,7 +279,6 @@ func (c *HTTPClient) handleRetries(req *fasthttp.Request, resp *fasthttp.Respons
 			reqCopy.SetConnectionClose()
 			start = time.Now()
 			err = tempClient.client.Do(reqCopy, resp)
-			//tempClient.client.CloseIdleConnections()
 
 		default:
 			start = time.Now()
@@ -390,8 +378,8 @@ func (c *HTTPClient) DoRequest(req *fasthttp.Request, resp *fasthttp.Response, b
 				GB403Logger.Debug().Msgf("Consecutive failures for %s: %d/%d (error: %v)\n",
 					bypassPayload.BypassModule, newCount, c.options.MaxConsecutiveFailedReqs, err)
 				if newCount >= int32(c.options.MaxConsecutiveFailedReqs) {
-					GB403Logger.Warning().Msgf("Max consecutive failures reached for %s: %d/%d -- Cancelling current bypass module\n",
-						bypassPayload.BypassModule, newCount, c.options.MaxConsecutiveFailedReqs)
+					//GB403Logger.Warning().Msgf("Max consecutive failures reached for %s: %d/%d -- Cancelling current bypass module\n",
+					//	bypassPayload.BypassModule, newCount, c.options.MaxConsecutiveFailedReqs)
 					return retryTime, ErrReqFailedMaxConsecutiveFails
 				}
 			}

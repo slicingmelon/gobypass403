@@ -151,7 +151,7 @@ func TestRetryWithPayloads(t *testing.T) {
 	client := rawhttp.NewHTTPClient(opts)
 	defer client.Close()
 
-	baseURL := "http://cms.uviu.com/test"
+	baseURL := "http://cmsrestrictedpagexx.com/test"
 	payloads := []string{
 		"/.;",
 		"/.;/",

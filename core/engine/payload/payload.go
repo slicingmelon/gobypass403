@@ -1,5 +1,5 @@
 /*
-GoByPASS403
+GOBypass403
 Author: slicingmelon <github.com/slicingmelon>
 X: x.com/pedro_infosec
 */
@@ -8,14 +8,33 @@ package payload
 import (
 	"encoding/base64"
 	"fmt"
+	"math/rand/v2"
 	"sync"
 	"time"
 
-	"math/rand/v2"
-
 	"github.com/VictoriaMetrics/VictoriaMetrics/lib/bytesutil"
 	"github.com/golang/snappy"
+	"github.com/slicingmelon/gobypass403/core/engine/recon"
 )
+
+// BypassModuleRegistry contains all available bypass modules
+// This is used for debug token indexing and is independent of which modules are enabled for a scan
+var BypassModulesRegistry = []string{
+	"dumb_check",
+	"path_prefix",
+	"mid_paths",
+	"end_paths",
+	"http_methods",
+	"case_substitution",
+	"char_encode",
+	"nginx_bypasses",
+	"headers_scheme",
+	"headers_ip",
+	"headers_port",
+	"headers_url",
+	"headers_host",
+	"unicode_path_normalization",
+}
 
 var (
 	bypassModuleIndex map[string]byte
@@ -54,6 +73,85 @@ func initIndices() {
 			methodIndex[method] = byte(i)
 		}
 	})
+}
+
+type PayloadGenerator struct {
+	targetURL    string
+	bypassModule string
+	reconCache   *recon.ReconCache
+	spoofHeader  string
+	spoofIP      string
+}
+
+type PayloadGeneratorOptions struct {
+	TargetURL    string
+	BypassModule string
+	ReconCache   *recon.ReconCache
+	SpoofHeader  string
+	SpoofIP      string
+}
+
+func NewPayloadGenerator(opts PayloadGeneratorOptions) *PayloadGenerator {
+	return &PayloadGenerator{
+		targetURL:    opts.TargetURL,
+		bypassModule: opts.BypassModule,
+		reconCache:   opts.ReconCache,
+		spoofHeader:  opts.SpoofHeader,
+		spoofIP:      opts.SpoofIP,
+	}
+}
+
+func (pg *PayloadGenerator) Generate() []BypassPayload {
+	switch pg.bypassModule {
+	case "dumb_check":
+		return pg.GenerateDumbCheckPayload(pg.targetURL, pg.bypassModule)
+	case "path_prefix":
+		return pg.GeneratePathPrefixPayloads(pg.targetURL, pg.bypassModule)
+	case "mid_paths":
+		return pg.GenerateMidPathsPayloads(pg.targetURL, pg.bypassModule)
+	case "end_paths":
+		return pg.GenerateEndPathsPayloads(pg.targetURL, pg.bypassModule)
+	case "case_substitution":
+		return pg.GenerateCaseSubstitutionPayloads(pg.targetURL, pg.bypassModule)
+	case "http_methods":
+		return pg.GenerateHTTPMethodsPayloads(pg.targetURL, pg.bypassModule)
+	case "nginx_bypasses":
+		return pg.GenerateNginxACLsBypassPayloads(pg.targetURL, pg.bypassModule)
+	case "char_encode":
+		return pg.GenerateCharEncodePayloads(pg.targetURL, pg.bypassModule)
+	case "headers_scheme":
+		return pg.GenerateHeadersSchemePayloads(pg.targetURL, pg.bypassModule)
+	case "headers_ip":
+		return pg.GenerateHeadersIPPayloads(pg.targetURL, pg.bypassModule)
+	case "headers_port":
+		return pg.GenerateHeadersPortPayloads(pg.targetURL, pg.bypassModule)
+	case "headers_url":
+		return pg.GenerateHeadersURLPayloads(pg.targetURL, pg.bypassModule)
+	case "headers_host":
+		return pg.GenerateHeadersHostPayloads(pg.targetURL, pg.bypassModule)
+	case "unicode_path_normalization":
+		return pg.GenerateUnicodePathNormalizationsPayloads(pg.targetURL, pg.bypassModule)
+	default:
+		//GB403Logger.Warning().Msgf("Unknown bypass module: %s\n", pg.bypassModule)
+		return []BypassPayload{}
+	}
+}
+
+type Headers struct {
+	Header string
+	Value  string
+}
+
+type BypassPayload struct {
+	OriginalURL  string    // store it as we might need it
+	Scheme       string    // this gets updated
+	Method       string    // this gets updated
+	Host         string    // this gets updated
+	RawURI       string    // this gets updated, represents everything that goes into the first line of the request u
+	Headers      []Headers // all headers as result of various payload generators
+	Body         string    // this gets updated, represents everything that goes into the body of the request
+	BypassModule string    // always gets updated
+	PayloadToken string    // always gets updated
 }
 
 type SeedData struct {
