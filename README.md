@@ -56,7 +56,7 @@ Usage:
   -max-cfr, -max-consecutive-fails
         Maximum number of consecutive failed requests before cancelling the current bypass module (Default: 15)
   -at, -auto-throttle
-        Enable automatic request throttling (on/off, 1/0) (Default: on) (Default: on)
+        Enable automatic request throttling (on/off, 1/0) (Default: on)
   -v, -verbose
         Verbose output (Default: false)
   -d, -debug
@@ -88,7 +88,7 @@ Usage:
   -r, -resend
         Resend the exact request using the debug token (example: -r xyzdebugtoken)
   -rn, -resend-num
-        Number of times to resend the debugged request (Default: 1) (Default: 1)
+        Number of times to resend the debugged request (Default: 1)
   -profile
         Enable pprof profiler (Default: false)
   -update-payloads
