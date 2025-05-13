@@ -63,7 +63,7 @@ func parseFlags() (*CliOptions, error) {
 		{name: "max-retries", usage: "Maximum number of retries for failed requests (0 means no retries)", value: &opts.MaxRetries, defVal: 2},
 		{name: "retry-delay", usage: "Delay between retries (in milliseconds)", value: &opts.RetryDelay, defVal: 500},
 		{name: "max-cfr,max-consecutive-fails", usage: "Maximum number of consecutive failed requests before cancelling the current bypass module", value: &opts.MaxConsecutiveFailedReqs, defVal: 15},
-		{name: "at,auto-throttle", usage: "Enable automatic request throttling (on/off, 1/0) (Default: on)",
+		{name: "at,auto-throttle", usage: "Enable automatic request throttling (on/off, 1/0)",
 			value: &onOffFlag{val: &opts.AutoThrottle}, defVal: "on"},
 		{name: "v,verbose", usage: "Verbose output", value: &opts.Verbose, defVal: false},
 		{name: "d,debug", usage: "Debug mode with request canaries", value: &opts.Debug, defVal: false},
@@ -80,7 +80,7 @@ func parseFlags() (*CliOptions, error) {
 		{name: "drbs,disable-response-body-streaming", usage: "Disables streaming of response body (default: False)", value: &opts.DisableStreamResponseBody, defVal: false},
 		{name: "dpb,disable-progress-bar", usage: "Disable progress bar", value: &opts.DisableProgressBar, defVal: false},
 		{name: "r,resend,resend-request", usage: "Resend the exact request using the debug token (example: -r xyzdebugtoken)", value: &opts.ResendRequest},
-		{name: "rn,resend-num,resend-request-num", usage: "Number of times to resend the debugged request (Default: 1)", value: &opts.ResendNum, defVal: 1},
+		{name: "rn,resend-num,resend-request-num", usage: "Number of times to resend the debugged request", value: &opts.ResendNum, defVal: 1},
 		{name: "profile", usage: "Enable pprof profiler", value: &opts.Profile, defVal: false},
 		{name: "update-payloads", usage: "Update payload files to latest version", value: &opts.UpdatePayloads, defVal: false},
 	}

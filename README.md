@@ -101,7 +101,7 @@ Standard command(s):
 ```bash
 gobypass403 -u "https://go-test-webapp.com/admin" -mc "200"
 gobypass403 -u "https://go-test-webapp.com/admin" -mc "200,500" -cr 10
-gobypass403 -u "https://go-test-webapp.com/admin" -mc "mid_paths,nginx_bypasses,http_headers_ip" -cr 20 -mct "application/json,image/png"
+gobypass403 -u "https://go-test-webapp.com/admin" -mc "mid_paths,nginx_bypasses,headers_ip" -cr 20 -mct "application/json,image/png"
 ```
 
 Using a list of target URLs:
@@ -136,7 +136,8 @@ Example Results 1
   -   `-min-cl, -min-content-length` Filter results by minimum Content-Length (example: -min-cl 100).
   -   `max-cl, -max-content-length`  Filter results by maximum Content-Length (example: -max-cl 5000).
 - Modular bypass modules. Each bypass module has its own .go file. 
-- New bypass modules: `nginx_bypasses`, `unicode_path_normalization`, `path_prefix`. 
+- New bypass modules: `nginx_bypasses`, `unicode_path_normalization`, `path_prefix`.
+- All bypass modules generating unicode/reverse unicode normalization payloads now rely on a pre-built charmap available in the payloads directory.  
 - Updated support for `Transfer-Encoding: identity` HTTP responses.
 - Several code refactors, including performance updates.
 - New, fully refactored, progressbar. 
@@ -147,7 +148,7 @@ Example Results 1
 
 ## 14 February 2025
 
-- Implemented retry attempts on failed requests, using linear backoff algorthm to increase the delay between retries.
+- Implemented retry attempts on failed requests, using linear backoff algorithm to increase the delay between retries.
 - Autothrottler, throttles the requests exponentially based on known status codes.
 - Option to resend the exact request at any time using the debug token.
 - Refactored most of the core engine/rawhttp modules to improve performance and reduce allocations.
