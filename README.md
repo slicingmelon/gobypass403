@@ -141,7 +141,7 @@ Example Results 1
 - Several code refactors, including performance updates.
 - New, fully refactored, progressbar. 
 
-## 27 March 2027
+## 27 March 2025
 
 - Major release.
 
@@ -155,7 +155,7 @@ Example Results 1
 
 ## 09 January 2025
 
-- Refacted the entire codebase. Everything will be documented separately. 
+- Refactored the entire codebase. Everything will be documented separately. 
 
 ## 05 November 2024
 
