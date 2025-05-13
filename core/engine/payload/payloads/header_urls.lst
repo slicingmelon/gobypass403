@@ -18,6 +18,7 @@ X-Forwarded-URI
 X-Forwarded-URL
 X-HTTP-DestinationURL
 X-HTTP-Path-Override
+x-middleware-subrequest
 X-MS-Endpoint-Absolute-Path
 X-Ning-Request-URI
 X-Original-Path
