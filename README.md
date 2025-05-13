@@ -123,6 +123,24 @@ Example Results 1
 
 # Changelog
 
+
+## 0.7.8
+
+- Updated internal HTTP client to fasthttp 1.62.0. All gobypass403 patches applied.
+- Added CVE-2025-29927 bypass, via `x-middleware-subrequest`.
+- Proper unit-tests for most of the bypass modules.
+- Payload files version detection. Updated the `-update-payloads` CLI command.
+- Important updates on the final output table. The results table now includes only a summary of the findings, up to 5 unique results, sorted per url -> bypass module -> status code -> number of bytes in the HTTP response. 
+- New CLI options:
+  -   `-mct, -match-content-type` Filter results by content type(s) substring (example: -mct application/json,text/html)
+  -   `-min-cl, -min-content-length` Filter results by minimum Content-Length (example: -min-cl 100).
+  -   `max-cl, -max-content-length`  Filter results by maximum Content-Length (example: -max-cl 5000).
+- Modular bypass modules. Each bypass module has its own .go file. 
+- New bypass modules: `nginx_bypasses`, `unicode_path_normalization`, `path_prefix`. 
+- Updated support for `Transfer-Encoding: identity` HTTP responses.
+- Several code refactors, including performance updates.
+- New, fully refactored, progressbar. 
+
 ## 27 March 2027
 
 - Major release.
