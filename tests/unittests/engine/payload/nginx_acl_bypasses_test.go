@@ -16,9 +16,18 @@ func TestNginxACLsBypassPayloads(t *testing.T) {
 	targetURL := "http://localhost/admin/config/users"
 	moduleName := "nginx_acl_bypasses"
 
-	// 1. Generate Payloads
+	// 1. Start the test server FIRST to get the actual server address
+	receivedDataChan := make(chan RequestData, 100) // Use a reasonable buffer initially
+	serverAddr, stopServer := startRawTestServer(t, receivedDataChan)
+	defer stopServer() // Ensure server stops eventually
+
+	// Update the target URL with the actual server address
+	targetURL = strings.Replace(targetURL, "localhost", serverAddr, 1)
+	t.Logf("Updated target URL to: %s", targetURL)
+
+	// 2. Generate Payloads with the ACTUAL server address
 	pg := payload.NewPayloadGenerator(payload.PayloadGeneratorOptions{
-		TargetURL:    targetURL, // Use placeholder initially
+		TargetURL:    targetURL, // Now using actual server address
 		BypassModule: moduleName,
 	})
 	generatedPayloads := pg.GenerateNginxACLsBypassPayloads(targetURL, moduleName)
@@ -28,17 +37,12 @@ func TestNginxACLsBypassPayloads(t *testing.T) {
 	numPayloads := len(generatedPayloads)
 	t.Logf("Generated %d payloads for %s.", numPayloads, moduleName)
 
-	// 2. Create the channel for server results with the exact size needed
-	receivedDataChan := make(chan RequestData, numPayloads)
-
-	// 3. Start the server
-	serverAddr, stopServer := startRawTestServer(t, receivedDataChan)
-	defer stopServer() // Ensure server stops eventually
-
-	// 4. Update payload destinations
+	// 3. Double check that each payload has the correct server address
 	for i := range generatedPayloads {
-		generatedPayloads[i].Scheme = "http" // Match the listener
-		generatedPayloads[i].Host = serverAddr
+		if generatedPayloads[i].Host != serverAddr {
+			t.Logf("Warning: Fixing payload host from %s to %s", generatedPayloads[i].Host, serverAddr)
+			generatedPayloads[i].Host = serverAddr
+		}
 	}
 
 	// Prepare expected URIs map
@@ -48,12 +52,11 @@ func TestNginxACLsBypassPayloads(t *testing.T) {
 		expectedURIsHex[hexURI] = struct{}{}
 	}
 	// Log if the number of unique expected URIs is different from generated count
-	// This check remains useful to understand payload generation behavior.
 	if len(expectedURIsHex) != numPayloads {
 		t.Logf("Warning: Number of unique expected URIs (%d) differs from total generated payloads (%d) for %s. This indicates duplicate RawURIs were generated.", len(expectedURIsHex), numPayloads, moduleName)
 	}
 
-	// 5. Send Requests
+	// 4. Send Requests
 	clientOpts := rawhttp.DefaultHTTPClientOptions()
 	clientOpts.Timeout = 5 * time.Second                   // Allow slightly longer timeout
 	clientOpts.MaxRetries = 0                              // No retries
@@ -62,29 +65,32 @@ func TestNginxACLsBypassPayloads(t *testing.T) {
 	wp := rawhttp.NewRequestWorkerPool(clientOpts, 20) // Use a reasonable number of workers
 	resultsChan := wp.ProcessRequests(generatedPayloads)
 
-	// 6. Drain client results
+	// 5. Drain client results
 	responseCount := 0
 	for range resultsChan {
 		responseCount++
 	}
 	wp.Close()
-	t.Logf("Client processed %d responses for %s.", responseCount, moduleName)
+	t.Logf("Client processed %d responses out of %d payloads for %s.", responseCount, numPayloads, moduleName)
 
-	// 7. Close Server's Results Channel
-	// Allow a moment for server handlers
-	time.Sleep(200 * time.Millisecond)
+	// 6. Allow a moment for server handlers and then close the channel
+	time.Sleep(500 * time.Millisecond) // Increased pause time
 	close(receivedDataChan)
 
-	// 8. Verify Received URIs
+	// 7. Verify Received URIs
 	receivedURIsHex := make(map[string]struct{})
-	for reqData := range receivedDataChan { // Drain the channel
+	receivedCount := 0
+	for reqData := range receivedDataChan {
+		receivedCount++
 		hexURI := hex.EncodeToString([]byte(reqData.URI))
 		receivedURIsHex[hexURI] = struct{}{}
 	}
 
-	// 9. Comparison
+	t.Logf("Server received %d total requests, %d unique URIs", receivedCount, len(receivedURIsHex))
+
+	// 8. Comparison
 	expectedCount := len(expectedURIsHex)
-	receivedCount := len(receivedURIsHex)
+	receivedCount = len(receivedURIsHex)
 
 	if expectedCount != receivedCount {
 		t.Errorf("Mismatch in count for %s: Expected %d unique URIs, Server received %d unique URIs", moduleName, expectedCount, receivedCount)
@@ -105,7 +111,6 @@ func TestNginxACLsBypassPayloads(t *testing.T) {
 			}
 		}
 		// Use Fatalf only if missing URIs are found, as this indicates a core problem.
-		// Extra URIs might indicate server-side issues but shouldn't necessarily stop the test.
 		if len(missing) > 0 {
 			t.Fatalf("URIs expected but not received by server for %s:\n%s", moduleName, strings.Join(missing, "\n"))
 		}

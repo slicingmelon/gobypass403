@@ -16,9 +16,18 @@ func TestMidPathsPayloads(t *testing.T) {
 	targetURL := "http://localhost/admin/config/users"
 	moduleName := "mid_paths"
 
-	// 1. Generate Payloads (Does not require server address yet)
+	// 1. Start the test server FIRST to get the actual server address
+	receivedDataChan := make(chan RequestData, 100) // Use a reasonable buffer initially
+	serverAddr, stopServer := startRawTestServer(t, receivedDataChan)
+	defer stopServer() // Ensure server stops eventually
+
+	// Update the target URL with the actual server address
+	targetURL = strings.Replace(targetURL, "localhost", serverAddr, 1)
+	t.Logf("Updated target URL to: %s", targetURL)
+
+	// 2. Generate Payloads with the ACTUAL server address
 	pg := payload.NewPayloadGenerator(payload.PayloadGeneratorOptions{
-		TargetURL:    targetURL, // Use placeholder initially
+		TargetURL:    targetURL, // Now using actual server address
 		BypassModule: moduleName,
 	})
 	generatedPayloads := pg.GenerateMidPathsPayloads(targetURL, moduleName)
@@ -28,17 +37,12 @@ func TestMidPathsPayloads(t *testing.T) {
 	numPayloads := len(generatedPayloads)
 	t.Logf("Generated %d payloads for %s.", numPayloads, moduleName)
 
-	// 2. Create the correctly sized channel for server results
-	receivedDataChan := make(chan RequestData, numPayloads)
-
-	// 3. Start the server, passing the channel
-	serverAddr, stopServer := startRawTestServer(t, receivedDataChan)
-	defer stopServer() // Ensure server stops eventually
-
-	// 4. Update payload destinations to use the actual server address
+	// 3. Double check that each payload has the correct server address
 	for i := range generatedPayloads {
-		generatedPayloads[i].Scheme = "http" // Match the listener
-		generatedPayloads[i].Host = serverAddr
+		if generatedPayloads[i].Host != serverAddr {
+			t.Logf("Warning: Fixing payload host from %s to %s", generatedPayloads[i].Host, serverAddr)
+			generatedPayloads[i].Host = serverAddr
+		}
 	}
 
 	// Prepare expected URIs map (can be done anytime after generation)
@@ -51,7 +55,7 @@ func TestMidPathsPayloads(t *testing.T) {
 		t.Logf("Warning: Number of unique expected URIs (%d) differs from total generated payloads (%d). This might indicate duplicate RawURIs generated.", len(expectedURIsHex), numPayloads)
 	}
 
-	// 5. Send Requests using RequestWorkerPool
+	// 4. Send Requests using RequestWorkerPool
 	clientOpts := rawhttp.DefaultHTTPClientOptions()
 	clientOpts.Timeout = 3 * time.Second      // Timeout for local tests
 	clientOpts.MaxRetries = 0                 // No retries
@@ -60,29 +64,32 @@ func TestMidPathsPayloads(t *testing.T) {
 	wp := rawhttp.NewRequestWorkerPool(clientOpts, 10) // 10 workers
 	resultsChan := wp.ProcessRequests(generatedPayloads)
 
-	// 6. Drain the client results channel
+	// 5. Drain the client results channel
 	responseCount := 0
 	for range resultsChan {
 		responseCount++
 	}
 	wp.Close() // Close the worker pool
-	t.Logf("Client processed %d responses.", responseCount)
+	t.Logf("Client processed %d responses out of %d payloads.", responseCount, numPayloads)
 
-	// 7. Close the Server's Results Channel (Safe now)
-	// Give a brief moment for any in-flight server handlers to send
-	time.Sleep(100 * time.Millisecond)
+	// 6. Allow a moment for server handlers to finish and then close the channel
+	time.Sleep(500 * time.Millisecond) // Increased pause time
 	close(receivedDataChan)
 
-	// 8. Verify Received URIs
+	// 7. Verify Received URIs
 	receivedURIsHex := make(map[string]struct{})
-	for reqData := range receivedDataChan { // Drain the channel
+	receivedCount := 0
+	for reqData := range receivedDataChan {
+		receivedCount++
 		hexURI := hex.EncodeToString([]byte(reqData.URI))
 		receivedURIsHex[hexURI] = struct{}{}
 	}
 
-	// 9. Comparison
+	t.Logf("Server received %d total requests, %d unique URIs", receivedCount, len(receivedURIsHex))
+
+	// 8. Comparison
 	expectedCount := len(expectedURIsHex)
-	receivedCount := len(receivedURIsHex)
+	receivedCount = len(receivedURIsHex)
 
 	if expectedCount != receivedCount {
 		t.Errorf("Mismatch in count: Expected %d unique URIs, Server received %d unique URIs", expectedCount, receivedCount)

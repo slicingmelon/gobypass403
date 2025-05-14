@@ -13,9 +13,18 @@ func TestHeadersURLPayloads(t *testing.T) {
 	targetURL := "http://localhost/admin/login" // Using localhost, port will be replaced
 	moduleName := "headers_url"
 
-	// 1. Generate Payloads
+	// 1. Start the test server FIRST to get the actual server address
+	receivedDataChan := make(chan RequestData, 100) // Use a reasonable buffer initially
+	serverAddr, stopServer := startRawTestServer(t, receivedDataChan)
+	defer stopServer()
+
+	// Update the target URL with the actual server address
+	targetURL = strings.Replace(targetURL, "localhost", serverAddr, 1)
+	t.Logf("Updated target URL to: %s", targetURL)
+
+	// 2. Generate Payloads with the ACTUAL server address
 	pg := payload.NewPayloadGenerator(payload.PayloadGeneratorOptions{
-		TargetURL:    targetURL,
+		TargetURL:    targetURL, // Now using actual server address
 		BypassModule: moduleName,
 	})
 	generatedPayloads := pg.GenerateHeadersURLPayloads(targetURL, moduleName)
@@ -26,17 +35,15 @@ func TestHeadersURLPayloads(t *testing.T) {
 	numPayloads := len(generatedPayloads)
 	t.Logf("Generated %d payloads for headers_url module", numPayloads)
 
-	// Channel to collect requests received by the server - use exact size
-	receivedDataChan := make(chan RequestData, numPayloads)
+	// 3. Double check that each payload has the correct server address
+	for i := range generatedPayloads {
+		if generatedPayloads[i].Host != serverAddr {
+			t.Logf("Warning: Fixing payload host from %s to %s", generatedPayloads[i].Host, serverAddr)
+			generatedPayloads[i].Host = serverAddr
+		}
+	}
 
-	// Start the raw test server
-	serverAddr, stopServer := startRawTestServer(t, receivedDataChan)
-	defer stopServer()
-
-	// Replace localhost with the actual server address for the target URL
-	targetURL = strings.Replace(targetURL, "localhost", serverAddr, 1)
-
-	// 2. Send Requests using RequestWorkerPool
+	// 4. Send Requests using RequestWorkerPool
 	clientOpts := rawhttp.DefaultHTTPClientOptions()
 	clientOpts.Timeout = 2 * time.Second
 	clientOpts.MaxRetries = 0
@@ -54,20 +61,22 @@ func TestHeadersURLPayloads(t *testing.T) {
 	}
 
 	// Brief pause to allow server goroutines to finish processing
-	time.Sleep(100 * time.Millisecond)
-	close(receivedDataChan) // Close channel once pool is done and results drained
+	time.Sleep(500 * time.Millisecond) // Increased pause time
+	close(receivedDataChan)            // Close channel once pool is done and results drained
 
 	t.Logf("Client processed %d responses out of %d payloads.", responseCount, numPayloads)
 
-	// 3. Verify received requests
-	receivedRequests := make([]RequestData, 0, len(receivedDataChan))
+	// 5. Verify received requests
+	receivedRequests := make([]RequestData, 0)
+	receivedCount := 0
 	for req := range receivedDataChan {
+		receivedCount++
 		receivedRequests = append(receivedRequests, req)
 	}
 
-	t.Logf("Server received %d requests", len(receivedRequests))
+	t.Logf("Server received %d total requests, %d captured for analysis", receivedCount, len(receivedRequests))
 
-	// 4. Check for specific header payloads in the requests
+	// 6. Check for specific header payloads in the requests
 	headerChecks := map[string]bool{
 		"X-Original-URL":          false,
 		"X-Rewrite-URL":           false,
@@ -113,7 +122,7 @@ func TestHeadersURLPayloads(t *testing.T) {
 		t.Logf("Successfully detected %d/%d expected header types", foundHeaders, len(headerChecks))
 	}
 
-	// 5. Detailed analysis of a sample request if needed
+	// 7. Detailed analysis of a sample request if needed
 	if len(receivedRequests) > 0 {
 		sampleRequest := receivedRequests[0]
 		t.Logf("Sample request URI: %s", sampleRequest.URI)

@@ -59,25 +59,20 @@ func TestPayloadSeedRoundTrip(t *testing.T) {
 	}
 }
 
-// Helper function to start a raw TCP test server
-func startRawTestServer(t *testing.T, receivedDataChan chan<- RequestData) (string, func()) {
+// Helper function to start a raw TCP test server using an existing listener
+func startRawTestServerWithListener(t *testing.T, listener net.Listener, receivedDataChan chan<- RequestData) func() {
 	t.Helper()
-	listener, err := net.Listen("tcp", "127.0.0.1:0") // Listen on random free port
-	if err != nil {
-		t.Fatalf("Failed to start test server listener: %v", err)
-	}
-
-	serverAddr := listener.Addr().String()
-	t.Logf("Test server listening on: %s", serverAddr)
+	serverAddr := listener.Addr().String() // Get address for logging, though caller knows it
+	t.Logf("Test server (with listener) starting on: %s", serverAddr)
 
 	var wg sync.WaitGroup
 	ctx, cancel := context.WithCancel(context.Background())
 
-	// Accept connections loop
+	// Goroutine to close the listener when context is cancelled
 	go func() {
 		<-ctx.Done() // Wait for cancellation signal
 		listener.Close()
-		t.Log("Test server listener closed.")
+		t.Logf("Test server listener on %s closed.", serverAddr)
 	}()
 
 	wg.Add(1) // Add to WaitGroup for the accept loop goroutine
@@ -87,11 +82,11 @@ func startRawTestServer(t *testing.T, receivedDataChan chan<- RequestData) (stri
 			conn, err := listener.Accept()
 			if err != nil {
 				// Check if the error is due to the listener being closed.
-				if ctx.Err() != nil {
-					t.Log("Test server accept loop stopped.")
+				if ctx.Err() != nil || strings.Contains(err.Error(), "use of closed network connection") {
+					t.Logf("Test server accept loop on %s stopped.", serverAddr)
 					return // Expected error when listener is closed
 				}
-				t.Errorf("Test server accept error: %v", err)
+				t.Errorf("Test server accept error on %s: %v", serverAddr, err)
 				return // Unexpected error
 			}
 
@@ -108,10 +103,26 @@ func startRawTestServer(t *testing.T, receivedDataChan chan<- RequestData) (stri
 	stopServer := func() {
 		cancel()  // Signal goroutines to stop
 		wg.Wait() // Wait for all connection handlers and accept loop to finish
-		t.Log("Test server stopped.")
+		t.Logf("Test server on %s stopped gracefully.", serverAddr)
 	}
 
-	return serverAddr, stopServer
+	return stopServer
+}
+
+// Helper function to start a raw TCP test server
+func startRawTestServer(t *testing.T, receivedDataChan chan<- RequestData) (string, func()) {
+	t.Helper()
+	listener, err := net.Listen("tcp", "127.0.0.1:0") // Listen on random free port
+	if err != nil {
+		t.Fatalf("Failed to start test server listener: %v", err)
+	}
+	serverAddr := listener.Addr().String()
+	// Note: Original t.Logf("Test server listening on: %s", serverAddr) is now in startRawTestServerWithListener
+
+	// Pass the created listener to the new function
+	stopServerFunc := startRawTestServerWithListener(t, listener, receivedDataChan)
+
+	return serverAddr, stopServerFunc
 }
 
 // Handles a single raw connection for the test server
@@ -205,7 +216,7 @@ func handleRawTestConnection(t *testing.T, conn net.Conn, receivedDataChan chan<
 		}
 	}
 
-	// Debug logging for request details
-	t.Logf("Received request with URI: %s", receivedURI)
-	t.Logf("Full raw request length: %d bytes", len(fullRequest))
+	// Debug logging for request details - COMMENTED OUT FOR PERFORMANCE
+	// t.Logf("Received request with URI: %s", receivedURI)
+	// t.Logf("Full raw request length: %d bytes", len(fullRequest))
 }
