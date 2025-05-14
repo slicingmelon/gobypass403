@@ -203,8 +203,10 @@ func handleRawTestConnection(t *testing.T, conn net.Conn, receivedDataChan chan<
 	// Send the request data
 	select {
 	case receivedDataChan <- requestData:
-	case <-time.After(1 * time.Second):
-		t.Logf("Timeout sending received request data for URI '%s'", receivedURI)
+		// Successfully sent
+	case <-time.After(10 * time.Millisecond): // Significantly reduced timeout
+		// t.Logf("Timeout sending received request data for URI '%s' - channel full?", receivedURI) // Log removed
+		// Optionally, we could count these timeouts if needed for debugging without logging per instance
 	}
 
 	// Send a minimal valid HTTP response so the client doesn't error out
