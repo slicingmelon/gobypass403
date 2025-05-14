@@ -67,6 +67,7 @@ type CliOptions struct {
 	// StreamResponseBody
 	DisableStreamResponseBody bool
 	DisableProgressBar        bool
+	NoANSI                    bool // Disable ANSI terminal sequences for terminal compatibility
 
 	// ResendRequest
 	ResendRequest string
