@@ -18,7 +18,7 @@ func TestMidPathsPayloads(t *testing.T) {
 	t.Logf("TestMidPathsPayloads started at: %s", startTime.Format(time.RFC3339Nano))
 
 	// Use a URL with multiple path segments for better testing
-	baseTargetURL := "http://localhost/admin/config/users"
+	baseTargetURL := "http://localhost/admin/config"
 	moduleName := "mid_paths"
 
 	// 1. Start a listener to get a free port
@@ -91,7 +91,7 @@ func TestMidPathsPayloads(t *testing.T) {
 	clientOpts.MaxConsecutiveFailedReqs = 100
 
 	// Use a reasonable number of workers for local testing
-	wp := rawhttp.NewRequestWorkerPool(clientOpts, 30)
+	wp := rawhttp.NewRequestWorkerPool(clientOpts, 100)
 	defer wp.Close()
 
 	resultsChan := wp.ProcessRequests(generatedPayloads)
