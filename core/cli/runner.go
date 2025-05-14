@@ -97,7 +97,6 @@ func (r *Runner) Initialize() error {
 		ResponseBodyPreviewSize:   r.RunnerOptions.ResponseBodyPreviewSize,
 		DisableStreamResponseBody: r.RunnerOptions.DisableStreamResponseBody,
 		DisableProgressBar:        r.RunnerOptions.DisableProgressBar,
-		NoANSI:                    r.RunnerOptions.NoANSI,
 		ResendRequest:             r.RunnerOptions.ResendRequest,
 
 		ReconCache: r.UrlRecon.reconService.GetReconCache(),
@@ -158,7 +157,6 @@ func (r *Runner) handleResendRequest() error {
 		EnableHTTP2:               r.RunnerOptions.EnableHTTP2,
 		DisableStreamResponseBody: r.RunnerOptions.DisableStreamResponseBody,
 		DisableProgressBar:        r.RunnerOptions.DisableProgressBar,
-		NoANSI:                    r.RunnerOptions.NoANSI,
 	}
 
 	// Initialize scanner with display URL for logging

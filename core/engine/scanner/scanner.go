@@ -42,7 +42,6 @@ type ScannerOpts struct {
 	DisableProgressBar        bool
 	ResendRequest             string
 	ReconCache                *recon.ReconCache
-	NoANSI                    bool // Disable ANSI escape sequences for terminals that don't support them
 }
 
 // Scanner represents the main scanner structure, perhaps the highest level in the hierarchy of the tool
