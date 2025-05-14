@@ -130,7 +130,7 @@ func handleRawTestConnection(t *testing.T, conn net.Conn, receivedDataChan chan<
 	t.Helper()
 
 	// Set a read deadline to avoid hanging
-	conn.SetReadDeadline(time.Now().Add(5 * time.Second))
+	conn.SetReadDeadline(time.Now().Add(1 * time.Second)) // Reduced server-side read deadline
 
 	// Instead of just reading the first line, read the entire request
 	var requestBuffer strings.Builder
