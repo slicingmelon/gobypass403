@@ -217,6 +217,6 @@ func handleRawTestConnection(t *testing.T, conn net.Conn, receivedDataChan chan<
 	}
 
 	// Debug logging for request details - COMMENTED OUT FOR PERFORMANCE
-	// t.Logf("Received request with URI: %s", receivedURI)
-	// t.Logf("Full raw request length: %d bytes", len(fullRequest))
+	t.Logf("Received request with URI: %s", receivedURI)
+	t.Logf("Full raw request length: %d bytes", len(fullRequest))
 }

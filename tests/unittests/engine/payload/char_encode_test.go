@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net" // Required for net.Listener
 	"strings"
+	"sync" // Required for sync.WaitGroup
 	"testing"
 	"time"
 
@@ -61,6 +62,17 @@ func TestCharEncodePayloads(t *testing.T) {
 	stopServer := startRawTestServerWithListener(t, listener, receivedDataChan)
 	defer stopServer()
 
+	// Goroutine to collect received requests concurrently
+	var collectedRequests []RequestData
+	var collectWg sync.WaitGroup
+	collectWg.Add(1)
+	go func() {
+		defer collectWg.Done()
+		for reqData := range receivedDataChan {
+			collectedRequests = append(collectedRequests, reqData)
+		}
+	}()
+
 	// 3. Set up expected URIs from the payloads
 	expectedURIsHex := make(map[string]struct{})
 	for _, p := range generatedPayloads {
@@ -95,16 +107,33 @@ func TestCharEncodePayloads(t *testing.T) {
 		responseCount++
 	}
 
-	// Brief pause to allow server goroutines to finish processing
-	time.Sleep(500 * time.Millisecond) // Increased pause time
-	close(receivedDataChan)            // Close channel once pool is done and results drained
-
 	t.Logf("Client processed %d responses out of %d payloads", responseCount, numPayloads)
+
+	// Explicitly stop the server and wait for all its goroutines to finish.
+	// This ensures all handleRawTestConnection goroutines have attempted to send
+	// to receivedDataChan before we close it.
+	t.Log("Stopping test server...")
+	stopServer() // This was previously only deferred.
+	t.Log("Test server stopped.")
+
+	// Now it's safe to close receivedDataChan, as all server handlers are done.
+	close(receivedDataChan)
+
+	// Wait for the collector goroutine to finish processing all items from the channel
+	t.Log("Waiting for request collector to finish...")
+	collectWg.Wait()
+	t.Log("Request collector finished.")
+
+	// The time.Sleep is no longer strictly necessary for synchronization here,
+	// but a very short one might be kept if there are other subtle race conditions
+	// related to OS-level port freeing or other async operations not directly covered.
+	// For now, let's remove it or make it much shorter if issues persist.
+	// time.Sleep(50 * time.Millisecond) // Reduced significantly or remove
 
 	// 5. Verify Received URIs
 	receivedURIsHex := make(map[string]struct{})
 	receivedCount := 0
-	for reqData := range receivedDataChan {
+	for _, reqData := range collectedRequests { // Iterate over collected requests
 		receivedCount++
 		hexURI := hex.EncodeToString([]byte(reqData.URI))
 		receivedURIsHex[hexURI] = struct{}{}
