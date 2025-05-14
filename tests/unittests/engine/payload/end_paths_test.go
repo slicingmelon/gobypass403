@@ -33,10 +33,10 @@ func TestEndPathsPayloads(t *testing.T) {
 	t.Logf("Generated %d payloads for %s.", numPayloads, moduleName)
 
 	// 2. Create the correctly sized channel for server results
-	receivedURIsChan := make(chan string, numPayloads)
+	receivedDataChan := make(chan RequestData, numPayloads)
 
 	// 3. Start the server, passing the *correct* channel
-	serverAddr, stopServer := startRawTestServer(t, receivedURIsChan)
+	serverAddr, stopServer := startRawTestServer(t, receivedDataChan)
 	// Defer server stop *after* client processing is done
 	defer stopServer() // This now correctly waits for server handlers
 
@@ -86,12 +86,12 @@ func TestEndPathsPayloads(t *testing.T) {
 	// The deferred stopServer() call WILL wait for the WaitGroup.
 
 	// 8. Close the Server's Results Channel (NOW it's safe)
-	close(receivedURIsChan)
+	close(receivedDataChan)
 
 	// 9. Verify Received URIs
 	receivedURIsHex := make(map[string]struct{})
-	for uri := range receivedURIsChan { // Drain the channel completely
-		hexURI := hex.EncodeToString([]byte(uri))
+	for reqData := range receivedDataChan { // Drain the channel completely
+		hexURI := hex.EncodeToString([]byte(reqData.URI))
 		receivedURIsHex[hexURI] = struct{}{}
 	}
 

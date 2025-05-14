@@ -3,6 +3,7 @@ package tests
 import (
 	"bufio"
 	"context"
+	"encoding/hex"
 	"io"
 	"net"
 	"strings"
@@ -12,6 +13,13 @@ import (
 
 	"github.com/slicingmelon/gobypass403/core/engine/payload"
 )
+
+// RequestData holds both the URI and full raw HTTP request received by the test server
+type RequestData struct {
+	URI         string // The URI portion of the request
+	FullRequest string // The complete raw HTTP request (including request line, headers, body)
+	HexEncoded  string // Hex-encoded raw request for precise comparison
+}
 
 func TestPayloadSeedRoundTrip(t *testing.T) {
 	// Test case matching your HeaderIP job
@@ -52,7 +60,7 @@ func TestPayloadSeedRoundTrip(t *testing.T) {
 }
 
 // Helper function to start a raw TCP test server
-func startRawTestServer(t *testing.T, receivedURIsChan chan<- string) (string, func()) {
+func startRawTestServer(t *testing.T, receivedDataChan chan<- RequestData) (string, func()) {
 	t.Helper()
 	listener, err := net.Listen("tcp", "127.0.0.1:0") // Listen on random free port
 	if err != nil {
@@ -91,7 +99,7 @@ func startRawTestServer(t *testing.T, receivedURIsChan chan<- string) (string, f
 			go func(c net.Conn) {
 				defer wg.Done()
 				defer c.Close()
-				handleRawTestConnection(t, c, receivedURIsChan)
+				handleRawTestConnection(t, c, receivedDataChan)
 			}(conn)
 		}
 	}()
@@ -107,30 +115,85 @@ func startRawTestServer(t *testing.T, receivedURIsChan chan<- string) (string, f
 }
 
 // Handles a single raw connection for the test server
-func handleRawTestConnection(t *testing.T, conn net.Conn, receivedURIsChan chan<- string) {
+func handleRawTestConnection(t *testing.T, conn net.Conn, receivedDataChan chan<- RequestData) {
 	t.Helper()
+
+	// Set a read deadline to avoid hanging
+	conn.SetReadDeadline(time.Now().Add(5 * time.Second))
+
+	// Instead of just reading the first line, read the entire request
+	var requestBuffer strings.Builder
 	reader := bufio.NewReader(conn)
+
+	// Read request line first (still needed to extract URI for backward compatibility)
 	requestLine, err := reader.ReadString('\n')
 	if err != nil && err != io.EOF {
-		// Ignore timeout errors which might happen if client closes early
 		if !strings.Contains(err.Error(), "timeout") && !strings.Contains(err.Error(), "forcibly closed") {
 			t.Logf("Test server read error: %v", err)
 		}
-		return // Can't read request line
+		return
 	}
+	requestBuffer.WriteString(requestLine)
 
-	requestLine = strings.TrimSpace(requestLine)
-	parts := strings.Split(requestLine, " ")
-	if len(parts) >= 2 {
-		receivedURI := parts[1]
-		// Send the raw URI received back for comparison
-		select {
-		case receivedURIsChan <- receivedURI:
-		case <-time.After(1 * time.Second): // Timeout to prevent blocking test
-			t.Logf("Timeout sending received URI '%s' to channel", receivedURI)
-		}
+	// Extract URI for backward compatibility
+	requestLineParts := strings.Split(strings.TrimSpace(requestLine), " ")
+	var receivedURI string
+	if len(requestLineParts) >= 2 {
+		receivedURI = requestLineParts[1]
 	} else {
 		t.Logf("Received malformed request line: %s", requestLine)
+		return
+	}
+
+	// Read headers until empty line
+	emptyLineFound := false
+	for !emptyLineFound {
+		line, err := reader.ReadString('\n')
+		if err != nil && err != io.EOF {
+			if !strings.Contains(err.Error(), "timeout") && !strings.Contains(err.Error(), "forcibly closed") {
+				t.Logf("Test server read error when reading headers: %v", err)
+			}
+			break
+		}
+		requestBuffer.WriteString(line)
+
+		// Empty line (just "\r\n") indicates end of headers
+		if line == "\r\n" || line == "\n" {
+			emptyLineFound = true
+		}
+
+		// Break on EOF
+		if err == io.EOF {
+			break
+		}
+	}
+
+	// Try to read body if Content-Length header was present
+	// For simplicity in this test server we'll read a limited amount
+	bodyBuf := make([]byte, 8192) // Read up to 8KB of body
+	n, _ := reader.Read(bodyBuf)
+	if n > 0 {
+		requestBuffer.Write(bodyBuf[:n])
+	}
+
+	// Get the full raw request
+	fullRequest := requestBuffer.String()
+
+	// Convert to hex for precise comparison including invisible characters
+	hexRequest := hex.EncodeToString([]byte(fullRequest))
+
+	// Create RequestData struct
+	requestData := RequestData{
+		URI:         receivedURI,
+		FullRequest: fullRequest,
+		HexEncoded:  hexRequest,
+	}
+
+	// Send the request data
+	select {
+	case receivedDataChan <- requestData:
+	case <-time.After(1 * time.Second):
+		t.Logf("Timeout sending received request data for URI '%s'", receivedURI)
 	}
 
 	// Send a minimal valid HTTP response so the client doesn't error out
@@ -141,4 +204,8 @@ func handleRawTestConnection(t *testing.T, conn net.Conn, receivedURIsChan chan<
 			t.Logf("Test server write error: %v", err)
 		}
 	}
+
+	// Debug logging for request details
+	t.Logf("Received request with URI: %s", receivedURI)
+	t.Logf("Full raw request length: %d bytes", len(fullRequest))
 }

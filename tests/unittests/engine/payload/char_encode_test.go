@@ -15,11 +15,11 @@ func TestCharEncodePayloads(t *testing.T) {
 	targetURL := "http://localhost/admin/login" // Using localhost, port will be replaced
 	moduleName := "char_encode"
 
-	// Channel to collect URIs received by the server
-	receivedURIsChan := make(chan string, 500) // Buffer size depends on expected number of payloads
+	// Channel to collect requests received by the server
+	receivedDataChan := make(chan RequestData, 500) // Buffer size depends on expected number of payloads
 
 	// Start the raw test server
-	serverAddr, stopServer := startRawTestServer(t, receivedURIsChan)
+	serverAddr, stopServer := startRawTestServer(t, receivedDataChan)
 	defer stopServer()
 
 	// Replace localhost with the actual server address for the target URL
@@ -68,16 +68,16 @@ func TestCharEncodePayloads(t *testing.T) {
 	}
 	// Brief pause to allow server goroutines to potentially send to channel
 	time.Sleep(100 * time.Millisecond)
-	close(receivedURIsChan) // Close channel once pool is done and results drained
+	close(receivedDataChan) // Close channel once pool is done and results drained
 
 	t.Logf("Client processed %d responses.", responseCount)
 
 	// 3. Verify Received URIs
 	receivedURIsHex := make(map[string]struct{})
-	for uri := range receivedURIsChan { // Drain the channel completely
-		hexURI := hex.EncodeToString([]byte(uri))
+	for reqData := range receivedDataChan { // Drain the channel completely
+		hexURI := hex.EncodeToString([]byte(reqData.URI))
 		receivedURIsHex[hexURI] = struct{}{}
-		// t.Logf("Received RawURI: %s (Hex: %s)", uri, hexURI) // Debug logging
+		// t.Logf("Received RawURI: %s (Hex: %s)", reqData.URI, hexURI) // Debug logging
 	}
 
 	// Comparison
@@ -116,5 +116,4 @@ func TestCharEncodePayloads(t *testing.T) {
 		}
 		t.Logf("Successfully verified %d unique received URIs against expected URIs.", len(receivedURIsHex))
 	}
-
 }
