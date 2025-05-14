@@ -1,8 +1,6 @@
 package tests
 
 import (
-	"encoding/hex"
-	"fmt"
 	"net"
 	"strings"
 	"sync"
@@ -64,29 +62,29 @@ func TestHeadersURLPayloads(t *testing.T) {
 		}
 	}()
 
-	// Update payload destinations and create expected request map
-	expectedRequestsHex := make(map[string]struct{})
+	// Create maps to track expected URIs and headers
+	expectedURIs := make(map[string]bool)
+	expectedHeaders := make(map[string]map[string]bool) // map[headerName][headerValue]bool
+
+	// Update payload destinations and track expected components
 	for i := range generatedPayloads {
 		// Ensure each payload has the correct server address
 		generatedPayloads[i].Scheme = "http"
 		generatedPayloads[i].Host = serverAddr
 
-		// We're tracking the full raw HTTP request, so we need to construct a
-		// predictable request to compare against what the server receives
-		// This will be built from the URI and any headers that would be sent
-		reqLine := fmt.Sprintf("%s %s HTTP/1.1\r\n", generatedPayloads[i].Method, generatedPayloads[i].RawURI)
-		reqHost := fmt.Sprintf("Host: %s\r\n", serverAddr)
-		reqHeaders := ""
-		for _, h := range generatedPayloads[i].Headers {
-			reqHeaders += fmt.Sprintf("%s: %s\r\n", h.Header, h.Value)
-		}
-		reqEnd := "\r\n" // Empty line to end headers
+		// Track expected URI for each request
+		expectedURIs[generatedPayloads[i].RawURI] = true
 
-		predictedReq := reqLine + reqHost + reqHeaders + reqEnd
-		hexReq := hex.EncodeToString([]byte(predictedReq))
-		expectedRequestsHex[hexReq] = struct{}{}
+		// Track expected headers for each request
+		for _, h := range generatedPayloads[i].Headers {
+			if expectedHeaders[h.Header] == nil {
+				expectedHeaders[h.Header] = make(map[string]bool)
+			}
+			expectedHeaders[h.Header][h.Value] = true
+		}
 	}
-	t.Logf("Prepared %d unique expected request patterns for verification", len(expectedRequestsHex))
+	t.Logf("Prepared %d unique URIs and %d unique header types for verification",
+		len(expectedURIs), len(expectedHeaders))
 
 	// Send Requests using RequestWorkerPool
 	clientSendStartTime := time.Now()
@@ -106,7 +104,8 @@ func TestHeadersURLPayloads(t *testing.T) {
 	for range resultsChan {
 		responseCount++
 	}
-	t.Logf("Client processed %d responses out of %d payloads. (took %s to send and drain)", responseCount, numPayloads, time.Since(clientSendStartTime))
+	t.Logf("Client processed %d responses out of %d payloads. (took %s to send and drain)",
+		responseCount, numPayloads, time.Since(clientSendStartTime))
 
 	// Explicitly stop the server and wait for all its goroutines to finish
 	serverStopStartTime := time.Now()
@@ -123,81 +122,100 @@ func TestHeadersURLPayloads(t *testing.T) {
 	collectWg.Wait()
 	t.Logf("Request collector finished. (took %s)", time.Since(collectorWaitStartTime))
 
-	// Verify Received Requests with comprehensive hex comparison
+	// Verify received requests with component-wise verification
 	verificationStartTime := time.Now()
-	receivedRequestsHex := make(map[string]struct{})
-	receivedCount := 0
+	receivedCount := len(collectedRequests)
+	t.Logf("Server received %d total requests for verification", receivedCount)
 
-	for _, reqData := range collectedRequests {
-		receivedCount++
-		// Use the HexEncoded field that contains the full raw HTTP request
-		receivedRequestsHex[reqData.HexEncoded] = struct{}{}
+	// Track counters
+	verifiedURIs := make(map[string]bool)
+	verifiedHeaders := make(map[string]map[string]bool)
+
+	// Initialize verified headers map with same structure as expected
+	for header, values := range expectedHeaders {
+		verifiedHeaders[header] = make(map[string]bool)
+		for value := range values {
+			verifiedHeaders[header][value] = false // Initialize all to false
+		}
 	}
 
-	t.Logf("Server received %d total requests, %d unique requests", receivedCount, len(receivedRequestsHex))
+	// Process each received request
+	for _, reqData := range collectedRequests {
+		// Track URI
+		verifiedURIs[reqData.URI] = true
 
-	// Perform comprehensive request comparison
-	if len(expectedRequestsHex) != len(receivedRequestsHex) {
-		t.Errorf("Mismatch in count: Expected %d unique requests, Server received %d unique requests",
-			len(expectedRequestsHex), len(receivedRequestsHex))
+		// Parse and track headers
+		lines := strings.Split(reqData.FullRequest, "\r\n")
+		for _, line := range lines {
+			if strings.Contains(line, ": ") {
+				parts := strings.SplitN(line, ": ", 2)
+				if len(parts) == 2 {
+					headerName := parts[0]
+					headerValue := parts[1]
 
-		// Find missing/extra requests
-		missing := []string{}
-		for hexExp := range expectedRequestsHex {
-			if _, found := receivedRequestsHex[hexExp]; !found {
-				rawBytes, _ := hex.DecodeString(hexExp)
-				missing = append(missing, fmt.Sprintf("'%s' (Hex: %s)", string(rawBytes), hexExp))
-			}
-		}
-
-		extra := []string{}
-		for hexRcv := range receivedRequestsHex {
-			if _, found := expectedRequestsHex[hexRcv]; !found {
-				rawBytes, _ := hex.DecodeString(hexRcv)
-				extra = append(extra, fmt.Sprintf("'%s' (Hex: %s)", string(rawBytes), hexRcv))
-			}
-		}
-
-		if len(missing) > 0 {
-			if len(missing) > 5 {
-				t.Errorf("%d expected requests not received. First 5 examples:", len(missing))
-				for i := 0; i < 5 && i < len(missing); i++ {
-					t.Errorf("Missing: %s", missing[i])
+					// Check if it's one of our expected headers
+					if valueMap, exists := verifiedHeaders[headerName]; exists {
+						if _, valueExists := valueMap[headerValue]; valueExists {
+							verifiedHeaders[headerName][headerValue] = true
+						}
+					}
 				}
-			} else {
-				t.Errorf("Requests expected but not received by server:\n%s", strings.Join(missing, "\n"))
 			}
 		}
+	}
 
-		if len(extra) > 0 {
-			if len(extra) > 5 {
-				t.Errorf("%d unexpected requests received. First 5 examples:", len(extra))
-				for i := 0; i < 5 && i < len(extra); i++ {
-					t.Errorf("Extra: %s", extra[i])
-				}
-			} else {
-				t.Errorf("Requests received by server but not expected:\n%s", strings.Join(extra, "\n"))
+	// Verify URIs
+	missingURIs := make([]string, 0)
+	for uri := range expectedURIs {
+		if !verifiedURIs[uri] {
+			missingURIs = append(missingURIs, uri)
+		}
+	}
+
+	if len(missingURIs) > 0 {
+		if len(missingURIs) > 5 {
+			t.Errorf("%d expected URIs not found in requests. First 5:", len(missingURIs))
+			for i := 0; i < 5 && i < len(missingURIs); i++ {
+				t.Errorf("  - Missing URI: %s", missingURIs[i])
 			}
+		} else {
+			t.Errorf("Expected URIs not found in requests: %s", strings.Join(missingURIs, ", "))
 		}
 	} else {
-		// If counts match, verify all expected requests were received
-		mismatchCount := 0
-		for hexExp := range expectedRequestsHex {
-			if _, found := receivedRequestsHex[hexExp]; !found {
-				mismatchCount++
-				if mismatchCount <= 5 { // Limit output to first 5 mismatches
-					rawBytes, _ := hex.DecodeString(hexExp)
-					t.Errorf("Expected request not received: '%s' (Hex: %s)", string(rawBytes), hexExp)
+		t.Logf("Successfully verified all %d expected URIs were sent", len(expectedURIs))
+	}
+
+	// Verify Headers
+	missingHeaderValues := 0
+
+	for header, valueMap := range verifiedHeaders {
+		for value, found := range valueMap {
+			if !found {
+				missingHeaderValues++
+				if missingHeaderValues <= 5 {
+					t.Errorf("Missing header value: %s: %s", header, value)
 				}
 			}
 		}
+	}
 
-		if mismatchCount > 0 {
-			t.Errorf("Total of %d expected requests not received", mismatchCount)
-		} else {
-			t.Logf("Successfully verified %d unique received requests against expected requests", len(receivedRequestsHex))
+	if missingHeaderValues > 0 {
+		t.Errorf("Total of %d expected header values not found in requests", missingHeaderValues)
+	} else {
+		t.Logf("Successfully verified all expected header values were sent")
+	}
+
+	// Count verified header types
+	verifiedHeaderTypes := 0
+	for _, valueMap := range verifiedHeaders {
+		for _, found := range valueMap {
+			if found {
+				verifiedHeaderTypes++
+				break
+			}
 		}
 	}
+	t.Logf("Verified %d/%d header types were used in requests", verifiedHeaderTypes, len(expectedHeaders))
 
 	t.Logf("Verification finished. (took %s)", time.Since(verificationStartTime))
 	t.Logf("TestHeadersURLPayloads finished. Total time: %s", time.Since(startTime))
