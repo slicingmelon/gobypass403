@@ -13,13 +13,13 @@ import (
 	"github.com/slicingmelon/gobypass403/core/engine/rawhttp"
 )
 
-func TestNginxACLsBypassPayloads(t *testing.T) {
+func TestNginxBypassPayloads(t *testing.T) {
 	startTime := time.Now()
-	t.Logf("TestNginxACLsBypassPayloads started at: %s", startTime.Format(time.RFC3339Nano))
+	t.Logf("TestNginxBypassPayloads started at: %s", startTime.Format(time.RFC3339Nano))
 
 	// Use a URL with multiple path segments
 	baseTargetURL := "http://localhost/admin/config/users"
-	moduleName := "nginx_acl_bypasses"
+	moduleName := "nginx_bypasses"
 
 	// 1. Start a listener to get a free port
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
@@ -89,10 +89,9 @@ func TestNginxACLsBypassPayloads(t *testing.T) {
 	clientOpts := rawhttp.DefaultHTTPClientOptions()
 	clientOpts.Timeout = 3 * time.Second
 	clientOpts.MaxRetries = 0
-	clientOpts.MaxConsecutiveFailedReqs = numPayloads + 10 // Allow for all payloads to fail
+	clientOpts.MaxConsecutiveFailedReqs = numPayloads + 10
 
-	// Use a reasonable number of workers for local testing
-	wp := rawhttp.NewRequestWorkerPool(clientOpts, 30)
+	wp := rawhttp.NewRequestWorkerPool(clientOpts, 50)
 	defer wp.Close()
 
 	resultsChan := wp.ProcessRequests(generatedPayloads)
@@ -111,7 +110,6 @@ func TestNginxACLsBypassPayloads(t *testing.T) {
 	stopServer()
 	t.Logf("Test server stopped. (took %s)", time.Since(serverStopStartTime))
 
-	// Now it's safe to close receivedDataChan, as all server handlers are done
 	close(receivedDataChan)
 
 	// Wait for the collector goroutine to finish processing all items from the channel

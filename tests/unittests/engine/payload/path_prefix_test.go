@@ -185,13 +185,13 @@ func TestPathPrefixPayloads(t *testing.T) {
 	t.Logf("TestPathPrefixPayloads finished. Total time: %s", time.Since(startTime))
 }
 
-func TestPathPrefixPayloadsWithBurpProxy(t *testing.T) {
+func TestPathPrefixPayloadsWithProxy(t *testing.T) {
 	//targetURL := "http://localhost/admin/config" // Target URL with multiple segments
 	targetURL := "http://localhost/admin" // Target URL with multiple segments
 	moduleName := "path_prefix"
 	proxyURL := "http://127.0.0.1:8080"
 
-	t.Logf("--- Starting TestPathPrefixPayloadsWithBurpProxy (%s) --- Proxy: %s ---", moduleName, proxyURL)
+	t.Logf("--- Starting TestPathPrefixPayloadsWithProxy (%s) --- Proxy: %s ---", moduleName, proxyURL)
 
 	// 1. Generate Payloads
 	pg := payload.NewPayloadGenerator(payload.PayloadGeneratorOptions{
@@ -238,7 +238,7 @@ func TestPathPrefixPayloadsWithBurpProxy(t *testing.T) {
 
 	t.Logf("(WithProxy) Client configured to use proxy: %s, Timeout: %s, RequestDelay: %s", clientOpts.ProxyURL, clientOpts.Timeout, clientOpts.RequestDelay)
 
-	wp := rawhttp.NewRequestWorkerPool(clientOpts, 50) // Reduced workers ...
+	wp := rawhttp.NewRequestWorkerPool(clientOpts, 150)
 	resultsChan := wp.ProcessRequests(generatedPayloads)
 
 	// 6. Drain client results

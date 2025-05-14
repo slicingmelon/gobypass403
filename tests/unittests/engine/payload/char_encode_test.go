@@ -91,18 +91,13 @@ func TestCharEncodePayloads(t *testing.T) {
 		expectedURIsHex[hexURI] = struct{}{}
 	}
 
-	// Resize the channel now that we know the payload count
-	// Note: We can't actually resize the channel, so this is just a note
-	// In practice, the initial buffer size should be enough
-
 	// 4. Send Requests using RequestWorkerPool
 	clientSendStartTime := time.Now()
 	clientOpts := rawhttp.DefaultHTTPClientOptions()
-	clientOpts.Timeout = 2 * time.Second      // Shorter timeout for tests
-	clientOpts.MaxRetries = 0                 // No retries for simpler testing
-	clientOpts.MaxConsecutiveFailedReqs = 100 // Allow failures during testing
+	clientOpts.Timeout = 2 * time.Second
+	clientOpts.MaxRetries = 0
+	clientOpts.MaxConsecutiveFailedReqs = 100
 
-	// Use a reasonable number of workers for local testing
 	wp := rawhttp.NewRequestWorkerPool(clientOpts, 20)
 	defer wp.Close()
 

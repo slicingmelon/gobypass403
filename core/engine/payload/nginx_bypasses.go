@@ -370,5 +370,19 @@ func (pg *PayloadGenerator) GenerateNginxACLsBypassPayloads(targetURL string, by
 
 	// Final log message (unchanged as requested)
 	GB403Logger.Debug().BypassModule(bypassModule).Msgf("Generated %d Nginx bypass payloads for %s\n", len(allJobs), targetURL)
-	return allJobs
+
+	// Deduplicate payloads based on RawURI to ensure unique payloads
+	uniqueJobs := make(map[string]BypassPayload)
+	for _, job := range allJobs {
+		uniqueJobs[job.RawURI] = job
+	}
+
+	// Convert back to slice
+	dedupedJobs := make([]BypassPayload, 0, len(uniqueJobs))
+	for _, job := range uniqueJobs {
+		dedupedJobs = append(dedupedJobs, job)
+	}
+
+	GB403Logger.Debug().BypassModule(bypassModule).Msgf("After deduplication: %d unique Nginx bypass payloads for %s\n", len(dedupedJobs), targetURL)
+	return dedupedJobs
 }
