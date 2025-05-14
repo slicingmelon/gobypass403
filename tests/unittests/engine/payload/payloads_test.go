@@ -138,9 +138,7 @@ func handleRawTestConnection(t *testing.T, conn net.Conn, receivedDataChan chan<
 		}
 	}
 
-	// Try to read body if Content-Length header was present
-	// For simplicity in this test server we'll read a limited amount
-	bodyBuf := make([]byte, 8192*2) // Read up to 8KB of body
+	bodyBuf := make([]byte, 8192*2)
 	n, _ := reader.Read(bodyBuf)
 	if n > 0 {
 		requestBuffer.Write(bodyBuf[:n])
