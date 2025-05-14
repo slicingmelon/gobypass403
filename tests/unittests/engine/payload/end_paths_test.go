@@ -89,7 +89,7 @@ func TestEndPathsPayloads(t *testing.T) {
 	clientOpts.MaxRetries = 0
 	clientOpts.MaxConsecutiveFailedReqs = numPayloads + 10
 
-	wp := rawhttp.NewRequestWorkerPool(clientOpts, 10) // Number of client workers
+	wp := rawhttp.NewRequestWorkerPool(clientOpts, 30) // Number of client workers
 	defer wp.Close()                                   // Ensure worker pool is closed
 
 	resultsChan := wp.ProcessRequests(generatedPayloads)
