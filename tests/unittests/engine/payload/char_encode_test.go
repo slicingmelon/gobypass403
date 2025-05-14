@@ -14,6 +14,9 @@ import (
 )
 
 func TestCharEncodePayloads(t *testing.T) {
+	startTime := time.Now()
+	t.Logf("TestCharEncodePayloads started at: %s", startTime.Format(time.RFC3339Nano))
+
 	baseTargetURL := "http://localhost/admin/login" // Using localhost, port will be replaced
 	moduleName := "char_encode"
 
@@ -28,9 +31,10 @@ func TestCharEncodePayloads(t *testing.T) {
 
 	// Update the target URL with the actual server address
 	targetURL := strings.Replace(baseTargetURL, "localhost", serverAddr, 1)
-	t.Logf("Updated target URL to: %s", targetURL)
+	t.Logf("Updated target URL to: %s (took %s)", targetURL, time.Since(startTime))
 
 	// 2. Generate Payloads with the ACTUAL server address
+	pgStartTime := time.Now()
 	pg := payload.NewPayloadGenerator(payload.PayloadGeneratorOptions{
 		TargetURL:    targetURL,
 		BypassModule: moduleName,
@@ -51,16 +55,18 @@ func TestCharEncodePayloads(t *testing.T) {
 		// though this specific test would likely fail later if 0 payloads is unexpected.
 	}
 	numPayloads := len(generatedPayloads)
-	t.Logf("Generated %d payloads for char_encode variants.", numPayloads)
+	t.Logf("Generated %d payloads for char_encode variants. (took %s)", numPayloads, time.Since(pgStartTime))
 
 	// Dynamically size the channel based on the number of payloads
 	// If numPayloads is 0, it creates an unbuffered channel, which is acceptable.
 	receivedDataChan := make(chan RequestData, numPayloads)
 
 	// Start the test server using the listener and correctly sized channel
+	serverStartTime := time.Now()
 	// startRawTestServerWithListener is in the same package 'tests'
 	stopServer := startRawTestServerWithListener(t, listener, receivedDataChan)
 	defer stopServer()
+	t.Logf("Test server started. (took %s)", time.Since(serverStartTime))
 
 	// Goroutine to collect received requests concurrently
 	var collectedRequests []RequestData
@@ -90,6 +96,7 @@ func TestCharEncodePayloads(t *testing.T) {
 	// In practice, the initial buffer size should be enough
 
 	// 4. Send Requests using RequestWorkerPool
+	clientSendStartTime := time.Now()
 	clientOpts := rawhttp.DefaultHTTPClientOptions()
 	clientOpts.Timeout = 2 * time.Second      // Shorter timeout for tests
 	clientOpts.MaxRetries = 0                 // No retries for simpler testing
@@ -106,23 +113,24 @@ func TestCharEncodePayloads(t *testing.T) {
 	for range resultsChan {
 		responseCount++
 	}
-
-	t.Logf("Client processed %d responses out of %d payloads", responseCount, numPayloads)
+	t.Logf("Client processed %d responses out of %d payloads. (took %s to send and drain)", responseCount, numPayloads, time.Since(clientSendStartTime))
 
 	// Explicitly stop the server and wait for all its goroutines to finish.
+	serverStopStartTime := time.Now()
 	// This ensures all handleRawTestConnection goroutines have attempted to send
 	// to receivedDataChan before we close it.
 	t.Log("Stopping test server...")
 	stopServer() // This was previously only deferred.
-	t.Log("Test server stopped.")
+	t.Logf("Test server stopped. (took %s)", time.Since(serverStopStartTime))
 
 	// Now it's safe to close receivedDataChan, as all server handlers are done.
 	close(receivedDataChan)
 
 	// Wait for the collector goroutine to finish processing all items from the channel
+	collectorWaitStartTime := time.Now()
 	t.Log("Waiting for request collector to finish...")
 	collectWg.Wait()
-	t.Log("Request collector finished.")
+	t.Logf("Request collector finished. (took %s)", time.Since(collectorWaitStartTime))
 
 	// The time.Sleep is no longer strictly necessary for synchronization here,
 	// but a very short one might be kept if there are other subtle race conditions
@@ -131,6 +139,7 @@ func TestCharEncodePayloads(t *testing.T) {
 	// time.Sleep(50 * time.Millisecond) // Reduced significantly or remove
 
 	// 5. Verify Received URIs
+	verificationStartTime := time.Now()
 	receivedURIsHex := make(map[string]struct{})
 	receivedCount := 0
 	for _, reqData := range collectedRequests { // Iterate over collected requests
@@ -177,4 +186,6 @@ func TestCharEncodePayloads(t *testing.T) {
 		}
 		t.Logf("Successfully verified %d unique received URIs against expected URIs.", len(receivedURIsHex))
 	}
+	t.Logf("Verification finished. (took %s)", time.Since(verificationStartTime))
+	t.Logf("TestCharEncodePayloads finished. Total time: %s", time.Since(startTime))
 }
