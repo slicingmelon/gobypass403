@@ -3,7 +3,9 @@ package tests
 import (
 	"encoding/hex"
 	"fmt"
+	"net"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -12,20 +14,26 @@ import (
 )
 
 func TestNginxACLsBypassPayloads(t *testing.T) {
+	startTime := time.Now()
+	t.Logf("TestNginxACLsBypassPayloads started at: %s", startTime.Format(time.RFC3339Nano))
+
 	// Use a URL with multiple path segments
-	targetURL := "http://localhost/admin/config/users"
+	baseTargetURL := "http://localhost/admin/config/users"
 	moduleName := "nginx_acl_bypasses"
 
-	// 1. Start the test server FIRST to get the actual server address
-	receivedDataChan := make(chan RequestData, 100) // Use a reasonable buffer initially
-	serverAddr, stopServer := startRawTestServer(t, receivedDataChan)
-	defer stopServer() // Ensure server stops eventually
+	// 1. Start a listener to get a free port
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("Failed to start listener: %v", err)
+	}
+	serverAddr := listener.Addr().String() // host:port
 
 	// Update the target URL with the actual server address
-	targetURL = strings.Replace(targetURL, "localhost", serverAddr, 1)
-	t.Logf("Updated target URL to: %s", targetURL)
+	targetURL := strings.Replace(baseTargetURL, "localhost", serverAddr, 1)
+	t.Logf("Updated target URL to: %s (took %s)", targetURL, time.Since(startTime))
 
 	// 2. Generate Payloads with the ACTUAL server address
+	pgStartTime := time.Now()
 	pg := payload.NewPayloadGenerator(payload.PayloadGeneratorOptions{
 		TargetURL:    targetURL, // Now using actual server address
 		BypassModule: moduleName,
@@ -35,12 +43,32 @@ func TestNginxACLsBypassPayloads(t *testing.T) {
 		t.Fatalf("No payloads were generated for %s", moduleName)
 	}
 	numPayloads := len(generatedPayloads)
-	t.Logf("Generated %d payloads for %s.", numPayloads, moduleName)
+	t.Logf("Generated %d payloads for %s. (took %s)", numPayloads, moduleName, time.Since(pgStartTime))
 
-	// 3. Double check that each payload has the correct server address
+	// Dynamically size the channel based on the number of payloads
+	receivedDataChan := make(chan RequestData, numPayloads)
+
+	// Start the test server using the listener and correctly sized channel
+	serverStartTime := time.Now()
+	stopServer := startRawTestServerWithListener(t, listener, receivedDataChan)
+	defer stopServer()
+	t.Logf("Test server started. (took %s)", time.Since(serverStartTime))
+
+	// Goroutine to collect received requests concurrently
+	var collectedRequests []RequestData
+	var collectWg sync.WaitGroup
+	collectWg.Add(1)
+	go func() {
+		defer collectWg.Done()
+		for reqData := range receivedDataChan {
+			collectedRequests = append(collectedRequests, reqData)
+		}
+	}()
+
+	// 3. Update payload destinations to use the actual server address
 	for i := range generatedPayloads {
 		if generatedPayloads[i].Host != serverAddr {
-			t.Logf("Warning: Fixing payload host from %s to %s", generatedPayloads[i].Host, serverAddr)
+			generatedPayloads[i].Scheme = "http"
 			generatedPayloads[i].Host = serverAddr
 		}
 	}
@@ -56,46 +84,59 @@ func TestNginxACLsBypassPayloads(t *testing.T) {
 		t.Logf("Warning: Number of unique expected URIs (%d) differs from total generated payloads (%d) for %s. This indicates duplicate RawURIs were generated.", len(expectedURIsHex), numPayloads, moduleName)
 	}
 
-	// 4. Send Requests
+	// 4. Send Requests using RequestWorkerPool
+	clientSendStartTime := time.Now()
 	clientOpts := rawhttp.DefaultHTTPClientOptions()
-	clientOpts.Timeout = 5 * time.Second                   // Allow slightly longer timeout
-	clientOpts.MaxRetries = 0                              // No retries
-	clientOpts.MaxConsecutiveFailedReqs = numPayloads + 10 // Allow failures
+	clientOpts.Timeout = 3 * time.Second
+	clientOpts.MaxRetries = 0
+	clientOpts.MaxConsecutiveFailedReqs = numPayloads + 10 // Allow for all payloads to fail
 
-	wp := rawhttp.NewRequestWorkerPool(clientOpts, 20) // Use a reasonable number of workers
+	// Use a reasonable number of workers for local testing
+	wp := rawhttp.NewRequestWorkerPool(clientOpts, 30)
+	defer wp.Close()
+
 	resultsChan := wp.ProcessRequests(generatedPayloads)
 
-	// 5. Drain client results
+	// Drain the results channel
 	responseCount := 0
 	for range resultsChan {
 		responseCount++
 	}
-	wp.Close()
-	t.Logf("Client processed %d responses out of %d payloads for %s.", responseCount, numPayloads, moduleName)
+	t.Logf("Client processed %d responses out of %d payloads. (took %s to send and drain)",
+		responseCount, numPayloads, time.Since(clientSendStartTime))
 
-	// 6. Allow a moment for server handlers and then close the channel
-	time.Sleep(500 * time.Millisecond) // Increased pause time
+	// Explicitly stop the server and wait for all its goroutines to finish
+	serverStopStartTime := time.Now()
+	t.Log("Stopping test server...")
+	stopServer()
+	t.Logf("Test server stopped. (took %s)", time.Since(serverStopStartTime))
+
+	// Now it's safe to close receivedDataChan, as all server handlers are done
 	close(receivedDataChan)
 
-	// 7. Verify Received URIs
+	// Wait for the collector goroutine to finish processing all items from the channel
+	collectorWaitStartTime := time.Now()
+	t.Log("Waiting for request collector to finish...")
+	collectWg.Wait()
+	t.Logf("Request collector finished. (took %s)", time.Since(collectorWaitStartTime))
+
+	// 5. Verify Received URIs
+	verificationStartTime := time.Now()
 	receivedURIsHex := make(map[string]struct{})
-	receivedCount := 0
-	for reqData := range receivedDataChan {
-		receivedCount++
+	receivedCount := len(collectedRequests)
+	for _, reqData := range collectedRequests {
 		hexURI := hex.EncodeToString([]byte(reqData.URI))
 		receivedURIsHex[hexURI] = struct{}{}
 	}
 
 	t.Logf("Server received %d total requests, %d unique URIs", receivedCount, len(receivedURIsHex))
 
-	// 8. Comparison
-	expectedCount := len(expectedURIsHex)
-	receivedCount = len(receivedURIsHex)
+	// Comparison
+	if len(expectedURIsHex) != len(receivedURIsHex) {
+		t.Errorf("Mismatch in count for %s: Expected %d unique URIs, Server received %d unique URIs",
+			moduleName, len(expectedURIsHex), len(receivedURIsHex))
 
-	if expectedCount != receivedCount {
-		t.Errorf("Mismatch in count for %s: Expected %d unique URIs, Server received %d unique URIs", moduleName, expectedCount, receivedCount)
-
-		// Find and log ALL missing/extra URIs
+		// Find missing/extra
 		missing := []string{}
 		for hexExp := range expectedURIsHex {
 			if _, found := receivedURIsHex[hexExp]; !found {
@@ -110,15 +151,14 @@ func TestNginxACLsBypassPayloads(t *testing.T) {
 				extra = append(extra, fmt.Sprintf("'%s' (Hex: %s)", string(rawBytes), hexRcv))
 			}
 		}
-		// Use Fatalf only if missing URIs are found, as this indicates a core problem.
 		if len(missing) > 0 {
-			t.Fatalf("URIs expected but not received by server for %s:\n%s", moduleName, strings.Join(missing, "\n"))
+			t.Errorf("URIs expected but not received by server for %s:\n%s", moduleName, strings.Join(missing, "\n"))
 		}
 		if len(extra) > 0 {
 			t.Errorf("URIs received by server but not expected for %s:\n%s", moduleName, strings.Join(extra, "\n"))
 		}
 	} else {
-		// Counts match, now perform FULL verification of each URI
+		// If counts match, verify all expected URIs were received
 		match := true
 		for hexExp := range expectedURIsHex {
 			if _, found := receivedURIsHex[hexExp]; !found {
@@ -128,7 +168,10 @@ func TestNginxACLsBypassPayloads(t *testing.T) {
 			}
 		}
 		if match {
-			t.Logf("Successfully verified all %d unique received URIs match the %d expected unique URIs for %s.", receivedCount, expectedCount, moduleName)
+			t.Logf("Successfully verified %d unique received URIs against expected URIs for %s.", len(receivedURIsHex), moduleName)
 		}
 	}
+
+	t.Logf("Verification finished. (took %s)", time.Since(verificationStartTime))
+	t.Logf("TestNginxACLsBypassPayloads finished. Total time: %s", time.Since(startTime))
 }
