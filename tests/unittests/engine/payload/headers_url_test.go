@@ -1,6 +1,7 @@
 package tests
 
 import (
+	"bufio"
 	"net"
 	"strings"
 	"sync"
@@ -9,9 +10,14 @@ import (
 
 	"github.com/slicingmelon/gobypass403/core/engine/payload"
 	"github.com/slicingmelon/gobypass403/core/engine/rawhttp"
+	GB403Logger "github.com/slicingmelon/gobypass403/core/utils/logger"
 )
 
 func TestHeadersURLPayloads(t *testing.T) {
+	// Enable debug mode to ensure debug tokens are included in requests
+	GB403Logger.DefaultLogger.EnableDebug()
+	//defer GB403Logger.SetDebugMode(false)
+
 	startTime := time.Now()
 	t.Logf("TestHeadersURLPayloads started at: %s", startTime.Format(time.RFC3339Nano))
 
@@ -42,6 +48,12 @@ func TestHeadersURLPayloads(t *testing.T) {
 	numPayloads := len(generatedPayloads)
 	t.Logf("Generated %d payloads for %s. (took %s)", numPayloads, moduleName, time.Since(pgStartTime))
 
+	// Create a map to track which payloads have been verified
+	payloadVerified := make(map[string]bool)
+	for _, p := range generatedPayloads {
+		payloadVerified[p.PayloadToken] = false
+	}
+
 	// Dynamically size the channel based on the number of payloads
 	receivedDataChan := make(chan RequestData, numPayloads)
 
@@ -62,29 +74,11 @@ func TestHeadersURLPayloads(t *testing.T) {
 		}
 	}()
 
-	// Create maps to track expected URIs and headers
-	expectedURIs := make(map[string]bool)
-	expectedHeaders := make(map[string]map[string]bool) // map[headerName][headerValue]bool
-
-	// Update payload destinations and track expected components
+	// Update payload destinations to use the actual server address
 	for i := range generatedPayloads {
-		// Ensure each payload has the correct server address
 		generatedPayloads[i].Scheme = "http"
 		generatedPayloads[i].Host = serverAddr
-
-		// Track expected URI for each request
-		expectedURIs[generatedPayloads[i].RawURI] = true
-
-		// Track expected headers for each request
-		for _, h := range generatedPayloads[i].Headers {
-			if expectedHeaders[h.Header] == nil {
-				expectedHeaders[h.Header] = make(map[string]bool)
-			}
-			expectedHeaders[h.Header][h.Value] = true
-		}
 	}
-	t.Logf("Prepared %d unique URIs and %d unique header types for verification",
-		len(expectedURIs), len(expectedHeaders))
 
 	// Send Requests using RequestWorkerPool
 	clientSendStartTime := time.Now()
@@ -122,101 +116,58 @@ func TestHeadersURLPayloads(t *testing.T) {
 	collectWg.Wait()
 	t.Logf("Request collector finished. (took %s)", time.Since(collectorWaitStartTime))
 
-	// Verify received requests with component-wise verification
+	// Process received requests for 1:1 verification
 	verificationStartTime := time.Now()
 	receivedCount := len(collectedRequests)
-	t.Logf("Server received %d total requests for verification", receivedCount)
+	t.Logf("Server received %d total requests for 1:1 verification", receivedCount)
 
-	// Track counters
-	verifiedURIs := make(map[string]bool)
-	verifiedHeaders := make(map[string]map[string]bool)
-
-	// Initialize verified headers map with same structure as expected
-	for header, values := range expectedHeaders {
-		verifiedHeaders[header] = make(map[string]bool)
-		for value := range values {
-			verifiedHeaders[header][value] = false // Initialize all to false
-		}
-	}
-
-	// Process each received request
+	// Match each received request to its original payload by token
+	verifiedCount := 0
 	for _, reqData := range collectedRequests {
-		// Track URI
-		verifiedURIs[reqData.URI] = true
+		// Extract debug token from request
+		token := extractDebugToken(reqData.FullRequest)
+		if token != "" && payloadVerified[token] == false {
+			payloadVerified[token] = true
+			verifiedCount++
+		}
+	}
 
-		// Parse and track headers
-		lines := strings.Split(reqData.FullRequest, "\r\n")
-		for _, line := range lines {
-			if strings.Contains(line, ": ") {
-				parts := strings.SplitN(line, ": ", 2)
-				if len(parts) == 2 {
-					headerName := parts[0]
-					headerValue := parts[1]
+	t.Logf("Verified %d/%d payloads with 1:1 matching", verifiedCount, numPayloads)
 
-					// Check if it's one of our expected headers
-					if valueMap, exists := verifiedHeaders[headerName]; exists {
-						if _, valueExists := valueMap[headerValue]; valueExists {
-							verifiedHeaders[headerName][headerValue] = true
-						}
-					}
+	// If not all payloads were verified, report error
+	if verifiedCount < numPayloads {
+		missingCount := numPayloads - verifiedCount
+		t.Errorf("%d payloads were not verified (missing in received requests)", missingCount)
+
+		// Show examples of unverified payloads
+		if missingCount > 0 {
+			examplesShown := 0
+			for token, verified := range payloadVerified {
+				if !verified && examplesShown < 5 {
+					t.Errorf("Payload not verified: %s", token)
+					examplesShown++
 				}
 			}
 		}
-	}
-
-	// Verify URIs
-	missingURIs := make([]string, 0)
-	for uri := range expectedURIs {
-		if !verifiedURIs[uri] {
-			missingURIs = append(missingURIs, uri)
-		}
-	}
-
-	if len(missingURIs) > 0 {
-		if len(missingURIs) > 5 {
-			t.Errorf("%d expected URIs not found in requests. First 5:", len(missingURIs))
-			for i := 0; i < 5 && i < len(missingURIs); i++ {
-				t.Errorf("  - Missing URI: %s", missingURIs[i])
-			}
-		} else {
-			t.Errorf("Expected URIs not found in requests: %s", strings.Join(missingURIs, ", "))
-		}
 	} else {
-		t.Logf("Successfully verified all %d expected URIs were sent", len(expectedURIs))
+		t.Logf("Successfully verified all %d payloads were sent and received correctly", numPayloads)
 	}
-
-	// Verify Headers
-	missingHeaderValues := 0
-
-	for header, valueMap := range verifiedHeaders {
-		for value, found := range valueMap {
-			if !found {
-				missingHeaderValues++
-				if missingHeaderValues <= 5 {
-					t.Errorf("Missing header value: %s: %s", header, value)
-				}
-			}
-		}
-	}
-
-	if missingHeaderValues > 0 {
-		t.Errorf("Total of %d expected header values not found in requests", missingHeaderValues)
-	} else {
-		t.Logf("Successfully verified all expected header values were sent")
-	}
-
-	// Count verified header types
-	verifiedHeaderTypes := 0
-	for _, valueMap := range verifiedHeaders {
-		for _, found := range valueMap {
-			if found {
-				verifiedHeaderTypes++
-				break
-			}
-		}
-	}
-	t.Logf("Verified %d/%d header types were used in requests", verifiedHeaderTypes, len(expectedHeaders))
 
 	t.Logf("Verification finished. (took %s)", time.Since(verificationStartTime))
 	t.Logf("TestHeadersURLPayloads finished. Total time: %s", time.Since(startTime))
+}
+
+// extractDebugToken extracts the debug token from a request
+func extractDebugToken(requestStr string) string {
+	scanner := bufio.NewScanner(strings.NewReader(requestStr))
+	for scanner.Scan() {
+		line := scanner.Text()
+		if strings.HasPrefix(strings.ToLower(line), "x-gb403-token:") {
+			parts := strings.SplitN(line, ":", 2)
+			if len(parts) == 2 {
+				return strings.TrimSpace(parts[1])
+			}
+		}
+	}
+	return ""
 }
