@@ -24,28 +24,6 @@ import (
 )
 
 var (
-	charsetTable = func() [62]byte {
-		// Initialize with 62 chars (26 lowercase + 26 uppercase + 10 digits)
-		var table [62]byte
-
-		// 0-9 (10 chars)
-		for i := 0; i < 10; i++ {
-			table[i] = byte(i) + '0'
-		}
-
-		// A-Z (26 chars)
-		for i := 0; i < 26; i++ {
-			table[i+10] = byte(i) + 'A'
-		}
-
-		// a-z (26 chars)
-		for i := 0; i < 26; i++ {
-			table[i+36] = byte(i) + 'a'
-		}
-
-		return table
-	}()
-
 	hexChars = []byte("0123456789ABCDEF")
 )
 
