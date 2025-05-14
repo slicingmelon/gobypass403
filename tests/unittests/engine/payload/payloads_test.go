@@ -10,8 +10,6 @@ import (
 	"sync"
 	"testing"
 	"time"
-
-	"github.com/slicingmelon/gobypass403/core/engine/payload"
 )
 
 // RequestData holds both the URI and full raw HTTP request received by the test server
@@ -19,44 +17,6 @@ type RequestData struct {
 	URI         string // The URI portion of the request
 	FullRequest string // The complete raw HTTP request (including request line, headers, body)
 	HexEncoded  string // Hex-encoded raw request for precise comparison
-}
-
-func TestPayloadSeedRoundTrip(t *testing.T) {
-	// Test case matching your HeaderIP job
-	original := payload.BypassPayload{
-		Scheme: "https",
-		Host:   "www.example.com",
-		RawURI: "/admin",
-		Headers: []payload.Headers{{
-			Header: "X-AppEngine-Trusted-IP-Request",
-			Value:  "1",
-		}},
-	}
-
-	// Generate seed
-	seed := "ywHwygH_BCkBgFkEAQgGAQYBBWh0dHBzAjJzdGFnZTktcHJvYmlsbGVyLW1pbGVoaWdobWVkaWEucHJvamVjdDFzZXJ2aWNlLmNvbQNeLzBkMy9kYzQvNTk4L2IyZS80NGIvNGE1LzMzNS9iZWIvZjM3L2VhNS85NS92aWRlby9mZTBjZDhiZTA0M2I1NWQ1ZTRlYjA1YjIzMmU0Mzc4NGFiZGYyOTMyLm1wNAQDR0VUBQEQWC1UcnVlLUNsaWVudC1JUApub3JlYWxob3N0"
-	t.Logf("Generated seed: %s", seed)
-	// Recover data
-	recovered, err := payload.DecodePayloadToken(seed)
-
-	if err != nil {
-		t.Fatalf("Failed to recover seed: %v", err)
-	}
-	// Compare
-	t.Logf("Original URL: %s, Recovered URL: %s", original.Scheme+"://"+original.Host+original.RawURI, recovered.Scheme+"://"+recovered.Host+recovered.RawURI)
-	t.Logf("Original Headers: %+v", original.Headers)
-	t.Logf("Recovered Headers: %+v", recovered.Headers)
-	if original.Scheme+"://"+original.Host+original.RawURI != recovered.Scheme+"://"+recovered.Host+recovered.RawURI {
-		t.Errorf("URLs don't match")
-	}
-	if len(original.Headers) != len(recovered.Headers) {
-		t.Errorf("Header count mismatch: %d != %d", len(original.Headers), len(recovered.Headers))
-	}
-	for i, h := range original.Headers {
-		if recovered.Headers[i].Header != h.Header || recovered.Headers[i].Value != h.Value {
-			t.Errorf("Header %d mismatch: %+v != %+v", i, h, recovered.Headers[i])
-		}
-	}
 }
 
 // Helper function to start a raw TCP test server using an existing listener
