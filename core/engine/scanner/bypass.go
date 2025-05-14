@@ -149,7 +149,7 @@ func (s *Scanner) RunBypassModule(bypassModule string, targetURL string) int {
 	maxWorkers := s.scannerOpts.ConcurrentRequests
 	// Create new progress bar configuration
 	cfg := progressbar.DefaultConfig()
-	cfg.Prefix = bypassModule + strings.Repeat(" ", maxModuleNameLength-len(bypassModule))
+	cfg.Prefix = bypassModule + strings.Repeat(" ", maxModuleNameLength-len(bypassModule)+1)
 	cfg.UseColors = true
 	cfg.ExtraLines = 1
 
@@ -236,6 +236,13 @@ func (s *Scanner) RunBypassModule(bypassModule string, targetURL string) int {
 			DebugToken:          string(response.DebugToken),
 		}
 
+		rawhttp.ReleaseResponseDetails(response)
+		progressPercent := (float64(completed) / float64(totalJobs)) * 100.0
+		if progressPercent > 100.0 {
+			progressPercent = 100.0
+		}
+		bar.Progress(progressPercent)
+
 		dbWg.Add(1)
 		go func(res *Result) {
 			defer dbWg.Done()
@@ -246,12 +253,6 @@ func (s *Scanner) RunBypassModule(bypassModule string, targetURL string) int {
 			}
 		}(result)
 
-		rawhttp.ReleaseResponseDetails(response)
-		progressPercent := (float64(completed) / float64(totalJobs)) * 100.0
-		if progressPercent > 100.0 {
-			progressPercent = 100.0
-		}
-		bar.Progress(progressPercent)
 	}
 
 	dbWg.Wait()

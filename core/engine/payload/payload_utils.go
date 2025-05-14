@@ -407,7 +407,7 @@ func isSpecialCharASCII(b byte) bool {
 }
 
 func isSpaceASCII(b byte) bool {
-	return b == ' '
+	return b == 0x20
 }
 
 // isAlphanumeric checks if a byte is a standard ASCII letter or digit.
@@ -430,14 +430,16 @@ BenchmarkBypassPayloadToBaseURL/with_sprintf-20
 10295320	       120.5 ns/op	      56 B/op	       3 allocs/op
 PASS
 ok  	github.com/slicingmelon/gobypass403/tests/benchmark	5.679s
+
+BenchmarkBypassPayloadToBaseURL/with_strings_builder - Added for comparison
 */
 func BypassPayloadToBaseURL(bypassPayload BypassPayload) string {
-	// Pre-allocate capacity: len(scheme) + len("://") + len(host)
-	b := make([]byte, 0, len(bypassPayload.Scheme)+3+len(bypassPayload.Host))
-	b = append(b, bypassPayload.Scheme...)
-	b = append(b, "://"...)
-	b = append(b, bypassPayload.Host...)
-	return string(b)
+	var sb strings.Builder
+	sb.Grow(len(bypassPayload.Scheme) + 3 + len(bypassPayload.Host))
+	sb.WriteString(bypassPayload.Scheme)
+	sb.WriteString("://")
+	sb.WriteString(bypassPayload.Host)
+	return sb.String()
 }
 
 // TryNormalizationForms tries different normalization forms of a URL
@@ -507,13 +509,13 @@ func FullURLToBypassPayload(fullURL string, method string, headers []Headers) (B
 
 // BypassPayloadToFullURL converts a bypass payload to a full URL (utility function for unit tests)
 func BypassPayloadToFullURL(bypassPayload BypassPayload) string {
-	// Single pre-allocation, no path normalization
-	b := make([]byte, 0, len(bypassPayload.Scheme)+3+len(bypassPayload.Host)+len(bypassPayload.RawURI))
-	b = append(b, bypassPayload.Scheme...)
-	b = append(b, "://"...)
-	b = append(b, bypassPayload.Host...)
-	b = append(b, bypassPayload.RawURI...)
-	return string(b)
+	var sb strings.Builder
+	sb.Grow(len(bypassPayload.Scheme) + 3 + len(bypassPayload.Host) + len(bypassPayload.RawURI))
+	sb.WriteString(bypassPayload.Scheme)
+	sb.WriteString("://")
+	sb.WriteString(bypassPayload.Host)
+	sb.WriteString(bypassPayload.RawURI)
+	return sb.String()
 }
 
 // NormalizeHeaderKey canonicalizes a header key string.

@@ -17,9 +17,11 @@ A powerful WAF (HTTP 403/401) and URL parser bypass tool developed in Go, design
 
 - **CDN Bypass Support**: Special features for testing CDN-based bypasses using host substitution
 
+# Precompiled Binaries
 
+- Windows, Linux and MacOS builds available: https://github.com/slicingmelon/gobypass403/releases/latest
 
-# Installation
+# Build
 
 ```bash
 git clone https://github.com/slicingmelon/gobypass403.git
