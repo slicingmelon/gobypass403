@@ -37,7 +37,7 @@ func startRawTestServerWithListener(t *testing.T, listener net.Listener, receive
 
 	wg.Add(1) // Add to WaitGroup for the accept loop goroutine
 	go func() {
-		defer wg.Done() // Decrement wait group when accept loop finishes
+		defer wg.Done()
 		for {
 			conn, err := listener.Accept()
 			if err != nil {
@@ -89,8 +89,7 @@ func startRawTestServer(t *testing.T, receivedDataChan chan<- RequestData) (stri
 func handleRawTestConnection(t *testing.T, conn net.Conn, receivedDataChan chan<- RequestData) {
 	t.Helper()
 
-	// Set a very aggressive read deadline for diagnostics
-	conn.SetReadDeadline(time.Now().Add(100 * time.Millisecond)) // Aggressive read deadline
+	conn.SetReadDeadline(time.Now().Add(100 * time.Millisecond))
 
 	// Instead of just reading the first line, read the entire request
 	var requestBuffer strings.Builder
@@ -141,7 +140,7 @@ func handleRawTestConnection(t *testing.T, conn net.Conn, receivedDataChan chan<
 
 	// Try to read body if Content-Length header was present
 	// For simplicity in this test server we'll read a limited amount
-	bodyBuf := make([]byte, 8192) // Read up to 8KB of body
+	bodyBuf := make([]byte, 8192*2) // Read up to 8KB of body
 	n, _ := reader.Read(bodyBuf)
 	if n > 0 {
 		requestBuffer.Write(bodyBuf[:n])
@@ -164,8 +163,8 @@ func handleRawTestConnection(t *testing.T, conn net.Conn, receivedDataChan chan<
 	select {
 	case receivedDataChan <- requestData:
 		// Successfully sent
-	case <-time.After(10 * time.Millisecond): // Significantly reduced timeout
-		// t.Logf("Timeout sending received request data for URI '%s' - channel full?", receivedURI) // Log removed
+	case <-time.After(10 * time.Millisecond):
+		// t.Logf("Timeout sending received request data for URI '%s' - channel full?", receivedURI)
 		// Optionally, we could count these timeouts if needed for debugging without logging per instance
 	}
 
@@ -178,7 +177,7 @@ func handleRawTestConnection(t *testing.T, conn net.Conn, receivedDataChan chan<
 		}
 	}
 
-	// Debug logging for request details - These MUST be commented out for performance.
+	// Debug logging for request details
 	// t.Logf("Received request with URI: %s", receivedURI)
 	// t.Logf("Full raw request length: %d bytes", len(fullRequest))
 }
