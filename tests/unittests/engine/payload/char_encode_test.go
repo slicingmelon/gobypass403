@@ -15,16 +15,6 @@ func TestCharEncodePayloads(t *testing.T) {
 	targetURL := "http://localhost/admin/login" // Using localhost, port will be replaced
 	moduleName := "char_encode"
 
-	// Channel to collect requests received by the server
-	receivedDataChan := make(chan RequestData, 500) // Buffer size depends on expected number of payloads
-
-	// Start the raw test server
-	serverAddr, stopServer := startRawTestServer(t, receivedDataChan)
-	defer stopServer()
-
-	// Replace localhost with the actual server address for the target URL
-	targetURL = strings.Replace(targetURL, "localhost", serverAddr, 1)
-
 	// 1. Generate Payloads
 	pg := payload.NewPayloadGenerator(payload.PayloadGeneratorOptions{
 		TargetURL:    targetURL,
@@ -40,13 +30,25 @@ func TestCharEncodePayloads(t *testing.T) {
 		t.Fatal("No payloads were generated")
 	}
 
+	numPayloads := len(generatedPayloads)
+	t.Logf("Generated %d payloads for char_encode variants.", numPayloads)
+
+	// Channel to collect requests received by the server - use exact size
+	receivedDataChan := make(chan RequestData, numPayloads)
+
+	// Start the raw test server
+	serverAddr, stopServer := startRawTestServer(t, receivedDataChan)
+	defer stopServer()
+
+	// Replace localhost with the actual server address for the target URL
+	targetURL = strings.Replace(targetURL, "localhost", serverAddr, 1)
+
 	expectedURIsHex := make(map[string]struct{})
 	for _, p := range generatedPayloads {
 		hexURI := hex.EncodeToString([]byte(p.RawURI))
 		expectedURIsHex[hexURI] = struct{}{}
 		// t.Logf("Expected RawURI: %s (Hex: %s)", p.RawURI, hexURI) // Debug logging
 	}
-	t.Logf("Generated %d payloads for char_encode variants.", len(generatedPayloads))
 
 	// 2. Send Requests using RequestWorkerPool
 	clientOpts := rawhttp.DefaultHTTPClientOptions()

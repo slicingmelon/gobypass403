@@ -27,11 +27,11 @@ func TestPathPrefixPayloads(t *testing.T) {
 	numPayloads := len(generatedPayloads)
 	t.Logf("Generated %d payloads for %s.", numPayloads, moduleName)
 
-	// 2. Create channel for server results (use a dynamic size or large enough buffer)
-	receivedURIsChan := make(chan string, numPayloads+100) // Buffer should be adequate
+	// 2. Create channel for server results (use exact size needed)
+	receivedDataChan := make(chan RequestData, numPayloads)
 
 	// 3. Start the server
-	serverAddr, stopServer := startRawTestServer(t, receivedURIsChan)
+	serverAddr, stopServer := startRawTestServer(t, receivedDataChan)
 	defer stopServer()
 
 	// 4. Update payload destinations
@@ -71,15 +71,15 @@ func TestPathPrefixPayloads(t *testing.T) {
 	// 7. Close Server's Results Channel
 	// Give a brief moment for any in-flight server handlers to send their URI
 	time.Sleep(200 * time.Millisecond)
-	close(receivedURIsChan)
+	close(receivedDataChan)
 
 	// 8. Verify Received URIs & Check for literal spaces
 	receivedRawURIs := []string{}
 	literalSpaceFound := false
-	for uri := range receivedURIsChan { // Drain the channel completely
-		receivedRawURIs = append(receivedRawURIs, uri)
-		if strings.Contains(uri, " ") {
-			t.Errorf("Literal space '\x20' found in received URI path: '%s' (Hex: %s)", uri, hex.EncodeToString([]byte(uri)))
+	for reqData := range receivedDataChan { // Drain the channel completely
+		receivedRawURIs = append(receivedRawURIs, reqData.URI)
+		if strings.Contains(reqData.URI, " ") {
+			t.Errorf("Literal space '\x20' found in received URI path: '%s' (Hex: %s)", reqData.URI, hex.EncodeToString([]byte(reqData.URI)))
 			literalSpaceFound = true
 		}
 	}
@@ -175,10 +175,10 @@ func TestPathPrefixPayloadsWithBurpProxy(t *testing.T) {
 	t.Logf("(WithProxy) Generated %d payloads for %s.", numPayloads, moduleName)
 
 	// 2. Create channel for server results
-	receivedURIsChan := make(chan string, numPayloads+100)
+	receivedDataChan := make(chan RequestData, numPayloads)
 
 	// 3. Start the server
-	serverAddr, stopServer := startRawTestServer(t, receivedURIsChan)
+	serverAddr, stopServer := startRawTestServer(t, receivedDataChan)
 	defer stopServer()
 
 	// 4. Update payload destinations
@@ -220,15 +220,15 @@ func TestPathPrefixPayloadsWithBurpProxy(t *testing.T) {
 
 	// 7. Close Server's Results Channel
 	time.Sleep(500 * time.Millisecond) // Slightly longer wait with proxy
-	close(receivedURIsChan)
+	close(receivedDataChan)
 
 	// 8. Verify Received URIs & Check for literal spaces
 	receivedRawURIs := []string{}
 	literalSpaceFoundInProxyTest := false
-	for uri := range receivedURIsChan {
-		receivedRawURIs = append(receivedRawURIs, uri)
-		if strings.Contains(uri, " ") {
-			t.Errorf("(WithProxy) Literal space '\x20' found in received URI path: '%s' (Hex: %s)", uri, hex.EncodeToString([]byte(uri)))
+	for reqData := range receivedDataChan {
+		receivedRawURIs = append(receivedRawURIs, reqData.URI)
+		if strings.Contains(reqData.URI, " ") {
+			t.Errorf("(WithProxy) Literal space '\x20' found in received URI path: '%s' (Hex: %s)", reqData.URI, hex.EncodeToString([]byte(reqData.URI)))
 			literalSpaceFoundInProxyTest = true
 		}
 	}

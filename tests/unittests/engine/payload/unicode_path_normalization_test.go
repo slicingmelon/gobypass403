@@ -46,10 +46,10 @@ func TestUnicodePathNormalizationsPayloads(t *testing.T) {
 	}
 
 	// 3. Create the channel for server results with the exact size needed
-	receivedURIsChan := make(chan string, expectedUniqueCount)
+	receivedDataChan := make(chan RequestData, expectedUniqueCount)
 
 	// 4. Start the server
-	serverAddr, stopServer := startRawTestServer(t, receivedURIsChan)
+	serverAddr, stopServer := startRawTestServer(t, receivedDataChan)
 	defer stopServer() // Ensure server stops eventually
 
 	// 5. Update payload destinations
@@ -78,12 +78,12 @@ func TestUnicodePathNormalizationsPayloads(t *testing.T) {
 	// 8. Close Server's Results Channel
 	// Allow a moment for server handlers
 	time.Sleep(200 * time.Millisecond)
-	close(receivedURIsChan)
+	close(receivedDataChan)
 
 	// 9. Verify Received URIs
 	receivedURIsHex := make(map[string]struct{})
-	for uri := range receivedURIsChan { // Drain the channel
-		hexURI := hex.EncodeToString([]byte(uri))
+	for reqData := range receivedDataChan { // Drain the channel
+		hexURI := hex.EncodeToString([]byte(reqData.URI))
 		receivedURIsHex[hexURI] = struct{}{}
 	}
 

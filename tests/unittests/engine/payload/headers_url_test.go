@@ -13,16 +13,6 @@ func TestHeadersURLPayloads(t *testing.T) {
 	targetURL := "http://localhost/admin/login" // Using localhost, port will be replaced
 	moduleName := "headers_url"
 
-	// Channel to collect requests received by the server
-	receivedDataChan := make(chan RequestData, 500)
-
-	// Start the raw test server
-	serverAddr, stopServer := startRawTestServer(t, receivedDataChan)
-	defer stopServer()
-
-	// Replace localhost with the actual server address for the target URL
-	targetURL = strings.Replace(targetURL, "localhost", serverAddr, 1)
-
 	// 1. Generate Payloads
 	pg := payload.NewPayloadGenerator(payload.PayloadGeneratorOptions{
 		TargetURL:    targetURL,
@@ -33,7 +23,18 @@ func TestHeadersURLPayloads(t *testing.T) {
 		t.Fatal("No payloads were generated")
 	}
 
-	t.Logf("Generated %d payloads for headers_url module", len(generatedPayloads))
+	numPayloads := len(generatedPayloads)
+	t.Logf("Generated %d payloads for headers_url module", numPayloads)
+
+	// Channel to collect requests received by the server - use exact size
+	receivedDataChan := make(chan RequestData, numPayloads)
+
+	// Start the raw test server
+	serverAddr, stopServer := startRawTestServer(t, receivedDataChan)
+	defer stopServer()
+
+	// Replace localhost with the actual server address for the target URL
+	targetURL = strings.Replace(targetURL, "localhost", serverAddr, 1)
 
 	// 2. Send Requests using RequestWorkerPool
 	clientOpts := rawhttp.DefaultHTTPClientOptions()
@@ -56,7 +57,7 @@ func TestHeadersURLPayloads(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 	close(receivedDataChan) // Close channel once pool is done and results drained
 
-	t.Logf("Client processed %d responses out of %d payloads.", responseCount, len(generatedPayloads))
+	t.Logf("Client processed %d responses out of %d payloads.", responseCount, numPayloads)
 
 	// 3. Verify received requests
 	receivedRequests := make([]RequestData, 0, len(receivedDataChan))

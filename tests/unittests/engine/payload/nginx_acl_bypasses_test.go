@@ -29,10 +29,10 @@ func TestNginxACLsBypassPayloads(t *testing.T) {
 	t.Logf("Generated %d payloads for %s.", numPayloads, moduleName)
 
 	// 2. Create the channel for server results with the exact size needed
-	receivedURIsChan := make(chan string, numPayloads)
+	receivedDataChan := make(chan RequestData, numPayloads)
 
 	// 3. Start the server
-	serverAddr, stopServer := startRawTestServer(t, receivedURIsChan)
+	serverAddr, stopServer := startRawTestServer(t, receivedDataChan)
 	defer stopServer() // Ensure server stops eventually
 
 	// 4. Update payload destinations
@@ -73,12 +73,12 @@ func TestNginxACLsBypassPayloads(t *testing.T) {
 	// 7. Close Server's Results Channel
 	// Allow a moment for server handlers
 	time.Sleep(200 * time.Millisecond)
-	close(receivedURIsChan)
+	close(receivedDataChan)
 
 	// 8. Verify Received URIs
 	receivedURIsHex := make(map[string]struct{})
-	for uri := range receivedURIsChan { // Drain the channel
-		hexURI := hex.EncodeToString([]byte(uri))
+	for reqData := range receivedDataChan { // Drain the channel
+		hexURI := hex.EncodeToString([]byte(reqData.URI))
 		receivedURIsHex[hexURI] = struct{}{}
 	}
 

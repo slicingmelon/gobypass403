@@ -29,11 +29,10 @@ func TestMidPathsPayloads(t *testing.T) {
 	t.Logf("Generated %d payloads for %s.", numPayloads, moduleName)
 
 	// 2. Create the correctly sized channel for server results
-	// Adjust buffer size if necessary, based on expected payload count
-	receivedURIsChan := make(chan string, numPayloads+10) // Add some buffer
+	receivedDataChan := make(chan RequestData, numPayloads)
 
 	// 3. Start the server, passing the channel
-	serverAddr, stopServer := startRawTestServer(t, receivedURIsChan)
+	serverAddr, stopServer := startRawTestServer(t, receivedDataChan)
 	defer stopServer() // Ensure server stops eventually
 
 	// 4. Update payload destinations to use the actual server address
@@ -72,12 +71,12 @@ func TestMidPathsPayloads(t *testing.T) {
 	// 7. Close the Server's Results Channel (Safe now)
 	// Give a brief moment for any in-flight server handlers to send
 	time.Sleep(100 * time.Millisecond)
-	close(receivedURIsChan)
+	close(receivedDataChan)
 
 	// 8. Verify Received URIs
 	receivedURIsHex := make(map[string]struct{})
-	for uri := range receivedURIsChan { // Drain the channel
-		hexURI := hex.EncodeToString([]byte(uri))
+	for reqData := range receivedDataChan { // Drain the channel
+		hexURI := hex.EncodeToString([]byte(reqData.URI))
 		receivedURIsHex[hexURI] = struct{}{}
 	}
 
