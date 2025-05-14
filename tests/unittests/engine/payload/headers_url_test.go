@@ -143,11 +143,11 @@ func TestHeadersURLPayloads(t *testing.T) {
 	// Detailed verification counters
 	verifiedCount := 0
 	uriMismatchCount := 0
-	headerMismatchCount := 0
+	headersMismatchCount := 0
 
 	// Track all hex mismatches for reporting
 	uriMismatches := make([]string, 0)
-	headerMismatches := make([]string, 0)
+	allHeaderMismatches := make([]string, 0)
 
 	// Verify each request matches its corresponding payload
 	for _, reqData := range collectedRequests {
@@ -180,7 +180,8 @@ func TestHeadersURLPayloads(t *testing.T) {
 		headerMismatches := verifyHeaders(expectedHeaders, reqData.FullRequest)
 
 		if len(headerMismatches) > 0 {
-			headerMismatchCount++
+			headersMismatchCount++
+			allHeaderMismatches = append(allHeaderMismatches, headerMismatches...)
 		}
 	}
 
@@ -211,17 +212,27 @@ func TestHeadersURLPayloads(t *testing.T) {
 	}
 
 	// Report any header mismatches
-	if headerMismatchCount > 0 {
-		t.Errorf("%d payloads had header mismatches", headerMismatchCount)
+	if headersMismatchCount > 0 {
+		t.Errorf("%d payloads had header mismatches", headersMismatchCount)
+		for _, mismatch := range allHeaderMismatches[:min(5, len(allHeaderMismatches))] {
+			t.Errorf("%s", mismatch)
+		}
 	}
 
 	// Overall success message
-	if verifiedCount == numPayloads && uriMismatchCount == 0 && headerMismatchCount == 0 {
+	if verifiedCount == numPayloads && uriMismatchCount == 0 && headersMismatchCount == 0 {
 		t.Logf("Successfully verified all %d payloads were sent and received with exact content matching", numPayloads)
 	}
 
 	t.Logf("Verification finished. (took %s)", time.Since(verificationStartTime))
 	t.Logf("TestHeadersURLPayloads finished. Total time: %s", time.Since(startTime))
+}
+
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }
 
 // extractDebugToken extracts the debug token from a request

@@ -3,7 +3,9 @@ package tests
 import (
 	"encoding/hex"
 	"fmt"
+	"net"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -12,40 +14,66 @@ import (
 )
 
 func TestMidPathsPayloads(t *testing.T) {
+	startTime := time.Now()
+	t.Logf("TestMidPathsPayloads started at: %s", startTime.Format(time.RFC3339Nano))
+
 	// Use a URL with multiple path segments for better testing
-	targetURL := "http://localhost/admin/config/users"
+	baseTargetURL := "http://localhost/admin/config/users"
 	moduleName := "mid_paths"
 
-	// 1. Start the test server FIRST to get the actual server address
-	receivedDataChan := make(chan RequestData, 100) // Use a reasonable buffer initially
-	serverAddr, stopServer := startRawTestServer(t, receivedDataChan)
-	defer stopServer() // Ensure server stops eventually
+	// 1. Start a listener to get a free port
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("Failed to start listener: %v", err)
+	}
+	serverAddr := listener.Addr().String() // host:port
 
 	// Update the target URL with the actual server address
-	targetURL = strings.Replace(targetURL, "localhost", serverAddr, 1)
-	t.Logf("Updated target URL to: %s", targetURL)
+	targetURL := strings.Replace(baseTargetURL, "localhost", serverAddr, 1)
+	t.Logf("Updated target URL to: %s (took %s)", targetURL, time.Since(startTime))
 
 	// 2. Generate Payloads with the ACTUAL server address
+	pgStartTime := time.Now()
 	pg := payload.NewPayloadGenerator(payload.PayloadGeneratorOptions{
 		TargetURL:    targetURL, // Now using actual server address
 		BypassModule: moduleName,
 	})
 	generatedPayloads := pg.GenerateMidPathsPayloads(targetURL, moduleName)
 	if len(generatedPayloads) == 0 {
-		t.Fatal("No payloads were generated")
+		t.Fatal("No payloads were generated, test cannot proceed")
 	}
 	numPayloads := len(generatedPayloads)
-	t.Logf("Generated %d payloads for %s.", numPayloads, moduleName)
+	t.Logf("Generated %d payloads for %s. (took %s)", numPayloads, moduleName, time.Since(pgStartTime))
 
-	// 3. Double check that each payload has the correct server address
+	// Dynamically size the channel based on the number of payloads
+	receivedDataChan := make(chan RequestData, numPayloads)
+
+	// Start the test server using the listener and correctly sized channel
+	serverStartTime := time.Now()
+	stopServer := startRawTestServerWithListener(t, listener, receivedDataChan)
+	defer stopServer()
+	t.Logf("Test server started. (took %s)", time.Since(serverStartTime))
+
+	// Goroutine to collect received requests concurrently
+	var collectedRequests []RequestData
+	var collectWg sync.WaitGroup
+	collectWg.Add(1)
+	go func() {
+		defer collectWg.Done()
+		for reqData := range receivedDataChan {
+			collectedRequests = append(collectedRequests, reqData)
+		}
+	}()
+
+	// 3. Update payload destinations to use the actual server address
 	for i := range generatedPayloads {
 		if generatedPayloads[i].Host != serverAddr {
-			t.Logf("Warning: Fixing payload host from %s to %s", generatedPayloads[i].Host, serverAddr)
+			generatedPayloads[i].Scheme = "http"
 			generatedPayloads[i].Host = serverAddr
 		}
 	}
 
-	// Prepare expected URIs map (can be done anytime after generation)
+	// Prepare expected URIs map
 	expectedURIsHex := make(map[string]struct{})
 	for _, p := range generatedPayloads {
 		hexURI := hex.EncodeToString([]byte(p.RawURI))
@@ -56,43 +84,55 @@ func TestMidPathsPayloads(t *testing.T) {
 	}
 
 	// 4. Send Requests using RequestWorkerPool
+	clientSendStartTime := time.Now()
 	clientOpts := rawhttp.DefaultHTTPClientOptions()
-	clientOpts.Timeout = 3 * time.Second      // Timeout for local tests
-	clientOpts.MaxRetries = 0                 // No retries
-	clientOpts.MaxConsecutiveFailedReqs = 100 // Allow some failures
+	clientOpts.Timeout = 2 * time.Second
+	clientOpts.MaxRetries = 0
+	clientOpts.MaxConsecutiveFailedReqs = 100
 
-	wp := rawhttp.NewRequestWorkerPool(clientOpts, 10) // 10 workers
+	// Use a reasonable number of workers for local testing
+	wp := rawhttp.NewRequestWorkerPool(clientOpts, 30)
+	defer wp.Close()
+
 	resultsChan := wp.ProcessRequests(generatedPayloads)
 
-	// 5. Drain the client results channel
+	// Drain the results channel
 	responseCount := 0
 	for range resultsChan {
 		responseCount++
 	}
-	wp.Close() // Close the worker pool
-	t.Logf("Client processed %d responses out of %d payloads.", responseCount, numPayloads)
+	t.Logf("Client processed %d responses out of %d payloads. (took %s to send and drain)",
+		responseCount, numPayloads, time.Since(clientSendStartTime))
 
-	// 6. Allow a moment for server handlers to finish and then close the channel
-	time.Sleep(500 * time.Millisecond) // Increased pause time
+	// Explicitly stop the server and wait for all its goroutines to finish
+	serverStopStartTime := time.Now()
+	t.Log("Stopping test server...")
+	stopServer()
+	t.Logf("Test server stopped. (took %s)", time.Since(serverStopStartTime))
+
+	// Now it's safe to close receivedDataChan, as all server handlers are done
 	close(receivedDataChan)
 
-	// 7. Verify Received URIs
+	// Wait for the collector goroutine to finish processing all items from the channel
+	collectorWaitStartTime := time.Now()
+	t.Log("Waiting for request collector to finish...")
+	collectWg.Wait()
+	t.Logf("Request collector finished. (took %s)", time.Since(collectorWaitStartTime))
+
+	// 5. Verify Received URIs
+	verificationStartTime := time.Now()
 	receivedURIsHex := make(map[string]struct{})
-	receivedCount := 0
-	for reqData := range receivedDataChan {
-		receivedCount++
+	receivedCount := len(collectedRequests)
+	for _, reqData := range collectedRequests {
 		hexURI := hex.EncodeToString([]byte(reqData.URI))
 		receivedURIsHex[hexURI] = struct{}{}
 	}
 
 	t.Logf("Server received %d total requests, %d unique URIs", receivedCount, len(receivedURIsHex))
 
-	// 8. Comparison
-	expectedCount := len(expectedURIsHex)
-	receivedCount = len(receivedURIsHex)
-
-	if expectedCount != receivedCount {
-		t.Errorf("Mismatch in count: Expected %d unique URIs, Server received %d unique URIs", expectedCount, receivedCount)
+	// Comparison
+	if len(expectedURIsHex) != len(receivedURIsHex) {
+		t.Errorf("Mismatch in count: Expected %d unique URIs, Server received %d unique URIs", len(expectedURIsHex), len(receivedURIsHex))
 
 		// Find missing/extra
 		missing := []string{}
@@ -110,7 +150,7 @@ func TestMidPathsPayloads(t *testing.T) {
 			}
 		}
 		if len(missing) > 0 {
-			t.Fatalf("URIs expected but not received by server:\n%s", strings.Join(missing, "\n"))
+			t.Errorf("URIs expected but not received by server:\n%s", strings.Join(missing, "\n"))
 		}
 		if len(extra) > 0 {
 			t.Errorf("URIs received by server but not expected:\n%s", strings.Join(extra, "\n"))
@@ -126,7 +166,10 @@ func TestMidPathsPayloads(t *testing.T) {
 			}
 		}
 		if match {
-			t.Logf("Successfully verified %d unique received URIs against %d expected unique URIs.", receivedCount, expectedCount)
+			t.Logf("Successfully verified %d unique received URIs against expected URIs.", len(receivedURIsHex))
 		}
 	}
+
+	t.Logf("Verification finished. (took %s)", time.Since(verificationStartTime))
+	t.Logf("TestMidPathsPayloads finished. Total time: %s", time.Since(startTime))
 }
