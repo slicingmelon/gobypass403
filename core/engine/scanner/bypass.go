@@ -20,7 +20,6 @@ import (
 	GB403Logger "github.com/slicingmelon/gobypass403/core/utils/logger"
 )
 
-// Add this after the Scanner struct declaration, before RunAllBypasses
 // Global map to track already seen RawURIs across all bypass modules
 var (
 	seenRawURIsMutex sync.RWMutex
@@ -33,11 +32,11 @@ func FilterUniqueBypassPayloads(payloads []payload.BypassPayload, bypassModule s
 	modulesToFilter := map[string]bool{
 		"case_substitution":          true,
 		"char_encode":                true,
-		"mid_paths":                  true,
 		"end_paths":                  true,
+		"mid_paths":                  true,
 		"nginx_bypasses":             true,
+		"path_prefix":                true,
 		"unicode_path_normalization": true,
-		// Add other modules as needed
 	}
 
 	if !modulesToFilter[bypassModule] {
@@ -84,7 +83,7 @@ func FilterUniqueBypassPayloads(payloads []payload.BypassPayload, bypassModule s
 	newSize := len(seenRawURIs)
 	seenRawURIsMutex.RUnlock()
 
-	GB403Logger.Verbose().Msgf("[%s] Filtered payloads: %d -> %d (global RawURIs: %d -> %d)",
+	GB403Logger.Verbose().Msgf("[%s] Filtered payloads: %d -> %d | +%d added to the global RawURIs -> %d )",
 		bypassModule, len(payloads), len(filtered), initialSize, newSize)
 
 	return filtered
