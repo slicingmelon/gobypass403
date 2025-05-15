@@ -73,29 +73,6 @@ func (wp *RequestWorkerPool) GetReqWPCompletedTasks() (completed uint64) {
 }
 
 // GetRequestRate returns the current requests per second
-// func (wp *RequestWorkerPool) GetRequestRate() uint64 {
-// 	currentTime := time.Now().UnixNano()
-// 	elapsedSeconds := float64(currentTime-wp.requestStartTime.Load()) / float64(time.Second)
-
-// 	if elapsedSeconds < 0.1 {
-// 		return 0
-// 	}
-
-// 	// Use SubmittedTasks for real-time rate
-// 	submittedTasks := wp.GetReqWPSubmittedTasks()
-
-// 	// Calculate rate based on submitted tasks and elapsed time
-// 	rate := uint64(float64(submittedTasks) / elapsedSeconds)
-
-// 	// Update peak rate if current rate is higher
-// 	currentPeak := wp.peakRequestRate.Load()
-// 	if rate > currentPeak {
-// 		wp.peakRequestRate.Store(rate)
-// 	}
-
-// 	return rate
-// }
-
 func (wp *RequestWorkerPool) GetRequestRate() uint64 {
 	currentTime := time.Now().UnixNano()
 	elapsedSeconds := float64(currentTime-wp.requestStartTime.Load()) / float64(time.Second)
@@ -112,9 +89,7 @@ func (wp *RequestWorkerPool) GetRequestRate() uint64 {
 
 	// Cap the rate to the total number of submitted tasks
 	// messy stats .. can't process more requests per second than the total tasks you have
-	if rate > submittedTasks {
-		rate = submittedTasks
-	}
+	rate = min(rate, submittedTasks)
 
 	// Update peak rate if current rate is higher
 	currentPeak := wp.peakRequestRate.Load()
