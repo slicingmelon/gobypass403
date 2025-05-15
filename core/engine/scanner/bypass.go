@@ -17,6 +17,7 @@ import (
 	"fortio.org/progressbar"
 	"github.com/slicingmelon/gobypass403/core/engine/payload"
 	"github.com/slicingmelon/gobypass403/core/engine/rawhttp"
+	"github.com/slicingmelon/gobypass403/core/utils/helpers"
 	GB403Logger "github.com/slicingmelon/gobypass403/core/utils/logger"
 )
 
@@ -296,15 +297,15 @@ func (s *Scanner) RunBypassModule(bypassModule string, targetURL string) int {
 			TargetURL:           string(response.URL),
 			BypassModule:        string(response.BypassModule),
 			StatusCode:          response.StatusCode,
-			ResponseHeaders:     sanitizeNonPrintableBytes(response.ResponseHeaders),
-			CurlCMD:             sanitizeNonPrintableBytes(response.CurlCommand),
+			ResponseHeaders:     helpers.SanitizeNonPrintableBytes(response.ResponseHeaders),
+			CurlCMD:             helpers.SanitizeNonPrintableBytes(response.CurlCommand),
 			ResponseBodyPreview: string(response.ResponsePreview),
 			ContentType:         string(response.ContentType),
 			ContentLength:       response.ContentLength,
 			ResponseBodyBytes:   response.ResponseBytes,
 			Title:               string(response.Title),
 			ServerInfo:          string(response.ServerInfo),
-			RedirectURL:         sanitizeNonPrintableBytes(response.RedirectURL),
+			RedirectURL:         helpers.SanitizeNonPrintableBytes(response.RedirectURL),
 			ResponseTime:        response.ResponseTime,
 			DebugToken:          string(response.DebugToken),
 		}
@@ -397,15 +398,15 @@ func (s *Scanner) ResendRequestFromToken(debugToken string, resendCount int) ([]
 				TargetURL:           targetURL,
 				BypassModule:        string(response.BypassModule),
 				StatusCode:          response.StatusCode,
-				ResponseHeaders:     sanitizeNonPrintableBytes(response.ResponseHeaders),
-				CurlCMD:             sanitizeNonPrintableBytes(response.CurlCommand),
+				ResponseHeaders:     helpers.SanitizeNonPrintableBytes(response.ResponseHeaders),
+				CurlCMD:             helpers.SanitizeNonPrintableBytes(response.CurlCommand),
 				ResponseBodyPreview: string(response.ResponsePreview),
 				ContentType:         string(response.ContentType),
 				ContentLength:       response.ContentLength,
 				ResponseBodyBytes:   response.ResponseBytes,
 				Title:               string(response.Title),
 				ServerInfo:          string(response.ServerInfo),
-				RedirectURL:         sanitizeNonPrintableBytes(response.RedirectURL),
+				RedirectURL:         helpers.SanitizeNonPrintableBytes(response.RedirectURL),
 				ResponseTime:        response.ResponseTime,
 				DebugToken:          string(response.DebugToken),
 			}
@@ -449,24 +450,4 @@ func matchStatusCodes(code int, codes []int) bool {
 		return true
 	}
 	return slices.Contains(codes, code)
-}
-
-func sanitizeNonPrintableBytes(input []byte) string {
-	var sb strings.Builder
-	sb.Grow(len(input))
-
-	for _, b := range input {
-		// Keep printable ASCII (32-126), LF (10), CR (13)
-		if (b >= 32 && b <= 126) || b == 10 || b == 13 {
-			sb.WriteByte(b)
-			// Explicitly handle Tab separately and
-			// replace with its escape sequence -- to test
-		} else if b == 9 {
-			sb.WriteString("\\x09")
-		} else {
-			// Replace others with Go-style hex escape
-			sb.WriteString(fmt.Sprintf("\\x%02x", b))
-		}
-	}
-	return sb.String()
 }
