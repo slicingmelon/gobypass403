@@ -18,27 +18,10 @@ import (
 	GB403Logger "github.com/slicingmelon/gobypass403/core/utils/logger"
 )
 
-type Header struct {
-	Header string
-	Value  string
-}
-
-// Helper function to convert a slice of Header structs to a map
-func headersToMap(headers []Header) map[string]string {
-	m := make(map[string]string)
-	for _, h := range headers {
-		m[h.Header] = h.Value
-	}
-	return m
-}
-
-// Helper function to format headers for logging
-func formatHeaders(headers []Header) string {
-	if len(headers) == 0 {
-		return ""
-	}
-	return fmt.Sprintf(" [Headers: %v]", headers)
-}
+// type Header struct {
+// 	Header string
+// 	Value  string
+// }
 
 // ----------------------------------------------------------------//
 // URL Validation Stuff//

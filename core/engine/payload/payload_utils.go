@@ -6,7 +6,6 @@ X: x.com/pedro_infosec
 package payload
 
 // This file contains various payload related utilities.
-
 import (
 	"crypto/sha256"
 	"embed"
