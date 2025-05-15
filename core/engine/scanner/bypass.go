@@ -20,6 +20,76 @@ import (
 	GB403Logger "github.com/slicingmelon/gobypass403/core/utils/logger"
 )
 
+// Add this after the Scanner struct declaration, before RunAllBypasses
+// Global map to track already seen RawURIs across all bypass modules
+var (
+	seenRawURIsMutex sync.RWMutex
+	seenRawURIs      = make(map[string]string) // map[rawURI]bypassModule
+)
+
+// FilterUniqueBypassPayloads removes payloads with RawURIs that have been seen before across modules
+func FilterUniqueBypassPayloads(payloads []payload.BypassPayload, bypassModule string) []payload.BypassPayload {
+	// Check if this module should be filtered
+	modulesToFilter := map[string]bool{
+		"case_substitution":          true,
+		"char_encode":                true,
+		"mid_paths":                  true,
+		"end_paths":                  true,
+		"nginx_bypasses":             true,
+		"unicode_path_normalization": true,
+		// Add other modules as needed
+	}
+
+	if !modulesToFilter[bypassModule] {
+		return payloads // Skip filtering for modules not in the list
+	}
+
+	filtered := make([]payload.BypassPayload, 0, len(payloads))
+
+	seenRawURIsMutex.RLock()
+	initialSize := len(seenRawURIs)
+	seenRawURIsMutex.RUnlock()
+
+	// First pass: collect all new unique RawURIs from this module
+	localUniques := make(map[string]struct{})
+	for _, p := range payloads {
+		seenRawURIsMutex.RLock()
+		previousModule, seen := seenRawURIs[p.RawURI]
+		seenRawURIsMutex.RUnlock()
+
+		if !seen {
+			localUniques[p.RawURI] = struct{}{}
+		} else if previousModule == bypassModule {
+			// This is a duplicate within the same module, still include one instance
+			if _, exists := localUniques[p.RawURI]; !exists {
+				localUniques[p.RawURI] = struct{}{}
+			}
+		}
+	}
+
+	// Second pass: add payloads with unique RawURIs to filtered list and update global map
+	for _, p := range payloads {
+		if _, isUnique := localUniques[p.RawURI]; isUnique {
+			delete(localUniques, p.RawURI) // Remove to ensure only one instance per RawURI
+
+			seenRawURIsMutex.Lock()
+			seenRawURIs[p.RawURI] = bypassModule
+			seenRawURIsMutex.Unlock()
+
+			filtered = append(filtered, p)
+		}
+	}
+
+	seenRawURIsMutex.RLock()
+	newSize := len(seenRawURIs)
+	seenRawURIsMutex.RUnlock()
+
+	GB403Logger.Verbose().Msgf("[%s] Filtered payloads: %d -> %d (global RawURIs: %d -> %d)",
+		bypassModule, len(payloads), len(filtered), initialSize, newSize)
+
+	return filtered
+}
+
 // IsValidBypassModule checks if a module is valid
 func IsValidBypassModule(moduleName string) bool {
 	for _, module := range payload.BypassModulesRegistry {
@@ -92,9 +162,24 @@ func (w *BypassWorker) Stop() {
 	})
 }
 
+// ResetSeenRawURIs clears the global map of seen RawURIs
+// Should be called before starting a new scan for a different URL
+func ResetSeenRawURIs() {
+	seenRawURIsMutex.Lock()
+	defer seenRawURIsMutex.Unlock()
+
+	// Create a new map rather than clearing the existing one
+	// This is more efficient for large maps
+	seenRawURIs = make(map[string]string)
+	GB403Logger.Verbose().Msgf("Reset global RawURI tracking map")
+}
+
 // Core Function
 func (s *Scanner) RunAllBypasses(targetURL string) int {
 	totalFindings := 0
+
+	// Reset the global seen RawURIs map for this new target URL
+	ResetSeenRawURIs()
 
 	modules := strings.Split(s.scannerOpts.BypassModule, ",")
 	for _, module := range modules {
@@ -127,6 +212,9 @@ func (s *Scanner) RunBypassModule(bypassModule string, targetURL string) int {
 	})
 
 	allJobs := pg.Generate()
+
+	// Filter unique payloads based on RawURI
+	allJobs = FilterUniqueBypassPayloads(allJobs, bypassModule)
 
 	totalJobs := len(allJobs)
 	if totalJobs == 0 {
