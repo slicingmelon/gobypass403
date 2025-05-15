@@ -4,7 +4,7 @@ A powerful WAF (HTTP 403/401) and URL parser bypass tool developed in Go, design
 
 ## Features
 
-- **Raw URL Preservation**: Unlike other Go tools that use the standard `net/url` package which automatically normalizes and encodes URLs, Go-Bypass-403 preserves the exact URL structure similar to curl's `--path-as-is` flag. This is crucial for WAF bypass attempts where path traversal and specific URL structures need to be maintained.
+- **Raw URL Preservation**: Unlike other Go tools that use the standard `net/url` package which automatically normalizes and encodes URLs, GoBypass403 preserves the exact URL structure similar, even better than curl's `--path-as-is` or Burp Engine. This is crucial for WAF bypass attempts where path traversal and specific URL structures need to be maintained.
 
 - **Custom URL Parser**: Implements a specialized URL parser that prevents Go's default security measures from interfering with bypass attempts. This allows for testing of edge cases and security boundaries that would otherwise be normalized away.
 
@@ -19,7 +19,7 @@ A powerful WAF (HTTP 403/401) and URL parser bypass tool developed in Go, design
 
 # Precompiled Binaries
 
-- Windows, Linux and MacOS builds available: https://github.com/slicingmelon/gobypass403/releases/latest
+- Windows, Linux and MacOS builds available: https://github.com/slicingmelon/gobypass403/releases/latest.
 
 # Build
 
@@ -126,7 +126,7 @@ Example Results 1
 
 Some description..
 
-## char_encode
+## 1. char_encode
 
 The `char_encode` module implements targeted character encoding techniques to bypass WAF pattern matching. It systematically generates payloads by applying URL encoding to specific characters in the path.
 
@@ -152,7 +152,7 @@ For example, with a URL like `https://example.com/admin`:
 
 Special characters like `?` and `#` are handled with proper percent-encoding to preserve query parameters.
 
-## mid_paths
+## 2. mid_paths
 
 The `mid_paths` module injects path traversal sequences and special character combinations using a predefined list of payloads (`internal_midpaths.lst`).
 
@@ -173,7 +173,7 @@ For a URL like `/a/b`, the module creates these variants:
 
 Each variant is generated with appropriate path normalization handling. The module carefully manages special characters in path segments, generating additional variants with percent-encoded `?` and `#` characters when necessary.
 
-## end_paths 
+## 3. end_paths 
 
 The `end_paths` module appends a variety of suffixes from a predefined list (`internal_endpaths.lst`) to the end of the URL path. This technique targets path normalization vulnerabilities and extension handling issues in WAFs.
 
@@ -194,7 +194,7 @@ Common suffixes include:
 
 The module preserves the original query string and handles special characters with proper percent-encoding to maintain request integrity.
 
-## path_prefix
+## 4. path_prefix
 
 The `path_prefix` module manipulates path segments using specific byte patterns to bypass security checks. It systematically prefixes URL segments with ASCII control characters, special characters, and the literal 'x' character.
 
@@ -214,7 +214,7 @@ For each relevant byte value, the module creates three distinct variations:
 
 Each byte value is applied both as a raw byte (when safe) and in percent-encoded form to ensure maximum coverage of potential bypass vectors.
 
-## http_methods 
+## 5. http_methods 
 
 The `http_methods` module tests various standard and non-standard HTTP methods loaded from a predefined list (`internal_http_methods.lst`). HTTP method switching is a well-known technique to bypass WAF rules that only filter specific methods.
 
@@ -235,7 +235,7 @@ For each method, it generates:
      - Proper content type headers are set
    - Example: `POST /admin?id=1` becomes `POST /admin` with body `id=1`
 
-## case_substitution 
+## 6. case_substitution 
 
 The `case_substitution` module applies targeted case manipulations to bypass case-sensitive pattern matching in WAFs and ACLs.
 
@@ -259,7 +259,7 @@ It implements four distinct case manipulation strategies:
 
 All original query parameters are preserved when applying these case manipulations.
 
-## nginx_bypasses
+## 7. nginx_bypasses
 
 The `nginx_bypasses` module is a comprehensive collection of techniques targeting server-side parsing inconsistencies across multiple web frameworks and server types. While named for Nginx, it targets a broad spectrum of platforms including Flask, Spring Boot, and Node.js applications.
 
@@ -306,7 +306,7 @@ The module represents one of the most comprehensive path manipulation testing su
 
 Each payload is carefully generated to preserve proper URL structure and ensure the original query parameters are correctly maintained.
 
-## unicode_path_normalization 
+## 8. unicode_path_normalization 
 
 The `unicode_path_normalization` module generates denormalized Unicode payloads specifically targeting systems that perform Unicode normalization during request processing. Rather than exploiting normalization inconsistencies directly, it creates payloads that appear benign before normalization but transform into bypass vectors after normalization occurs.
 
@@ -332,7 +332,7 @@ Key techniques include:
 
 This module is particularly effective against multi-tiered architectures where different components (load balancers, WAFs, application servers) handle Unicode normalization differently, creating security gaps between the initial request validation and final request processing.
 
-## headers_scheme 
+## 9. headers_scheme 
 
 The `headers_scheme` module tests protocol-based bypasses using custom HTTP headers that indicate the original protocol or request scheme. Many applications rely on these headers for internal routing decisions and security policies.
 
@@ -352,7 +352,7 @@ These headers exploit common misconfigurations in:
 - Load balancers that trust scheme headers for SSL/TLS decisions
 - Web applications that use scheme headers for conditional logic or URL construction
 
-## headers_ip
+## 10. headers_ip
 
 The `headers_ip` module is a powerful IP spoofing toolkit that exploits how servers trust client-reported IP addresses for access control decisions. This often-overlooked bypass technique can circumvent WAF restrictions by manipulating IP-based trust relationships.
 
@@ -385,7 +385,7 @@ This technique exploits fundamental architectural weaknesses in:
 - WAFs that exempt traffic from certain source addresses
 - Load balancers that make routing decisions based on client IP
 
-## headers_port
+## 11. headers_port
 
 The `headers_port` module manipulates port-related HTTP headers to bypass security controls that make routing or access decisions based on the originating port.
 
@@ -404,7 +404,7 @@ This technique targets systems that:
 - Trust port headers for internal routing decisions
 - Have port-based ACL rules that can be bypassed with header manipulation
 
-## headers_url
+## 12. headers_url
 
 The `headers_url` module implements URL path injection techniques through custom headers, targeting web applications and proxies that use header values for internal routing.
 
@@ -432,7 +432,7 @@ The module employs several sophisticated approaches:
 
 This module is particularly effective against misconfigured reverse proxies, rewrite engines, and web frameworks that prioritize header-specified paths over the actual request URI.
 
-## headers_host
+## 13. headers_host
 
 The `headers_host` module exploits discrepancies between URL hostname and Host header processing, leveraging real-time reconnaissance data to generate targeted bypass attempts.
 
