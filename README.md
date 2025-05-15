@@ -196,15 +196,122 @@ The module preserves the original query string and handles special characters wi
 
 ## path_prefix
 
-xx
+The `path_prefix` module manipulates path segments using specific byte patterns to bypass security checks. It systematically prefixes URL segments with ASCII control characters, special characters, and the literal 'x' character.
+
+For each relevant byte value, the module creates three distinct variations:
+
+1. Dummy Segment Prefix (Single Byte):
+   - Adds a new first segment containing the byte value
+   - Example: `/admin` → `/[b1]/admin` or `/%XX/admin`
+
+2. Existing Segment Prefix (Single Byte):
+   - Prepends the byte to each existing segment individually
+   - Example: `/admin/login` → `/[b1]admin/login` or `/%XXadmin/login`
+
+3. Existing Segment Prefix (Two Bytes):
+   - Prepends byte pairs to each existing segment
+   - Example: `/admin/login` → `/[b1b2]admin/login` or `/%XX%YYadmin/login`
+
+Each byte value is applied both as a raw byte (when safe) and in percent-encoded form to ensure maximum coverage of potential bypass vectors.
 
 ## http_methods 
 
+The `http_methods` module tests various standard and non-standard HTTP methods loaded from a predefined list (`internal_http_methods.lst`). HTTP method switching is a well-known technique to bypass WAF rules that only filter specific methods.
+
+For each method, it generates:
+
+1. Base method variation:
+   - Uses the specified method with the original URL's path and query string
+   - Example: `OPTIONS /admin` instead of `GET /admin`
+
+2. Content-Length handling:
+   - For methods that typically expect a body (POST, PUT, PATCH, DELETE), adds `Content-Length: 0` header
+   - Example: `DELETE /admin` with `Content-Length: 0`
+
+3. Query parameter relocation (POST only):
+   - For POST requests with query parameters, creates a variant where:
+     - Query string is removed from URL
+     - Parameters are moved to the request body
+     - Proper content type headers are set
+   - Example: `POST /admin?id=1` becomes `POST /admin` with body `id=1`
+
 ## case_substitution 
+
+The `case_substitution` module applies targeted case manipulations to bypass case-sensitive pattern matching in WAFs and ACLs.
+
+It implements four distinct case manipulation strategies:
+
+1. Terminal character case inversion:
+   - Uppercases only the last letter of the path (if lowercase)
+   - Example: `/admin` → `/admiN`
+
+2. HTTP method case manipulation:
+   - Uppercases the HTTP method (e.g., "GET", "POST")
+   - Example: `get /admin` → `GET /admin`
+
+3. Character-by-character case inversion:
+   - Inverts the case of each letter in the path individually
+   - Example: `/admin` → `/Admin`, `/aDmin`, `/adMin`, `/admIn`, etc.
+
+4. Full path uppercase conversion:
+   - Uppercases the entire path string
+   - Example: `/admin` → `/ADMIN`
+
+All original query parameters are preserved when applying these case manipulations.
 
 ## nginx_bypasses
 
+The `nginx_bypasses` module targets Nginx-specific WAF bypass techniques and other proxy/server misconfigurations. It focuses on path manipulation and request splitting attacks.
+
+It employs several advanced techniques:
+
+1. Character insertion:
+   - Inserts special bytes (raw and URL-encoded) at strategic positions:
+     - At the end of the path: `/admin[char]`
+     - After trailing slash: `/admin/[char]`
+     - At the beginning: `/[char]admin`
+     - After each path segment: `/segment1[char]/segment2`
+     - Before each path segment: `/segment1/[char]segment2`
+     - After the first character of each segment: `/s[char]egment1/s[char]egment2`
+
+2. Request splitting with URL-encoded newlines:
+   - Injects `%0A` followed by HTTP version strings
+   - Example: `/admin%0AHTTP/1.1`
+
+3. Complex routing manipulation:
+   - Combines newlines, HTTP versions, and alternative URIs
+   - Example: `/admin%0AHTTP/1.1%0Ahttp://localhost/admin`
+   - Variations include localhost, 127.0.0.1, and custom port specifications
+
+4. Host header manipulation:
+   - Combines path manipulations with explicit Host headers
+   - Targets misconfigured proxy pass-through and routing logic
+
+The module is specifically designed to exploit parsing inconsistencies in Nginx configurations and other proxy servers where request normalization may differ between components.
+
 ## unicode_path_normalization 
+
+The `unicode_path_normalization` module exploits inconsistencies in how different systems handle Unicode character normalization. It generates payloads using Unicode normalization forms to bypass signature-based WAFs.
+
+The module applies multiple techniques:
+
+1. Character replacement with Unicode equivalents:
+   - Substitutes ASCII characters with their Unicode equivalents
+   - Example: `/admin` → `/аdmin` (using Cyrillic 'а' instead of ASCII 'a')
+
+2. Bidirectional text manipulation:
+   - Uses right-to-left override characters to confuse path parsing
+   - Example: `/admin` with inserted bidirectional control characters
+
+3. Homoglyph substitution:
+   - Replaces characters with visually similar Unicode characters
+   - Example: `/admin` → `/аdmіn` (using Cyrillic 'і' instead of ASCII 'i')
+
+4. Normalization form switching:
+   - Applies different Unicode normalization forms (NFC, NFD, NFKC, NFKD)
+   - Targets inconsistencies between WAF normalization and backend processing
+
+These techniques are effective against systems where the WAF and application server normalize Unicode differently or where pattern matching fails to account for Unicode equivalence.
 
 ## headers_scheme 
 
