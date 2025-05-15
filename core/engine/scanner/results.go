@@ -221,10 +221,7 @@ func PrintResultsTableFromDB(targetURL, bypassModule string) error {
 					tableData = append(tableData, currentGroup.rows...)
 
 					// Add separator with dots matching previous module length
-					dotCount := len(currentModule) // currentModule is still the *old* module here
-					if dotCount < 4 {
-						dotCount = 4
-					}
+					dotCount := max(len(currentModule), 4)
 					// Ensure tableData[0] (header) exists before trying to get its length for separator
 					if len(tableData) > 0 && len(tableData[0]) > 0 {
 						separator := make([]string, len(tableData[0]))

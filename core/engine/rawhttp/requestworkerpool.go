@@ -25,21 +25,21 @@ type RequestWorkerPool struct {
 	cancel     context.CancelFunc
 	pool       pond.Pool
 	// Request rate tracking
-	requestStartTime atomic.Int64  // For elapsed time calculation
-	peakRequestRate  atomic.Uint64 // For tracking peak rate
-	maxWorkers       int
+	requestStartTime  atomic.Int64  // For elapsed time calculation
+	peakRequestRate   atomic.Uint64 // For tracking peak rate
+	maxConcurrentReqs int
 }
 
 // NewWorkerPool initializes a new RequestWorkerPool instance
-func NewRequestWorkerPool(opts *HTTPClientOptions, maxWorkers int) *RequestWorkerPool {
+func NewRequestWorkerPool(opts *HTTPClientOptions, maxConcurrentReqs int) *RequestWorkerPool {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	wp := &RequestWorkerPool{
-		httpClient: NewHTTPClient(opts),
-		ctx:        ctx,
-		cancel:     cancel,
-		pool:       pond.NewPool(maxWorkers),
-		maxWorkers: maxWorkers,
+		httpClient:        NewHTTPClient(opts),
+		ctx:               ctx,
+		cancel:            cancel,
+		pool:              pond.NewPool(maxConcurrentReqs),
+		maxConcurrentReqs: maxConcurrentReqs,
 	}
 
 	// Initialize start time

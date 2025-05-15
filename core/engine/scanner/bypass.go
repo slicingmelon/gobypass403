@@ -65,10 +65,10 @@ func NewBypassWorker(bypassmodule string, targetURL string, scannerOpts *Scanner
 		httpClientOpts.StreamResponseBody = false
 	}
 
-	// Adjust MaxConnsPerHost based on maxWorkers
+	// Adjust MaxConnsPerHost based on max concurrent requests
 	// Add 50% more connections than workers for buffer, ensure it's at least the default
-	maxWorkers := scannerOpts.ConcurrentRequests
-	calculatedMaxConns := maxWorkers + (maxWorkers / 2)
+	maxConcurrentReqs := scannerOpts.ConcurrentRequests
+	calculatedMaxConns := maxConcurrentReqs + (maxConcurrentReqs / 2)
 	if calculatedMaxConns > httpClientOpts.MaxConnsPerHost {
 		httpClientOpts.MaxConnsPerHost = calculatedMaxConns
 	}
@@ -146,7 +146,7 @@ func (s *Scanner) RunBypassModule(bypassModule string, targetURL string) int {
 	worker := NewBypassWorker(bypassModule, targetURL, s.scannerOpts, totalJobs)
 	defer worker.Stop()
 
-	maxWorkers := s.scannerOpts.ConcurrentRequests
+	maxConcurrentReqs := s.scannerOpts.ConcurrentRequests
 	// Create new progress bar configuration
 	cfg := progressbar.DefaultConfig()
 	cfg.Prefix = bypassModule + strings.Repeat(" ", maxModuleNameLength-len(bypassModule)+1)
@@ -173,7 +173,7 @@ func (s *Scanner) RunBypassModule(bypassModule string, targetURL string) int {
 
 		msg := fmt.Sprintf(
 			"Max Concurrent [%d req] | Rate [%d req/s] Avg [%d req/s] | Completed %d/%d    ",
-			maxWorkers, currentRate, avgRate, completed, uint64(totalJobs),
+			maxConcurrentReqs, currentRate, avgRate, completed, uint64(totalJobs),
 		)
 		bar.WriteAbove(msg)
 
@@ -238,9 +238,7 @@ func (s *Scanner) RunBypassModule(bypassModule string, targetURL string) int {
 
 		rawhttp.ReleaseResponseDetails(response)
 		progressPercent := (float64(completed) / float64(totalJobs)) * 100.0
-		if progressPercent > 100.0 {
-			progressPercent = 100.0
-		}
+		progressPercent = min(progressPercent, 100.0)
 		bar.Progress(progressPercent)
 
 		dbWg.Add(1)
@@ -315,9 +313,7 @@ func (s *Scanner) ResendRequestFromToken(debugToken string, resendCount int) ([]
 		if response == nil {
 			// Update progress based on the actual task completion count
 			progressPercent := (float64(completed) / float64(totalJobs)) * 100.0
-			if progressPercent > 100.0 {
-				progressPercent = 100.0
-			}
+			progressPercent = min(progressPercent, 100.0)
 			bar.Progress(progressPercent)
 			continue
 		}
@@ -347,18 +343,16 @@ func (s *Scanner) ResendRequestFromToken(debugToken string, resendCount int) ([]
 
 		currentRate := worker.requestPool.GetRequestRate()
 		avgRate := worker.requestPool.GetAverageRequestRate()
-		maxWorkers := s.scannerOpts.ConcurrentRequests
+		maxConcurrentReqs := s.scannerOpts.ConcurrentRequests
 
 		msg := fmt.Sprintf(
 			"Max Concurrent [%d req] | Rate [%d req/s] Avg [%d req/s] | Completed %d/%d    ",
-			maxWorkers, currentRate, avgRate, completed, uint64(totalJobs),
+			maxConcurrentReqs, currentRate, avgRate, completed, uint64(totalJobs),
 		)
 		bar.WriteAbove(msg)
 
 		progressPercent := (float64(completed) / float64(totalJobs)) * 100.0
-		if progressPercent > 100.0 {
-			progressPercent = 100.0
-		}
+		progressPercent = min(progressPercent, 100.0)
 		bar.Progress(progressPercent)
 	}
 
@@ -366,10 +360,7 @@ func (s *Scanner) ResendRequestFromToken(debugToken string, resendCount int) ([]
 
 	// Calculate the final, accurate progress percentage
 	finalProgressPercent := (float64(finalCompleted) / float64(totalJobs)) * 100.0
-	if finalProgressPercent > 100.0 {
-		finalProgressPercent = 100.0
-	}
-
+	finalProgressPercent = min(finalProgressPercent, 100.0)
 	bar.Progress(finalProgressPercent)
 	bar.End()
 

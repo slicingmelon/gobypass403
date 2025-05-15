@@ -84,10 +84,7 @@ func (t *Throttler) GetCurrentThrottleRate() time.Duration {
 	// Calculate base delay with exponential backoff
 	baseDelay := config.BaseRequestDelay
 	if config.ExponentialRequestDelay > 1.0 {
-		count := t.counter.Load() - 1
-		if count < 0 {
-			count = 0
-		}
+		count := max(t.counter.Load()-1, 0)
 
 		// Calculate exponential factor
 		expFactor := math.Pow(config.ExponentialRequestDelay, float64(count))
