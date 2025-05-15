@@ -224,8 +224,8 @@ func (s *Scanner) RunBypassModule(bypassModule string, targetURL string) int {
 
 	// Create formatted prefix with padding
 	prefix := bypassModule + strings.Repeat(" ", maxModuleNameLength-len(bypassModule)+1)
-	// Create new progress bar with wrapper - simplified
-	bar := NewProgressBarWrapper(prefix, progressbar.RedBar, 1, &s.progressBarEnabled)
+	// Create new progress bar
+	bar := NewProgressBar(prefix, progressbar.RedBar, 1, &s.progressBarEnabled)
 
 	responses := worker.requestPool.ProcessRequests(allJobs)
 	var dbWg sync.WaitGroup
@@ -370,7 +370,7 @@ func (s *Scanner) ResendRequestFromToken(debugToken string, resendCount int) ([]
 	// Create formatted prefix
 	prefix := fmt.Sprintf("[Resend] %s", bypassPayload.BypassModule)
 	// Create new progress bar with wrapper - simplified
-	bar := NewProgressBarWrapper(prefix, progressbar.BlueBar, 1, &s.progressBarEnabled)
+	bar := NewProgressBar(prefix, progressbar.BlueBar, 1, &s.progressBarEnabled)
 	bar.Progress(0)
 
 	responses := worker.requestPool.ProcessRequests(jobs)
