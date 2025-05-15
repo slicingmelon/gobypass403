@@ -89,6 +89,7 @@ jobs:
           GOOS: linux
           GOARCH: amd64
         run: |
+          git config --global --add safe.directory /__w/gobypass403/gobypass403
           mkdir -p dist
           go build -v -o dist/gobypass403-linux-amd64 ./cmd/gobypass403
 
