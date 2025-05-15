@@ -122,8 +122,119 @@ Sometimes you want to find bypasses in a long list of CDNs, and you know that th
 Example Results 1
 ![Screenshot 1](images/1.jpg)
 
+# Bypass Modules
+
+Some description..
+
+## char_encode
+
+The `char_encode` module implements targeted character encoding techniques to bypass WAF pattern matching. It systematically generates payloads by applying URL encoding to specific characters in the path.
+
+The module works on four strategic positions:
+
+- Last character of the path
+- First character after any leading slash
+- Each character in the last path segment
+- Each character throughout the entire path
+
+For each position, it generates:
+- Single encoding (`%xx`)
+- Double encoding (`%25xx`)
+- Triple encoding (`%2525xx`)
+
+For example, with a URL like `https://example.com/admin`:
+
+```
+/admin → /admi%6e          # Last character encoded
+/admin → /%61dmin          # First character encoded  
+/admin → /adm%69n          # Character in path encoded
+```
+
+Special characters like `?` and `#` are handled with proper percent-encoding to preserve query parameters.
+
+## mid_paths
+
+The `mid_paths` module injects path traversal sequences and special character combinations using a predefined list of payloads (`internal_midpaths.lst`).
+
+For a URL like `/a/b`, the module creates these variants:
+
+1. Before path:
+   - `PAYLOAD/a/b`
+   - `/PAYLOAD/a/b`
+
+2. At each segment:
+   - `/PAYLOADa/b` (fused with first segment start)
+   - `/aPAYLOAD/b` (fused with first segment end)
+   - `/a/PAYLOADb` (fused with second segment start)
+   - `/a/bPAYLOAD` (fused with second segment end)
+
+3. After each slash:
+   - `/a/PAYLOAD/b` (inserted after a slash)
+
+Each variant is generated with appropriate path normalization handling. The module carefully manages special characters in path segments, generating additional variants with percent-encoded `?` and `#` characters when necessary.
+
+## end_paths 
+
+The `end_paths` module appends a variety of suffixes from a predefined list (`internal_endpaths.lst`) to the end of the URL path. This technique targets path normalization vulnerabilities and extension handling issues in WAFs.
+
+For a URL like `https://example.com/admin`, the module generates:
+
+1. Standard suffix variants:
+   - `/admin/SUFFIX`
+   - `/admin/SUFFIX/`
+
+2. Direct append variants (when the base path isn't root `/` and suffix doesn't start with a letter):
+   - `/adminSUFFIX`
+   - `/adminSUFFIX/`
+
+Common suffixes include:
+- Path traversal sequences: `..;/`, `../`, `./`
+- Special characters: `;`, `:`, `%20`
+- Common extensions: `.json`, `.php~`, `.bak`
+
+The module preserves the original query string and handles special characters with proper percent-encoding to maintain request integrity.
+
+## path_prefix
+
+xx
+
+## http_methods 
+
+## case_substitution 
+
+## nginx_bypasses
+
+## unicode_path_normalization 
+
+## headers_scheme 
+
+## headers_ip
+
+## headers_port 
+
+yy
+
+## headers_url
+
+xx
+
+## headers_host
+
+xx
+
 
 # Changelog
+
+## 0.7.9
+
+- Updated all unit tests.
+- Each bypass module now has its own deduplication algorithm.
+- Added a global deduplication component that filters bypass modules to ensure the same payload is not sent more than once across different modules.
+- Refactored `mid_paths` module entirely - it now generates payloads more efficiently, bypass coverage increased as well. 
+- Updated payloads lists for `mid_paths` and `end_paths` modules.
+- Fixed a major bug when scanning a list of URLs using the `-l` CLI command.
+- Updated SQLite DB schema and table organization for better performance.
+- Updated GitHub workflow - Linux builds are now compatible with older libc versions.
 
 
 ## 0.7.8
@@ -134,9 +245,9 @@ Example Results 1
 - Payload files version detection. Updated the `-update-payloads` CLI command.
 - Important updates on the final output table. The results table now includes only a summary of the findings, up to 5 unique results, sorted per url -> bypass module -> status code -> number of bytes in the HTTP response. 
 - New CLI options:
-  -   `-mct, -match-content-type` Filter results by content type(s) substring (example: -mct application/json,text/html)
-  -   `-min-cl, -min-content-length` Filter results by minimum Content-Length (example: -min-cl 100).
-  -   `max-cl, -max-content-length`  Filter results by maximum Content-Length (example: -max-cl 5000).
+  - `-mct, -match-content-type` Filter results by content type(s) substring (example: -mct application/json,text/html)
+  - `-min-cl, -min-content-length` Filter results by minimum Content-Length (example: -min-cl 100).
+  - `-max-cl, -max-content-length`  Filter results by maximum Content-Length (example: -max-cl 5000).
 - Modular bypass modules. Each bypass module has its own .go file. 
 - New bypass modules: `nginx_bypasses`, `unicode_path_normalization`, `path_prefix`.
 - All bypass modules generating unicode/reverse unicode normalization payloads now rely on a pre-built charmap available in the payloads directory.  
