@@ -261,74 +261,200 @@ All original query parameters are preserved when applying these case manipulatio
 
 ## nginx_bypasses
 
-The `nginx_bypasses` module targets Nginx-specific WAF bypass techniques and other proxy/server misconfigurations. It focuses on path manipulation and request splitting attacks.
+The `nginx_bypasses` module is a comprehensive collection of techniques targeting server-side parsing inconsistencies across multiple web frameworks and server types. While named for Nginx, it targets a broad spectrum of platforms including Flask, Spring Boot, and Node.js applications.
 
-It employs several advanced techniques:
+The module implements several specialized bypass vectors:
 
-1. Character insertion:
-   - Inserts special bytes (raw and URL-encoded) at strategic positions:
-     - At the end of the path: `/admin[char]`
+1. Framework-specific byte patterns:
+   - Flask bypasses: Uses special bytes (0x85, 0xA0, 0x1F, 0x1E, 0x1D, 0x1C, 0x0C, 0x0B) that can trigger path normalization bugs
+   - Spring Boot bypasses: Leverages tab character (0x09) and semicolon (;) interpretation quirks
+   - Node.js bypasses: Exploits specific characters (0xA0, 0x09, 0x0C) that Node.js processes differently
+
+2. Strategic character insertion:
+   - Inserts both raw and percent-encoded special bytes at six critical positions:
+     - Path end: `/admin[char]`
      - After trailing slash: `/admin/[char]`
-     - At the beginning: `/[char]admin`
-     - After each path segment: `/segment1[char]/segment2`
-     - Before each path segment: `/segment1/[char]segment2`
-     - After the first character of each segment: `/s[char]egment1/s[char]egment2`
+     - Path beginning: `/[char]admin`
+     - After each segment: `/segment1[char]/segment2`
+     - Before each segment: `/segment1/[char]segment2`
+     - After first character: `/s[char]egment1`
 
-2. Request splitting with URL-encoded newlines:
-   - Injects `%0A` followed by HTTP version strings
-   - Example: `/admin%0AHTTP/1.1`
+3. Request splitting techniques:
+   - HTTP protocol confusion with newlines: 
+     - Injects `%0A` followed by HTTP version strings (`HTTP/1.1`, `HTTP/1.0`, `HTTP/2.0`, `HTTP/0.9`)
+     - Example: `/admin%0AHTTP/1.1`
 
-3. Complex routing manipulation:
-   - Combines newlines, HTTP versions, and alternative URIs
-   - Example: `/admin%0AHTTP/1.1%0Ahttp://localhost/admin`
-   - Variations include localhost, 127.0.0.1, and custom port specifications
+4. Routing manipulation attacks:
+   - Complex request smuggling vectors:
+     - Combines newlines, HTTP versions, and alternative URIs
+     - Example: `/admin%0AHTTP/1.1%0Ahttp://localhost/admin`
+   - Host variation:
+     - Tests multiple alternative hosts: `localhost`, `127.0.0.1` with different port combinations
+     - Combines with explicit Host header manipulation
 
-4. Host header manipulation:
-   - Combines path manipulations with explicit Host headers
-   - Targets misconfigured proxy pass-through and routing logic
+5. Protocol handler exploitation:
+   - Tests different URI schemes (`http://`, `https://`, `file://`, `gopher://`)
+   - Targets proxy pass-through vulnerabilities and protocol handler misconfigurations
 
-The module is specifically designed to exploit parsing inconsistencies in Nginx configurations and other proxy servers where request normalization may differ between components.
+The module represents one of the most comprehensive path manipulation testing suites, targeting inconsistencies in:
+- HTTP request parsing
+- Proxy handling
+- Framework-specific path normalization
+- Reverse proxy configurations
+- Load balancer behavior
+- Server-side protocol handling
+
+Each payload is carefully generated to preserve proper URL structure and ensure the original query parameters are correctly maintained.
 
 ## unicode_path_normalization 
 
-The `unicode_path_normalization` module exploits inconsistencies in how different systems handle Unicode character normalization. It generates payloads using Unicode normalization forms to bypass signature-based WAFs.
+The `unicode_path_normalization` module generates denormalized Unicode payloads specifically targeting systems that perform Unicode normalization during request processing. Rather than exploiting normalization inconsistencies directly, it creates payloads that appear benign before normalization but transform into bypass vectors after normalization occurs.
 
-The module applies multiple techniques:
+Key techniques include:
 
-1. Character replacement with Unicode equivalents:
-   - Substitutes ASCII characters with their Unicode equivalents
-   - Example: `/admin` → `/аdmin` (using Cyrillic 'а' instead of ASCII 'a')
+1. Denormalized character sequences:
+   - Deliberately uses Unicode characters that normalize to restricted ASCII characters
+   - Example: Sending a decomposed form that normalizes to `/admin` on the server side
 
 2. Bidirectional text manipulation:
-   - Uses right-to-left override characters to confuse path parsing
-   - Example: `/admin` with inserted bidirectional control characters
+   - Inserts right-to-left override characters that may be stripped during normalization
+   - Can cause WAFs to interpret paths differently than application servers
 
 3. Homoglyph substitution:
-   - Replaces characters with visually similar Unicode characters
-   - Example: `/admin` → `/аdmіn` (using Cyrillic 'і' instead of ASCII 'i')
+   - Uses visually similar but different Unicode code points
+   - Target systems normalize these to standard ASCII, bypassing pattern matching
+   - Example: Cyrillic 'а' (U+0430) vs ASCII 'a' (U+0061) which appear identical but have different code points
 
-4. Normalization form switching:
-   - Applies different Unicode normalization forms (NFC, NFD, NFKC, NFKD)
-   - Targets inconsistencies between WAF normalization and backend processing
+4. Normalization form exploitation:
+   - Leverages differences between NFC, NFD, NFKC, and NFKD normalization forms
+   - Creates payloads in one form that transform to another form after processing
+   - Targets systems where WAF and application server use different normalization forms
 
-These techniques are effective against systems where the WAF and application server normalize Unicode differently or where pattern matching fails to account for Unicode equivalence.
+This module is particularly effective against multi-tiered architectures where different components (load balancers, WAFs, application servers) handle Unicode normalization differently, creating security gaps between the initial request validation and final request processing.
 
 ## headers_scheme 
 
+The `headers_scheme` module tests protocol-based bypasses using custom HTTP headers that indicate the original protocol or request scheme. Many applications rely on these headers for internal routing decisions and security policies.
+
+The module operates by:
+
+1. Reading two predefined lists:
+   - `header_proto_schemes.lst`: Common headers for protocol indication
+   - `internal_proto_schemes.lst`: Various protocol schemes to test (http, https, etc.)
+
+2. Generating scheme-based payloads in three categories:
+   - Standard protocol indicators: Pairs most headers with each protocol scheme
+   - HTTPS-specific flags: Sets headers like `Front-End-Https`, `X-Forwarded-HTTPS`, and `X-Forwarded-SSL` to `on`
+   - Forwarded header (RFC 7239): Uses the standardized format `proto={scheme}`
+
+These headers exploit common misconfigurations in:
+- Reverse proxies that don't properly validate or sanitize forwarded scheme information
+- Load balancers that trust scheme headers for SSL/TLS decisions
+- Web applications that use scheme headers for conditional logic or URL construction
+
 ## headers_ip
 
-## headers_port 
+The `headers_ip` module is a comprehensive IP spoofing toolkit that targets internal routing and access control bypasses based on trusted IP sources.
 
-yy
+Key features include:
+
+1. Multi-source IP collection:
+   - Uses predefined lists from `header_ip_hosts.lst` and `internal_ip_hosts.lst`
+   - Leverages runtime IP reconnaissance - the tool caches all resolved IPs, CNAMEs, and DNS records of target hosts during execution
+   - Supports custom IP specification via the `-spoof-ip` CLI flag (comma-separated values)
+
+2. Flexible header manipulation:
+   - Standard IP-related headers from internal lists
+   - Custom header support via the `-spoof-header` CLI flag (comma-separated values)
+   - Tests both original and normalized (canonicalized) forms of custom headers
+
+3. Special header formats:
+   - RFC 7239 Forwarded header with multiple parameters: `by=`, `for=`, and `host=`
+   - AppEngine-specific bypass with `X-AppEngine-Trusted-IP-Request: 1`
+
+This module is particularly effective against:
+- IP-based access controls (e.g., admin interfaces restricted to internal IPs)
+- Proxies that evaluate authorization based on source IP headers
+- WAFs with IP-based trust rules or allowlists
+
+## headers_port
+
+The `headers_port` module manipulates port-related HTTP headers to bypass security controls that make routing or access decisions based on the originating port.
+
+The module works by:
+
+1. Reading from two predefined lists:
+   - `header_ports.lst`: Various HTTP headers that may carry port information
+   - `internal_ports.lst`: Collection of port numbers to test, including standard web ports, common alternative ports, and privileged ports
+
+2. Generating comprehensive combinations:
+   - Pairs each header name with each port number
+   - Preserves the original URL structure (scheme, host, path, query string)
+
+This technique targets systems that:
+- Apply different security rules based on the client's source port
+- Trust port headers for internal routing decisions
+- Have port-based ACL rules that can be bypassed with header manipulation
 
 ## headers_url
 
-xx
+The `headers_url` module implements URL path injection techniques through custom headers, targeting web applications and proxies that use header values for internal routing.
+
+The module employs several sophisticated approaches:
+
+1. Path injection with root traversal:
+   - Sets the request path to `/` while placing the actual target path in headers
+   - Loads header names from `header_urls.lst` (X-Original-URL, X-Rewrite-URL, etc.)
+   - Variations include base path alone or with query parameters
+
+2. Parent path traversal:
+   - Systematically tests all parent directories of the target path
+   - Example: For `/a/b/c`, tries `/a/b`, `/a`, and `/` in headers
+   - Each parent path is tested both with and without query string
+
+3. Full URL injection:
+   - For headers containing "url", "request", or "refer" in their name
+   - Injects complete URLs (scheme://host/path) with variants of the path
+   - Tests both with and without query parameters
+
+4. CVE-2025-29927 exploitation:
+   - Targets Next.js middleware bypass via `x-middleware-subrequest` header
+   - Tests values like `middleware`, `middleware:middleware`, up to 7 repetitions
+   - Includes variants with `src/middleware` prefix for comprehensive coverage
+
+This module is particularly effective against misconfigured reverse proxies, rewrite engines, and web frameworks that prioritize header-specified paths over the actual request URI.
 
 ## headers_host
 
-xx
+The `headers_host` module exploits discrepancies between URL hostname and Host header processing, leveraging real-time reconnaissance data to generate targeted bypass attempts.
 
+Key features include:
+
+1. Dynamic reconnaissance integration:
+   - Utilizes the tool's built-in recon cache that collects IP addresses and CNAMEs for target hosts
+   - Automatically generates payloads based on discovered network topology
+   - Supports both IPv4 and IPv6 address variations
+
+2. IPv4/IPv6 service variations:
+   - For each discovered IP (with scheme and port):
+     - Uses IP as URL host with original hostname in Host header
+     - Uses original hostname in URL with IP in Host header
+   - Handles port specifications appropriately (default ports vs. explicit ports)
+   - Creates IPv6-specific variants with proper bracket notation ([IPv6]:port)
+
+3. CNAME-based bypass techniques:
+   - Uses discovered canonical names from DNS reconnaissance
+   - Four strategic variations for each CNAME:
+     - Original URL + CNAME in Host header
+     - CNAME as URL host + original hostname in Host header
+     - CNAME in both URL host and Host header
+     - Recursive domain suffix testing (e.g., sub.domain.com → domain.com)
+
+This module is especially powerful for:
+- Content Delivery Network (CDN) bypass attempts
+- Virtual host confusion attacks
+- DNS-based access control evasion
+- Load balancer and reverse proxy misconfigurations
 
 # Changelog
 
