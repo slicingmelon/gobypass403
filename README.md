@@ -226,7 +226,7 @@ For each method, it generates:
 
 2. Content-Length handling:
    - For methods that typically expect a body (POST, PUT, PATCH, DELETE), adds `Content-Length: 0` header
-   - Example: `DELETE /admin` with `Content-Length: 0`
+   - Example: `GET /admin` with `Content-Length: 0`
 
 3. Query parameter relocation (POST only):
    - For POST requests with query parameters, creates a variant where:
@@ -266,12 +266,12 @@ The `nginx_bypasses` module is a comprehensive collection of techniques targetin
 The module implements several specialized bypass vectors:
 
 1. Framework-specific byte patterns:
-   - Flask bypasses: Uses special bytes (0x85, 0xA0, 0x1F, 0x1E, 0x1D, 0x1C, 0x0C, 0x0B) that can trigger path normalization bugs
-   - Spring Boot bypasses: Leverages tab character (0x09) and semicolon (;) interpretation quirks
-   - Node.js bypasses: Exploits specific characters (0xA0, 0x09, 0x0C) that Node.js processes differently
+   - Flask bypasses: Bad bytes used in payloads (`0x85, 0xA0, 0x1F, 0x1E, 0x1D, 0x1C, 0x0C, 0x0B`) that can trigger path normalization bypasses
+   - Spring Boot bypasses: Leverages tab character (`0x09`) and semicolon (`;`) interpretation quirks
+   - Node.js bypasses: Exploits specific characters (`0xA0, 0x09, 0x0C`) that Node.js processes differently
 
 2. Strategic character insertion:
-   - Inserts both raw and percent-encoded special bytes at six critical positions:
+   - Inserts both raw and percent-encoded special bytes in key positions:
      - Path end: `/admin[char]`
      - After trailing slash: `/admin/[char]`
      - Path beginning: `/[char]admin`
@@ -391,46 +391,81 @@ The `headers_port` module manipulates port-related HTTP headers to bypass securi
 
 The module works by:
 
-1. Reading from two predefined lists:
-   - `header_ports.lst`: Various HTTP headers that may carry port information
-   - `internal_ports.lst`: Collection of port numbers to test, including standard web ports, common alternative ports, and privileged ports
+1. Key port-related headers:
+   - `X-Forwarded-Port`: Most widely recognized port header
+   - `X-Port`: Direct port specification
+   - `Port`: Simple port header
+   - CDN-specific variants like `Cdn-Server-Port` and `Cdn-Src-Port`
+   - Additional headers from `header_ports.lst`
 
-2. Generating comprehensive combinations:
-   - Pairs each header name with each port number
-   - Preserves the original URL structure (scheme, host, path, query string)
+2. Strategic port values:
+   - Standard web ports: `80`, `443`
+   - Alternative web ports: `8080`, `8443`, `3000`
+   - Less common service ports: `5000`, `5001`, `9080`, `9443`
+   - All values loaded from `internal_ports.lst`
 
-This technique targets systems that:
-- Apply different security rules based on the client's source port
-- Trust port headers for internal routing decisions
-- Have port-based ACL rules that can be bypassed with header manipulation
+Example bypass combinations:
+```
+X-Forwarded-Port: 8080
+X-Port: 443
+Cdn-Src-Port: 9000
+X-Protocol-Port: 80
+```
+
+This technique is particularly effective against:
+- Web application firewalls with port-specific filtering rules
+- Load balancers that route based on original client port
+- Microservice architectures with port-based service routing
+- Security controls that exempt traffic from specific trusted ports
 
 ## 12. headers_url
 
-The `headers_url` module implements URL path injection techniques through custom headers, targeting web applications and proxies that use header values for internal routing.
+The `headers_url` module implements URL path injection techniques through custom headers, targeting web applications and proxies that use header values for internal routing decisions.
 
-The module employs several sophisticated approaches:
+Critical headers exploited include:
 
-1. Path injection with root traversal:
-   - Sets the request path to `/` while placing the actual target path in headers
-   - Loads header names from `header_urls.lst` (X-Original-URL, X-Rewrite-URL, etc.)
-   - Variations include base path alone or with query parameters
+1. Primary routing headers:
+   - `X-Original-URL`: Used by many WAFs and proxies for URL rewriting
+   - `X-Rewrite-URL`: Common in Nginx configurations
+   - `X-Override-URL`: Used in various proxy setups
+   - `X-Forwarded-URI`: Often trusted by load balancers
+   - `Base-URL`: Used in some legacy applications
 
-2. Parent path traversal:
-   - Systematically tests all parent directories of the target path
-   - Example: For `/a/b/c`, tries `/a/b`, `/a`, and `/` in headers
-   - Each parent path is tested both with and without query string
+2. Strategic path injection techniques:
+   - Root URI injection: Sets request path to `/` while placing actual target path in headers
+   - Parent path traversal: Tests all parent directories of target path
+   - Full URL injection: Supplies complete URLs in headers for URL-aware headers
+   - Mixed URL/path formats: Creates variations with different formatting and encoding
 
-3. Full URL injection:
-   - For headers containing "url", "request", or "refer" in their name
-   - Injects complete URLs (scheme://host/path) with variants of the path
-   - Tests both with and without query parameters
+3. CVE-2025-29927 exploitation:
+   - Targets Next.js middleware bypass via the critical `x-middleware-subrequest` header
+   - Generates values like `middleware`, `middleware:middleware:middleware`, etc.
+   - Creates variations with `src/middleware` prefix
 
-4. CVE-2025-29927 exploitation:
-   - Targets Next.js middleware bypass via `x-middleware-subrequest` header
-   - Tests values like `middleware`, `middleware:middleware`, up to 7 repetitions
-   - Includes variants with `src/middleware` prefix for comprehensive coverage
+Example bypasses:
+```
+GET / HTTP/1.1
+Host: example.com
+X-Original-URL: /admin
 
-This module is particularly effective against misconfigured reverse proxies, rewrite engines, and web frameworks that prioritize header-specified paths over the actual request URI.
+GET / HTTP/1.1
+Host: example.com
+X-Rewrite-URL: /api/users
+
+GET /api/public/data HTTP/1.1
+Host: example.com
+X-Override-URL: /api/private/data
+
+GET /api/products HTTP/1.1
+Host: example.com
+x-middleware-subrequest: middleware:middleware:middleware
+```
+
+This technique is especially effective against:
+- Misconfigured reverse proxies and API gateways
+- Web application firewalls with URL-rewriting capabilities
+- Cloud-based WAF solutions that process headers before routing requests
+- Next.js applications vulnerable to middleware bypasses
 
 ## 13. headers_host
 
