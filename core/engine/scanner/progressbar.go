@@ -17,10 +17,15 @@ type ProgressBarWrapper struct {
 	enabledFlag *atomic.Bool
 }
 
-// NewProgressBarWrapper creates a new progress bar wrapper
-func NewProgressBarWrapper(cfg progressbar.Config, enabledFlag *atomic.Bool) *ProgressBarWrapper {
+// NewProgressBarWrapper creates a new progress bar wrapper with the specified configuration
+func NewProgressBarWrapper(prefix string, color string, extraLines int, enabledFlag *atomic.Bool) *ProgressBarWrapper {
 	var bar *progressbar.Bar
 	if enabledFlag.Load() {
+		cfg := progressbar.DefaultConfig()
+		cfg.Prefix = prefix
+		cfg.UseColors = true
+		cfg.ExtraLines = extraLines
+		cfg.Color = color
 		bar = cfg.NewBar()
 	}
 	return &ProgressBarWrapper{
