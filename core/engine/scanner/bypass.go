@@ -228,8 +228,8 @@ func (s *Scanner) RunBypassModule(bypassModule string, targetURL string) int {
 	cfg.ExtraLines = 1
 
 	cfg.Color = progressbar.RedBar
-	// Create new progress bar
-	bar := cfg.NewBar()
+	// Create new progress bar with wrapper
+	bar := NewProgressBarWrapper(cfg, &s.progressBarEnabled)
 
 	responses := worker.requestPool.ProcessRequests(allJobs)
 	var dbWg sync.WaitGroup
@@ -376,7 +376,7 @@ func (s *Scanner) ResendRequestFromToken(debugToken string, resendCount int) ([]
 	cfg.UseColors = true
 	cfg.ExtraLines = 1
 	cfg.Color = progressbar.BlueBar
-	bar := cfg.NewBar()
+	bar := NewProgressBarWrapper(cfg, &s.progressBarEnabled)
 	bar.Progress(0)
 
 	responses := worker.requestPool.ProcessRequests(jobs)
