@@ -86,7 +86,7 @@ func IsValidBypassModule(moduleName string) bool {
 	return slices.Contains(payload.BypassModulesRegistry, moduleName)
 }
 
-type BypassWorker struct {
+type BypassEngagement struct {
 	bypassmodule string
 	once         sync.Once
 	opts         *ScannerOpts
@@ -94,7 +94,7 @@ type BypassWorker struct {
 	totalJobs    int
 }
 
-func NewBypassWorker(bypassmodule string, targetURL string, scannerOpts *ScannerOpts, totalJobs int) *BypassWorker {
+func NewBypassEngagement(bypassmodule string, targetURL string, scannerOpts *ScannerOpts, totalJobs int) *BypassEngagement {
 	httpClientOpts := rawhttp.DefaultHTTPClientOptions()
 
 	// Override specific settings from user options
@@ -129,7 +129,7 @@ func NewBypassWorker(bypassmodule string, targetURL string, scannerOpts *Scanner
 		httpClientOpts.MaxConnsPerHost = calculatedMaxConns
 	}
 
-	return &BypassWorker{
+	return &BypassEngagement{
 		bypassmodule: bypassmodule,
 		once:         sync.Once{},
 		opts:         scannerOpts,
@@ -138,9 +138,9 @@ func NewBypassWorker(bypassmodule string, targetURL string, scannerOpts *Scanner
 	}
 }
 
-// Stop the BypassWorkerContext
+// Stop the BypassEngagement
 // Also close the requestworkerpool
-func (w *BypassWorker) Stop() {
+func (w *BypassEngagement) Stop() {
 	w.once.Do(func() {
 		if w.requestPool != nil {
 			w.requestPool.Close()
@@ -216,7 +216,7 @@ func (s *Scanner) RunBypassModule(bypassModule string, targetURL string) int {
 		}
 	}
 
-	worker := NewBypassWorker(bypassModule, targetURL, s.scannerOpts, totalJobs)
+	worker := NewBypassEngagement(bypassModule, targetURL, s.scannerOpts, totalJobs)
 	defer worker.Stop()
 
 	maxConcurrentReqs := s.scannerOpts.ConcurrentRequests
@@ -360,7 +360,7 @@ func (s *Scanner) ResendRequestFromToken(debugToken string, resendCount int) ([]
 	s.scannerOpts.ConcurrentRequests = 1
 
 	// Create a new worker for the bypass module
-	worker := NewBypassWorker(bypassPayload.BypassModule, targetURL, s.scannerOpts, totalJobs)
+	worker := NewBypassEngagement(bypassPayload.BypassModule, targetURL, s.scannerOpts, totalJobs)
 	defer worker.Stop()
 
 	jobs := make([]payload.BypassPayload, 0, totalJobs)
@@ -385,14 +385,13 @@ func (s *Scanner) ResendRequestFromToken(debugToken string, resendCount int) ([]
 		completed := worker.requestPool.GetReqWPCompletedTasks()
 
 		if response == nil {
-			// Update progress based on the actual task completion count
 			progressPercent := (float64(completed) / float64(totalJobs)) * 100.0
 			progressPercent = min(progressPercent, 100.0)
 			bar.Progress(progressPercent)
 			continue
 		}
 
-		// --- Process Valid Response ---
+		// Process Valid Response
 		if matchStatusCodes(response.StatusCode, s.scannerOpts.MatchStatusCodes) {
 			result := &Result{
 				TargetURL:           targetURL,
@@ -446,10 +445,10 @@ func (s *Scanner) ResendRequestFromToken(debugToken string, resendCount int) ([]
 // match HTTP status code in list
 // if codes is nil, match all status codes
 func matchStatusCodes(code int, codes []int) bool {
-	if codes == nil { // Still need explicit nil check
+	if codes == nil { // Still need nil check
 		return true
 	}
-	return slices.Contains(codes, code) // Different behavior for empty vs nil slices
+	return slices.Contains(codes, code)
 }
 
 func sanitizeNonPrintableBytes(input []byte) string {
