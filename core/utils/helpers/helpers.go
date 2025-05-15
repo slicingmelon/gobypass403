@@ -18,11 +18,6 @@ import (
 	GB403Logger "github.com/slicingmelon/gobypass403/core/utils/logger"
 )
 
-// type Header struct {
-// 	Header string
-// 	Value  string
-// }
-
 // ----------------------------------------------------------------//
 // URL Validation Stuff//
 // Custom URL Validation, HTTPX probes and more //
