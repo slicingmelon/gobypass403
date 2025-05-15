@@ -354,28 +354,36 @@ These headers exploit common misconfigurations in:
 
 ## headers_ip
 
-The `headers_ip` module is a comprehensive IP spoofing toolkit that targets internal routing and access control bypasses based on trusted IP sources.
+The `headers_ip` module is a powerful IP spoofing toolkit that exploits how servers trust client-reported IP addresses for access control decisions. This often-overlooked bypass technique can circumvent WAF restrictions by manipulating IP-based trust relationships.
 
-Key features include:
+Key capabilities include:
 
-1. Multi-source IP collection:
-   - Uses predefined lists from `header_ip_hosts.lst` and `internal_ip_hosts.lst`
-   - Leverages runtime IP reconnaissance - the tool caches all resolved IPs, CNAMEs, and DNS records of target hosts during execution
-   - Supports custom IP specification via the `-spoof-ip` CLI flag (comma-separated values)
+1. Comprehensive header coverage:
+   - Tests all industry-standard IP reporting headers:
+     - `X-Forwarded-For`: The de-facto standard for client IP behind proxies
+     - `X-Real-IP`: Used by Nginx and many CDNs for original client IP
+     - `X-Client-IP`: Common in enterprise environments
+     - `X-Originating-IP`: Used by Microsoft products and services
+     - Dozens of additional vendor-specific headers from `header_ip_hosts.lst`
 
-2. Flexible header manipulation:
-   - Standard IP-related headers from internal lists
-   - Custom header support via the `-spoof-header` CLI flag (comma-separated values)
-   - Tests both original and normalized (canonicalized) forms of custom headers
+2. Multi-source IP data collection:
+   - Dynamic IP reconnaissance at runtime - automatically caches all resolved IPs, CNAMEs, and DNS records
+   - Predefined IP address lists from `internal_ip_hosts.lst` targeting internal/trusted networks
+   - Custom IP specification via `-spoof-ip` CLI flag (comma-separated values)
+   - Focus on high-value targets: localhost, internal networks, cloud metadata IPs
 
-3. Special header formats:
-   - RFC 7239 Forwarded header with multiple parameters: `by=`, `for=`, and `host=`
-   - AppEngine-specific bypass with `X-AppEngine-Trusted-IP-Request: 1`
+3. Advanced header manipulation:
+   - Custom header support via `-spoof-header` CLI flag for targeting specific environments
+   - Tests both original and normalized (canonicalized) forms of headers
+   - RFC 7239 Forwarded header with parameter variations: `by=`, `for=`, and `host=`
+   - Special-case bypasses like `X-AppEngine-Trusted-IP-Request: 1`
 
-This module is particularly effective against:
-- IP-based access controls (e.g., admin interfaces restricted to internal IPs)
-- Proxies that evaluate authorization based on source IP headers
-- WAFs with IP-based trust rules or allowlists
+This technique exploits fundamental architectural weaknesses in:
+- Multi-tier architectures where trust is established between components
+- IP-based access control lists (ACLs) for admin interfaces
+- Cloud environments that trust specific internal IPs
+- WAFs that exempt traffic from certain source addresses
+- Load balancers that make routing decisions based on client IP
 
 ## headers_port
 
