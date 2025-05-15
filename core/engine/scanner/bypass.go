@@ -83,20 +83,18 @@ func FilterUniqueBypassPayloads(payloads []payload.BypassPayload, bypassModule s
 	newSize := len(seenRawURIs)
 	seenRawURIsMutex.RUnlock()
 
-	GB403Logger.Verbose().Msgf("[%s] Filtered payloads: %d -> %d | +%d added to the global RawURIs -> %d )",
-		bypassModule, len(payloads), len(filtered), initialSize, newSize)
+	// Calculate new unique RawURIs added
+	addedURIs := newSize - initialSize
+
+	GB403Logger.Verbose().Msgf("[%s] Filtered payloads: %d -> %d | Global RawURIs: %d -> %d (%d new unique)",
+		bypassModule, len(payloads), len(filtered), initialSize, newSize, addedURIs)
 
 	return filtered
 }
 
 // IsValidBypassModule checks if a module is valid
 func IsValidBypassModule(moduleName string) bool {
-	for _, module := range payload.BypassModulesRegistry {
-		if module == moduleName {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(payload.BypassModulesRegistry, moduleName)
 }
 
 type BypassWorker struct {
