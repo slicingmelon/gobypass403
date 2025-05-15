@@ -30,7 +30,7 @@ type RequestWorkerPool struct {
 	maxConcurrentReqs int
 }
 
-// NewWorkerPool initializes a new RequestWorkerPool instance
+// Initializes a new RequestWorkerPool instance
 func NewRequestWorkerPool(opts *HTTPClientOptions, maxConcurrentReqs int) *RequestWorkerPool {
 	ctx, cancel := context.WithCancel(context.Background())
 
