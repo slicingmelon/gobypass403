@@ -150,3 +150,25 @@ func String2Byte(s string) []byte {
 func Byte2String(b []byte) string {
 	return unsafe.String(unsafe.SliceData(b), len(b))
 }
+
+// SanitizeNonPrintableBytes sanitizes non-printable bytes in a byte slice
+// and returns a string with the sanitized bytes for better terminal output
+func SanitizeNonPrintableBytes(input []byte) string {
+	var sb strings.Builder
+	sb.Grow(len(input))
+
+	for _, b := range input {
+		// Keep printable ASCII (32-126), LF (10), CR (13)
+		if (b >= 32 && b <= 126) || b == 10 || b == 13 {
+			sb.WriteByte(b)
+			// Explicitly handle Tab separately and
+			// replace with its escape sequence -- to test
+		} else if b == 9 {
+			sb.WriteString("\\x09")
+		} else {
+			// Replace others with Go-style hex escape
+			sb.WriteString(fmt.Sprintf("\\x%02x", b))
+		}
+	}
+	return sb.String()
+}

@@ -315,11 +315,6 @@ func ReplaceNth(s, old, new string, n int) string {
 	return s[:pos] + new + s[pos+len(old):]
 }
 
-// Helper function to check if a byte is a letter
-func isLetterASCII(c byte) bool {
-	return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')
-}
-
 // Helper function to convert a slice of Header structs to a map
 func HeadersToMap(headers []Headers) map[string]string {
 	m := make(map[string]string)
@@ -382,6 +377,11 @@ func isSpecialCharASCII(b byte) bool {
 	// Using unicode functions is fine as they handle ASCII correctly and efficiently.
 	r := rune(b)
 	return unicode.IsPunct(r) || unicode.IsSymbol(r)
+}
+
+// Helper function to check if a byte is a letter
+func isLetterASCII(c byte) bool {
+	return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')
 }
 
 func isSpaceASCII(b byte) bool {
