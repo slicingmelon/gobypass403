@@ -1,5 +1,5 @@
 /*
-GOBypass403
+GoByPASS403
 Author: slicingmelon <github.com/slicingmelon>
 X: x.com/pedro_infosec
 */
