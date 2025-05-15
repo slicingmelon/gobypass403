@@ -49,7 +49,6 @@ func FilterUniqueBypassPayloads(payloads []payload.BypassPayload, bypassModule s
 	initialSize := len(seenRawURIs)
 	seenRawURIsMutex.RUnlock()
 
-	// Single-pass filtering against global map
 	for _, p := range payloads {
 		seenRawURIsMutex.RLock()
 		previousModule, seen := seenRawURIs[p.RawURI]
@@ -60,7 +59,7 @@ func FilterUniqueBypassPayloads(payloads []payload.BypassPayload, bypassModule s
 			// Add to filtered list
 			filtered = append(filtered, p)
 
-			// Update global map if not already tracked for this module
+			// Update global map
 			if !seen {
 				seenRawURIsMutex.Lock()
 				seenRawURIs[p.RawURI] = bypassModule
