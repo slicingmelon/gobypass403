@@ -367,7 +367,7 @@ func encodeQueryAndFragmentChars(path string) string {
 
 // isControlByte checks if a byte is an ASCII control character (0x00-0x1F, 0x7F)
 func isControlByteASCII(b byte) bool {
-	return (b >= 0x00 && b <= 0x1F) || b == 0x7F
+	return (b <= 0x1F) || b == 0x7F
 }
 
 // isSpecialCharASCII checks if a byte is an ASCII special character (punctuation or symbol within 0-127)
