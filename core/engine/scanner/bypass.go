@@ -221,15 +221,11 @@ func (s *Scanner) RunBypassModule(bypassModule string, targetURL string) int {
 	defer worker.Stop()
 
 	maxConcurrentReqs := s.scannerOpts.ConcurrentRequests
-	// Create new progress bar configuration
-	cfg := progressbar.DefaultConfig()
-	cfg.Prefix = bypassModule + strings.Repeat(" ", maxModuleNameLength-len(bypassModule)+1)
-	cfg.UseColors = true
-	cfg.ExtraLines = 1
 
-	cfg.Color = progressbar.RedBar
-	// Create new progress bar with wrapper
-	bar := NewProgressBarWrapper(cfg, &s.progressBarEnabled)
+	// Create formatted prefix with padding
+	prefix := bypassModule + strings.Repeat(" ", maxModuleNameLength-len(bypassModule)+1)
+	// Create new progress bar with wrapper - simplified
+	bar := NewProgressBarWrapper(prefix, progressbar.RedBar, 1, &s.progressBarEnabled)
 
 	responses := worker.requestPool.ProcessRequests(allJobs)
 	var dbWg sync.WaitGroup
@@ -371,12 +367,10 @@ func (s *Scanner) ResendRequestFromToken(debugToken string, resendCount int) ([]
 		jobs = append(jobs, jobCopy)
 	}
 
-	cfg := progressbar.DefaultConfig()
-	cfg.Prefix = fmt.Sprintf("[Resend] %s", bypassPayload.BypassModule)
-	cfg.UseColors = true
-	cfg.ExtraLines = 1
-	cfg.Color = progressbar.BlueBar
-	bar := NewProgressBarWrapper(cfg, &s.progressBarEnabled)
+	// Create formatted prefix
+	prefix := fmt.Sprintf("[Resend] %s", bypassPayload.BypassModule)
+	// Create new progress bar with wrapper - simplified
+	bar := NewProgressBarWrapper(prefix, progressbar.BlueBar, 1, &s.progressBarEnabled)
 	bar.Progress(0)
 
 	responses := worker.requestPool.ProcessRequests(jobs)
