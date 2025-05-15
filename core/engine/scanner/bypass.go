@@ -40,7 +40,7 @@ func FilterUniqueBypassPayloads(payloads []payload.BypassPayload, bypassModule s
 	}
 
 	if !modulesToFilter[bypassModule] {
-		return payloads // Skip filtering for modules not in the list
+		return payloads
 	}
 
 	filtered := make([]payload.BypassPayload, 0, len(payloads))
@@ -49,33 +49,23 @@ func FilterUniqueBypassPayloads(payloads []payload.BypassPayload, bypassModule s
 	initialSize := len(seenRawURIs)
 	seenRawURIsMutex.RUnlock()
 
-	// First pass: collect all new unique RawURIs from this module
-	localUniques := make(map[string]struct{})
+	// Single-pass filtering against global map
 	for _, p := range payloads {
 		seenRawURIsMutex.RLock()
 		previousModule, seen := seenRawURIs[p.RawURI]
 		seenRawURIsMutex.RUnlock()
 
-		if !seen {
-			localUniques[p.RawURI] = struct{}{}
-		} else if previousModule == bypassModule {
-			// This is a duplicate within the same module, still include one instance
-			if _, exists := localUniques[p.RawURI]; !exists {
-				localUniques[p.RawURI] = struct{}{}
-			}
-		}
-	}
-
-	// Second pass: add payloads with unique RawURIs to filtered list and update global map
-	for _, p := range payloads {
-		if _, isUnique := localUniques[p.RawURI]; isUnique {
-			delete(localUniques, p.RawURI) // Remove to ensure only one instance per RawURI
-
-			seenRawURIsMutex.Lock()
-			seenRawURIs[p.RawURI] = bypassModule
-			seenRawURIsMutex.Unlock()
-
+		// Add payloads that are globally unique or belong to this module
+		if !seen || previousModule == bypassModule {
+			// Add to filtered list
 			filtered = append(filtered, p)
+
+			// Update global map if not already tracked for this module
+			if !seen {
+				seenRawURIsMutex.Lock()
+				seenRawURIs[p.RawURI] = bypassModule
+				seenRawURIsMutex.Unlock()
+			}
 		}
 	}
 
@@ -160,7 +150,6 @@ func (w *BypassWorker) Stop() {
 }
 
 // ResetSeenRawURIs clears the global map of seen RawURIs
-// Should be called before starting a new scan for a different URL
 func ResetSeenRawURIs() {
 	seenRawURIsMutex.Lock()
 	defer seenRawURIsMutex.Unlock()
@@ -168,7 +157,7 @@ func ResetSeenRawURIs() {
 	// Create a new map rather than clearing the existing one
 	// This is more efficient for large maps
 	seenRawURIs = make(map[string]string)
-	GB403Logger.Verbose().Msgf("Reset global RawURI tracking map")
+	GB403Logger.Verbose().Msgf("Reset global RawURI tracking map\n")
 }
 
 // Core Function
@@ -338,9 +327,10 @@ func (s *Scanner) RunBypassModule(bypassModule string, targetURL string) int {
 
 	}
 
-	dbWg.Wait()
 	bar.End()
 	fmt.Println()
+
+	dbWg.Wait()
 
 	return int(resultCount.Load())
 }
