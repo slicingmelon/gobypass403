@@ -30,9 +30,9 @@ var (
 
 // Constants for buffer sizes used throughout the package
 const (
-	DefaultMaxBodySize = 12288
-	HeaderAllocation   = 8192
-	BufferIncrement    = 4096
+	DefaultMaxBodySize     = 12288
+	DefaultHeadersBuffSize = 8192
+	DefaultRWBuffSize      = 4096
 )
 
 // HTTPClientOptions contains configuration options for the HTTPClient
@@ -80,7 +80,7 @@ func DefaultHTTPClientOptions() *HTTPClientOptions {
 
 	// Use fixed I/O buffer size for optimal network performance
 	// 4KB is a good default aligning with OS page size and TCP buffers
-	rwBufferSize := BufferIncrement
+	rwBufferSize := DefaultRWBuffSize
 
 	return &HTTPClientOptions{
 		BypassModule:             "",
@@ -117,15 +117,15 @@ func NewHTTPClient(opts *HTTPClientOptions) *HTTPClient {
 		if opts.ResponseBodyPreviewSize > opts.MaxResponseBodySize {
 			// Only adjust MaxResponseBodySize to accommodate larger previews
 			// This doesn't need to affect the network I/O buffers
-			opts.MaxResponseBodySize = opts.ResponseBodyPreviewSize + HeaderAllocation
+			opts.MaxResponseBodySize = opts.ResponseBodyPreviewSize + DefaultHeadersBuffSize
 
 			// Keep read/write buffers at reasonable sizes for network I/O
 			// These don't need to grow with the response size in streaming mode
 			if opts.ReadBufferSize <= 0 {
-				opts.ReadBufferSize = BufferIncrement
+				opts.ReadBufferSize = DefaultRWBuffSize
 			}
 			if opts.WriteBufferSize <= 0 {
-				opts.WriteBufferSize = BufferIncrement
+				opts.WriteBufferSize = DefaultRWBuffSize
 			}
 		}
 	}
