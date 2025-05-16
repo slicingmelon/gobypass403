@@ -75,9 +75,12 @@ type HTTPClient struct {
 
 // DefaultHTTPClientOptions returns the default HTTP client options
 func DefaultHTTPClientOptions() *HTTPClientOptions {
-	// Start with default values
+	// Start with default values - keep body size and read/write buffers separate
 	maxBodySize := DefaultMaxBodySize
-	rwBufferSize := maxBodySize + BufferIncrement
+
+	// Use fixed I/O buffer size for optimal network performance
+	// 4KB is a good default aligning with OS page size and TCP buffers
+	rwBufferSize := BufferIncrement
 
 	return &HTTPClientOptions{
 		BypassModule:             "",
@@ -87,9 +90,9 @@ func DefaultHTTPClientOptions() *HTTPClientOptions {
 		MaxIdleConnDuration:      1 * time.Minute, // Idle keep-alive connections are closed after this duration.
 		MaxConnWaitTimeout:       1 * time.Second, // Maximum duration for waiting for a free connection.
 		NoDefaultUserAgent:       true,
-		MaxResponseBodySize:      maxBodySize,  //
-		ReadBufferSize:           rwBufferSize, //
-		WriteBufferSize:          rwBufferSize, //
+		MaxResponseBodySize:      maxBodySize,  // Controls max total size allowed
+		ReadBufferSize:           rwBufferSize, // Network buffer for reading
+		WriteBufferSize:          rwBufferSize, // Network buffer for writing
 		StreamResponseBody:       true,
 		MaxRetries:               2,
 		RetryDelay:               500 * time.Millisecond,
@@ -112,14 +115,18 @@ func NewHTTPClient(opts *HTTPClientOptions) *HTTPClient {
 	if opts.ResponseBodyPreviewSize > 0 {
 		// If user needs a larger preview than default MaxResponseBodySize can handle
 		if opts.ResponseBodyPreviewSize > opts.MaxResponseBodySize {
-			// Calculate new sizes
-			newMaxBodySize := opts.ResponseBodyPreviewSize + HeaderAllocation
-			newRwBufferSize := newMaxBodySize + BufferIncrement
+			// Only adjust MaxResponseBodySize to accommodate larger previews
+			// This doesn't need to affect the network I/O buffers
+			opts.MaxResponseBodySize = opts.ResponseBodyPreviewSize + HeaderAllocation
 
-			// Update the options with the new sizes
-			opts.MaxResponseBodySize = newMaxBodySize
-			opts.ReadBufferSize = newRwBufferSize
-			opts.WriteBufferSize = newRwBufferSize
+			// Keep read/write buffers at reasonable sizes for network I/O
+			// These don't need to grow with the response size in streaming mode
+			if opts.ReadBufferSize <= 0 {
+				opts.ReadBufferSize = BufferIncrement
+			}
+			if opts.WriteBufferSize <= 0 {
+				opts.WriteBufferSize = BufferIncrement
+			}
 		}
 	}
 
