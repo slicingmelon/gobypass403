@@ -28,6 +28,13 @@ var (
 	ErrReqFailedMaxConsecutiveFails = errors.New("target reached max consecutive fails")
 )
 
+// Constants for buffer sizes used throughout the package
+const (
+	DefaultMaxBodySize = 12288
+	HeaderAllocation   = 8192
+	BufferIncrement    = 4096
+)
+
 // HTTPClientOptions contains configuration options for the HTTPClient
 type HTTPClientOptions struct {
 	BypassModule             string        // ScannerCliOpts
@@ -68,14 +75,9 @@ type HTTPClient struct {
 
 // DefaultHTTPClientOptions returns the default HTTP client options
 func DefaultHTTPClientOptions() *HTTPClientOptions {
-	// Default sizes
-	const defaultMaxBodySize = 12288
-	const headerAllocation = 8192
-	const bufferIncrement = 4096
-
 	// Start with default values
-	maxBodySize := defaultMaxBodySize
-	rwBufferSize := maxBodySize + bufferIncrement
+	maxBodySize := DefaultMaxBodySize
+	rwBufferSize := maxBodySize + BufferIncrement
 
 	return &HTTPClientOptions{
 		BypassModule:             "",
@@ -104,6 +106,21 @@ func DefaultHTTPClientOptions() *HTTPClientOptions {
 func NewHTTPClient(opts *HTTPClientOptions) *HTTPClient {
 	if opts == nil {
 		opts = DefaultHTTPClientOptions()
+	}
+
+	// Adjust sizes if ResponseBodyPreviewSize requires more buffer space
+	if opts.ResponseBodyPreviewSize > 0 {
+		// If user needs a larger preview than default MaxResponseBodySize can handle
+		if opts.ResponseBodyPreviewSize > opts.MaxResponseBodySize {
+			// Calculate new sizes
+			newMaxBodySize := opts.ResponseBodyPreviewSize + HeaderAllocation
+			newRwBufferSize := newMaxBodySize + BufferIncrement
+
+			// Update the options with the new sizes
+			opts.MaxResponseBodySize = newMaxBodySize
+			opts.ReadBufferSize = newRwBufferSize
+			opts.WriteBufferSize = newRwBufferSize
+		}
 	}
 
 	if opts.Dialer == nil {
@@ -217,16 +234,25 @@ func NewDefaultHTTPClient(httpClientOpts *HTTPClientOptions) *HTTPClient {
 		if httpClientOpts.MaxConsecutiveFailedReqs > 0 {
 			opts.MaxConsecutiveFailedReqs = httpClientOpts.MaxConsecutiveFailedReqs
 		}
+
+		// Handle ResponseBodyPreviewSize and associated buffer sizes
+		if httpClientOpts.ResponseBodyPreviewSize > 0 {
+			opts.ResponseBodyPreviewSize = httpClientOpts.ResponseBodyPreviewSize
+		}
+
+		// Apply max response body size if explicitly set
 		if httpClientOpts.MaxResponseBodySize > 0 {
 			opts.MaxResponseBodySize = httpClientOpts.MaxResponseBodySize
 		}
+
+		// Apply read/write buffer sizes if explicitly set
 		if httpClientOpts.ReadBufferSize > 0 {
 			opts.ReadBufferSize = httpClientOpts.ReadBufferSize
 		}
+
 		if httpClientOpts.WriteBufferSize > 0 {
 			opts.WriteBufferSize = httpClientOpts.WriteBufferSize
 		}
-
 	}
 
 	return NewHTTPClient(opts)

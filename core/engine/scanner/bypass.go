@@ -101,6 +101,8 @@ func NewBypassEngagement(bypassmodule string, targetURL string, scannerOpts *Sca
 	// Override specific settings from user options
 	httpClientOpts.BypassModule = bypassmodule
 	httpClientOpts.Timeout = time.Duration(scannerOpts.Timeout) * time.Millisecond
+
+	// Set response body preview size - buffer adjustments handled in NewHTTPClient
 	httpClientOpts.ResponseBodyPreviewSize = scannerOpts.ResponseBodyPreviewSize
 
 	// and proxy ofc
