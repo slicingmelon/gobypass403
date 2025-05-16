@@ -8,3 +8,4 @@ https://portswigger.net/web-security/request-smuggling/exploiting/lab-bypass-fro
 https://portswigger.net/web-security/request-smuggling/exploiting/lab-bypass-front-end-controls-te-cl
 https://hackerone.com/reports/824802
 https://blog.bugport.net/exploiting-http-parsers-inconsistencies
+https://i.blackhat.com/BH-US-24/Presentations/US24-Orange-Confusion-Attacks-Exploiting-Hidden-Semantic-Thursday.pdf
