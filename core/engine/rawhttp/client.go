@@ -68,10 +68,14 @@ type HTTPClient struct {
 
 // DefaultHTTPClientOptions returns the default HTTP client options
 func DefaultHTTPClientOptions() *HTTPClientOptions {
-	const (
-		maxBodySize  = 12288 //
-		rwBufferSize = maxBodySize + 4096
-	)
+	// Default sizes
+	const defaultMaxBodySize = 12288
+	const headerAllocation = 8192
+	const bufferIncrement = 4096
+
+	// Start with default values
+	maxBodySize := defaultMaxBodySize
+	rwBufferSize := maxBodySize + bufferIncrement
 
 	return &HTTPClientOptions{
 		BypassModule:             "",
