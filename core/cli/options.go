@@ -443,20 +443,16 @@ func (o *CliOptions) processProxy() error {
 // validateCustomHeaders checks that custom headers are properly formatted
 func (o *CliOptions) validateCustomHeaders() error {
 	for i, header := range o.CustomHTTPHeaders {
-		// Header should contain a colon
 		colonIdx := strings.Index(header, ":")
 		if colonIdx == -1 {
 			return fmt.Errorf("invalid header format for header #%d '%s': must be in 'Header: Value' format", i+1, header)
 		}
 
-		// Header name should be non-empty
 		headerName := strings.TrimSpace(header[:colonIdx])
 		if headerName == "" {
 			return fmt.Errorf("empty header name for header #%d", i+1)
 		}
 
-		// Value can be empty, but we'll trim it for consistency
-		// NOTE: We don't modify the original header string here, to preserve exact user input
 		_ = strings.TrimSpace(header[colonIdx+1:])
 	}
 	return nil
