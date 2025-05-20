@@ -46,7 +46,7 @@ Usage:
   -o, -outdir
         Output directory
   -cr, -concurrent-requests
-        Number of concurrent requests (Default: 15)
+        Number of max concurrent requests (Default: 15)
   -T, -timeout
         Total timeout (in milliseconds) (Default: 20000)
   -delay
@@ -71,6 +71,8 @@ Usage:
         Filter results by minimum Content-Length (example: -min-cl 100)
   -max-cl, -max-content-length
         Filter results by maximum Content-Length (example: -max-cl 5000)
+  -H, -header
+        Custom HTTP header (example: -H "X-My-Header: value"), can be used multiple times
   -http2
         Enable HTTP2 client (Default: false)
   -x, -proxy
