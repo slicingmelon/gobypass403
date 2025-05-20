@@ -207,46 +207,6 @@ func (s *Scanner) RunBypassModule(bypassModule string, targetURL string) int {
 	// Filter unique payloads based on RawURI
 	allJobs = FilterUniqueBypassPayloads(allJobs, bypassModule)
 
-	// Add custom HTTP headers to all payloads if defined
-	if len(s.scannerOpts.CustomHTTPHeaders) > 0 {
-		GB403Logger.Verbose().Msgf("Adding %d custom headers to all payloads\n", len(s.scannerOpts.CustomHTTPHeaders))
-		for i := range allJobs {
-			// Add each custom header to the payload
-			for _, header := range s.scannerOpts.CustomHTTPHeaders {
-				colonIdx := strings.Index(header, ":")
-				if colonIdx != -1 {
-					headerName := strings.TrimSpace(header[:colonIdx])
-					headerValue := strings.TrimSpace(header[colonIdx+1:])
-
-					// Check if this header already exists in the payload
-					exists := false
-					for j, existingHeader := range allJobs[i].Headers {
-						if strings.EqualFold(existingHeader.Header, headerName) {
-							// Replace existing header with custom one (higher priority)
-							allJobs[i].Headers[j] = payload.Headers{
-								Header: headerName,
-								Value:  headerValue,
-							}
-							exists = true
-							break
-						}
-					}
-
-					// If doesn't exist, add it
-					if !exists {
-						allJobs[i].Headers = append(allJobs[i].Headers, payload.Headers{
-							Header: headerName,
-							Value:  headerValue,
-						})
-					}
-				}
-			}
-
-			// Regenerate payload token after adding custom headers
-			allJobs[i].PayloadToken = payload.GeneratePayloadToken(allJobs[i])
-		}
-	}
-
 	totalJobs := len(allJobs)
 	if totalJobs == 0 {
 		GB403Logger.Warning().Msgf("No jobs generated for bypass module: %s\n", bypassModule)
@@ -393,40 +353,6 @@ func (s *Scanner) ResendRequestFromToken(debugToken string, resendCount int) ([]
 		RawURI:       tokenData.RawURI,
 		Headers:      tokenData.Headers,
 		BypassModule: tokenData.BypassModule,
-	}
-
-	// Add custom HTTP headers if defined
-	if len(s.scannerOpts.CustomHTTPHeaders) > 0 {
-		GB403Logger.Verbose().Msgf("Adding %d custom headers to resend request\n", len(s.scannerOpts.CustomHTTPHeaders))
-		for _, header := range s.scannerOpts.CustomHTTPHeaders {
-			colonIdx := strings.Index(header, ":")
-			if colonIdx != -1 {
-				headerName := strings.TrimSpace(header[:colonIdx])
-				headerValue := strings.TrimSpace(header[colonIdx+1:])
-
-				// Check if this header already exists in the payload
-				exists := false
-				for j, existingHeader := range bypassPayload.Headers {
-					if strings.EqualFold(existingHeader.Header, headerName) {
-						// Replace existing header with custom one (higher priority)
-						bypassPayload.Headers[j] = payload.Headers{
-							Header: headerName,
-							Value:  headerValue,
-						}
-						exists = true
-						break
-					}
-				}
-
-				// If doesn't exist, add it
-				if !exists {
-					bypassPayload.Headers = append(bypassPayload.Headers, payload.Headers{
-						Header: headerName,
-						Value:  headerValue,
-					})
-				}
-			}
-		}
 	}
 
 	targetURL := payload.BypassPayloadToBaseURL(bypassPayload)
