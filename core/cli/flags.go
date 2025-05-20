@@ -88,6 +88,7 @@ func parseFlags() (*CliOptions, error) {
 		{name: "mct,match-content-type", usage: "Filter results by content type(s) substring (example: -mct application/json,text/html)", value: &opts.MatchContentType},
 		{name: "min-cl,min-content-length", usage: "Filter results by minimum Content-Length (example: -min-cl 100)", value: &opts.MinContentLengthStr},
 		{name: "max-cl,max-content-length", usage: "Filter results by maximum Content-Length (example: -max-cl 5000)", value: &opts.MaxContentLengthStr},
+		{name: "H,header", usage: "Custom HTTP header (example: -H \"X-My-Header: value\"), can be used multiple times", value: &stringSliceFlag{values: &opts.CustomHTTPHeaders}},
 		{name: "http2", usage: "Enable HTTP2 client", value: &opts.EnableHTTP2, defVal: false},
 		{name: "x,proxy", usage: "Proxy URL (format: http://proxy:port) (Example: -x http://127.0.0.1:8080)", value: &opts.Proxy},
 		{name: "spoof-header", usage: "Add more headers used to spoof IPs (example: X-SecretIP-Header,X-GO-IP)", value: &opts.SpoofHeader},
@@ -98,7 +99,6 @@ func parseFlags() (*CliOptions, error) {
 		{name: "dpb,disable-progress-bar", usage: "Disable progress bar", value: &opts.DisableProgressBar, defVal: false},
 		{name: "r,resend,resend-request", usage: "Resend the exact request using the debug token (example: -r xyzdebugtoken)", value: &opts.ResendRequest},
 		{name: "rn,resend-num,resend-request-num", usage: "Number of times to resend the debugged request", value: &opts.ResendNum, defVal: 1},
-		{name: "H,header", usage: "Custom HTTP header (example: -H \"X-My-Header: value\"), can be used multiple times", value: &stringSliceFlag{values: &opts.CustomHTTPHeaders}},
 		{name: "profile", usage: "Enable pprof profiler", value: &opts.Profile, defVal: false},
 		{name: "update-payloads", usage: "Update payload files to latest version", value: &opts.UpdatePayloads, defVal: false},
 	}
