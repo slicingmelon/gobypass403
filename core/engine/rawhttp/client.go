@@ -60,6 +60,7 @@ type HTTPClientOptions struct {
 	MaxConsecutiveFailedReqs int           // ScannerCliOpts
 	AutoThrottle             bool          // ScannerCliOpts
 	DisablePathNormalizing   bool
+	CustomHTTPHeaders        []string // Custom HTTP headers in "Name: Value" format
 }
 
 // HTTPClient represents a reusable HTTP client
@@ -240,6 +241,9 @@ func NewDefaultHTTPClient(httpClientOpts *HTTPClientOptions) *HTTPClient {
 		}
 		if httpClientOpts.MaxConsecutiveFailedReqs > 0 {
 			opts.MaxConsecutiveFailedReqs = httpClientOpts.MaxConsecutiveFailedReqs
+		}
+		if len(httpClientOpts.CustomHTTPHeaders) > 0 {
+			opts.CustomHTTPHeaders = httpClientOpts.CustomHTTPHeaders
 		}
 
 		// Handle ResponseBodyPreviewSize and associated buffer sizes

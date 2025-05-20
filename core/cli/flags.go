@@ -48,6 +48,23 @@ func (f *onOffFlag) Set(value string) error {
 	return nil
 }
 
+// stringSliceFlag implements flag.Value for collecting multiple string values
+type stringSliceFlag struct {
+	values *[]string
+}
+
+func (f *stringSliceFlag) String() string {
+	if f.values == nil || len(*f.values) == 0 {
+		return ""
+	}
+	return strings.Join(*f.values, ", ")
+}
+
+func (f *stringSliceFlag) Set(value string) error {
+	*f.values = append(*f.values, value)
+	return nil
+}
+
 func parseFlags() (*CliOptions, error) {
 	opts := &CliOptions{}
 
@@ -81,6 +98,7 @@ func parseFlags() (*CliOptions, error) {
 		{name: "dpb,disable-progress-bar", usage: "Disable progress bar", value: &opts.DisableProgressBar, defVal: false},
 		{name: "r,resend,resend-request", usage: "Resend the exact request using the debug token (example: -r xyzdebugtoken)", value: &opts.ResendRequest},
 		{name: "rn,resend-num,resend-request-num", usage: "Number of times to resend the debugged request", value: &opts.ResendNum, defVal: 1},
+		{name: "H,header", usage: "Custom HTTP header (example: -H \"X-My-Header: value\"), can be used multiple times", value: &stringSliceFlag{values: &opts.CustomHTTPHeaders}},
 		{name: "profile", usage: "Enable pprof profiler", value: &opts.Profile, defVal: false},
 		{name: "update-payloads", usage: "Update payload files to latest version", value: &opts.UpdatePayloads, defVal: false},
 	}
@@ -129,6 +147,8 @@ func parseFlags() (*CliOptions, error) {
 					flag.BoolVar(v, name, false, f.usage)
 				}
 			case *onOffFlag: // Handle the custom on/off flag type
+				flag.Var(v, name, f.usage) // Register using flag.Var
+			case *stringSliceFlag: // Handle the string slice flag type
 				flag.Var(v, name, f.usage) // Register using flag.Var
 			}
 		}
