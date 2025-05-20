@@ -9,6 +9,7 @@ import (
 	"bufio"
 	"bytes"
 	"strconv"
+	"strings"
 	"sync"
 
 	"github.com/slicingmelon/gobypass403/core/engine/payload"
@@ -78,23 +79,68 @@ func BuildRawHTTPRequest(httpclient *HTTPClient, req *fasthttp.Request, bypassPa
 	bb.B = append(bb.B, bypassPayload.RawURI...)
 	bb.B = append(bb.B, " HTTP/1.1\r\n"...)
 
-	// Add all headers
+	// Track headers we've seen and will add
 	hasHostHeader := false
 	hasContentLength := false
 	hasConnectionHeader := false
 
+	// Create a map to track which custom headers from client options we will add
+	// This allows us to avoid duplicate headers when merging client options with payload headers
+	clientCustomHeadersMap := make(map[string]string)
+
+	// Process client's custom headers if any
+	clientOpts := httpclient.GetHTTPClientOptions()
+	if len(clientOpts.CustomHTTPHeaders) > 0 {
+		for _, header := range clientOpts.CustomHTTPHeaders {
+			colonIdx := strings.Index(header, ":")
+			if colonIdx != -1 {
+				headerName := strings.TrimSpace(header[:colonIdx])
+				headerValue := strings.TrimSpace(header[colonIdx+1:])
+				clientCustomHeadersMap[strings.ToLower(headerName)] = headerValue
+
+				if strings.EqualFold(headerName, "Host") {
+					hasHostHeader = true
+					shouldCloseConn = true
+				} else if strings.EqualFold(headerName, "Content-Length") {
+					hasContentLength = true
+				} else if strings.EqualFold(headerName, "Connection") {
+					hasConnectionHeader = true
+					shouldCloseConn = true
+				}
+			}
+		}
+	}
+
+	// Add payload-specific headers first (giving them priority)
 	for _, h := range bypassPayload.Headers {
-		if h.Header == "Host" {
+		// Check if this header is going to be overridden by a client custom header
+		_, willBeOverridden := clientCustomHeadersMap[strings.ToLower(h.Header)]
+
+		// Skip if will be overridden, unless it's a critical header that modifies behavior
+		if willBeOverridden &&
+			!strings.EqualFold(h.Header, "Host") &&
+			!strings.EqualFold(h.Header, "Content-Length") &&
+			!strings.EqualFold(h.Header, "Connection") {
+			continue
+		}
+
+		// Set flags for special headers
+		if strings.EqualFold(h.Header, "Host") {
 			hasHostHeader = true
 			shouldCloseConn = true
+			// Remove from custom headers map to avoid duplicate
+			delete(clientCustomHeadersMap, "host")
 		}
-		if h.Header == "Content-Length" {
+		if strings.EqualFold(h.Header, "Content-Length") {
 			hasContentLength = true
+			delete(clientCustomHeadersMap, "content-length")
 		}
-		if h.Header == "Connection" {
+		if strings.EqualFold(h.Header, "Connection") {
 			hasConnectionHeader = true
 			shouldCloseConn = true
+			delete(clientCustomHeadersMap, "connection")
 		}
+
 		// Append the header from the payload directly
 		bb.B = append(bb.B, h.Header...)
 		bb.B = append(bb.B, ": "...)
@@ -102,7 +148,27 @@ func BuildRawHTTPRequest(httpclient *HTTPClient, req *fasthttp.Request, bypassPa
 		bb.B = append(bb.B, "\r\n"...)
 	}
 
-	// Add Host header if not explicitly provided in the payload
+	// Now add any client custom headers that weren't in the payload
+	for headerNameLower, headerValue := range clientCustomHeadersMap {
+		// We've already set the flags for special headers when building the map
+		// Use original casing for the header name, not lowercase version
+		// Capitalize first letter of each word for standard HTTP header format
+		words := strings.Split(headerNameLower, "-")
+		for i := range words {
+			if len(words[i]) > 0 {
+				words[i] = strings.ToUpper(words[i][:1]) + words[i][1:]
+			}
+		}
+		headerName := strings.Join(words, "-")
+
+		// Append the custom header
+		bb.B = append(bb.B, headerName...)
+		bb.B = append(bb.B, ": "...)
+		bb.B = append(bb.B, headerValue...)
+		bb.B = append(bb.B, "\r\n"...)
+	}
+
+	// Add Host header if not explicitly provided in the payload or custom headers
 	if !hasHostHeader {
 		bb.B = append(bb.B, "Host: "...)
 		bb.B = append(bb.B, bypassPayload.Host...)
