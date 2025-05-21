@@ -305,6 +305,14 @@ func BuildRawHTTPRequest(httpclient *HTTPClient, req *fasthttp.Request, bypassPa
 		}
 	}
 
+	// End of ALL headers marker
+	bb.B = append(bb.B, "\r\n"...)
+
+	// Add body if present
+	if len(bypassPayload.Body) > 0 {
+		bb.B = append(bb.B, bypassPayload.Body...)
+	}
+
 	// Add Content-Length header for the entire body if it wasn't set by payload or custom headers to the correct full length.
 	// Exploit-specific CLs (like the one with value "23") do not set `hasContentLength` unless they coincidentally match the full body length.
 	if len(bypassPayload.Body) > 0 && !hasContentLength {
@@ -320,14 +328,6 @@ func BuildRawHTTPRequest(httpclient *HTTPClient, req *fasthttp.Request, bypassPa
 		} else {
 			bb.B = append(bb.B, "Connection: keep-alive\r\n"...)
 		}
-	}
-
-	// End of ALL headers marker
-	bb.B = append(bb.B, "\r\n"...)
-
-	// Add body if present
-	if len(bypassPayload.Body) > 0 {
-		bb.B = append(bb.B, bypassPayload.Body...)
 	}
 
 	// Get bufio.Reader from pool and reset it with our ByteBuffer reader

