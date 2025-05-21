@@ -80,12 +80,14 @@ func BuildRawHTTPRequest(httpclient *HTTPClient, req *fasthttp.Request, bypassPa
 	bb.B = append(bb.B, " HTTP/1.1\r\n"...)
 
 	// Track headers we've seen and will add
-	// initialShouldCloseConn is the base value, currentShouldCloseConn will be updated by Connection headers.
 	currentShouldCloseConn := shouldCloseConn
 
 	hasHostHeader := false       // Will be true if Host is written
 	hasContentLength := false    // Tracks if a normal Content-Length is set and written
 	hasConnectionHeader := false // Tracks if Connection is set and written
+	hasUserAgent := false        // Tracks if User-Agent is set
+	hasAccept := false           // Tracks if Accept is set
+	hasDebugToken := false       // Tracks if debug token is set
 
 	// Create a map to track which custom headers from client options we will add
 	clientCustomHeadersMap := make(map[string]string)
@@ -97,210 +99,327 @@ func BuildRawHTTPRequest(httpclient *HTTPClient, req *fasthttp.Request, bypassPa
 				headerName := strings.TrimSpace(header[:colonIdx])
 				headerValue := strings.TrimSpace(header[colonIdx+1:])
 				clientCustomHeadersMap[strings.ToLower(headerName)] = headerValue
-				// Global has... flags are NOT set here anymore; they are set when headers are actually written.
 			}
 		}
 	}
 
-	// --- BEGIN Prioritized Header Writing ---
-	handledByPriorityLogic := make(map[string]bool) // Tracks headers written in this section
-
-	// 1. Host Header (Payload -> Custom -> Default)
-	hostFromPayload := ""
-	for _, h := range bypassPayload.Headers {
-		if strings.EqualFold(h.Header, "Host") {
-			hostFromPayload = h.Value
-			break
+	// Special case for HAProxy bypass: preserve EXACT header order from payload
+	if bypassPayload.BypassModule == "haproxy" {
+		// First ensure we have a Host header
+		if !hasHostHeader {
+			hostFromPayload := ""
+			for _, h := range bypassPayload.Headers {
+				if strings.EqualFold(h.Header, "Host") {
+					hostFromPayload = h.Value
+					break
+				}
+			}
+			if hostFromPayload != "" {
+				bb.B = append(bb.B, "Host: "...)
+				bb.B = append(bb.B, hostFromPayload...)
+				bb.B = append(bb.B, "\r\n"...)
+			} else if customHost, exists := clientCustomHeadersMap["host"]; exists {
+				bb.B = append(bb.B, "Host: "...)
+				bb.B = append(bb.B, customHost...)
+				bb.B = append(bb.B, "\r\n"...)
+			} else {
+				bb.B = append(bb.B, "Host: "...)
+				bb.B = append(bb.B, bypassPayload.Host...)
+				bb.B = append(bb.B, "\r\n"...)
+			}
+			hasHostHeader = true
 		}
-	}
-	if hostFromPayload != "" {
-		bb.B = append(bb.B, "Host: "...)
-		bb.B = append(bb.B, hostFromPayload...)
-		bb.B = append(bb.B, "\r\n"...)
-		hasHostHeader = true
-		delete(clientCustomHeadersMap, "host") // Remove from custom map as payload took precedence
-	} else if customHost, exists := clientCustomHeadersMap["host"]; exists {
-		bb.B = append(bb.B, "Host: "...)
-		bb.B = append(bb.B, customHost...)
-		bb.B = append(bb.B, "\r\n"...)
-		hasHostHeader = true
-	} else {
-		bb.B = append(bb.B, "Host: "...)
-		bb.B = append(bb.B, bypassPayload.Host...)
-		bb.B = append(bb.B, "\r\n"...)
-		hasHostHeader = true
-	}
-	handledByPriorityLogic["host"] = true
-	_ = hasHostHeader // Acknowledge use to satisfy linter, as its main role here is to confirm writing.
 
-	// 2. User-Agent Header (Payload -> Custom -> Default)
-	uaFromPayload := ""
-	uaHeaderFromPayload := ""
-	for _, h := range bypassPayload.Headers {
-		if strings.EqualFold(h.Header, "User-Agent") {
-			uaFromPayload = h.Value
-			uaHeaderFromPayload = h.Header // Preserve original casing from payload
-			break
-		}
-	}
-	if uaFromPayload != "" {
-		bb.B = append(bb.B, uaHeaderFromPayload...)
-		bb.B = append(bb.B, ": "...)
-		bb.B = append(bb.B, uaFromPayload...)
-		bb.B = append(bb.B, "\r\n"...)
-		delete(clientCustomHeadersMap, "user-agent")
-	} else if customUA, exists := clientCustomHeadersMap["user-agent"]; exists {
-		bb.B = append(bb.B, "User-Agent: "...) // Defaulting to standard casing
-		bb.B = append(bb.B, customUA...)
-		bb.B = append(bb.B, "\r\n"...)
-	} else {
-		bb.B = append(bb.B, strUserAgentHeader...)
-		bb.B = append(bb.B, "\r\n"...)
-	}
-	handledByPriorityLogic["user-agent"] = true
-
-	// 3. Accept Header (Payload -> Custom -> Default)
-	acceptFromPayload := ""
-	acceptHeaderFromPayload := ""
-	for _, h := range bypassPayload.Headers {
-		if strings.EqualFold(h.Header, "Accept") {
-			acceptFromPayload = h.Value
-			acceptHeaderFromPayload = h.Header
-			break
-		}
-	}
-	if acceptFromPayload != "" {
-		bb.B = append(bb.B, acceptHeaderFromPayload...)
-		bb.B = append(bb.B, ": "...)
-		bb.B = append(bb.B, acceptFromPayload...)
-		bb.B = append(bb.B, "\r\n"...)
-		delete(clientCustomHeadersMap, "accept")
-	} else if customAccept, exists := clientCustomHeadersMap["accept"]; exists {
-		bb.B = append(bb.B, "Accept: "...) // Defaulting to standard casing
-		bb.B = append(bb.B, customAccept...)
-		bb.B = append(bb.B, "\r\n"...)
-	} else {
-		bb.B = append(bb.B, "Accept: */*\r\n"...)
-	}
-	handledByPriorityLogic["accept"] = true
-
-	// 4. X-GB403-Token Header (Payload -> Custom -> Default, if debug)
-	if GB403Logger.IsDebugEnabled() {
-		tokenFromPayload := ""
-		tokenHeaderFromPayload := ""
+		// Now add ALL payload headers in EXACT order (critical for the exploit)
 		for _, h := range bypassPayload.Headers {
-			if strings.EqualFold(h.Header, "X-GB403-Token") {
-				tokenFromPayload = h.Value
-				tokenHeaderFromPayload = h.Header
+			// Skip Host as we already added it
+			if strings.EqualFold(h.Header, "Host") {
+				continue
+			}
+
+			// Update tracking flags
+			if strings.EqualFold(h.Header, "User-Agent") {
+				hasUserAgent = true
+			} else if strings.EqualFold(h.Header, "Accept") {
+				hasAccept = true
+			} else if strings.EqualFold(h.Header, "X-GB403-Token") {
+				hasDebugToken = true
+			} else if strings.EqualFold(h.Header, "Connection") {
+				hasConnectionHeader = true
+				if strings.EqualFold(h.Value, "close") {
+					currentShouldCloseConn = true
+				} else if strings.EqualFold(h.Value, "keep-alive") {
+					currentShouldCloseConn = false
+				}
+			} else if strings.EqualFold(h.Header, "Content-Length") {
+				if h.Value == strconv.Itoa(len(bypassPayload.Body)) {
+					hasContentLength = true
+				}
+			}
+
+			// Special handling for the malformed header
+			if strings.HasSuffix(h.Header, ":") && h.Value == "" {
+				bb.B = append(bb.B, h.Header...) // Header name already includes the colon
+				bb.B = append(bb.B, "\r\n"...)
+			} else {
+				bb.B = append(bb.B, h.Header...)
+				bb.B = append(bb.B, ": "...)
+				bb.B = append(bb.B, h.Value...)
+				bb.B = append(bb.B, "\r\n"...)
+			}
+		}
+
+		// Add missing standard headers
+		if !hasUserAgent {
+			if customUA, exists := clientCustomHeadersMap["user-agent"]; exists {
+				bb.B = append(bb.B, "User-Agent: "...)
+				bb.B = append(bb.B, customUA...)
+				bb.B = append(bb.B, "\r\n"...)
+			} else {
+				bb.B = append(bb.B, strUserAgentHeader...)
+				bb.B = append(bb.B, "\r\n"...)
+			}
+		}
+
+		if !hasAccept {
+			if customAccept, exists := clientCustomHeadersMap["accept"]; exists {
+				bb.B = append(bb.B, "Accept: "...)
+				bb.B = append(bb.B, customAccept...)
+				bb.B = append(bb.B, "\r\n"...)
+			} else {
+				bb.B = append(bb.B, "Accept: */*\r\n"...)
+			}
+		}
+
+		if GB403Logger.IsDebugEnabled() && !hasDebugToken {
+			if customToken, exists := clientCustomHeadersMap["x-gb403-token"]; exists {
+				bb.B = append(bb.B, "X-GB403-Token: "...)
+				bb.B = append(bb.B, customToken...)
+				bb.B = append(bb.B, "\r\n"...)
+			} else {
+				bb.B = append(bb.B, "X-GB403-Token: "...)
+				bb.B = append(bb.B, bypassPayload.PayloadToken...)
+				bb.B = append(bb.B, "\r\n"...)
+			}
+		}
+
+		// Add Body Content-Length if not yet present
+		if len(bypassPayload.Body) > 0 && !hasContentLength {
+			bb.B = append(bb.B, "Content-Length: "...)
+			bb.B = append(bb.B, []byte(strconv.Itoa(len(bypassPayload.Body)))...)
+			bb.B = append(bb.B, "\r\n"...)
+		}
+
+		// Add Connection header if not yet present
+		if !hasConnectionHeader {
+			if currentShouldCloseConn {
+				bb.B = append(bb.B, "Connection: close\r\n"...)
+			} else {
+				bb.B = append(bb.B, "Connection: keep-alive\r\n"...)
+			}
+		}
+	} else {
+		// Normal non-HAProxy case - use existing header handling logic
+		// --- BEGIN Prioritized Header Writing ---
+		handledByPriorityLogic := make(map[string]bool) // Tracks headers written in this section
+
+		// 1. Host Header (Payload -> Custom -> Default)
+		hostFromPayload := ""
+		for _, h := range bypassPayload.Headers {
+			if strings.EqualFold(h.Header, "Host") {
+				hostFromPayload = h.Value
 				break
 			}
 		}
-		if tokenFromPayload != "" {
-			bb.B = append(bb.B, tokenHeaderFromPayload...)
-			bb.B = append(bb.B, ": "...)
-			bb.B = append(bb.B, tokenFromPayload...)
+		if hostFromPayload != "" {
+			bb.B = append(bb.B, "Host: "...)
+			bb.B = append(bb.B, hostFromPayload...)
 			bb.B = append(bb.B, "\r\n"...)
-			delete(clientCustomHeadersMap, "x-gb403-token")
-		} else if customToken, exists := clientCustomHeadersMap["x-gb403-token"]; exists {
-			bb.B = append(bb.B, "X-GB403-Token: "...) // Defaulting to standard casing
-			bb.B = append(bb.B, customToken...)
+			hasHostHeader = true
+			delete(clientCustomHeadersMap, "host") // Remove from custom map as payload took precedence
+		} else if customHost, exists := clientCustomHeadersMap["host"]; exists {
+			bb.B = append(bb.B, "Host: "...)
+			bb.B = append(bb.B, customHost...)
+			bb.B = append(bb.B, "\r\n"...)
+			hasHostHeader = true
+		} else {
+			bb.B = append(bb.B, "Host: "...)
+			bb.B = append(bb.B, bypassPayload.Host...)
+			bb.B = append(bb.B, "\r\n"...)
+			hasHostHeader = true
+		}
+		handledByPriorityLogic["host"] = true
+		_ = hasHostHeader // Acknowledge use to satisfy linter, as its main role here is to confirm writing.
+
+		// 2. User-Agent Header (Payload -> Custom -> Default)
+		uaFromPayload := ""
+		uaHeaderFromPayload := ""
+		for _, h := range bypassPayload.Headers {
+			if strings.EqualFold(h.Header, "User-Agent") {
+				uaFromPayload = h.Value
+				uaHeaderFromPayload = h.Header // Preserve original casing from payload
+				break
+			}
+		}
+		if uaFromPayload != "" {
+			bb.B = append(bb.B, uaHeaderFromPayload...)
+			bb.B = append(bb.B, ": "...)
+			bb.B = append(bb.B, uaFromPayload...)
+			bb.B = append(bb.B, "\r\n"...)
+			delete(clientCustomHeadersMap, "user-agent")
+		} else if customUA, exists := clientCustomHeadersMap["user-agent"]; exists {
+			bb.B = append(bb.B, "User-Agent: "...) // Defaulting to standard casing
+			bb.B = append(bb.B, customUA...)
 			bb.B = append(bb.B, "\r\n"...)
 		} else {
-			bb.B = append(bb.B, "X-GB403-Token: "...)
-			bb.B = append(bb.B, bypassPayload.PayloadToken...)
+			bb.B = append(bb.B, strUserAgentHeader...)
 			bb.B = append(bb.B, "\r\n"...)
 		}
-	}
-	handledByPriorityLogic["x-gb403-token"] = true // Mark even if not debug, so main loops skip it.
-	// --- END Prioritized Header Writing ---
+		handledByPriorityLogic["user-agent"] = true
 
-	// Add remaining payload-specific headers (excluding those handled above)
-	for _, h := range bypassPayload.Headers {
-		if _, handled := handledByPriorityLogic[strings.ToLower(h.Header)]; handled {
-			continue
-		}
-
-		// Check if this header is going to be overridden by a client custom header
-		// (unless it's a critical exploit header like CL, Connection for this specific payload context)
-		_, willBeOverriddenByCustom := clientCustomHeadersMap[strings.ToLower(h.Header)]
-
-		if willBeOverriddenByCustom &&
-			!(strings.EqualFold(h.Header, "Content-Length") || // Allow payload CL
-				strings.HasPrefix(strings.ToLower(h.Header), "content-length0") || // Allow overflow CL
-				strings.EqualFold(h.Header, "Connection")) { // Allow payload Connection
-			continue
-		}
-
-		// Do NOT set the main `hasContentLength` flag here for payload's Content-Length.
-		// That flag is for the true Content-Length of the entire body.
-		// Exploit-specific CLs from payload are written, but don't satisfy the main flag.
-		if strings.HasPrefix(strings.ToLower(h.Header), "content-length0") {
-			// Ensure custom map doesn't override this specific exploit header if it coincidentally exists there
-			delete(clientCustomHeadersMap, strings.ToLower(h.Header))
-		} else if strings.EqualFold(h.Header, "Connection") {
-			hasConnectionHeader = true // This flag IS for the final Connection header
-			if strings.EqualFold(h.Value, "close") {
-				currentShouldCloseConn = true
-			} else if strings.EqualFold(h.Value, "keep-alive") {
-				currentShouldCloseConn = false
-			}
-			delete(clientCustomHeadersMap, "connection")
-		} else if strings.EqualFold(h.Header, "Content-Length") {
-			// This header from payload might be an exploit-specific CL or the true body CL.
-			// Ensure it is not overridden by a generic custom CL later if names collide.
-			delete(clientCustomHeadersMap, "content-length")
-			// Check if this payload-provided CL is the correct length for the entire body.
-			if h.Value == strconv.Itoa(len(bypassPayload.Body)) {
-				hasContentLength = true // Mark that the true Content-Length is now set by the payload.
+		// 3. Accept Header (Payload -> Custom -> Default)
+		acceptFromPayload := ""
+		acceptHeaderFromPayload := ""
+		for _, h := range bypassPayload.Headers {
+			if strings.EqualFold(h.Header, "Accept") {
+				acceptFromPayload = h.Value
+				acceptHeaderFromPayload = h.Header
+				break
 			}
 		}
-
-		// Append the header from the payload
-		// Special handling for headers like "Content-Length0...a:" which should have an empty value part
-		if strings.HasSuffix(h.Header, ":") && h.Value == "" {
-			bb.B = append(bb.B, h.Header...) // Header name already includes the colon
+		if acceptFromPayload != "" {
+			bb.B = append(bb.B, acceptHeaderFromPayload...)
+			bb.B = append(bb.B, ": "...)
+			bb.B = append(bb.B, acceptFromPayload...)
+			bb.B = append(bb.B, "\r\n"...)
+			delete(clientCustomHeadersMap, "accept")
+		} else if customAccept, exists := clientCustomHeadersMap["accept"]; exists {
+			bb.B = append(bb.B, "Accept: "...) // Defaulting to standard casing
+			bb.B = append(bb.B, customAccept...)
 			bb.B = append(bb.B, "\r\n"...)
 		} else {
-			bb.B = append(bb.B, h.Header...)
+			bb.B = append(bb.B, "Accept: */*\r\n"...)
+		}
+		handledByPriorityLogic["accept"] = true
+
+		// 4. X-GB403-Token Header (Payload -> Custom -> Default, if debug)
+		if GB403Logger.IsDebugEnabled() {
+			tokenFromPayload := ""
+			tokenHeaderFromPayload := ""
+			for _, h := range bypassPayload.Headers {
+				if strings.EqualFold(h.Header, "X-GB403-Token") {
+					tokenFromPayload = h.Value
+					tokenHeaderFromPayload = h.Header
+					break
+				}
+			}
+			if tokenFromPayload != "" {
+				bb.B = append(bb.B, tokenHeaderFromPayload...)
+				bb.B = append(bb.B, ": "...)
+				bb.B = append(bb.B, tokenFromPayload...)
+				bb.B = append(bb.B, "\r\n"...)
+				delete(clientCustomHeadersMap, "x-gb403-token")
+			} else if customToken, exists := clientCustomHeadersMap["x-gb403-token"]; exists {
+				bb.B = append(bb.B, "X-GB403-Token: "...) // Defaulting to standard casing
+				bb.B = append(bb.B, customToken...)
+				bb.B = append(bb.B, "\r\n"...)
+			} else {
+				bb.B = append(bb.B, "X-GB403-Token: "...)
+				bb.B = append(bb.B, bypassPayload.PayloadToken...)
+				bb.B = append(bb.B, "\r\n"...)
+			}
+		}
+		handledByPriorityLogic["x-gb403-token"] = true // Mark even if not debug, so main loops skip it.
+		// --- END Prioritized Header Writing ---
+
+		// Add remaining payload-specific headers (excluding those handled above)
+		for _, h := range bypassPayload.Headers {
+			if _, handled := handledByPriorityLogic[strings.ToLower(h.Header)]; handled {
+				continue
+			}
+
+			// Check if this header is going to be overridden by a client custom header
+			// (unless it's a critical exploit header like CL, Connection for this specific payload context)
+			_, willBeOverriddenByCustom := clientCustomHeadersMap[strings.ToLower(h.Header)]
+
+			if willBeOverriddenByCustom &&
+				!(strings.EqualFold(h.Header, "Content-Length") || // Allow payload CL
+					strings.HasPrefix(strings.ToLower(h.Header), "content-length0") || // Allow overflow CL
+					strings.EqualFold(h.Header, "Connection")) { // Allow payload Connection
+				continue
+			}
+
+			// Do NOT set the main `hasContentLength` flag here for payload's Content-Length.
+			// That flag is for the true Content-Length of the entire body.
+			// Exploit-specific CLs from payload are written, but don't satisfy the main flag.
+			if strings.HasPrefix(strings.ToLower(h.Header), "content-length0") {
+				// Ensure custom map doesn't override this specific exploit header if it coincidentally exists there
+				delete(clientCustomHeadersMap, strings.ToLower(h.Header))
+			} else if strings.EqualFold(h.Header, "Connection") {
+				hasConnectionHeader = true // This flag IS for the final Connection header
+				if strings.EqualFold(h.Value, "close") {
+					currentShouldCloseConn = true
+				} else if strings.EqualFold(h.Value, "keep-alive") {
+					currentShouldCloseConn = false
+				}
+				delete(clientCustomHeadersMap, "connection")
+			} else if strings.EqualFold(h.Header, "Content-Length") {
+				// This header from payload might be an exploit-specific CL or the true body CL.
+				// Ensure it is not overridden by a generic custom CL later if names collide.
+				delete(clientCustomHeadersMap, "content-length")
+				// Check if this payload-provided CL is the correct length for the entire body.
+				if h.Value == strconv.Itoa(len(bypassPayload.Body)) {
+					hasContentLength = true // Mark that the true Content-Length is now set by the payload.
+				}
+			}
+
+			// Append the header from the payload
+			// Special handling for headers like "Content-Length0...a:" which should have an empty value part
+			if strings.HasSuffix(h.Header, ":") && h.Value == "" {
+				bb.B = append(bb.B, h.Header...) // Header name already includes the colon
+				bb.B = append(bb.B, "\r\n"...)
+			} else {
+				bb.B = append(bb.B, h.Header...)
+				bb.B = append(bb.B, ": "...)
+				bb.B = append(bb.B, h.Value...)
+				bb.B = append(bb.B, "\r\n"...)
+			}
+		}
+
+		// Now add any client custom headers that weren't in the payload or handled by priority logic
+		for headerNameLower, headerValue := range clientCustomHeadersMap {
+			if _, handled := handledByPriorityLogic[headerNameLower]; handled {
+				continue
+			}
+
+			// Capitalize first letter of each word for standard HTTP header format
+			words := strings.Split(headerNameLower, "-")
+			for i := range words {
+				if len(words[i]) > 0 {
+					words[i] = strings.ToUpper(words[i][:1]) + words[i][1:]
+				}
+			}
+			headerName := strings.Join(words, "-")
+
+			// Append the custom header
+			bb.B = append(bb.B, headerName...)
 			bb.B = append(bb.B, ": "...)
-			bb.B = append(bb.B, h.Value...)
+			bb.B = append(bb.B, headerValue...)
 			bb.B = append(bb.B, "\r\n"...)
-		}
-	}
 
-	// Now add any client custom headers that weren't in the payload or handled by priority logic
-	for headerNameLower, headerValue := range clientCustomHeadersMap {
-		if _, handled := handledByPriorityLogic[headerNameLower]; handled {
-			continue
-		}
-
-		// Capitalize first letter of each word for standard HTTP header format
-		words := strings.Split(headerNameLower, "-")
-		for i := range words {
-			if len(words[i]) > 0 {
-				words[i] = strings.ToUpper(words[i][:1]) + words[i][1:]
-			}
-		}
-		headerName := strings.Join(words, "-")
-
-		// Append the custom header
-		bb.B = append(bb.B, headerName...)
-		bb.B = append(bb.B, ": "...)
-		bb.B = append(bb.B, headerValue...)
-		bb.B = append(bb.B, "\r\n"...)
-
-		// If this custom header IS the true Content-Length or Connection, update flags
-		if strings.EqualFold(headerName, "Content-Length") {
-			// Only set hasContentLength if this custom CL is the correct one for the WHOLE body
-			if headerValue == strconv.Itoa(len(bypassPayload.Body)) {
-				hasContentLength = true
-			}
-		} else if strings.EqualFold(headerName, "Connection") {
-			hasConnectionHeader = true
-			if strings.EqualFold(headerValue, "close") {
-				currentShouldCloseConn = true
-			} else if strings.EqualFold(headerValue, "keep-alive") {
-				currentShouldCloseConn = false
+			// If this custom header IS the true Content-Length or Connection, update flags
+			if strings.EqualFold(headerName, "Content-Length") {
+				// Only set hasContentLength if this custom CL is the correct one for the WHOLE body
+				if headerValue == strconv.Itoa(len(bypassPayload.Body)) {
+					hasContentLength = true
+				}
+			} else if strings.EqualFold(headerName, "Connection") {
+				hasConnectionHeader = true
+				if strings.EqualFold(headerValue, "close") {
+					currentShouldCloseConn = true
+				} else if strings.EqualFold(headerValue, "keep-alive") {
+					currentShouldCloseConn = false
+				}
 			}
 		}
 	}
@@ -311,23 +430,6 @@ func BuildRawHTTPRequest(httpclient *HTTPClient, req *fasthttp.Request, bypassPa
 	// Add body if present
 	if len(bypassPayload.Body) > 0 {
 		bb.B = append(bb.B, bypassPayload.Body...)
-	}
-
-	// Add Content-Length header for the entire body if it wasn't set by payload or custom headers to the correct full length.
-	// Exploit-specific CLs (like the one with value "23") do not set `hasContentLength` unless they coincidentally match the full body length.
-	if len(bypassPayload.Body) > 0 && !hasContentLength {
-		bb.B = append(bb.B, "Content-Length: "...)
-		bb.B = append(bb.B, []byte(strconv.Itoa(len(bypassPayload.Body)))...)
-		bb.B = append(bb.B, "\r\n"...)
-	}
-
-	// Add Connection header if not set from payload/custom
-	if !hasConnectionHeader {
-		if currentShouldCloseConn {
-			bb.B = append(bb.B, "Connection: close\r\n"...)
-		} else {
-			bb.B = append(bb.B, "Connection: keep-alive\r\n"...)
-		}
 	}
 
 	// Get bufio.Reader from pool and reset it with our ByteBuffer reader
