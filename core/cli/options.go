@@ -440,8 +440,12 @@ func (o *CliOptions) processProxy() error {
 	return nil
 }
 
-// validateCustomHeaders checks that custom headers are properly formatted
+// validateCustomHeaders checks and pre-processes custom headers
 func (o *CliOptions) validateCustomHeaders() error {
+	if len(o.CustomHTTPHeaders) == 0 {
+		return nil
+	}
+
 	for i, header := range o.CustomHTTPHeaders {
 		colonIdx := strings.Index(header, ":")
 		if colonIdx == -1 {
@@ -452,8 +456,7 @@ func (o *CliOptions) validateCustomHeaders() error {
 		if headerName == "" {
 			return fmt.Errorf("empty header name for header #%d", i+1)
 		}
-
-		_ = strings.TrimSpace(header[colonIdx+1:])
 	}
+
 	return nil
 }
