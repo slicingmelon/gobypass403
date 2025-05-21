@@ -86,7 +86,7 @@ func (pg *PayloadGenerator) GenerateHAProxyBypassPayloads(targetURL string, bypa
 				},
 				{
 					Header: "Connection",
-					Value:  "close",
+					Value:  "keep-alive",
 				},
 			},
 		}

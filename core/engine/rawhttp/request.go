@@ -228,28 +228,27 @@ func BuildRawHTTPRequest(httpclient *HTTPClient, req *fasthttp.Request, bypassPa
 			!(strings.EqualFold(h.Header, "Content-Length") || // Allow payload CL
 				strings.HasPrefix(strings.ToLower(h.Header), "content-length0") || // Allow overflow CL
 				strings.EqualFold(h.Header, "Connection")) { // Allow payload Connection
-			// If overridden, and it's not one of the critical ones, the custom one will be added later.
-			// So, we skip adding the payload version here.
 			continue
 		}
 
-		// Set flags for special headers if set by payload
-		if strings.EqualFold(h.Header, "Content-Length") {
-			hasContentLength = true
-			delete(clientCustomHeadersMap, "content-length") // Payload's CL takes precedence
-		} else if strings.HasPrefix(strings.ToLower(h.Header), "content-length0") {
-			// This is an exploit header, doesn't count as the 'normal' Content-Length
-			// but ensure it's not deleted from custom map if it also exists there with same name by chance.
-			// However, our exploit CL0 should take precedence.
+		// Do NOT set the main `hasContentLength` flag here for payload's Content-Length.
+		// That flag is for the true Content-Length of the entire body.
+		// Exploit-specific CLs from payload are written, but don't satisfy the main flag.
+		if strings.HasPrefix(strings.ToLower(h.Header), "content-length0") {
+			// Ensure custom map doesn't override this specific exploit header if it coincidentally exists there
 			delete(clientCustomHeadersMap, strings.ToLower(h.Header))
 		} else if strings.EqualFold(h.Header, "Connection") {
-			hasConnectionHeader = true
+			hasConnectionHeader = true // This flag IS for the final Connection header
 			if strings.EqualFold(h.Value, "close") {
 				currentShouldCloseConn = true
 			} else if strings.EqualFold(h.Value, "keep-alive") {
-				currentShouldCloseConn = false // Payload can force keep-alive
+				currentShouldCloseConn = false
 			}
-			delete(clientCustomHeadersMap, "connection") // Payload's Connection takes precedence
+			delete(clientCustomHeadersMap, "connection")
+		} else if strings.EqualFold(h.Header, "Content-Length") {
+			// This is an exploit CL (e.g., "25"), not the true body CL.
+			// We still need to ensure it doesn't get overridden by a generic custom CL later if the names collide.
+			delete(clientCustomHeadersMap, "content-length")
 		}
 
 		// Append the header from the payload
@@ -268,11 +267,8 @@ func BuildRawHTTPRequest(httpclient *HTTPClient, req *fasthttp.Request, bypassPa
 	// Now add any client custom headers that weren't in the payload or handled by priority logic
 	for headerNameLower, headerValue := range clientCustomHeadersMap {
 		if _, handled := handledByPriorityLogic[headerNameLower]; handled {
-			continue // Already handled by priority logic (e.g. Host, UA, Accept, Token)
+			continue
 		}
-
-		// If payload set CL or Connection, custom versions are skipped (already deleted from map for these keys if payload set them)
-		// For other headers, if they are still in map, they were not set by payload (or payload version was skipped due to custom override)
 
 		// Capitalize first letter of each word for standard HTTP header format
 		words := strings.Split(headerNameLower, "-")
@@ -289,9 +285,12 @@ func BuildRawHTTPRequest(httpclient *HTTPClient, req *fasthttp.Request, bypassPa
 		bb.B = append(bb.B, headerValue...)
 		bb.B = append(bb.B, "\r\n"...)
 
-		// If this custom header is Content-Length or Connection, update flags
+		// If this custom header IS the true Content-Length or Connection, update flags
 		if strings.EqualFold(headerName, "Content-Length") {
-			hasContentLength = true
+			// Only set hasContentLength if this custom CL is the correct one for the WHOLE body
+			if headerValue == strconv.Itoa(len(bypassPayload.Body)) {
+				hasContentLength = true
+			}
 		} else if strings.EqualFold(headerName, "Connection") {
 			hasConnectionHeader = true
 			if strings.EqualFold(headerValue, "close") {
@@ -310,7 +309,8 @@ func BuildRawHTTPRequest(httpclient *HTTPClient, req *fasthttp.Request, bypassPa
 		bb.B = append(bb.B, bypassPayload.Body...)
 	}
 
-	// Add Content-Length header for body if body exists AND no Content-Length was set from payload/custom
+	// Add Content-Length header for the entire body if it wasn't set by custom headers to the correct full length.
+	// Payload-specific CLs (like the exploit's CL:25) do not set `hasContentLength`.
 	if len(bypassPayload.Body) > 0 && !hasContentLength {
 		bb.B = append(bb.B, "Content-Length: "...)
 		bb.B = append(bb.B, []byte(strconv.Itoa(len(bypassPayload.Body)))...)
@@ -347,6 +347,9 @@ func BuildRawHTTPRequest(httpclient *HTTPClient, req *fasthttp.Request, bypassPa
 
 	req.URI().SetScheme(bypassPayload.Scheme)
 	req.URI().SetHost(bypassPayload.Host)
+
+	// Debug log the final raw request string
+	GB403Logger.Debug().Msgf("Constructed Raw Request:\n%s", req.String())
 
 	return nil
 }
