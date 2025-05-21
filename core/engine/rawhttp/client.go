@@ -30,9 +30,8 @@ var (
 
 // Constants for buffer sizes used throughout the package
 const (
-	DefaultMaxBodySize     = 12288
 	DefaultHeadersBuffSize = 8192
-	DefaultRWBuffSize      = 4096
+	DefaultBufferPadding   = 1024
 )
 
 // HTTPClientOptions contains configuration options for the HTTPClient
@@ -76,30 +75,33 @@ type HTTPClient struct {
 
 // DefaultHTTPClientOptions returns the default HTTP client options
 func DefaultHTTPClientOptions() *HTTPClientOptions {
-	// Start with default values - keep body size and read/write buffers separate
-	maxBodySize := DefaultMaxBodySize
+	// Default response preview size (if not specified by user)
+	defaultPreviewSize := 1024
 
-	// Use fixed I/O buffer size for optimal network performance
-	// 4KB is a good default aligning with OS page size and TCP buffers
-	rwBufferSize := DefaultRWBuffSize
+	// Calculate default max body size based on headers + preview + margin
+	maxBodySize := DefaultHeadersBuffSize + defaultPreviewSize + DefaultBufferPadding
+
+	// Calculate RW buffer size with additional margin
+	rwBufferSize := maxBodySize + DefaultBufferPadding
 
 	return &HTTPClientOptions{
 		BypassModule:             "",
 		Timeout:                  20000 * time.Millisecond,
 		DialTimeout:              5 * time.Second,
 		MaxConnsPerHost:          128,
-		MaxIdleConnDuration:      1 * time.Minute, // Idle keep-alive connections are closed after this duration.
-		MaxConnWaitTimeout:       1 * time.Second, // Maximum duration for waiting for a free connection.
+		MaxIdleConnDuration:      1 * time.Minute,
+		MaxConnWaitTimeout:       1 * time.Second,
 		NoDefaultUserAgent:       true,
-		MaxResponseBodySize:      maxBodySize,  // Controls max total size allowed
-		ReadBufferSize:           rwBufferSize, // Network buffer for reading
-		WriteBufferSize:          rwBufferSize, // Network buffer for writing
+		MaxResponseBodySize:      maxBodySize,
+		ReadBufferSize:           rwBufferSize,
+		WriteBufferSize:          rwBufferSize,
 		StreamResponseBody:       true,
+		ResponseBodyPreviewSize:  defaultPreviewSize,
 		MaxRetries:               2,
 		RetryDelay:               500 * time.Millisecond,
 		RequestDelay:             0,
 		AutoThrottle:             false,
-		DisableKeepAlive:         false, // Keep connections alive
+		DisableKeepAlive:         false,
 		DisablePathNormalizing:   true,
 		Dialer:                   nil,
 		MaxConsecutiveFailedReqs: 15,
@@ -112,25 +114,28 @@ func NewHTTPClient(opts *HTTPClientOptions) *HTTPClient {
 		opts = DefaultHTTPClientOptions()
 	}
 
-	// Adjust sizes if ResponseBodyPreviewSize requires more buffer space
-	if opts.ResponseBodyPreviewSize > 0 {
-		// If user needs a larger preview than default MaxResponseBodySize can handle
-		if opts.ResponseBodyPreviewSize > opts.MaxResponseBodySize {
-			// Only adjust MaxResponseBodySize to accommodate larger previews
-			// This doesn't need to affect the network I/O buffers
-			opts.MaxResponseBodySize = opts.ResponseBodyPreviewSize + DefaultHeadersBuffSize
-
-			// Keep read/write buffers at reasonable sizes for network I/O
-			// These don't need to grow with the response size in streaming mode
-			if opts.ReadBufferSize <= 0 {
-				opts.ReadBufferSize = DefaultRWBuffSize
-			}
-			if opts.WriteBufferSize <= 0 {
-				opts.WriteBufferSize = DefaultRWBuffSize
-			}
-		}
+	// Calculate appropriate sizes based on preview size
+	previewSize := opts.ResponseBodyPreviewSize
+	if previewSize <= 0 {
+		previewSize = 1024 // Default if not specified
 	}
 
+	// Ensure MaxResponseBodySize is large enough for headers + preview
+	requiredBodySize := DefaultHeadersBuffSize + previewSize + DefaultBufferPadding
+	if opts.MaxResponseBodySize < requiredBodySize {
+		opts.MaxResponseBodySize = requiredBodySize
+	}
+
+	// Ensure read/write buffers are sized appropriately
+	requiredBufferSize := opts.MaxResponseBodySize + DefaultBufferPadding
+	if opts.ReadBufferSize <= 0 || opts.ReadBufferSize < requiredBufferSize {
+		opts.ReadBufferSize = requiredBufferSize
+	}
+	if opts.WriteBufferSize <= 0 || opts.WriteBufferSize < requiredBufferSize {
+		opts.WriteBufferSize = requiredBufferSize
+	}
+
+	// Continue with existing initialization...
 	if opts.Dialer == nil {
 		opts.Dialer = CreateHTTPClientDialer(opts.DialTimeout, opts.ProxyURL)
 	}
@@ -172,8 +177,7 @@ func NewHTTPClient(opts *HTTPClientOptions) *HTTPClient {
 			MinVersion:         tls.VersionTLS10,
 			MaxVersion:         tls.VersionTLS13,
 			Renegotiation:      tls.RenegotiateOnceAsClient,
-			ClientSessionCache: tls.NewLRUClientSessionCache(512), // Session cache to resume sessions
-			//SessionTicketsDisabled: true,
+			ClientSessionCache: tls.NewLRUClientSessionCache(512),
 		},
 	}
 
