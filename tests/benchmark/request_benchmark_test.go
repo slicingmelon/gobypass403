@@ -197,6 +197,10 @@ func BenchmarkBuildCurlCmd(b *testing.B) {
 		// Each goroutine gets its own copy to avoid contention
 		localDest := make([]byte, 0, len(dest))
 		for pb.Next() {
+			localDest = rawhttp.BuildCurlCommandWithOpts(job, nil, localDest)
+		}
+
+		for pb.Next() {
 			localDest = rawhttp.BuildCurlCommandPoc(job, localDest)
 		}
 	})
