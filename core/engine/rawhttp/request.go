@@ -23,12 +23,39 @@ var (
 	strUserAgentHeader = "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
 )
 
+// Pre-defined byte slices for common strings to reduce allocations
+var (
+	bHost            = []byte("Host")
+	bHostColon       = []byte("Host: ")
+	bAccept          = []byte("Accept: */*\r\n")
+	bColonSpace      = []byte(": ")
+	bCRLF            = []byte("\r\n")
+	bConnectionKeep  = []byte("Connection: keep-alive\r\n")
+	bConnectionClose = []byte("Connection: close\r\n")
+	bContentLength   = []byte("Content-Length: ")
+	bXGB403Token     = []byte("X-GB403-Token: ")
+)
+
 var (
 	requestBufferPool = bytesutil.ByteBufferPool{}
 
 	rawRequestBuffReaderPool = sync.Pool{
 		New: func() any {
 			return bufio.NewReader(nil)
+		},
+	}
+
+	// Pool for header maps to reduce allocations
+	headerMapPool = sync.Pool{
+		New: func() any {
+			return make(map[string]string)
+		},
+	}
+
+	// Pool for string slices to reduce allocations during header name capitalization
+	wordSlicePool = sync.Pool{
+		New: func() any {
+			return make([]string, 0, 8) // Most headers have fewer than 8 words
 		},
 	}
 )
@@ -71,9 +98,12 @@ func BuildRawHTTPRequest(httpclient *HTTPClient, req *fasthttp.Request, bypassPa
 // BuildRawRequest builds a raw HTTP request from the bypass payload and returns the byte buffer
 // and a flag indicating if the connection should be closed
 func BuildRawRequest(httpclient *HTTPClient, bypassPayload payload.BypassPayload) (*bytesutil.ByteBuffer, bool) {
+	// Get client options once
+	clientOpts := httpclient.GetHTTPClientOptions()
+
 	// Define shouldCloseConn based on general factors
-	shouldCloseConn := httpclient.GetHTTPClientOptions().DisableKeepAlive ||
-		httpclient.GetHTTPClientOptions().ProxyURL != "" ||
+	shouldCloseConn := clientOpts.DisableKeepAlive ||
+		clientOpts.ProxyURL != "" ||
 		bypassPayload.BypassModule == "headers_scheme" ||
 		bypassPayload.BypassModule == "headers_ip" ||
 		bypassPayload.BypassModule == "headers_port" ||
@@ -94,12 +124,15 @@ func BuildRawRequest(httpclient *HTTPClient, bypassPayload payload.BypassPayload
 	hasContentLength := false
 	hasConnectionHeader := false
 
-	// Create a map to track which custom headers from client options we will add
-	// This allows us to avoid duplicate headers when merging client options with payload headers
-	clientCustomHeadersMap := make(map[string]string)
+	// Get map from pool and clear it (in case it was previously used)
+	clientCustomHeadersMap := headerMapPool.Get().(map[string]string)
+	for k := range clientCustomHeadersMap {
+		delete(clientCustomHeadersMap, k)
+	}
+	// Defer returning map to pool
+	defer headerMapPool.Put(clientCustomHeadersMap)
 
 	// Process client's custom headers if any
-	clientOpts := httpclient.GetHTTPClientOptions()
 	if len(clientOpts.CustomHTTPHeaders) > 0 {
 		for _, header := range clientOpts.CustomHTTPHeaders {
 			colonIdx := strings.Index(header, ":")
@@ -153,68 +186,86 @@ func BuildRawRequest(httpclient *HTTPClient, bypassPayload payload.BypassPayload
 
 		// Append the header from the payload directly
 		bb.B = append(bb.B, h.Header...)
-		bb.B = append(bb.B, ": "...)
+		bb.B = append(bb.B, bColonSpace...)
 		bb.B = append(bb.B, h.Value...)
-		bb.B = append(bb.B, "\r\n"...)
+		bb.B = append(bb.B, bCRLF...)
 	}
 
 	// Now add any client custom headers that weren't in the payload
 	for headerNameLower, headerValue := range clientCustomHeadersMap {
 		// We've already set the flags for special headers when building the map
 		// Use original casing for the header name, not lowercase version
-		// Capitalize first letter of each word for standard HTTP header format
-		words := strings.Split(headerNameLower, "-")
-		for i := range words {
-			if len(words[i]) > 0 {
-				words[i] = strings.ToUpper(words[i][:1]) + words[i][1:]
+
+		// Get a string slice from the pool for words
+		words := wordSlicePool.Get().([]string)
+		words = words[:0] // Reset slice without allocating
+
+		// Split by dash and store in our pooled slice
+		for _, word := range strings.Split(headerNameLower, "-") {
+			words = append(words, word)
+		}
+
+		// Build properly capitalized header name directly into byte buffer
+		for i, word := range words {
+			if i > 0 {
+				bb.B = append(bb.B, '-')
+			}
+
+			if len(word) > 0 {
+				// Capitalize first letter, keep rest as is
+				bb.B = append(bb.B, byte(strings.ToUpper(word[:1])[0]))
+				if len(word) > 1 {
+					bb.B = append(bb.B, word[1:]...)
+				}
 			}
 		}
-		headerName := strings.Join(words, "-")
 
-		// Append the custom header
-		bb.B = append(bb.B, headerName...)
-		bb.B = append(bb.B, ": "...)
+		// Return the word slice to pool
+		wordSlicePool.Put(words)
+
+		// Add separator and value
+		bb.B = append(bb.B, bColonSpace...)
 		bb.B = append(bb.B, headerValue...)
-		bb.B = append(bb.B, "\r\n"...)
+		bb.B = append(bb.B, bCRLF...)
 	}
 
 	// Add Host header if not explicitly provided in the payload or custom headers
 	if !hasHostHeader {
-		bb.B = append(bb.B, "Host: "...)
+		bb.B = append(bb.B, bHostColon...)
 		bb.B = append(bb.B, bypassPayload.Host...)
-		bb.B = append(bb.B, "\r\n"...)
+		bb.B = append(bb.B, bCRLF...)
 	}
 
 	// Add standard headers (User-Agent, Accept)
 	bb.B = append(bb.B, strUserAgentHeader...)
-	bb.B = append(bb.B, "\r\n"...)
-	bb.B = append(bb.B, "Accept: */*\r\n"...)
+	bb.B = append(bb.B, bCRLF...)
+	bb.B = append(bb.B, bAccept...)
 
 	// Add Debug token if debug mode is enabled
 	if GB403Logger.IsDebugEnabled() {
-		bb.B = append(bb.B, "X-GB403-Token: "...)
+		bb.B = append(bb.B, bXGB403Token...)
 		bb.B = append(bb.B, bypassPayload.PayloadToken...)
-		bb.B = append(bb.B, "\r\n"...)
+		bb.B = append(bb.B, bCRLF...)
 	}
 
 	// Add Content-Length header if body exists and wasn't explicitly set in payload
 	if len(bypassPayload.Body) > 0 && !hasContentLength {
-		bb.B = append(bb.B, "Content-Length: "...)
+		bb.B = append(bb.B, bContentLength...)
 		bb.B = append(bb.B, strconv.Itoa(len(bypassPayload.Body))...)
-		bb.B = append(bb.B, "\r\n"...)
+		bb.B = append(bb.B, bCRLF...)
 	}
 
 	// Add Connection header LAST, prioritizing payload's value if provided
 	if !hasConnectionHeader { // Only add default if payload didn't specify one
 		if shouldCloseConn {
-			bb.B = append(bb.B, "Connection: close\r\n"...)
+			bb.B = append(bb.B, bConnectionClose...)
 		} else {
-			bb.B = append(bb.B, "Connection: keep-alive\r\n"...)
+			bb.B = append(bb.B, bConnectionKeep...)
 		}
 	}
 
 	// End of headers marker
-	bb.B = append(bb.B, "\r\n"...)
+	bb.B = append(bb.B, bCRLF...)
 
 	// Add body if present
 	if len(bypassPayload.Body) > 0 {
@@ -231,8 +282,8 @@ func WrapRawFastHTTPRequest(req *fasthttp.Request, rawRequest *bytesutil.ByteBuf
 	br.Reset(bytes.NewReader(rawRequest.B))
 	defer rawRequestBuffReaderPool.Put(br)
 
-	req.URI().DisablePathNormalizing = true
-	req.Header.DisableNormalizing()
+	// Apply all flags at once
+	applyReqFlags(req)
 
 	// Let FastHTTP parse the entire request (headers + body)
 	if err := req.ReadLimitBody(br, 0); err != nil {
@@ -240,11 +291,6 @@ func WrapRawFastHTTPRequest(req *fasthttp.Request, rawRequest *bytesutil.ByteBuf
 	}
 
 	// Set URI components after successful parsing
-	req.URI().DisablePathNormalizing = true
-	req.Header.DisableNormalizing()
-	req.Header.SetNoDefaultContentType(true)
-	req.UseHostHeader = true
-
 	req.URI().SetScheme(bypassPayload.Scheme)
 	req.URI().SetHost(bypassPayload.Host)
 
@@ -281,7 +327,7 @@ func ReqCopyToWithSettings(src *fasthttp.Request, dst *fasthttp.Request) *fastht
 	dst.URI().SetHostBytes(originalHost)
 
 	// Check if Host header exists using case-insensitive lookup
-	if len(PeekRequestHeaderKeyCaseInsensitive(dst, strHostHeader)) == 0 {
+	if len(PeekRequestHeaderKeyCaseInsensitive(dst, bHost)) == 0 {
 		//GB403Logger.Debug().Msgf("No Host header found, setting from URI.Host: %s", originalHost)
 		dst.Header.SetHostBytes(originalHost)
 	}
