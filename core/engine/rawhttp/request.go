@@ -246,9 +246,13 @@ func BuildRawHTTPRequest(httpclient *HTTPClient, req *fasthttp.Request, bypassPa
 			}
 			delete(clientCustomHeadersMap, "connection")
 		} else if strings.EqualFold(h.Header, "Content-Length") {
-			// This is an exploit CL (e.g., "25"), not the true body CL.
-			// We still need to ensure it doesn't get overridden by a generic custom CL later if the names collide.
+			// This header from payload might be an exploit-specific CL or the true body CL.
+			// Ensure it is not overridden by a generic custom CL later if names collide.
 			delete(clientCustomHeadersMap, "content-length")
+			// Check if this payload-provided CL is the correct length for the entire body.
+			if h.Value == strconv.Itoa(len(bypassPayload.Body)) {
+				hasContentLength = true // Mark that the true Content-Length is now set by the payload.
+			}
 		}
 
 		// Append the header from the payload
@@ -301,16 +305,8 @@ func BuildRawHTTPRequest(httpclient *HTTPClient, req *fasthttp.Request, bypassPa
 		}
 	}
 
-	// End of headers marker
-	bb.B = append(bb.B, "\r\n"...)
-
-	// Add body if present
-	if len(bypassPayload.Body) > 0 {
-		bb.B = append(bb.B, bypassPayload.Body...)
-	}
-
-	// Add Content-Length header for the entire body if it wasn't set by custom headers to the correct full length.
-	// Payload-specific CLs (like the exploit's CL:25) do not set `hasContentLength`.
+	// Add Content-Length header for the entire body if it wasn't set by payload or custom headers to the correct full length.
+	// Exploit-specific CLs (like the one with value "23") do not set `hasContentLength` unless they coincidentally match the full body length.
 	if len(bypassPayload.Body) > 0 && !hasContentLength {
 		bb.B = append(bb.B, "Content-Length: "...)
 		bb.B = append(bb.B, []byte(strconv.Itoa(len(bypassPayload.Body)))...)
@@ -324,6 +320,14 @@ func BuildRawHTTPRequest(httpclient *HTTPClient, req *fasthttp.Request, bypassPa
 		} else {
 			bb.B = append(bb.B, "Connection: keep-alive\r\n"...)
 		}
+	}
+
+	// End of ALL headers marker
+	bb.B = append(bb.B, "\r\n"...)
+
+	// Add body if present
+	if len(bypassPayload.Body) > 0 {
+		bb.B = append(bb.B, bypassPayload.Body...)
 	}
 
 	// Get bufio.Reader from pool and reset it with our ByteBuffer reader
