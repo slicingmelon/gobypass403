@@ -258,7 +258,17 @@ BenchmarkBuildRawHTTPRequestNew/LongHeaders-20
 PASS
 */
 func BenchmarkBuildRawHTTPRequestNew(b *testing.B) {
-	client := rawhttp.NewHTTPClient(rawhttp.DefaultHTTPClientOptions())
+	// Create client options with custom headers
+	clientOpts := rawhttp.DefaultHTTPClientOptions()
+	clientOpts.CustomHTTPHeaders = []string{
+		"X-Client-ID: benchmark-tester",
+		"X-Client-Version: 1.0",
+		"X-Api-Key: abcdef123456",
+		"Cache-Control: no-cache",
+		"Accept-Language: en-US,en;q=0.9",
+	}
+
+	client := rawhttp.NewHTTPClient(clientOpts)
 
 	// Test cases with different path complexities
 	tests := []struct {
@@ -297,6 +307,33 @@ func BenchmarkBuildRawHTTPRequestNew(b *testing.B) {
 					{Header: "Accept", Value: "*/*"},
 					{Header: "Accept-Encoding", Value: "gzip, deflate"},
 					{Header: "Cookie", Value: "session=abc123; token=xyz789; other=value"},
+				},
+				PayloadToken: "test-token",
+			},
+		},
+		{
+			name: "HeaderConflict",
+			job: payload.BypassPayload{
+				Method: "GET",
+				RawURI: "/api/profile",
+				Host:   "example.com",
+				Headers: []payload.Headers{
+					// This will conflict with client's X-Api-Key and test the merging logic
+					{Header: "X-Api-Key", Value: "payload-key-override"},
+					{Header: "User-Agent", Value: "Go-Bypass-403"},
+				},
+				PayloadToken: "test-token",
+			},
+		},
+		{
+			name: "CustomHostHeader",
+			job: payload.BypassPayload{
+				Method: "GET",
+				RawURI: "/api/test",
+				Host:   "example.com",
+				Headers: []payload.Headers{
+					{Header: "Host", Value: "evil-host.com"}, // Custom host header
+					{Header: "User-Agent", Value: "Go-Bypass-403"},
 				},
 				PayloadToken: "test-token",
 			},
