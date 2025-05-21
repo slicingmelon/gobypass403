@@ -51,13 +51,6 @@ var (
 			return make(map[string]string)
 		},
 	}
-
-	// Pool for string slices to reduce allocations during header name capitalization
-	wordSlicePool = sync.Pool{
-		New: func() any {
-			return make([]string, 0, 8) // Most headers have fewer than 8 words
-		},
-	}
 )
 
 /*
@@ -137,9 +130,17 @@ func BuildRawRequest(httpclient *HTTPClient, bypassPayload payload.BypassPayload
 		for _, header := range clientOpts.CustomHTTPHeaders {
 			colonIdx := strings.Index(header, ":")
 			if colonIdx != -1 {
+				// Preserve original header name exactly as provided
 				headerName := strings.TrimSpace(header[:colonIdx])
 				headerValue := strings.TrimSpace(header[colonIdx+1:])
-				clientCustomHeadersMap[strings.ToLower(headerName)] = headerValue
+
+				// Store lowercase version only for lookups/comparisons
+				headerNameLower := strings.ToLower(headerName)
+				clientCustomHeadersMap[headerNameLower] = headerValue
+
+				// Also store original header name for later use
+				// We'll use a special format with the original case as key prefixed with "_orig_"
+				clientCustomHeadersMap["_orig_"+headerNameLower] = headerName
 
 				if strings.EqualFold(headerName, "Host") {
 					hasHostHeader = true
@@ -168,23 +169,27 @@ func BuildRawRequest(httpclient *HTTPClient, bypassPayload payload.BypassPayload
 		}
 
 		// Set flags for special headers
-		if strings.EqualFold(h.Header, "Host") {
+		headerNameLower := strings.ToLower(h.Header)
+		if headerNameLower == "host" {
 			hasHostHeader = true
 			shouldCloseConn = true
 			// Remove from custom headers map to avoid duplicate
 			delete(clientCustomHeadersMap, "host")
+			delete(clientCustomHeadersMap, "_orig_host")
 		}
-		if strings.EqualFold(h.Header, "Content-Length") {
+		if headerNameLower == "content-length" {
 			hasContentLength = true
 			delete(clientCustomHeadersMap, "content-length")
+			delete(clientCustomHeadersMap, "_orig_content-length")
 		}
-		if strings.EqualFold(h.Header, "Connection") {
+		if headerNameLower == "connection" {
 			hasConnectionHeader = true
 			shouldCloseConn = true
 			delete(clientCustomHeadersMap, "connection")
+			delete(clientCustomHeadersMap, "_orig_connection")
 		}
 
-		// Append the header from the payload directly
+		// Append the header from the payload directly, preserving original case
 		bb.B = append(bb.B, h.Header...)
 		bb.B = append(bb.B, bColonSpace...)
 		bb.B = append(bb.B, h.Value...)
@@ -193,37 +198,18 @@ func BuildRawRequest(httpclient *HTTPClient, bypassPayload payload.BypassPayload
 
 	// Now add any client custom headers that weren't in the payload
 	for headerNameLower, headerValue := range clientCustomHeadersMap {
+		// Skip our special "_orig_" prefix entries - they're just for lookup
+		if strings.HasPrefix(headerNameLower, "_orig_") {
+			continue
+		}
+
 		// We've already set the flags for special headers when building the map
-		// Use original casing for the header name, not lowercase version
 
-		// Get a string slice from the pool for words
-		words := wordSlicePool.Get().([]string)
-		words = words[:0] // Reset slice without allocating
+		// Get the original header name with preserved case
+		originalHeaderName := clientCustomHeadersMap["_orig_"+headerNameLower]
 
-		// Split by dash and store in our pooled slice
-		for _, word := range strings.Split(headerNameLower, "-") {
-			words = append(words, word)
-		}
-
-		// Build properly capitalized header name directly into byte buffer
-		for i, word := range words {
-			if i > 0 {
-				bb.B = append(bb.B, '-')
-			}
-
-			if len(word) > 0 {
-				// Capitalize first letter, keep rest as is
-				bb.B = append(bb.B, byte(strings.ToUpper(word[:1])[0]))
-				if len(word) > 1 {
-					bb.B = append(bb.B, word[1:]...)
-				}
-			}
-		}
-
-		// Return the word slice to pool
-		wordSlicePool.Put(words)
-
-		// Add separator and value
+		// Append the custom header with original case preserved
+		bb.B = append(bb.B, originalHeaderName...)
 		bb.B = append(bb.B, bColonSpace...)
 		bb.B = append(bb.B, headerValue...)
 		bb.B = append(bb.B, bCRLF...)
