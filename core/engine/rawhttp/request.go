@@ -185,17 +185,17 @@ func BuildRawRequest(httpclient *HTTPClient, bypassPayload payload.BypassPayload
 		bb.B = append(bb.B, "\r\n"...)
 	}
 
-	// Add standard headers (User-Agent, Accept)
-	bb.B = append(bb.B, strUserAgentHeader...)
-	bb.B = append(bb.B, "\r\n"...)
-	bb.B = append(bb.B, "Accept: */*\r\n"...)
+	// // Add standard headers (User-Agent, Accept)
+	// bb.B = append(bb.B, strUserAgentHeader...)
+	// bb.B = append(bb.B, "\r\n"...)
+	// bb.B = append(bb.B, "Accept: */*\r\n"...)
 
-	// Add Debug token if debug mode is enabled
-	if GB403Logger.IsDebugEnabled() {
-		bb.B = append(bb.B, "X-GB403-Token: "...)
-		bb.B = append(bb.B, bypassPayload.PayloadToken...)
-		bb.B = append(bb.B, "\r\n"...)
-	}
+	// // Add Debug token if debug mode is enabled
+	// if GB403Logger.IsDebugEnabled() {
+	// 	bb.B = append(bb.B, "X-GB403-Token: "...)
+	// 	bb.B = append(bb.B, bypassPayload.PayloadToken...)
+	// 	bb.B = append(bb.B, "\r\n"...)
+	// }
 
 	// Add Content-Length header if body exists and wasn't explicitly set in payload
 	if len(bypassPayload.Body) > 0 && !hasContentLength {
@@ -248,6 +248,7 @@ func WrapRawFastHTTPRequest(req *fasthttp.Request, rawRequest *bytesutil.ByteBuf
 	req.URI().SetScheme(bypassPayload.Scheme)
 	req.URI().SetHost(bypassPayload.Host)
 
+	GB403Logger.Debug().Msgf("== Wrapped raw request ==:\n%s", string(rawRequest.B))
 	return nil
 }
 

