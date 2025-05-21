@@ -60,6 +60,17 @@ For this to work, everything must be set in order, Raw Request line, headers, th
 then set req.UseHostHeader = true and then req.URI().SetScheme() and req.URI().SetHost()
 */
 func BuildRawHTTPRequest(httpclient *HTTPClient, req *fasthttp.Request, bypassPayload payload.BypassPayload) error {
+	// Build the raw HTTP request
+	bb, _ := BuildRawRequest(httpclient, bypassPayload)
+	defer requestBufferPool.Put(bb)
+
+	// Wrap the raw request into a FastHTTP request
+	return WrapRawFastHTTPRequest(req, bb, bypassPayload)
+}
+
+// BuildRawRequest builds a raw HTTP request from the bypass payload and returns the byte buffer
+// and a flag indicating if the connection should be closed
+func BuildRawRequest(httpclient *HTTPClient, bypassPayload payload.BypassPayload) (*bytesutil.ByteBuffer, bool) {
 	// Define shouldCloseConn based on general factors
 	shouldCloseConn := httpclient.GetHTTPClientOptions().DisableKeepAlive ||
 		httpclient.GetHTTPClientOptions().ProxyURL != "" ||
@@ -71,7 +82,6 @@ func BuildRawHTTPRequest(httpclient *HTTPClient, req *fasthttp.Request, bypassPa
 
 	// Get ByteBuffer from pool
 	bb := requestBufferPool.Get()
-	defer requestBufferPool.Put(bb)
 
 	// Build request line directly into byte buffer
 	bb.B = append(bb.B, bypassPayload.Method...)
@@ -211,9 +221,14 @@ func BuildRawHTTPRequest(httpclient *HTTPClient, req *fasthttp.Request, bypassPa
 		bb.B = append(bb.B, bypassPayload.Body...)
 	}
 
+	return bb, shouldCloseConn
+}
+
+// WrapRawFastHTTPRequest wraps a raw HTTP request into a FastHTTP request
+func WrapRawFastHTTPRequest(req *fasthttp.Request, rawRequest *bytesutil.ByteBuffer, bypassPayload payload.BypassPayload) error {
 	// Get bufio.Reader from pool and reset it with our ByteBuffer reader
 	br := rawRequestBuffReaderPool.Get().(*bufio.Reader)
-	br.Reset(bytes.NewReader(bb.B))
+	br.Reset(bytes.NewReader(rawRequest.B))
 	defer rawRequestBuffReaderPool.Put(br)
 
 	req.URI().DisablePathNormalizing = true
