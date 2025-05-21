@@ -131,6 +131,7 @@ func BuildRawHTTPRequest(httpclient *HTTPClient, req *fasthttp.Request, bypassPa
 		hasHostHeader = true
 	}
 	handledByPriorityLogic["host"] = true
+	_ = hasHostHeader // Acknowledge use to satisfy linter, as its main role here is to confirm writing.
 
 	// 2. User-Agent Header (Payload -> Custom -> Default)
 	uaFromPayload := ""
