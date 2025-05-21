@@ -6,7 +6,6 @@ X: x.com/pedro_infosec
 package rawhttp
 
 import (
-	"bufio"
 	"crypto/tls"
 	"errors"
 	"fmt"
@@ -391,12 +390,6 @@ func (c *HTTPClient) DoRequest(req *fasthttp.Request, resp *fasthttp.Response, b
 		c.throttler.ThrottleRequest()
 	}
 
-	// Check for HAProxy raw request
-	if req.Header.Peek("X-GB403-HAProxy-Raw") != nil {
-		// Use custom HAProxy-specific sending function that preserves exact header order
-		return c.DoRawHAProxyRequest(req, resp, bypassPayload)
-	}
-
 	// Initial request
 	start := time.Now()
 	err := c.client.Do(req, resp)
@@ -498,51 +491,51 @@ func (c *HTTPClient) Close() {
 	c.throttler.ResetThrottler()
 }
 
-// DoRawHAProxyRequest sends a raw HAProxy exploit request, carefully preserving header order
-// The raw request is already built and stored in req.Body()
-func (c *HTTPClient) DoRawHAProxyRequest(req *fasthttp.Request, resp *fasthttp.Response, bypassPayload payload.BypassPayload) (int64, error) {
-	// Extract necessary connection details directly from the bypassPayload
-	scheme := bypassPayload.Scheme
-	host := bypassPayload.Host
-	if scheme == "" {
-		scheme = "http" // Default to HTTP if not specified
-	}
+// // DoRawHAProxyRequest sends a raw HAProxy exploit request, carefully preserving header order
+// // The raw request is already built and stored in req.Body()
+// func (c *HTTPClient) DoRawHAProxyRequest(req *fasthttp.Request, resp *fasthttp.Response, bypassPayload payload.BypassPayload) (int64, error) {
+// 	// Extract necessary connection details directly from the bypassPayload
+// 	scheme := bypassPayload.Scheme
+// 	host := bypassPayload.Host
+// 	if scheme == "" {
+// 		scheme = "http" // Default to HTTP if not specified
+// 	}
 
-	// Create a TCP connection directly
-	dialFunc := c.client.Dial
-	if dialFunc == nil {
-		dialFunc = fasthttp.Dial // Use default if not set
-	}
+// 	// Create a TCP connection directly
+// 	dialFunc := c.client.Dial
+// 	if dialFunc == nil {
+// 		dialFunc = fasthttp.Dial // Use default if not set
+// 	}
 
-	// Connect to the target
-	start := time.Now()
-	conn, err := dialFunc(scheme + "://" + host)
-	if err != nil {
-		return 0, fmt.Errorf("error connecting to HAProxy target %s: %w", host, err)
-	}
-	defer conn.Close()
+// 	// Connect to the target
+// 	start := time.Now()
+// 	conn, err := dialFunc(scheme + "://" + host)
+// 	if err != nil {
+// 		return 0, fmt.Errorf("error connecting to HAProxy target %s: %w", host, err)
+// 	}
+// 	defer conn.Close()
 
-	// Our raw request is already constructed and in the body
-	rawRequest := req.Body()
-	if len(rawRequest) == 0 {
-		return 0, fmt.Errorf("empty raw HAProxy request")
-	}
+// 	// Our raw request is already constructed and in the body
+// 	rawRequest := req.Body()
+// 	if len(rawRequest) == 0 {
+// 		return 0, fmt.Errorf("empty raw HAProxy request")
+// 	}
 
-	// Send the raw request exactly as-is
-	if _, err = conn.Write(rawRequest); err != nil {
-		return 0, fmt.Errorf("error writing raw HAProxy request: %w", err)
-	}
+// 	// Send the raw request exactly as-is
+// 	if _, err = conn.Write(rawRequest); err != nil {
+// 		return 0, fmt.Errorf("error writing raw HAProxy request: %w", err)
+// 	}
 
-	// Use a buffer to read the response
-	bufReader := bufio.NewReader(conn)
+// 	// Use a buffer to read the response
+// 	bufReader := bufio.NewReader(conn)
 
-	// Parse the response directly
-	if err = resp.Read(bufReader); err != nil {
-		return 0, fmt.Errorf("error reading HAProxy response: %w", err)
-	}
+// 	// Parse the response directly
+// 	if err = resp.Read(bufReader); err != nil {
+// 		return 0, fmt.Errorf("error reading HAProxy response: %w", err)
+// 	}
 
-	// Calculate request time
-	requestTime := time.Since(start)
+// 	// Calculate request time
+// 	requestTime := time.Since(start)
 
-	return requestTime.Milliseconds(), nil
-}
+// 	return requestTime.Milliseconds(), nil
+// }
