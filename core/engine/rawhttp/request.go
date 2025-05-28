@@ -100,7 +100,8 @@ func BuildRawRequest(httpclient *HTTPClient, bypassPayload payload.BypassPayload
 		bypassPayload.BypassModule == "headers_ip" ||
 		bypassPayload.BypassModule == "headers_port" ||
 		bypassPayload.BypassModule == "headers_url" ||
-		bypassPayload.BypassModule == "headers_host"
+		bypassPayload.BypassModule == "headers_host" ||
+		bypassPayload.BypassModule == "haproxy_bypasses"
 
 	// Get ByteBuffer from pool
 	bb := requestBufferPool.Get()
@@ -255,7 +256,10 @@ func BuildRawRequest(httpclient *HTTPClient, bypassPayload payload.BypassPayload
 
 	// Add body if present
 	if len(bypassPayload.Body) > 0 {
+		GB403Logger.Debug().Msgf("== Adding body to request (%d bytes) ==: %q", len(bypassPayload.Body), string(bypassPayload.Body))
 		bb.B = append(bb.B, bypassPayload.Body...)
+	} else {
+		GB403Logger.Debug().Msgf("== No body to add (bypassPayload.Body is empty) ==")
 	}
 
 	return bb, shouldCloseConn
