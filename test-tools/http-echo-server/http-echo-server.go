@@ -296,13 +296,13 @@ func extractContentLength(request string) int {
 // Helper function to print requests
 func printRequest(req string, verbose bool, isTLS bool) {
 	if verbose {
-		// Handle CRLF sequences specially - show them as \r\n with proper line breaks
-		req = strings.ReplaceAll(req, "\r\n", colorGreen+"\\r\\n"+colorReset+"\n")
+		// Handle CRLF sequences first with a placeholder to avoid double-processing
+		req = strings.ReplaceAll(req, "\r\n", "CRLF_PLACEHOLDER")
 
-		// Handle remaining special characters
+		// Handle remaining special characters (standalone \r and \n)
 		specialChars := map[string]string{
 			"\r": colorGreen + "\\r" + colorReset,
-			"\n": colorGreen + "\\n" + colorReset + "\n", // Add newline for proper formatting
+			"\n": colorGreen + "\\n" + colorReset + "\n",
 			"\t": colorGreen + "\\t" + colorReset,
 			"\v": colorGreen + "\\v" + colorReset, // Vertical tab
 			"\f": colorGreen + "\\f" + colorReset, // Form feed
@@ -313,6 +313,9 @@ func printRequest(req string, verbose bool, isTLS bool) {
 		for char, replacement := range specialChars {
 			req = strings.ReplaceAll(req, char, replacement)
 		}
+
+		// Finally replace CRLF placeholder with proper formatted \r\n
+		req = strings.ReplaceAll(req, "CRLF_PLACEHOLDER", colorGreen+"\\r\\n"+colorReset+"\n")
 	}
 
 	// Color the terminal output based on connection type
