@@ -105,17 +105,6 @@ func BuildRawRequest(httpclient *HTTPClient, bypassPayload payload.BypassPayload
 	// Get ByteBuffer from pool
 	bb := requestBufferPool.Get()
 
-	// Debug logging for HAProxy bypasses to track body handling
-	if bypassPayload.BypassModule == "haproxy_bypasses" {
-		GB403Logger.Debug().Msgf("== HAProxy Bypass Debug ==")
-		GB403Logger.Debug().Msgf("Body length: %d", len(bypassPayload.Body))
-		GB403Logger.Debug().Msgf("Body content: %q", string(bypassPayload.Body))
-		GB403Logger.Debug().Msgf("Headers count: %d", len(bypassPayload.Headers))
-		for i, h := range bypassPayload.Headers {
-			GB403Logger.Debug().Msgf("Header[%d]: %s = %s", i, h.Header, h.Value)
-		}
-	}
-
 	// Build request line directly into byte buffer
 	bb.B = append(bb.B, bypassPayload.Method...)
 	bb.B = append(bb.B, ' ')
@@ -264,15 +253,6 @@ func BuildRawRequest(httpclient *HTTPClient, bypassPayload payload.BypassPayload
 	// End of headers marker
 	bb.B = append(bb.B, bCRLF...)
 
-	// Additional debug for HAProxy body handling
-	// if bypassPayload.BypassModule == "haproxy_bypasses" {
-	GB403Logger.Debug().Msgf("== Before body addition ==")
-	GB403Logger.Debug().Msgf("Body length: %d", len(bypassPayload.Body))
-	GB403Logger.Debug().Msgf("Body is empty: %t", len(bypassPayload.Body) == 0)
-	GB403Logger.Debug().Msgf("Body content: %q", string(bypassPayload.Body))
-	GB403Logger.Debug().Msgf("Request so far (%d bytes):\n%s", len(bb.B), string(bb.B))
-	// }
-
 	// Add body if present
 	if len(bypassPayload.Body) > 0 {
 		GB403Logger.Debug().Msgf("== Adding body to request (%d bytes) ==: %q", len(bypassPayload.Body), string(bypassPayload.Body))
@@ -303,20 +283,6 @@ func WrapRawFastHTTPRequest(req *fasthttp.Request, rawRequest *bytesutil.ByteBuf
 	if len(bypassPayload.Body) > 0 {
 		req.SetBodyRaw([]byte(bypassPayload.Body))
 	}
-
-	// Debug the parsed request
-	GB403Logger.Debug().Msgf("== FastHTTP Parsed Request ==")
-	GB403Logger.Debug().Msgf("Method: %s", req.Header.Method())
-	GB403Logger.Debug().Msgf("RequestURI: %s", req.Header.RequestURI())
-	GB403Logger.Debug().Msgf("ContentLength from header: %d", req.Header.ContentLength())
-	GB403Logger.Debug().Msgf("Body length: %d", len(req.Body()))
-	GB403Logger.Debug().Msgf("Body content: %q", string(req.Body()))
-
-	// Log all headers
-	GB403Logger.Debug().Msgf("== All Headers ==")
-	req.Header.VisitAll(func(key, value []byte) {
-		GB403Logger.Debug().Msgf("Header: %s = %s", string(key), string(value))
-	})
 
 	// Apply flags again after parsing to ensure they stick
 	//applyReqFlags(req)
