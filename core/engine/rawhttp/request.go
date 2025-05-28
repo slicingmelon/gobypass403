@@ -83,12 +83,6 @@ func BuildRawHTTPRequest(httpclient *HTTPClient, req *fasthttp.Request, bypassPa
 	bb, _ := BuildRawRequest(httpclient, bypassPayload)
 	defer requestBufferPool.Put(bb)
 
-	// For HAProxy bypass, disable special header processing to preserve exact header order
-	if bypassPayload.BypassModule == "haproxy_bypasses" {
-		req.Header.DisableSpecialHeader()
-		GB403Logger.Debug().Msgf("== HAProxy: Disabled special header processing for exact header order ==")
-	}
-
 	// Wrap the raw request into a FastHTTP request for other modules
 	return WrapRawFastHTTPRequest(req, bb, bypassPayload)
 }
@@ -232,27 +226,28 @@ func BuildRawRequest(httpclient *HTTPClient, bypassPayload payload.BypassPayload
 	}
 
 	// Add Content-Length header if body exists and wasn't explicitly set
-	if len(bypassPayload.Body) > 0 && !hasContentLength {
+	// SKIP auto Content-Length if we have deferred headers (HAProxy exploit)
+	if len(bypassPayload.Body) > 0 && !hasContentLength && len(deferredContentLengthHeaders) == 0 {
 		bb.B = append(bb.B, bContentLength...)
 		bb.B = append(bb.B, strconv.Itoa(len(bypassPayload.Body))...)
 		bb.B = append(bb.B, bCRLF...)
 	}
 
-	// Add deferred Content-Length headers just before Connection (for HAProxy exploit)
-	for _, h := range deferredContentLengthHeaders {
-		bb.B = append(bb.B, h.Header...)
-		bb.B = append(bb.B, bColonSpace...)
-		bb.B = append(bb.B, h.Value...)
-		bb.B = append(bb.B, bCRLF...)
-	}
-
-	// Add Connection header LAST if not explicitly set
+	// Add Connection header if not explicitly set
 	if !hasConnectionHeader {
 		if shouldCloseConn {
 			bb.B = append(bb.B, bConnectionClose...)
 		} else {
 			bb.B = append(bb.B, bConnectionKeep...)
 		}
+	}
+
+	// Add deferred Content-Length headers LAST before end of headers (critical for HAProxy exploit)
+	for _, h := range deferredContentLengthHeaders {
+		bb.B = append(bb.B, h.Header...)
+		bb.B = append(bb.B, bColonSpace...)
+		bb.B = append(bb.B, h.Value...)
+		bb.B = append(bb.B, bCRLF...)
 	}
 
 	// End of headers marker
@@ -281,6 +276,8 @@ func WrapRawFastHTTPRequest(req *fasthttp.Request, rawRequest *bytesutil.ByteBuf
 		return err
 	}
 
+	applyReqFlags(req)
+
 	// Set URI components after successful parsing
 	req.URI().SetScheme(bypassPayload.Scheme)
 	req.URI().SetHost(bypassPayload.Host)
@@ -293,6 +290,7 @@ func applyReqFlags(req *fasthttp.Request) {
 	req.URI().DisablePathNormalizing = true
 	req.Header.DisableNormalizing()
 	req.Header.SetNoDefaultContentType(true)
+	req.Header.DisableSpecialHeader()
 	req.UseHostHeader = true
 }
 

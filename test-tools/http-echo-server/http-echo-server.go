@@ -206,14 +206,18 @@ func handleConnection(conn net.Conn, dump string, timeout int, template string) 
 	requestStr := request.String()
 	contentLength := extractContentLength(requestStr)
 	if contentLength > 0 {
+		log.Printf("DEBUG: Found Content-Length: %d", contentLength)
 		bodyBytes := make([]byte, contentLength)
 		_, err := io.ReadFull(reader, bodyBytes)
 		if err != nil {
 			log.Printf("Error reading body: %v", err)
 		} else {
+			log.Printf("DEBUG: Read body: %q", string(bodyBytes))
 			request.WriteString(string(bodyBytes))
 			requestStr = request.String()
 		}
+	} else {
+		log.Printf("DEBUG: No valid Content-Length found")
 	}
 
 	// Print the request with proper formatting
@@ -264,14 +268,24 @@ func extractContentLength(request string) int {
 	lines := strings.Split(request, "\n")
 	for _, line := range lines {
 		line = strings.TrimSpace(line)
+		// Look for EXACT "content-length:" header (not malformed ones with extra chars)
 		if strings.HasPrefix(strings.ToLower(line), "content-length:") {
-			parts := strings.SplitN(line, ":", 2)
-			if len(parts) == 2 {
-				length := strings.TrimSpace(parts[1])
-				if val, err := fmt.Sscanf(length, "%d", &length); err == nil && val == 1 {
-					var contentLength int
-					fmt.Sscanf(length, "%d", &contentLength)
-					return contentLength
+			log.Printf("DEBUG: Examining header line: %q", line)
+			// Make sure it's exactly "content-length:" and not "content-lengthXXX:"
+			colonIndex := strings.Index(line, ":")
+			if colonIndex > 0 {
+				headerName := strings.TrimSpace(line[:colonIndex])
+				log.Printf("DEBUG: Header name: %q", headerName)
+				if strings.ToLower(headerName) == "content-length" {
+					parts := strings.SplitN(line, ":", 2)
+					if len(parts) == 2 {
+						length := strings.TrimSpace(parts[1])
+						var contentLength int
+						if n, err := fmt.Sscanf(length, "%d", &contentLength); err == nil && n == 1 {
+							log.Printf("DEBUG: Valid Content-Length found: %d", contentLength)
+							return contentLength
+						}
+					}
 				}
 			}
 		}
