@@ -9,7 +9,6 @@ import (
 	"bufio"
 	"bytes"
 	"strconv"
-	"strings"
 	"sync"
 
 	"github.com/slicingmelon/gobypass403/core/engine/payload"
@@ -34,6 +33,13 @@ var (
 	bConnectionClose = []byte("Connection: close\r\n")
 	bContentLength   = []byte("Content-Length: ")
 	bXGB403Token     = []byte("X-GB403-Token: ")
+	// Add byte slices for case-insensitive header comparisons
+	bHostLower          = []byte("host")
+	bContentLengthLower = []byte("content-length")
+	bConnectionLower    = []byte("connection")
+	bUserAgentLower     = []byte("user-agent")
+	bAcceptLower        = []byte("accept")
+	bXGB403TokenLower   = []byte("x-gb403-token")
 )
 
 var (
@@ -105,23 +111,33 @@ func BuildRawRequest(httpclient *HTTPClient, bypassPayload payload.BypassPayload
 	bb.B = append(bb.B, bypassPayload.RawURI...)
 	bb.B = append(bb.B, " HTTP/1.1\r\n"...)
 
-	// Track which headers we've added to avoid duplicates
-	addedHeaders := make(map[string]bool, len(clientOpts.ParsedHeaders)+len(bypassPayload.Headers)+5)
+	// Use HeaderOverrides map instead of creating new map
+	// This avoids allocation since it's pre-computed during client initialization
 	hasHostHeader := false
 	hasContentLength := false
 	hasConnectionHeader := false
 
+	// Check if CLI headers override special headers
+	if clientOpts.HeaderOverrides != nil {
+		hasHostHeader = clientOpts.HeaderOverrides["host"]
+		hasContentLength = clientOpts.HeaderOverrides["content-length"]
+		hasConnectionHeader = clientOpts.HeaderOverrides["connection"]
+
+		// Update shouldCloseConn based on CLI overrides
+		if hasHostHeader || hasConnectionHeader {
+			shouldCloseConn = true
+		}
+	}
+
 	// PRIORITY 1: Add CLI custom headers first (highest priority)
 	for _, h := range clientOpts.ParsedHeaders {
-		headerLower := strings.ToLower(h.Name)
-
-		// Set special header flags
-		if headerLower == "host" {
+		// Use fast case-insensitive comparison with pre-computed byte slices
+		if isHeaderNameEqual(h.Name, bHostLower) {
 			hasHostHeader = true
 			shouldCloseConn = true
-		} else if headerLower == "content-length" {
+		} else if isHeaderNameEqual(h.Name, bContentLengthLower) {
 			hasContentLength = true
-		} else if headerLower == "connection" {
+		} else if isHeaderNameEqual(h.Name, bConnectionLower) {
 			hasConnectionHeader = true
 			shouldCloseConn = true
 		}
@@ -131,27 +147,38 @@ func BuildRawRequest(httpclient *HTTPClient, bypassPayload payload.BypassPayload
 		bb.B = append(bb.B, bColonSpace...)
 		bb.B = append(bb.B, h.Value...)
 		bb.B = append(bb.B, bCRLF...)
-
-		// Mark as added
-		addedHeaders[headerLower] = true
 	}
 
 	// PRIORITY 2: Add payload headers (skip if already added by CLI)
 	for _, h := range bypassPayload.Headers {
-		headerLower := strings.ToLower(h.Header)
-
-		// Skip if CLI header already added this
-		if addedHeaders[headerLower] {
-			continue
+		// Use HeaderOverrides map to check if CLI already added this header
+		// Use fast case-insensitive comparison to avoid strings.ToLower() allocation
+		if clientOpts.HeaderOverrides != nil {
+			// Check against each CLI header using case-insensitive comparison
+			skipHeader := false
+			for _, cliHeader := range clientOpts.ParsedHeaders {
+				if bytes.EqualFold([]byte(h.Header), []byte(cliHeader.Name)) {
+					skipHeader = true
+					break
+				}
+			}
+			if skipHeader {
+				continue
+			}
 		}
 
+		// Use fast case-insensitive comparison for special headers
+		isHost := isHeaderNameEqual(h.Header, bHostLower)
+		isContentLength := isHeaderNameEqual(h.Header, bContentLengthLower)
+		isConnection := isHeaderNameEqual(h.Header, bConnectionLower)
+
 		// Set special header flags
-		if headerLower == "host" {
+		if isHost {
 			hasHostHeader = true
 			shouldCloseConn = true
-		} else if headerLower == "content-length" {
+		} else if isContentLength {
 			hasContentLength = true
-		} else if headerLower == "connection" {
+		} else if isConnection {
 			hasConnectionHeader = true
 			shouldCloseConn = true
 		}
@@ -161,9 +188,6 @@ func BuildRawRequest(httpclient *HTTPClient, bypassPayload payload.BypassPayload
 		bb.B = append(bb.B, bColonSpace...)
 		bb.B = append(bb.B, h.Value...)
 		bb.B = append(bb.B, bCRLF...)
-
-		// Mark as added
-		addedHeaders[headerLower] = true
 	}
 
 	// PRIORITY 3: Add default Host header if not provided
@@ -173,17 +197,18 @@ func BuildRawRequest(httpclient *HTTPClient, bypassPayload payload.BypassPayload
 		bb.B = append(bb.B, bCRLF...)
 	}
 
-	// PRIORITY 4: Add standard headers (User-Agent, Accept) if not overridden
-	if !addedHeaders["user-agent"] {
+	// PRIORITY 4: Add standard headers if not overridden by CLI
+	if clientOpts.HeaderOverrides == nil || !clientOpts.HeaderOverrides["user-agent"] {
 		bb.B = append(bb.B, strUserAgentHeader...)
 		bb.B = append(bb.B, bCRLF...)
 	}
-	if !addedHeaders["accept"] {
+	if clientOpts.HeaderOverrides == nil || !clientOpts.HeaderOverrides["accept"] {
 		bb.B = append(bb.B, bAccept...)
 	}
 
 	// Add Debug token if debug mode is enabled and not overridden
-	if GB403Logger.IsDebugEnabled() && !addedHeaders["x-gb403-token"] {
+	if GB403Logger.IsDebugEnabled() &&
+		(clientOpts.HeaderOverrides == nil || !clientOpts.HeaderOverrides["x-gb403-token"]) {
 		bb.B = append(bb.B, bXGB403Token...)
 		bb.B = append(bb.B, bypassPayload.PayloadToken...)
 		bb.B = append(bb.B, bCRLF...)
@@ -288,4 +313,10 @@ func PeekRequestHeaderKeyCaseInsensitive(h *fasthttp.Request, key []byte) []byte
 		}
 	})
 	return result
+}
+
+// isHeaderNameEqual performs case-insensitive header name comparison using bytes.EqualFold
+// This avoids the allocation from strings.ToLower()
+func isHeaderNameEqual(headerName string, target []byte) bool {
+	return bytes.EqualFold([]byte(headerName), target)
 }
