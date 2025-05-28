@@ -101,7 +101,8 @@ func BuildRawRequest(httpclient *HTTPClient, bypassPayload payload.BypassPayload
 		bypassPayload.BypassModule == "headers_port" ||
 		bypassPayload.BypassModule == "headers_url" ||
 		bypassPayload.BypassModule == "headers_host" ||
-		bypassPayload.BypassModule == "haproxy_bypasses"
+		bypassPayload.BypassModule == "haproxy_bypasses" ||
+		bypassPayload.BypassModule == "dumb_check"
 
 	// Get ByteBuffer from pool
 	bb := requestBufferPool.Get()
@@ -301,9 +302,9 @@ func WrapRawFastHTTPRequest(req *fasthttp.Request, rawRequest *bytesutil.ByteBuf
 		return err
 	}
 
-	if len(bypassPayload.Body) > 0 {
-		req.SetBodyRaw([]byte(bypassPayload.Body))
-	}
+	// if len(bypassPayload.Body) > 0 {
+	// 	req.SetBodyRaw([]byte(bypassPayload.Body))
+	// }
 
 	// Debug the parsed request
 	GB403Logger.Debug().Msgf("== FastHTTP Parsed Request ==")
@@ -334,7 +335,7 @@ func applyReqFlags(req *fasthttp.Request) {
 	req.URI().DisablePathNormalizing = true
 	req.Header.DisableNormalizing()
 	req.Header.SetNoDefaultContentType(true)
-	req.Header.DisableSpecialHeader()
+	//req.Header.DisableSpecialHeader()
 	req.UseHostHeader = true
 }
 
