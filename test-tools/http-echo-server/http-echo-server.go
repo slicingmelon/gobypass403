@@ -294,16 +294,15 @@ func extractContentLength(request string) int {
 }
 
 // Helper function to print requests
-
 func printRequest(req string, verbose bool, isTLS bool) {
 	if verbose {
-		// Handle CRLF sequences specially - they should be colored together
+		// Handle CRLF sequences specially - show them as \r\n with proper line breaks
 		req = strings.ReplaceAll(req, "\r\n", colorGreen+"\\r\\n"+colorReset+"\n")
 
 		// Handle remaining special characters
 		specialChars := map[string]string{
 			"\r": colorGreen + "\\r" + colorReset,
-			"\n": colorGreen + "\\n" + colorReset + "\n", // Keep the extra newline for readability
+			"\n": colorGreen + "\\n" + colorReset + "\n", // Add newline for proper formatting
 			"\t": colorGreen + "\\t" + colorReset,
 			"\v": colorGreen + "\\v" + colorReset, // Vertical tab
 			"\f": colorGreen + "\\f" + colorReset, // Form feed

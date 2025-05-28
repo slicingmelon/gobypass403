@@ -106,6 +106,17 @@ func BuildRawRequest(httpclient *HTTPClient, bypassPayload payload.BypassPayload
 	// Get ByteBuffer from pool
 	bb := requestBufferPool.Get()
 
+	// Debug logging for HAProxy bypasses to track body handling
+	if bypassPayload.BypassModule == "haproxy_bypasses" {
+		GB403Logger.Debug().Msgf("== HAProxy Bypass Debug ==")
+		GB403Logger.Debug().Msgf("Body length: %d", len(bypassPayload.Body))
+		GB403Logger.Debug().Msgf("Body content: %q", string(bypassPayload.Body))
+		GB403Logger.Debug().Msgf("Headers count: %d", len(bypassPayload.Headers))
+		for i, h := range bypassPayload.Headers {
+			GB403Logger.Debug().Msgf("Header[%d]: %s = %s", i, h.Header, h.Value)
+		}
+	}
+
 	// Build request line directly into byte buffer
 	bb.B = append(bb.B, bypassPayload.Method...)
 	bb.B = append(bb.B, ' ')
@@ -162,7 +173,7 @@ func BuildRawRequest(httpclient *HTTPClient, bypassPayload payload.BypassPayload
 			// Check against each CLI header using case-insensitive comparison
 			skipHeader := false
 			for _, cliHeader := range clientOpts.ParsedHeaders {
-				if bytes.EqualFold(bytesutil.ToUnsafeBytes(h.Header), bytesutil.ToUnsafeBytes(cliHeader.Name)) {
+				if bytes.EqualFold([]byte(h.Header), []byte(cliHeader.Name)) {
 					skipHeader = true
 					break
 				}
@@ -254,10 +265,20 @@ func BuildRawRequest(httpclient *HTTPClient, bypassPayload payload.BypassPayload
 	// End of headers marker
 	bb.B = append(bb.B, bCRLF...)
 
+	// Additional debug for HAProxy body handling
+	// if bypassPayload.BypassModule == "haproxy_bypasses" {
+	GB403Logger.Debug().Msgf("== Before body addition ==")
+	GB403Logger.Debug().Msgf("Body length: %d", len(bypassPayload.Body))
+	GB403Logger.Debug().Msgf("Body is empty: %t", len(bypassPayload.Body) == 0)
+	GB403Logger.Debug().Msgf("Body content: %q", string(bypassPayload.Body))
+	GB403Logger.Debug().Msgf("Request so far (%d bytes):\n%s", len(bb.B), string(bb.B))
+	// }
+
 	// Add body if present
 	if len(bypassPayload.Body) > 0 {
 		GB403Logger.Debug().Msgf("== Adding body to request (%d bytes) ==: %q", len(bypassPayload.Body), string(bypassPayload.Body))
 		bb.B = append(bb.B, bypassPayload.Body...)
+
 	} else {
 		GB403Logger.Debug().Msgf("== No body to add (bypassPayload.Body is empty) ==")
 	}
@@ -272,7 +293,7 @@ func WrapRawFastHTTPRequest(req *fasthttp.Request, rawRequest *bytesutil.ByteBuf
 	br.Reset(bytes.NewReader(rawRequest.B))
 	defer rawRequestBuffReaderPool.Put(br)
 
-	// Apply all flags at once
+	// Apply all flags BEFORE parsing to ensure raw mode
 	applyReqFlags(req)
 
 	// Let FastHTTP parse the entire request (headers + body)
@@ -280,7 +301,26 @@ func WrapRawFastHTTPRequest(req *fasthttp.Request, rawRequest *bytesutil.ByteBuf
 		return err
 	}
 
-	applyReqFlags(req)
+	if len(bypassPayload.Body) > 0 {
+		req.SetBodyRaw([]byte(bypassPayload.Body))
+	}
+
+	// Debug the parsed request
+	GB403Logger.Debug().Msgf("== FastHTTP Parsed Request ==")
+	GB403Logger.Debug().Msgf("Method: %s", req.Header.Method())
+	GB403Logger.Debug().Msgf("RequestURI: %s", req.Header.RequestURI())
+	GB403Logger.Debug().Msgf("ContentLength from header: %d", req.Header.ContentLength())
+	GB403Logger.Debug().Msgf("Body length: %d", len(req.Body()))
+	GB403Logger.Debug().Msgf("Body content: %q", string(req.Body()))
+
+	// Log all headers
+	GB403Logger.Debug().Msgf("== All Headers ==")
+	req.Header.VisitAll(func(key, value []byte) {
+		GB403Logger.Debug().Msgf("Header: %s = %s", string(key), string(value))
+	})
+
+	// Apply flags again after parsing to ensure they stick
+	//applyReqFlags(req)
 
 	// Set URI components after successful parsing
 	req.URI().SetScheme(bypassPayload.Scheme)
@@ -345,5 +385,6 @@ func PeekRequestHeaderKeyCaseInsensitive(h *fasthttp.Request, key []byte) []byte
 // isHeaderNameEqual performs case-insensitive header name comparison using bytes.EqualFold
 // This avoids the allocation from strings.ToLower()
 func isHeaderNameEqual(headerName string, target []byte) bool {
-	return bytes.EqualFold(bytesutil.ToUnsafeBytes(headerName), target)
+	//return bytes.EqualFold(bytesutil.ToUnsafeBytes(headerName), target)
+	return bytes.EqualFold([]byte(headerName), target)
 }
