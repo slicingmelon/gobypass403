@@ -34,6 +34,13 @@ type RequestWorkerPool struct {
 func NewRequestWorkerPool(opts *HTTPClientOptions, maxConcurrentReqs int) *RequestWorkerPool {
 	ctx, cancel := context.WithCancel(context.Background())
 
+	// For HAProxy bypasses (request smuggling), force sequential execution
+	if opts.BypassModule == "haproxy_bypasses" {
+		GB403Logger.Info().Msgf("HAProxy bypass detected - forcing sequential execution (concurrency=1, delay=100ms)")
+		maxConcurrentReqs = 1
+		opts.RequestDelay = 100 * time.Millisecond
+	}
+
 	wp := &RequestWorkerPool{
 		httpClient:        NewHTTPClient(opts),
 		ctx:               ctx,
