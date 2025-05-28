@@ -83,7 +83,13 @@ func BuildRawHTTPRequest(httpclient *HTTPClient, req *fasthttp.Request, bypassPa
 	bb, _ := BuildRawRequest(httpclient, bypassPayload)
 	defer requestBufferPool.Put(bb)
 
-	// Wrap the raw request into a FastHTTP request
+	// For HAProxy bypass, disable special header processing to preserve exact header order
+	if bypassPayload.BypassModule == "haproxy_bypasses" {
+		req.Header.DisableSpecialHeader()
+		GB403Logger.Debug().Msgf("== HAProxy: Disabled special header processing for exact header order ==")
+	}
+
+	// Wrap the raw request into a FastHTTP request for other modules
 	return WrapRawFastHTTPRequest(req, bb, bypassPayload)
 }
 

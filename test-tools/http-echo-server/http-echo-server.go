@@ -202,7 +202,19 @@ func handleConnection(conn net.Conn, dump string, timeout int, template string) 
 		}
 	}
 
+	// Read body if Content-Length is present
 	requestStr := request.String()
+	contentLength := extractContentLength(requestStr)
+	if contentLength > 0 {
+		bodyBytes := make([]byte, contentLength)
+		_, err := io.ReadFull(reader, bodyBytes)
+		if err != nil {
+			log.Printf("Error reading body: %v", err)
+		} else {
+			request.WriteString(string(bodyBytes))
+			requestStr = request.String()
+		}
+	}
 
 	// Print the request with proper formatting
 	if requestStr != "" {
@@ -247,14 +259,37 @@ func handleConnection(conn net.Conn, dump string, timeout int, template string) 
 	}
 }
 
+// extractContentLength parses Content-Length header from request string
+func extractContentLength(request string) int {
+	lines := strings.Split(request, "\n")
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if strings.HasPrefix(strings.ToLower(line), "content-length:") {
+			parts := strings.SplitN(line, ":", 2)
+			if len(parts) == 2 {
+				length := strings.TrimSpace(parts[1])
+				if val, err := fmt.Sscanf(length, "%d", &length); err == nil && val == 1 {
+					var contentLength int
+					fmt.Sscanf(length, "%d", &contentLength)
+					return contentLength
+				}
+			}
+		}
+	}
+	return 0
+}
+
 // Helper function to print requests
 
 func printRequest(req string, verbose bool, isTLS bool) {
 	if verbose {
-		// Replace special characters with colored versions
+		// Handle CRLF sequences specially - they should be colored together
+		req = strings.ReplaceAll(req, "\r\n", colorGreen+"\\r\\n"+colorReset+"\n")
+
+		// Handle remaining special characters
 		specialChars := map[string]string{
 			"\r": colorGreen + "\\r" + colorReset,
-			"\n": colorGreen + "\\n\n" + colorReset, // Keep the extra newline for readability
+			"\n": colorGreen + "\\n" + colorReset + "\n", // Keep the extra newline for readability
 			"\t": colorGreen + "\\t" + colorReset,
 			"\v": colorGreen + "\\v" + colorReset, // Vertical tab
 			"\f": colorGreen + "\\f" + colorReset, // Form feed
@@ -267,10 +302,11 @@ func printRequest(req string, verbose bool, isTLS bool) {
 		}
 	}
 
-	// Color the text terminal req
+	// Color the terminal output based on connection type
 	if isTLS {
 		fmt.Print(colorYellow + req + colorReset)
 	} else {
 		fmt.Print(colorWhite + req + colorReset)
 	}
+	fmt.Println() // Add extra newline for separation between requests
 }

