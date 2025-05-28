@@ -68,7 +68,7 @@ type HTTPClientOptions struct {
 	DisablePathNormalizing   bool
 	CustomHTTPHeaders        []string        // Raw header strings from CLI
 	ParsedHeaders            []ParsedHeader  // Pre-processed headers for fast access
-	HeaderOverrides          map[string]bool // Track which headers are overridden by CLI
+	HeaderOverrides          map[string]bool // Track which headers are overridden by CLI (lowercase keys)
 }
 
 // HTTPClient represents a reusable HTTP client
