@@ -100,9 +100,7 @@ func BuildRawRequest(httpclient *HTTPClient, bypassPayload payload.BypassPayload
 		bypassPayload.BypassModule == "headers_ip" ||
 		bypassPayload.BypassModule == "headers_port" ||
 		bypassPayload.BypassModule == "headers_url" ||
-		bypassPayload.BypassModule == "headers_host" ||
-		bypassPayload.BypassModule == "haproxy_bypasses" ||
-		bypassPayload.BypassModule == "dumb_check"
+		bypassPayload.BypassModule == "headers_host"
 
 	// Get ByteBuffer from pool
 	bb := requestBufferPool.Get()

