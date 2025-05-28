@@ -59,6 +59,12 @@ func (pg *PayloadGenerator) GenerateHAProxyBypassPayloads(targetURL string, bypa
 		// Calculate the content length for the smuggled request
 		calculatedContentLength := len(smuggledRequest)
 
+		GB403Logger.Debug().Msgf("== HAProxy Smuggled Request ==")
+		GB403Logger.Debug().Msgf("Target path: %s", path)
+		GB403Logger.Debug().Msgf("Public path: %s", publicPath)
+		GB403Logger.Debug().Msgf("Host: %s", host)
+		GB403Logger.Debug().Msgf("Smuggled request body (%d bytes): %q", calculatedContentLength, smuggledRequest)
+
 		// Create payload matching the working PoC structure
 		job := BypassPayload{
 			OriginalURL:  targetURL,
