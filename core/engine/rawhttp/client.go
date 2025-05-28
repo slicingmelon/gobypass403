@@ -9,6 +9,7 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -33,6 +34,12 @@ const (
 	DefaultHeadersBuffSize = 8192
 	DefaultBufferPadding   = 1024
 )
+
+// ParsedHeader represents a pre-processed custom header
+type ParsedHeader struct {
+	Name  string
+	Value string
+}
 
 // HTTPClientOptions contains configuration options for the HTTPClient
 type HTTPClientOptions struct {
@@ -59,7 +66,9 @@ type HTTPClientOptions struct {
 	MaxConsecutiveFailedReqs int           // ScannerCliOpts
 	AutoThrottle             bool          // ScannerCliOpts
 	DisablePathNormalizing   bool
-	CustomHTTPHeaders        []string // Custom HTTP headers in "Name: Value" format
+	CustomHTTPHeaders        []string        // Raw header strings from CLI
+	ParsedHeaders            []ParsedHeader  // Pre-processed headers for fast access
+	HeaderOverrides          map[string]bool // Track which headers are overridden by CLI
 }
 
 // HTTPClient represents a reusable HTTP client
@@ -113,6 +122,9 @@ func NewHTTPClient(opts *HTTPClientOptions) *HTTPClient {
 	if opts == nil {
 		opts = DefaultHTTPClientOptions()
 	}
+
+	// Preprocess custom headers for fast access in hot path
+	opts.PreprocessCustomHeaders()
 
 	// Calculate appropriate sizes based on preview size
 	previewSize := opts.ResponseBodyPreviewSize
@@ -539,3 +551,35 @@ func (c *HTTPClient) Close() {
 
 // 	return requestTime.Milliseconds(), nil
 // }
+
+// PreprocessCustomHeaders parses raw CLI header strings into optimized format
+func (opts *HTTPClientOptions) PreprocessCustomHeaders() {
+	if len(opts.CustomHTTPHeaders) == 0 {
+		return
+	}
+
+	opts.ParsedHeaders = make([]ParsedHeader, 0, len(opts.CustomHTTPHeaders))
+	opts.HeaderOverrides = make(map[string]bool, len(opts.CustomHTTPHeaders))
+
+	for _, header := range opts.CustomHTTPHeaders {
+		colonIdx := strings.Index(header, ":")
+		if colonIdx == -1 {
+			continue // Skip invalid headers
+		}
+
+		name := strings.TrimSpace(header[:colonIdx])
+		value := strings.TrimSpace(header[colonIdx+1:])
+
+		if name == "" {
+			continue // Skip empty header names
+		}
+
+		opts.ParsedHeaders = append(opts.ParsedHeaders, ParsedHeader{
+			Name:  name,
+			Value: value,
+		})
+
+		// Track header override using lowercase for case-insensitive lookup
+		opts.HeaderOverrides[strings.ToLower(name)] = true
+	}
+}
