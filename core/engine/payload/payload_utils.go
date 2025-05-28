@@ -11,7 +11,6 @@ import (
 	"embed"
 	"encoding/hex"
 	"fmt"
-	"net/textproto"
 	"os"
 	"path/filepath"
 	"strings"
@@ -497,6 +496,21 @@ func BypassPayloadToFullURL(bypassPayload BypassPayload) string {
 
 // NormalizeHeaderKey canonicalizes a header key string.
 // Example: "x-abc-test" becomes "X-Abc-Test"
+// func NormalizeHeaderKey(key string) string {
+// 	return textproto.CanonicalMIMEHeaderKey(key)
+// }
+
 func NormalizeHeaderKey(key string) string {
-	return textproto.CanonicalMIMEHeaderKey(key)
+	if key == "" {
+		return key
+	}
+
+	// Split by hyphens and capitalize each part
+	parts := strings.Split(key, "-")
+	for i, part := range parts {
+		if len(part) > 0 {
+			parts[i] = strings.ToUpper(part[:1]) + strings.ToLower(part[1:])
+		}
+	}
+	return strings.Join(parts, "-")
 }
