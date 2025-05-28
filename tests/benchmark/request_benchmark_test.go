@@ -246,19 +246,22 @@ func BenchmarkExtractTitle(b *testing.B) {
 }
 
 /*
-go test -race -bench=BenchmarkBuildRawHTTPRequest -benchmem
-
-6066975	       212.7 ns/op	      48 B/op	       1 allocs/op
-BenchmarkBuildRawHTTPRequestNew/ComplexPath
-BenchmarkBuildRawHTTPRequestNew/ComplexPath-20
-5377290	       218.8 ns/op	      48 B/op	       1 allocs/op
-BenchmarkBuildRawHTTPRequestNew/LongHeaders
-BenchmarkBuildRawHTTPRequestNew/LongHeaders-20
-5043183	       230.7 ns/op	      48 B/op	       1 allocs/op
+go test -race -bench=BenchmarkBuildRawHTTPRequestNew -benchmem
+goos: windows
+goarch: amd64
+pkg: github.com/slicingmelon/gobypass403/tests/benchmark
+cpu: 12th Gen Intel(R) Core(TM) i9-12900H
+BenchmarkBuildRawHTTPRequestNew/SimpleRequest-20                  152138              7980 ns/op            2101 B/op         14 allocs/op
+BenchmarkBuildRawHTTPRequestNew/ComplexPath-20                    140210              8680 ns/op            2184 B/op         14 allocs/op
+BenchmarkBuildRawHTTPRequestNew/LongHeaders-20                    124891              9268 ns/op            2900 B/op         18 allocs/op
+BenchmarkBuildRawHTTPRequestNew/CLIHeaderPriority-20              160471              7701 ns/op            2106 B/op         15 allocs/op
+BenchmarkBuildRawHTTPRequestNew/CustomHostHeader-20               135415              8176 ns/op            2107 B/op         15 allocs/op
+BenchmarkBuildRawHTTPRequestNew/ConnectionCloseModules-20                 129561              8808 ns/op            2336 B/op         14 allocs/op
 PASS
+ok      github.com/slicingmelon/gobypass403/tests/benchmark     13.919s
 */
 func BenchmarkBuildRawHTTPRequestNew(b *testing.B) {
-	// Create client options with custom headers
+	// Create client options with custom headers to test CLI header priority
 	clientOpts := rawhttp.DefaultHTTPClientOptions()
 	clientOpts.CustomHTTPHeaders = []string{
 		"X-Client-ID: benchmark-tester",
@@ -270,7 +273,7 @@ func BenchmarkBuildRawHTTPRequestNew(b *testing.B) {
 
 	client := rawhttp.NewHTTPClient(clientOpts)
 
-	// Test cases with different path complexities
+	// Test cases with different path complexities and header scenarios
 	tests := []struct {
 		name string
 		job  payload.BypassPayload
@@ -279,9 +282,11 @@ func BenchmarkBuildRawHTTPRequestNew(b *testing.B) {
 			name: "SimpleRequest",
 			job: payload.BypassPayload{
 				Method:       "GET",
-				RawURI:       "/test",
+				Scheme:       "http",
 				Host:         "example.com",
+				RawURI:       "/test",
 				Headers:      []payload.Headers{{Header: "User-Agent", Value: "Go-Bypass-403"}},
+				BypassModule: "test-module",
 				PayloadToken: "test-token",
 			},
 		},
@@ -289,21 +294,25 @@ func BenchmarkBuildRawHTTPRequestNew(b *testing.B) {
 			name: "ComplexPath",
 			job: payload.BypassPayload{
 				Method:       "GET",
-				RawURI:       "//;/../%2f/。。/test%20space/%252e/",
+				Scheme:       "https",
 				Host:         "example.com",
+				RawURI:       "//;/../%2f/。。/test%20space/%252e/",
 				Headers:      []payload.Headers{{Header: "User-Agent", Value: "Go-Bypass-403"}},
+				BypassModule: "path-bypass",
 				PayloadToken: "test-token",
 			},
 		},
 		{
 			name: "LongHeaders",
 			job: payload.BypassPayload{
-				Method: "POST",
-				RawURI: "/api/test",
-				Host:   "example.com",
+				Method:       "POST",
+				Scheme:       "https",
+				Host:         "example.com",
+				RawURI:       "/api/test",
+				BypassModule: "headers-test",
 				Headers: []payload.Headers{
 					{Header: "User-Agent", Value: "Go-Bypass-403"},
-					{Header: "X-Forward-For", Value: "127.0.0.1"},
+					{Header: "X-Forwarded-For", Value: "127.0.0.1"},
 					{Header: "Accept", Value: "*/*"},
 					{Header: "Accept-Encoding", Value: "gzip, deflate"},
 					{Header: "Cookie", Value: "session=abc123; token=xyz789; other=value"},
@@ -312,14 +321,16 @@ func BenchmarkBuildRawHTTPRequestNew(b *testing.B) {
 			},
 		},
 		{
-			name: "HeaderConflict",
+			name: "CLIHeaderPriority",
 			job: payload.BypassPayload{
-				Method: "GET",
-				RawURI: "/api/profile",
-				Host:   "example.com",
+				Method:       "GET",
+				Scheme:       "https",
+				Host:         "example.com",
+				RawURI:       "/api/profile",
+				BypassModule: "headers-priority",
 				Headers: []payload.Headers{
-					// This will conflict with client's X-Api-Key and test the merging logic
-					{Header: "X-Api-Key", Value: "payload-key-override"},
+					// This should be overridden by CLI header (X-Api-Key)
+					{Header: "X-Api-Key", Value: "payload-key-should-be-ignored"},
 					{Header: "User-Agent", Value: "Go-Bypass-403"},
 				},
 				PayloadToken: "test-token",
@@ -328,12 +339,28 @@ func BenchmarkBuildRawHTTPRequestNew(b *testing.B) {
 		{
 			name: "CustomHostHeader",
 			job: payload.BypassPayload{
-				Method: "GET",
-				RawURI: "/api/test",
-				Host:   "example.com",
+				Method:       "GET",
+				Scheme:       "https",
+				Host:         "example.com",
+				RawURI:       "/api/test",
+				BypassModule: "headers-host",
 				Headers: []payload.Headers{
 					{Header: "Host", Value: "evil-host.com"}, // Custom host header
 					{Header: "User-Agent", Value: "Go-Bypass-403"},
+				},
+				PayloadToken: "test-token",
+			},
+		},
+		{
+			name: "ConnectionCloseModules",
+			job: payload.BypassPayload{
+				Method:       "GET",
+				Scheme:       "https",
+				Host:         "example.com",
+				RawURI:       "/admin",
+				BypassModule: "headers_ip", // Should force connection close
+				Headers: []payload.Headers{
+					{Header: "X-Forwarded-For", Value: "127.0.0.1"},
 				},
 				PayloadToken: "test-token",
 			},
@@ -342,16 +369,21 @@ func BenchmarkBuildRawHTTPRequestNew(b *testing.B) {
 
 	for _, tt := range tests {
 		b.Run(tt.name, func(b *testing.B) {
+			b.ReportAllocs() // Ensure allocation reporting
 			b.ResetTimer()
+
 			b.RunParallel(func(pb *testing.PB) {
-				// Each goroutine gets its own request object
+				// Each goroutine gets its own request object to avoid contention
 				req := fasthttp.AcquireRequest()
 				defer fasthttp.ReleaseRequest(req)
 
 				for pb.Next() {
+					// Reset request to clean state for accurate measurement
+					req.Reset()
+
 					err := rawhttp.BuildRawHTTPRequest(client, req, tt.job)
 					if err != nil {
-						b.Fatal(err)
+						b.Fatalf("BuildRawHTTPRequest failed: %v", err)
 					}
 				}
 			})
