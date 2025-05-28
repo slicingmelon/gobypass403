@@ -150,6 +150,10 @@ func BuildRawRequest(httpclient *HTTPClient, bypassPayload payload.BypassPayload
 	}
 
 	// PRIORITY 2: Add payload headers (skip if already added by CLI)
+	// For certain modules, defer Content-Length headers to be added just before Connection
+	var deferredContentLengthHeaders []payload.Headers
+	shouldDeferContentLength := bypassPayload.BypassModule == "haproxy_bypasses"
+
 	for _, h := range bypassPayload.Headers {
 		// Use HeaderOverrides map to check if CLI already added this header
 		// Use fast case-insensitive comparison to avoid strings.ToLower() allocation
@@ -171,6 +175,13 @@ func BuildRawRequest(httpclient *HTTPClient, bypassPayload payload.BypassPayload
 		isHost := isHeaderNameEqual(h.Header, bHostLower)
 		isContentLength := isHeaderNameEqual(h.Header, bContentLengthLower)
 		isConnection := isHeaderNameEqual(h.Header, bConnectionLower)
+
+		// For modules that need special Content-Length ordering, defer real Content-Length headers
+		if shouldDeferContentLength && isContentLength && h.Header == "Content-Length" {
+			deferredContentLengthHeaders = append(deferredContentLengthHeaders, h)
+			hasContentLength = true // Mark as having Content-Length to prevent auto-generation
+			continue
+		}
 
 		// Set special header flags
 		if isHost {
@@ -218,6 +229,14 @@ func BuildRawRequest(httpclient *HTTPClient, bypassPayload payload.BypassPayload
 	if len(bypassPayload.Body) > 0 && !hasContentLength {
 		bb.B = append(bb.B, bContentLength...)
 		bb.B = append(bb.B, strconv.Itoa(len(bypassPayload.Body))...)
+		bb.B = append(bb.B, bCRLF...)
+	}
+
+	// Add deferred Content-Length headers just before Connection (for HAProxy exploit)
+	for _, h := range deferredContentLengthHeaders {
+		bb.B = append(bb.B, h.Header...)
+		bb.B = append(bb.B, bColonSpace...)
+		bb.B = append(bb.B, h.Value...)
 		bb.B = append(bb.B, bCRLF...)
 	}
 
