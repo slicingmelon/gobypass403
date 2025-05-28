@@ -93,6 +93,8 @@ func (pg *PayloadGenerator) GenerateHTTPMethodsPayloads(targetURL string, bypass
 				postJob := baseJob
 				postJob.Method = method
 				postJob.RawURI = path // No query in URL
+				// Reset headers to avoid inheriting Content-Length: 0
+				postJob.Headers = nil
 
 				// Set query as body data without the leading "?"
 				bodyData := parsedURL.Query
