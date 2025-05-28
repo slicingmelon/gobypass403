@@ -36,7 +36,7 @@ func NewRequestWorkerPool(opts *HTTPClientOptions, maxConcurrentReqs int) *Reque
 
 	// For HAProxy bypasses (request smuggling), force sequential execution
 	if opts.BypassModule == "haproxy_bypasses" {
-		GB403Logger.Info().Msgf("HAProxy bypass detected - forcing sequential execution (concurrency=1, delay=100ms)")
+		GB403Logger.Verbose().Msgf("HAProxy bypass module! Forcing sequential execution (concurrency=1, delay=100ms)\n")
 		maxConcurrentReqs = 1
 		opts.RequestDelay = 100 * time.Millisecond
 	}
