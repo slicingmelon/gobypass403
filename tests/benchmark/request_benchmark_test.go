@@ -246,19 +246,16 @@ func BenchmarkExtractTitle(b *testing.B) {
 }
 
 /*
-go test -race -bench=BenchmarkBuildRawHTTPRequestNew -benchmem
+go test -bench=BenchmarkBuildRawHTTPRequestNew -benchmem -benchtime=1000x tests/benchmark/request_benchmark_test.go
 goos: windows
 goarch: amd64
-pkg: github.com/slicingmelon/gobypass403/tests/benchmark
 cpu: 12th Gen Intel(R) Core(TM) i9-12900H
-BenchmarkBuildRawHTTPRequestNew/SimpleRequest-20                  152138              7980 ns/op            2101 B/op         14 allocs/op
-BenchmarkBuildRawHTTPRequestNew/ComplexPath-20                    140210              8680 ns/op            2184 B/op         14 allocs/op
-BenchmarkBuildRawHTTPRequestNew/LongHeaders-20                    124891              9268 ns/op            2900 B/op         18 allocs/op
-BenchmarkBuildRawHTTPRequestNew/CLIHeaderPriority-20              160471              7701 ns/op            2106 B/op         15 allocs/op
-BenchmarkBuildRawHTTPRequestNew/CustomHostHeader-20               135415              8176 ns/op            2107 B/op         15 allocs/op
-BenchmarkBuildRawHTTPRequestNew/ConnectionCloseModules-20                 129561              8808 ns/op            2336 B/op         14 allocs/op
-PASS
-ok      github.com/slicingmelon/gobypass403/tests/benchmark     13.919s
+BenchmarkBuildRawHTTPRequestNew/SimpleRequest-20                    1000               535.5 ns/op           536 B/op          3 allocs/op
+BenchmarkBuildRawHTTPRequestNew/ComplexPath-20                      1000               475.0 ns/op           599 B/op          3 allocs/op
+BenchmarkBuildRawHTTPRequestNew/LongHeaders-20                      1000               517.3 ns/op           702 B/op          3 allocs/op
+BenchmarkBuildRawHTTPRequestNew/CLIHeaderPriority-20                1000               440.4 ns/op           563 B/op          3 allocs/op
+BenchmarkBuildRawHTTPRequestNew/CustomHostHeader-20                 1000               582.3 ns/op           615 B/op          3 allocs/op
+BenchmarkBuildRawHTTPRequestNew/ConnectionCloseModules-20                   1000               353.1 ns/op           582 B/op          3 allocs/op
 */
 func BenchmarkBuildRawHTTPRequestNew(b *testing.B) {
 	// Create client options with custom headers to test CLI header priority

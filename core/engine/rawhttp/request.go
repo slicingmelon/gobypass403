@@ -157,7 +157,7 @@ func BuildRawRequest(httpclient *HTTPClient, bypassPayload payload.BypassPayload
 			// Check against each CLI header using case-insensitive comparison
 			skipHeader := false
 			for _, cliHeader := range clientOpts.ParsedHeaders {
-				if bytes.EqualFold([]byte(h.Header), []byte(cliHeader.Name)) {
+				if bytes.EqualFold(bytesutil.ToUnsafeBytes(h.Header), bytesutil.ToUnsafeBytes(cliHeader.Name)) {
 					skipHeader = true
 					break
 				}
@@ -318,5 +318,5 @@ func PeekRequestHeaderKeyCaseInsensitive(h *fasthttp.Request, key []byte) []byte
 // isHeaderNameEqual performs case-insensitive header name comparison using bytes.EqualFold
 // This avoids the allocation from strings.ToLower()
 func isHeaderNameEqual(headerName string, target []byte) bool {
-	return bytes.EqualFold([]byte(headerName), target)
+	return bytes.EqualFold(bytesutil.ToUnsafeBytes(headerName), target)
 }
