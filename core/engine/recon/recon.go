@@ -326,7 +326,7 @@ func (r *ReconService) ProbePort(ip string, port string, host string) (string, b
 	}
 	defer conn2.Close()
 
-	_, err = fmt.Fprintf(conn2, "HEAD / HTTP/1.1\r\nHost: %s\r\n\r\n", host)
+	_, err = fmt.Fprintf(conn2, "GET / HTTP/1.1\r\nHost: %s\r\nUser-Agent: Mozilla/5.0\r\nConnection: close\r\n\r\n", host)
 	if err != nil {
 		return "", false // Port is open but not HTTP/HTTPS
 	}
