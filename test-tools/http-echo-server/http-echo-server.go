@@ -202,23 +202,14 @@ func handleConnection(conn net.Conn, dump string, timeout int, template string) 
 		}
 	}
 
-	// Read body if Content-Length is present
-	requestStr := request.String()
-	contentLength := extractContentLength(requestStr)
-	if contentLength > 0 {
-		log.Printf("DEBUG: Found Content-Length: %d", contentLength)
-		bodyBytes := make([]byte, contentLength)
-		_, err := io.ReadFull(reader, bodyBytes)
-		if err != nil {
-			log.Printf("Error reading body: %v", err)
-		} else {
-			log.Printf("DEBUG: Read body: %q", string(bodyBytes))
-			request.WriteString(string(bodyBytes))
-			requestStr = request.String()
-		}
-	} else {
-		log.Printf("DEBUG: No valid Content-Length found")
+	// Try to read any remaining body data with a short timeout
+	conn.SetReadDeadline(time.Now().Add(100 * time.Millisecond))
+	remaining, _ := io.ReadAll(reader)
+	if len(remaining) > 0 {
+		request.WriteString(string(remaining))
 	}
+
+	requestStr := request.String()
 
 	// Print the request with proper formatting
 	if requestStr != "" {
@@ -258,39 +249,9 @@ func handleConnection(conn net.Conn, dump string, timeout int, template string) 
 		if err := os.WriteFile(dump, []byte(requestStr), 0644); err != nil {
 			log.Printf("Failed to dump request: %v", err)
 		} else {
-			log.Printf("\nRequest dumped to: %s\n", dump)
+			log.Printf("Request dumped to: %s", dump)
 		}
 	}
-}
-
-// extractContentLength parses Content-Length header from request string
-func extractContentLength(request string) int {
-	lines := strings.Split(request, "\n")
-	for _, line := range lines {
-		line = strings.TrimSpace(line)
-		// Look for EXACT "content-length:" header (not malformed ones with extra chars)
-		if strings.HasPrefix(strings.ToLower(line), "content-length:") {
-			log.Printf("DEBUG: Examining header line: %q", line)
-			// Make sure it's exactly "content-length:" and not "content-lengthXXX:"
-			colonIndex := strings.Index(line, ":")
-			if colonIndex > 0 {
-				headerName := strings.TrimSpace(line[:colonIndex])
-				log.Printf("DEBUG: Header name: %q", headerName)
-				if strings.ToLower(headerName) == "content-length" {
-					parts := strings.SplitN(line, ":", 2)
-					if len(parts) == 2 {
-						length := strings.TrimSpace(parts[1])
-						var contentLength int
-						if n, err := fmt.Sscanf(length, "%d", &contentLength); err == nil && n == 1 {
-							log.Printf("DEBUG: Valid Content-Length found: %d", contentLength)
-							return contentLength
-						}
-					}
-				}
-			}
-		}
-	}
-	return 0
 }
 
 // Helper function to print requests
