@@ -11,6 +11,7 @@ import (
 	"io"
 	"runtime"
 	"slices"
+	"strings"
 	"sync"
 
 	"github.com/VictoriaMetrics/VictoriaMetrics/lib/bytesutil"
@@ -180,8 +181,8 @@ func ProcessHTTPResponse(httpclient *HTTPClient, resp *fasthttp.Response, bypass
 		result.Title = ExtractTitle(result.ResponsePreview, result.Title)
 	}
 
-	// 6. Build curl command
-	result.CurlCommand = BuildCurlCommandPoc(bypassPayload, result.CurlCommand)
+	// 6. Build curl command with client options for custom headers
+	result.CurlCommand = BuildCurlCommandWithOpts(bypassPayload, httpclient.GetHTTPClientOptions(), result.CurlCommand)
 
 	return result
 }
@@ -203,6 +204,12 @@ func ReadLimitedResponseBodyStream(stream io.Reader, previewSize int, dest []byt
 // BuildCurlCommandPoc builds a curl command for the payload job
 // Appends the result to dest slice
 func BuildCurlCommandPoc(bypassPayload payload.BypassPayload, dest []byte) []byte {
+	return BuildCurlCommandWithOpts(bypassPayload, nil, dest)
+}
+
+// BuildCurlCommandWithOpts builds a curl command for the payload job with optional client options
+// Appends the result to dest slice
+func BuildCurlCommandWithOpts(bypassPayload payload.BypassPayload, clientOpts *HTTPClientOptions, dest []byte) []byte {
 	cmdBuf := curlCmdBuffPool.Get()
 	defer curlCmdBuffPool.Put(cmdBuf)
 
@@ -218,7 +225,7 @@ func BuildCurlCommandPoc(bypassPayload payload.BypassPayload, dest []byte) []byt
 		cmdBuf.Write(bytesutil.ToUnsafeBytes(bypassPayload.Method))
 	}
 
-	// Headers
+	// Headers from bypassPayload
 	for _, h := range bypassPayload.Headers {
 		cmdBuf.Write(strSpace)
 		cmdBuf.Write(curlHeaderH)
@@ -228,6 +235,26 @@ func BuildCurlCommandPoc(bypassPayload payload.BypassPayload, dest []byte) []byt
 		cmdBuf.Write(strColonSpace)
 		cmdBuf.Write(bytesutil.ToUnsafeBytes(h.Value))
 		cmdBuf.Write(strSingleQuote)
+	}
+
+	// Add custom headers from client options
+	if clientOpts != nil && len(clientOpts.CustomHTTPHeaders) > 0 {
+		for _, header := range clientOpts.CustomHTTPHeaders {
+			colonIdx := strings.Index(header, ":")
+			if colonIdx != -1 {
+				headerName := strings.TrimSpace(header[:colonIdx])
+				headerValue := strings.TrimSpace(header[colonIdx+1:])
+
+				cmdBuf.Write(strSpace)
+				cmdBuf.Write(curlHeaderH)
+				cmdBuf.Write(strSpace)
+				cmdBuf.Write(strSingleQuote)
+				cmdBuf.Write(bytesutil.ToUnsafeBytes(headerName))
+				cmdBuf.Write(strColonSpace)
+				cmdBuf.Write(bytesutil.ToUnsafeBytes(headerValue))
+				cmdBuf.Write(strSingleQuote)
+			}
+		}
 	}
 
 	// URL construction

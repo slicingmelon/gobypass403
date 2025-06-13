@@ -32,13 +32,35 @@ func NewURLRecon(opts *CliOptions) *URLRecon {
 
 // ProcessURLs handles URL collection and probing
 func (p *URLRecon) ProcessURLs() ([]string, error) {
-	// First do recon to populate the cache
-	GB403Logger.Info().Msgf("Starting URL validation")
-	if err := p.reconService.Run([]string{p.opts.URL}); err != nil {
+	// First collect all URLs we need to process
+	var urlsToProbe []string
+
+	// If single URL is provided
+	if p.opts.URL != "" {
+		urlsToProbe = append(urlsToProbe, p.opts.URL)
+	}
+
+	// If URLs file is provided
+	if p.opts.URLsFile != "" {
+		fileURLs, err := p.readURLsFromFile(p.opts.URLsFile)
+		if err != nil {
+			return nil, err
+		}
+
+		urlsToProbe = append(urlsToProbe, fileURLs...)
+	}
+
+	if len(urlsToProbe) == 0 {
+		return nil, fmt.Errorf("no URLs found to process")
+	}
+
+	// Do recon on all URLs to populate the cache
+	GB403Logger.Info().Msgf("Starting URL validation for %d URLs", len(urlsToProbe))
+	if err := p.reconService.Run(urlsToProbe); err != nil {
 		return nil, fmt.Errorf("error during URL probing: %v", err)
 	}
 
-	// Then collect URLs using the populated cache
+	// Then collect processed URLs using the populated cache
 	urls, err := p.collectURLs()
 	if err != nil {
 		return nil, err

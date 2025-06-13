@@ -1,5 +1,5 @@
 /*
-GOBypass403
+GoByPASS403
 Author: slicingmelon <github.com/slicingmelon>
 X: x.com/pedro_infosec
 */
@@ -28,6 +28,7 @@ var BypassModulesRegistry = []string{
 	"case_substitution",
 	"char_encode",
 	"nginx_bypasses",
+	"haproxy_bypasses",
 	"headers_scheme",
 	"headers_ip",
 	"headers_port",
@@ -131,6 +132,8 @@ func (pg *PayloadGenerator) Generate() []BypassPayload {
 		return pg.GenerateHeadersHostPayloads(pg.targetURL, pg.bypassModule)
 	case "unicode_path_normalization":
 		return pg.GenerateUnicodePathNormalizationsPayloads(pg.targetURL, pg.bypassModule)
+	case "haproxy_bypasses":
+		return pg.GenerateHAProxyBypassPayloads(pg.targetURL, pg.bypassModule)
 	default:
 		//GB403Logger.Warning().Msgf("Unknown bypass module: %s\n", pg.bypassModule)
 		return []BypassPayload{}

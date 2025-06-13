@@ -1,5 +1,5 @@
 /*
-GOBypass403
+GoByPASS403
 Author: slicingmelon <github.com/slicingmelon>
 X: x.com/pedro_infosec
 */
@@ -196,7 +196,7 @@ func (r *ReconService) ProcessHost(input string) (*ReconResult, error) {
 			wg.Add(1)
 			go func(ip string, port string, services map[string]map[string][]string) {
 				defer wg.Done()
-				protocol, ok := r.ProbePort(ip, port)
+				protocol, ok := r.ProbePort(ip, port, host)
 				if !ok {
 					return
 				}
@@ -284,7 +284,7 @@ func (r *ReconService) Run(urls []string) error {
 }
 
 // ProbePort probes a port on an IP address and returns the protocol (http or https)
-func (r *ReconService) ProbePort(ip string, port string) (string, bool) {
+func (r *ReconService) ProbePort(ip string, port string, host string) (string, bool) {
 	addr := net.JoinHostPort(ip, port)
 
 	// For IP probing, we create a specialized dialer without DNS resolution
@@ -303,6 +303,7 @@ func (r *ReconService) ProbePort(ip string, port string) (string, bool) {
 		tlsConfig := &tls.Config{
 			InsecureSkipVerify: true,
 			MinVersion:         tls.VersionTLS10,
+			ServerName:         host,
 		}
 
 		tlsConn := tls.Client(conn, tlsConfig)
@@ -310,7 +311,11 @@ func (r *ReconService) ProbePort(ip string, port string) (string, bool) {
 			if err := tlsConn.Handshake(); err == nil {
 				tlsConn.Close()
 				return "https", true
+			} else {
+				GB403Logger.Verbose().Msgf("TLS handshake error for %s: %v", addr, err)
 			}
+		} else {
+			GB403Logger.Verbose().Msgf("TLS deadline error for %s: %v", addr, err)
 		}
 	}
 
@@ -321,7 +326,7 @@ func (r *ReconService) ProbePort(ip string, port string) (string, bool) {
 	}
 	defer conn2.Close()
 
-	_, err = fmt.Fprintf(conn2, "HEAD / HTTP/1.1\r\nHost: %s\r\n\r\n", addr)
+	_, err = fmt.Fprintf(conn2, "GET / HTTP/1.1\r\nHost: %s\r\nUser-Agent: Mozilla/5.0\r\nConnection: close\r\n\r\n", host)
 	if err != nil {
 		return "", false // Port is open but not HTTP/HTTPS
 	}

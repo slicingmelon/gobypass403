@@ -48,6 +48,9 @@ type CliOptions struct {
 	AutoThrottle             bool
 	ResponseBodyPreviewSize  int // in bytes, we don't need too much, Response Headers and a small body preview is enough
 
+	// Custom HTTP Headers
+	CustomHTTPHeaders []string // Stores custom headers in "Name: Value" format
+
 	// Output options
 	OutDir        string
 	ResultsDBFile string
@@ -89,6 +92,7 @@ var AvailableModules = map[string]bool{
 	"case_substitution":          true,
 	"char_encode":                true,
 	"nginx_bypasses":             true,
+	"haproxy_bypasses":           true,
 	"headers_scheme":             true,
 	"headers_ip":                 true,
 	"headers_port":               true,
@@ -209,6 +213,11 @@ func (o *CliOptions) validate() error {
 
 	// Validate input parameters
 	if err := o.validateInputURLs(); err != nil && o.ResendRequest == "" {
+		return err
+	}
+
+	// Validate custom HTTP headers
+	if err := o.validateCustomHeaders(); err != nil {
 		return err
 	}
 
@@ -428,5 +437,26 @@ func (o *CliOptions) processProxy() error {
 	}
 
 	o.ParsedProxy = parsedProxy
+	return nil
+}
+
+// validateCustomHeaders checks and pre-processes custom headers
+func (o *CliOptions) validateCustomHeaders() error {
+	if len(o.CustomHTTPHeaders) == 0 {
+		return nil
+	}
+
+	for i, header := range o.CustomHTTPHeaders {
+		colonIdx := strings.Index(header, ":")
+		if colonIdx == -1 {
+			return fmt.Errorf("invalid header format for header #%d '%s': must be in 'Header: Value' format", i+1, header)
+		}
+
+		headerName := strings.TrimSpace(header[:colonIdx])
+		if headerName == "" {
+			return fmt.Errorf("empty header name for header #%d", i+1)
+		}
+	}
+
 	return nil
 }

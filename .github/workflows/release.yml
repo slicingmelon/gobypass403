@@ -6,16 +6,49 @@ on:
       - 'v*'
 
 jobs:
-  build:
-    name: Build Binaries
-    runs-on: ${{ matrix.os }}
+  build-linux:
+    name: Build Linux Binary
+    runs-on: ubuntu-latest
+    container:
+      image: debian:buster
+    steps:
+      - name: Install dependencies
+        run: |
+          apt update
+          apt install -y build-essential git curl pkg-config sqlite3 libsqlite3-dev
 
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: 1.23.6
+
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Build (CGO enabled)
+        env:
+          CGO_ENABLED: 1
+          GOOS: linux
+          GOARCH: amd64
+        run: |
+          git config --global --add safe.directory /__w/gobypass403/gobypass403
+          mkdir -p dist
+          go build -v -o dist/gobypass403-linux-amd64 ./cmd/gobypass403
+
+      - name: Upload Linux Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: dist/gobypass403-linux-amd64
+          draft: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  build-other:
+    name: Build macOS & Windows
+    runs-on: ${{ matrix.os }}
     strategy:
       matrix:
         include:
-          - os: ubuntu-latest
-            goos: linux
-            goarch: amd64
           - os: macos-latest
             goos: darwin
             goarch: amd64
@@ -32,11 +65,7 @@ jobs:
         with:
           go-version: 1.23.6
 
-      - name: Install dependencies (Linux only)
-        if: matrix.os == 'ubuntu-latest'
-        run: sudo apt-get update && sudo apt-get install -y gcc-multilib
-
-      - name: Build binary
+      - name: Build (CGO enabled)
         shell: bash
         env:
           CGO_ENABLED: 1
@@ -48,10 +77,10 @@ jobs:
           if [ "${{ matrix.goos }}" = "windows" ]; then EXT=".exe"; fi
           go build -v -o dist/gobypass403-${{ matrix.goos }}-${{ matrix.goarch }}$EXT ./cmd/gobypass403
 
-      - name: Upload Release Asset
+      - name: Upload Release Assets
         uses: softprops/action-gh-release@v1
         with:
           files: dist/*
-          #draft: true
+          draft: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

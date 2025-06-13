@@ -3,7 +3,9 @@ package tests
 import (
 	"encoding/hex"
 	"fmt"
+	"net" // Required for net.Listener
 	"strings"
+	"sync" // Required for sync.WaitGroup
 	"testing"
 	"time"
 
@@ -12,94 +14,121 @@ import (
 )
 
 func TestEndPathsPayloads(t *testing.T) {
-	targetURL := "http://localhost/admin/login" // Using localhost, port will be replaced
+	startTime := time.Now()
+	t.Logf("TestEndPathsPayloads started at: %s", startTime.Format(time.RFC3339Nano))
+
+	baseTargetURL := "http://localhost/admin/login" // Base URL, port will be replaced
 	moduleName := "end_paths"
 
-	// 1. Generate Payloads (Does not require server address yet)
-	// We need a placeholder address initially if the payload generation *needs* it,
-	// but end_paths likely only uses the path part. If it needed the host/port,
-	// we would need to start the server first just to get the address.
-	// Assuming end_paths doesn't strictly need the real server address during generation:
+	// 1. Start a listener to get a free port
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("Failed to start listener: %v", err)
+	}
+	serverAddr := listener.Addr().String() // host:port
+	// The listener will be closed by stopServer via startRawTestServerWithListener
+
+	// Update the target URL with the actual server address
+	targetURL := strings.Replace(baseTargetURL, "localhost", serverAddr, 1)
+	t.Logf("Updated target URL to: %s (took %s)", targetURL, time.Since(startTime))
+
+	// 2. Generate Payloads with the ACTUAL server address
+	pgStartTime := time.Now()
 	pg := payload.NewPayloadGenerator(payload.PayloadGeneratorOptions{
-		TargetURL:    targetURL, // Use placeholder initially
+		TargetURL:    targetURL, // Use the actual targetURL with the correct port
 		BypassModule: moduleName,
-		// ReconCache not needed for this module
 	})
 	generatedPayloads := pg.GenerateEndPathsPayloads(targetURL, moduleName)
 	if len(generatedPayloads) == 0 {
-		t.Fatal("No payloads were generated")
+		// For this test, we expect payloads. If it can be 0, adjust the check.
+		t.Fatal("No payloads were generated for end_paths")
 	}
-	numPayloads := len(generatedPayloads) // Get the exact count
-	t.Logf("Generated %d payloads for %s.", numPayloads, moduleName)
+	numPayloads := len(generatedPayloads)
+	t.Logf("Generated %d payloads for %s. (took %s)", numPayloads, moduleName, time.Since(pgStartTime))
 
-	// 2. Create the correctly sized channel for server results
-	receivedURIsChan := make(chan string, numPayloads)
+	// 3. Dynamically size the channel based on the number of payloads
+	receivedDataChan := make(chan RequestData, numPayloads)
 
-	// 3. Start the server, passing the *correct* channel
-	serverAddr, stopServer := startRawTestServer(t, receivedURIsChan)
-	// Defer server stop *after* client processing is done
-	defer stopServer() // This now correctly waits for server handlers
+	// 4. Start the test server using the listener and correctly sized channel
+	serverStartTime := time.Now()
+	stopServer := startRawTestServerWithListener(t, listener, receivedDataChan)
+	defer stopServer() // Ensure server is stopped eventually
+	t.Logf("Test server started. (took %s)", time.Since(serverStartTime))
 
-	// 4. Update payload destinations to use the actual server address
-	// We need to update the generated payloads *before* sending them.
-	// Alternatively, modify PayloadGenerator to take the address later,
-	// or modify RequestWorkerPool to use a different target address than the one
-	// potentially stored in the payload's OriginalURL/Host/Scheme.
-	// For simplicity here, let's update the generated payloads:
+	// 5. Goroutine to collect received requests concurrently
+	var collectedRequests []RequestData
+	var collectWg sync.WaitGroup
+	collectWg.Add(1)
+	go func() {
+		defer collectWg.Done()
+		for reqData := range receivedDataChan {
+			collectedRequests = append(collectedRequests, reqData)
+		}
+	}()
+
+	// 6. Update payload destinations to use the actual server address and scheme.
+	// GenerateEndPathsPayloads should ideally set these based on the targetURL.
+	// If not, this step is crucial. Assuming BypassPayload needs Scheme and Host for client.
 	for i := range generatedPayloads {
-		// Assuming Scheme and Host in the payload determine the *destination*
-		// for the RequestWorkerPool's client.
-		// We keep the OriginalURL as the placeholder if needed for other logic.
-		// The RawURI remains the same.
-		generatedPayloads[i].Scheme = "http" // Match the listener
-		generatedPayloads[i].Host = serverAddr
+		generatedPayloads[i].Scheme = "http"   // Test server is HTTP
+		generatedPayloads[i].Host = serverAddr // Actual host:port
 	}
+	t.Logf("Updated payload destinations to %s", serverAddr)
 
-	// Prepare expected URIs map (can be done anytime after generation)
+	// 7. Prepare expected URIs map (can be done anytime after generation)
 	expectedURIsHex := make(map[string]struct{})
 	for _, p := range generatedPayloads {
-		hexURI := hex.EncodeToString([]byte(p.RawURI))
+		hexURI := hex.EncodeToString([]byte(p.RawURI)) // RawURI is what we test for path modifications
 		expectedURIsHex[hexURI] = struct{}{}
 	}
 
-	// 5. Send Requests using RequestWorkerPool
+	// 8. Send Requests using RequestWorkerPool
+	clientSendStartTime := time.Now()
 	clientOpts := rawhttp.DefaultHTTPClientOptions()
-	clientOpts.Timeout = 3 * time.Second                   // Slightly longer timeout for local tests
-	clientOpts.MaxRetries = 0                              // No retries for simpler testing
-	clientOpts.MaxConsecutiveFailedReqs = numPayloads + 10 // Allow some failures
+	clientOpts.Timeout = 3 * time.Second // Timeout for each request
+	clientOpts.MaxRetries = 0
+	clientOpts.MaxConsecutiveFailedReqs = numPayloads + 10
 
-	// Use a reasonable number of workers for local testing
-	wp := rawhttp.NewRequestWorkerPool(clientOpts, 10)
-	resultsChan := wp.ProcessRequests(generatedPayloads) // Send the updated payloads
+	wp := rawhttp.NewRequestWorkerPool(clientOpts, 30) // Number of client workers
+	defer wp.Close()                                   // Ensure worker pool is closed
 
-	// 6. Drain the client results channel (wait for worker pool to finish sending)
+	resultsChan := wp.ProcessRequests(generatedPayloads)
+
+	// 9. Drain the client results channel
 	responseCount := 0
 	for range resultsChan {
 		responseCount++
 	}
-	wp.Close() // Close the worker pool itself
-	t.Logf("Client processed %d responses.", responseCount)
+	t.Logf("Client processed %d responses out of %d payloads. (took %s to send and drain)", responseCount, numPayloads, time.Since(clientSendStartTime))
 
-	// 7. Stop the Server and Wait for Handlers
-	// stopServer() is deferred, but calling it explicitly signals we are done sending
-	// and want the server-side processing to finish. The defer ensures cleanup.
-	// The deferred stopServer() call WILL wait for the WaitGroup.
+	// 10. Explicitly stop the server and wait for its goroutines
+	serverStopStartTime := time.Now()
+	t.Log("Stopping test server...")
+	stopServer() // Call explicitly to wait for server handlers
+	t.Logf("Test server stopped. (took %s)", time.Since(serverStopStartTime))
 
-	// 8. Close the Server's Results Channel (NOW it's safe)
-	close(receivedURIsChan)
+	// 11. Close receivedDataChan (safe now)
+	close(receivedDataChan)
 
-	// 9. Verify Received URIs
+	// 12. Wait for the collector goroutine
+	collectorWaitStartTime := time.Now()
+	t.Log("Waiting for request collector to finish...")
+	collectWg.Wait()
+	t.Logf("Request collector finished. (took %s)", time.Since(collectorWaitStartTime))
+
+	// 13. Verify Received URIs
+	verificationStartTime := time.Now()
 	receivedURIsHex := make(map[string]struct{})
-	for uri := range receivedURIsChan { // Drain the channel completely
-		hexURI := hex.EncodeToString([]byte(uri))
+	for _, reqData := range collectedRequests {
+		hexURI := hex.EncodeToString([]byte(reqData.URI)) // URI from RequestData is what the server saw
 		receivedURIsHex[hexURI] = struct{}{}
 	}
+	t.Logf("Server received %d total requests, %d unique URIs", len(collectedRequests), len(receivedURIsHex))
 
-	// Comparison (exact match required)
+	// Comparison
 	if len(expectedURIsHex) != len(receivedURIsHex) {
 		t.Errorf("Mismatch in count: Expected %d unique URIs, Server received %d unique URIs", len(expectedURIsHex), len(receivedURIsHex))
-
-		// Find missing/extra
+		// (Error logging for missing/extra URIs as before)
 		missing := []string{}
 		for hexExp := range expectedURIsHex {
 			if _, found := receivedURIsHex[hexExp]; !found {
@@ -115,16 +144,12 @@ func TestEndPathsPayloads(t *testing.T) {
 			}
 		}
 		if len(missing) > 0 {
-			// Use t.Fatalf if *any* missing URI is critical and should stop the test
-			t.Fatalf("URIs expected but not received by server:\n%s", strings.Join(missing, "\n"))
+			t.Errorf("URIs expected but not received by server:\n%s", strings.Join(missing, "\n"))
 		}
 		if len(extra) > 0 {
-			// This usually indicates a problem in the test server logic or unexpected client behavior
 			t.Errorf("URIs received by server but not expected:\n%s", strings.Join(extra, "\n"))
 		}
-
 	} else {
-		// If counts match, verify all expected URIs were received
 		match := true
 		for hexExp := range expectedURIsHex {
 			if _, found := receivedURIsHex[hexExp]; !found {
@@ -137,4 +162,6 @@ func TestEndPathsPayloads(t *testing.T) {
 			t.Logf("Successfully verified %d unique received URIs against expected URIs.", len(receivedURIsHex))
 		}
 	}
+	t.Logf("Verification finished. (took %s)", time.Since(verificationStartTime))
+	t.Logf("TestEndPathsPayloads finished. Total time: %s", time.Since(startTime))
 }

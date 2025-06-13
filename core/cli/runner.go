@@ -87,6 +87,7 @@ func (r *Runner) Initialize() error {
 
 		SpoofHeader:               r.RunnerOptions.SpoofHeader,
 		SpoofIP:                   r.RunnerOptions.SpoofIP,
+		CustomHTTPHeaders:         r.RunnerOptions.CustomHTTPHeaders,
 		FollowRedirects:           r.RunnerOptions.FollowRedirects,
 		MatchStatusCodes:          r.RunnerOptions.MatchStatusCodes,
 		MatchContentTypeBytes:     r.RunnerOptions.MatchContentTypeBytes,
@@ -154,6 +155,7 @@ func (r *Runner) handleResendRequest() error {
 		ResultsDBFile:             r.RunnerOptions.ResultsDBFile,
 		RequestDelay:              r.RunnerOptions.RequestDelay,
 		MatchStatusCodes:          r.RunnerOptions.MatchStatusCodes,
+		CustomHTTPHeaders:         r.RunnerOptions.CustomHTTPHeaders,
 		EnableHTTP2:               r.RunnerOptions.EnableHTTP2,
 		DisableStreamResponseBody: r.RunnerOptions.DisableStreamResponseBody,
 		DisableProgressBar:        r.RunnerOptions.DisableProgressBar,

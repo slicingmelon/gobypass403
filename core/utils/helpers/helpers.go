@@ -18,28 +18,6 @@ import (
 	GB403Logger "github.com/slicingmelon/gobypass403/core/utils/logger"
 )
 
-type Header struct {
-	Header string
-	Value  string
-}
-
-// Helper function to convert a slice of Header structs to a map
-func headersToMap(headers []Header) map[string]string {
-	m := make(map[string]string)
-	for _, h := range headers {
-		m[h.Header] = h.Value
-	}
-	return m
-}
-
-// Helper function to format headers for logging
-func formatHeaders(headers []Header) string {
-	if len(headers) == 0 {
-		return ""
-	}
-	return fmt.Sprintf(" [Headers: %v]", headers)
-}
-
 // ----------------------------------------------------------------//
 // URL Validation Stuff//
 // Custom URL Validation, HTTPX probes and more //
@@ -149,4 +127,26 @@ func String2Byte(s string) []byte {
 // are treated as immutable. This would cause a segmentation violation panic.
 func Byte2String(b []byte) string {
 	return unsafe.String(unsafe.SliceData(b), len(b))
+}
+
+// SanitizeNonPrintableBytes sanitizes non-printable bytes in a byte slice
+// and returns a string with the sanitized bytes for better terminal output
+func SanitizeNonPrintableBytes(input []byte) string {
+	var sb strings.Builder
+	sb.Grow(len(input))
+
+	for _, b := range input {
+		// Keep printable ASCII (32-126), LF (10), CR (13)
+		if (b >= 32 && b <= 126) || b == 10 || b == 13 {
+			sb.WriteByte(b)
+			// Explicitly handle Tab separately and
+			// replace with its escape sequence -- to test
+		} else if b == 9 {
+			sb.WriteString("\\x09")
+		} else {
+			// Replace others with Go-style hex escape
+			sb.WriteString(fmt.Sprintf("\\x%02x", b))
+		}
+	}
+	return sb.String()
 }

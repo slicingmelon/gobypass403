@@ -25,21 +25,28 @@ type RequestWorkerPool struct {
 	cancel     context.CancelFunc
 	pool       pond.Pool
 	// Request rate tracking
-	requestStartTime atomic.Int64  // For elapsed time calculation
-	peakRequestRate  atomic.Uint64 // For tracking peak rate
-	maxWorkers       int
+	requestStartTime  atomic.Int64  // For elapsed time calculation
+	peakRequestRate   atomic.Uint64 // For tracking peak rate
+	maxConcurrentReqs int
 }
 
-// NewWorkerPool initializes a new RequestWorkerPool instance
-func NewRequestWorkerPool(opts *HTTPClientOptions, maxWorkers int) *RequestWorkerPool {
+// Initializes a new RequestWorkerPool instance
+func NewRequestWorkerPool(opts *HTTPClientOptions, maxConcurrentReqs int) *RequestWorkerPool {
 	ctx, cancel := context.WithCancel(context.Background())
 
+	// For HAProxy bypasses (request smuggling), force sequential execution
+	if opts.BypassModule == "haproxy_bypasses" {
+		GB403Logger.Verbose().Msgf("HAProxy bypass module! Forcing sequential execution (concurrency=1, delay=100ms)\n")
+		maxConcurrentReqs = 1
+		opts.RequestDelay = 100 * time.Millisecond
+	}
+
 	wp := &RequestWorkerPool{
-		httpClient: NewHTTPClient(opts),
-		ctx:        ctx,
-		cancel:     cancel,
-		pool:       pond.NewPool(maxWorkers),
-		maxWorkers: maxWorkers,
+		httpClient:        NewHTTPClient(opts),
+		ctx:               ctx,
+		cancel:            cancel,
+		pool:              pond.NewPool(maxConcurrentReqs),
+		maxConcurrentReqs: maxConcurrentReqs,
 	}
 
 	// Initialize start time
@@ -86,6 +93,10 @@ func (wp *RequestWorkerPool) GetRequestRate() uint64 {
 
 	// Calculate rate based on submitted tasks and elapsed time
 	rate := uint64(float64(submittedTasks) / elapsedSeconds)
+
+	// Cap the rate to the total number of submitted tasks
+	// messy stats .. can't process more requests per second than the total tasks you have
+	rate = min(rate, submittedTasks)
 
 	// Update peak rate if current rate is higher
 	currentPeak := wp.peakRequestRate.Load()

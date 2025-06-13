@@ -8,19 +8,26 @@ import (
 )
 
 /*
-GenerateMidPathsPayloads generates payloads by inserting mid-path segments from
-internal_midpaths.lst around existing slashes in the base path.
+GenerateMidPathsPayloads generates payloads by inserting segments from
+internal_midpaths.lst at various positions in URLs.
 
-For each slash, it creates variants by inserting the payload:
-- Immediately after the slash (`/payload`).
-- Immediately before the slash (`payload/`), only for slashes after the first one.
+For a URL like /a/b, it creates these variants:
+1. Before path:
+  - PAYLOAD/a/b
+  - /PAYLOAD/a/b
 
-It also potentially adds variants prefixed with an additional leading slash.
+2. At each segment:
+  - /PAYLOADa/b (fused with first segment start)
+  - /aPAYLOAD/b (fused with first segment end)
+  - /a/PAYLOADb (fused with second segment start)
+  - /a/bPAYLOAD (fused with second segment end)
 
-If any generated path segment (before appending the original query) contains
-literal '?' or '#' characters, additional payloads are generated where these
-special characters are percent-encoded (%3F and %23) to ensure the original
-query string can be appended unambiguously.
+3. After each slash:
+  - /a/PAYLOAD/b (inserted after a slash)
+
+Each variant is generated both as-is and with path normalization variants.
+If a path segment contains ? or # characters, additional variants with
+those characters percent-encoded are generated.
 */
 func (pg *PayloadGenerator) GenerateMidPathsPayloads(targetURL string, bypassModule string) []BypassPayload {
 	var jobs []BypassPayload
@@ -30,164 +37,129 @@ func (pg *PayloadGenerator) GenerateMidPathsPayloads(targetURL string, bypassMod
 		return jobs
 	}
 
-	payloads, err := ReadPayloadsFromFile("internal_midpaths.lst") // Assumes this reads from the correct location
+	payloads, err := ReadPayloadsFromFile("internal_midpaths.lst")
 	if err != nil {
 		GB403Logger.Error().Msgf("Failed to read midpaths payloads: %v", err)
 		return jobs
 	}
 
-	basePath := parsedURL.Path // Path might contain raw '?' or '#'
-	if basePath == "" {
-		basePath = "/"
+	// Get the path, ensuring it starts with a slash for processing
+	path := parsedURL.Path
+	if path == "" {
+		path = "/"
 	}
 
+	// Handle query string
 	query := ""
-	// Use Query as requested
 	if parsedURL.Query != "" {
 		query = "?" + parsedURL.Query
 	}
 
-	slashCount := strings.Count(basePath, "/")
-	// Treat paths without slashes (like "admin") as having one effective position for insertion relative to root.
-	// However, ReplaceNth requires the separator '/' to exist.
-	// If path is "admin", slashCount is 0. If path is "/admin", slashCount is 1. If path is "/", slashCount is 1.
-	// The original loop `idxSlash < slashCount` means it won't run if path is "admin".
-	// Slight adjust?: if path doesn't start with '/', consider insertions relative to a virtual root.
-	effectivePathForReplace := basePath
-	if !strings.HasPrefix(basePath, "/") && basePath != "" {
-		effectivePathForReplace = "/" + basePath                 // Temporarily add slash for ReplaceNth
-		slashCount = strings.Count(effectivePathForReplace, "/") // Recalculate slash count
-	} else if basePath == "/" {
-		slashCount = 1 // Ensure loop runs once for root path "/"
-	}
-
-	// map[rawURI]struct{} - using map for automatic deduplication
+	// Map to store unique paths (for deduplication)
 	uniquePaths := make(map[string]struct{})
 
-	// Helper to add path and its special-char-encoded variant if necessary
-	addPathVariants := func(pathCandidate string) {
-		// Check if the path part contains special chars before query is appended
-		pathContainsSpecial := strings.ContainsAny(pathCandidate, "?#")
+	// Helper function to add paths with proper handling of special characters
+	addPathWithVariants := func(path string) {
+		// Add path as-is
+		uniquePaths[path+query] = struct{}{}
 
-		// Add the standard variant (path + query)
-		uniquePaths[pathCandidate+query] = struct{}{}
-
-		// If special chars exist in the path, add the encoded variant
-		if pathContainsSpecial {
-			encodedPath := encodeQueryAndFragmentChars(pathCandidate)
-			uniquePaths[encodedPath+query] = struct{}{} // Add special char encoded variant
+		// Add path with encoded special characters if needed
+		if strings.ContainsAny(path, "?#") {
+			encodedPath := encodeQueryAndFragmentChars(path)
+			uniquePaths[encodedPath+query] = struct{}{}
 		}
 	}
 
-	// Iterate through each potential insertion point (slash position)
-	// Note: ReplaceNth is 1-based for the 'n' parameter.
-	for idxSlash := 1; idxSlash <= slashCount; idxSlash++ {
-		for _, payload := range payloads {
-			// --- Post-slash insertion: Replace Nth "/" with "/payload/" ---
-			// We actually want to insert *after* the Nth slash, e.g., /admin/login -> /admin/payload/login
-			// The original ReplaceNth(path, "/", "/"+payload, idxSlash+1) was replacing the (idxSlash+1)th occurrence,
-			// which seems off. Let's rethink: Split path by '/', insert payload, rejoin.
+	// Split path into segments for insertion
+	hasLeadingSlash := strings.HasPrefix(path, "/")
+	pathWithoutLeadingSlash := strings.TrimPrefix(path, "/")
+	segments := strings.Split(pathWithoutLeadingSlash, "/")
 
-			// Let's stick to ReplaceNth for now, assuming original intent was correct, but use the effective path.
-			// Replace the idxSlash'th occurrence of "/" with "/" + payload + "/"
-			// Example: /a/b/c, idxSlash=2 (second '/'). Replace "/b" with "/payload/b"? No.
-			// ReplaceNth(path, "/", "/"+payload, idxSlash) -> replaces the idxSlash-th "/" with "/"+payload
-			// e.g. /a/b/c, idxSlash=1 -> /payload/a/b/c - Incorrect
-			// e.g. /a/b/c, idxSlash=2 -> /a/payload/b/c - Seems like the goal "insert after Nth slash"
+	// 1. Variants before the entire path
+	for _, payload := range payloads {
+		// Before path without leading slash: PAYLOAD/a/b
+		addPathWithVariants(payload + path)
 
-			// Let's try replacing "/" with "/"+payload+"/" ? No, that adds slashes.
-			// Replacing "/" with "/"+payload seems correct for *post*-slash insertion if we target the right index.
-			// If we target the Nth slash (idxSlash), replacing it with "/"+payload gives insertion *before* the content following the Nth slash.
+		// Before path with leading slash: /PAYLOAD/a/b
+		addPathWithVariants("/" + payload + path)
 
-			// Post-slash: Replace the Nth "/" with "/" + payload
-			pathPost := ReplaceNth(effectivePathForReplace, "/", "/"+payload, idxSlash)
-			if pathPost != effectivePathForReplace { // Only add if replacement happened
-				// Remove temporary leading slash if added earlier
-				finalPathPost := pathPost
-				if !strings.HasPrefix(basePath, "/") && strings.HasPrefix(pathPost, "/") {
-					finalPathPost = strings.TrimPrefix(pathPost, "/")
-				} else if basePath == "/" && finalPathPost == "/"+payload {
-					// Handle root case: "/" -> ReplaceNth("/", "/", "/"+payload, 1) -> "/"+payload
-					// Keep the leading slash here.
-				} else if strings.HasPrefix(basePath, "//") && strings.HasPrefix(finalPathPost, "/") && !strings.HasPrefix(finalPathPost, "//") {
-					// Preserve double slash if original had it. ReplaceNth might remove it.
-					finalPathPost = "/" + finalPathPost
-				}
+		// Special case - preserve double slashes if payload ends with slash: /PAYLOAD//a/b
+		if strings.HasSuffix(payload, "/") && hasLeadingSlash {
+			addPathWithVariants("/" + payload + path) // This keeps the double slash
+		}
+	}
 
-				addPathVariants(finalPathPost)
-				// Original code also added "/" + pathPost. Let's replicate that effect,
-				// applying the same logic for trimming/adding slashes.
-				// This seems intended to ensure a leading slash exists.
-				prefixedPathPost := "/" + finalPathPost
-				// Avoid triple slashes, etc.
-				prefixedPathPost = strings.ReplaceAll(prefixedPathPost, "//", "/") // Basic normalization
-				if strings.HasPrefix(prefixedPathPost, "/") {
-					addPathVariants(prefixedPathPost)
-				}
-
+	// Skip segment manipulations if path is just "/"
+	if path != "/" {
+		// 2. Process each segment
+		for i, segment := range segments {
+			if segment == "" {
+				continue // Skip empty segments
 			}
 
-			// --- Pre-slash insertion: Replace the Nth "/" with payload + "/" ---
-			// Original code did this only if idxSlash > 1. Let's keep that.
-			if idxSlash > 0 { // Condition simplified based on 1-based indexing
-				pathPre := ReplaceNth(effectivePathForReplace, "/", payload+"/", idxSlash)
-				if pathPre != effectivePathForReplace { // Only add if replacement happened
-					// Remove temporary leading slash if added earlier
-					finalPathPre := pathPre
-					if !strings.HasPrefix(basePath, "/") && strings.HasPrefix(pathPre, "/") {
-						finalPathPre = strings.TrimPrefix(pathPre, "/")
-					} else if basePath == "/" && finalPathPre == payload+"/" {
-						// Handle root case: "/" -> ReplaceNth("/", "/", payload+"/", 1) -> payload+"/"
-						// This case probably shouldn't have leading slash? Or should be /payload/ ?
-						// Let's assume /payload/ is intended for root pre-pend
-						finalPathPre = "/" + payload + "/"
-					} else if strings.HasPrefix(basePath, "//") && strings.HasPrefix(finalPathPre, "/") && !strings.HasPrefix(finalPathPre, "//") {
-						finalPathPre = "/" + finalPathPre
+			for _, payload := range payloads {
+				// Create path prefix up to current segment
+				prefix := ""
+				if hasLeadingSlash {
+					prefix = "/"
+				}
+				for j := 0; j < i; j++ {
+					if segments[j] != "" {
+						prefix += segments[j] + "/"
 					}
+				}
 
-					addPathVariants(finalPathPre)
-					// Add prefixed variant as well
-					prefixedPathPre := "/" + finalPathPre
-					prefixedPathPre = strings.ReplaceAll(prefixedPathPre, "//", "/") // Basic normalization
-					if strings.HasPrefix(prefixedPathPre, "/") {
-						addPathVariants(prefixedPathPre)
+				// Create path suffix after current segment
+				suffix := ""
+				for j := i + 1; j < len(segments); j++ {
+					if segments[j] != "" {
+						suffix += "/" + segments[j]
 					}
+				}
+
+				// Variants at segment:
+
+				// Payload fused with segment start: /PAYLOADsegment/
+				segStartFused := prefix + payload + segment + suffix
+				addPathWithVariants(segStartFused)
+				addPathWithVariants("/" + strings.TrimPrefix(segStartFused, "/"))
+
+				// Payload fused with segment end: /segmentPAYLOAD/
+				segEndFused := prefix + segment + payload + suffix
+				addPathWithVariants(segEndFused)
+				addPathWithVariants("/" + strings.TrimPrefix(segEndFused, "/"))
+
+				// Payload after slash before segment: /segment/PAYLOAD/next
+				if i < len(segments)-1 || suffix == "" {
+					afterSlash := prefix + segment + "/" + payload + suffix
+					addPathWithVariants(afterSlash)
+					addPathWithVariants("/" + strings.TrimPrefix(afterSlash, "/"))
 				}
 			}
 		}
 	}
 
-	// Convert unique paths map to BypassPayload jobs
+	// Convert unique paths to BypassPayload jobs
 	for rawURI := range uniquePaths {
-		// Ensure rawURI is not just the query string if path was empty
+		// Skip if it's just the query
 		if rawURI == query && query != "" {
 			continue
 		}
-		// Ensure rawURI starts with / if the original basePath did, or if it was empty/root.
-		// This corrects cases where ReplaceNth might remove a leading slash unintentionally.
-		finalRawURI := rawURI
-		if (strings.HasPrefix(basePath, "/") || basePath == "" || basePath == "/") && !strings.HasPrefix(rawURI, "/") {
-			// Don't add slash if it's only the query part remaining somehow
-			if !strings.HasPrefix(rawURI, "?") {
-				finalRawURI = "/" + rawURI
-			}
-		}
-		// Basic double slash cleanup, though fasthttp might handle this.
-		finalRawURI = strings.ReplaceAll(finalRawURI, "//", "/")
+
+		// DO NOT normalize double slashes - they're important for bypass techniques
 
 		job := BypassPayload{
 			OriginalURL:  targetURL,
-			Method:       "GET", // Consider making method configurable
+			Method:       "GET",
 			Scheme:       parsedURL.Scheme,
 			Host:         parsedURL.Host,
-			RawURI:       finalRawURI, // Use the final, potentially corrected RawURI
+			RawURI:       rawURI,
 			BypassModule: bypassModule,
 		}
 		job.PayloadToken = GeneratePayloadToken(job)
 		jobs = append(jobs, job)
 	}
 
-	// Log the total number of unique jobs created for this module
 	GB403Logger.Debug().BypassModule(bypassModule).Msgf("Generated %d payloads for %s", len(jobs), targetURL)
 	return jobs
 }

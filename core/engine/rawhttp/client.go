@@ -1,5 +1,5 @@
 /*
-GOBypass403
+GoByPASS403
 Author: slicingmelon <github.com/slicingmelon>
 X: x.com/pedro_infosec
 */
@@ -9,6 +9,7 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -27,6 +28,18 @@ var (
 	ErrReqFailedMaxRetries          = errors.New("request failed after all retry attempts")
 	ErrReqFailedMaxConsecutiveFails = errors.New("target reached max consecutive fails")
 )
+
+// Constants for buffer sizes used throughout the package
+const (
+	DefaultHeadersBuffSize = 8192
+	DefaultBufferPadding   = 1024
+)
+
+// ParsedHeader represents a pre-processed custom header
+type ParsedHeader struct {
+	Name  string
+	Value string
+}
 
 // HTTPClientOptions contains configuration options for the HTTPClient
 type HTTPClientOptions struct {
@@ -53,6 +66,9 @@ type HTTPClientOptions struct {
 	MaxConsecutiveFailedReqs int           // ScannerCliOpts
 	AutoThrottle             bool          // ScannerCliOpts
 	DisablePathNormalizing   bool
+	CustomHTTPHeaders        []string        // Raw header strings from CLI
+	ParsedHeaders            []ParsedHeader  // Pre-processed headers for fast access
+	HeaderOverrides          map[string]bool // Track which headers are overridden by CLI (lowercase keys)
 }
 
 // HTTPClient represents a reusable HTTP client
@@ -68,28 +84,33 @@ type HTTPClient struct {
 
 // DefaultHTTPClientOptions returns the default HTTP client options
 func DefaultHTTPClientOptions() *HTTPClientOptions {
-	const (
-		maxBodySize  = 12288 //
-		rwBufferSize = maxBodySize + 4096
-	)
+	// Default response preview size (if not specified by user)
+	defaultPreviewSize := 1024
+
+	// Calculate default max body size based on headers + preview + margin
+	maxBodySize := DefaultHeadersBuffSize + defaultPreviewSize + DefaultBufferPadding
+
+	// Calculate RW buffer size with additional margin
+	rwBufferSize := maxBodySize + DefaultBufferPadding
 
 	return &HTTPClientOptions{
 		BypassModule:             "",
 		Timeout:                  20000 * time.Millisecond,
 		DialTimeout:              5 * time.Second,
 		MaxConnsPerHost:          128,
-		MaxIdleConnDuration:      1 * time.Minute, // Idle keep-alive connections are closed after this duration.
-		MaxConnWaitTimeout:       1 * time.Second, // Maximum duration for waiting for a free connection.
+		MaxIdleConnDuration:      1 * time.Minute,
+		MaxConnWaitTimeout:       1 * time.Second,
 		NoDefaultUserAgent:       true,
-		MaxResponseBodySize:      maxBodySize,  //
-		ReadBufferSize:           rwBufferSize, //
-		WriteBufferSize:          rwBufferSize, //
+		MaxResponseBodySize:      maxBodySize,
+		ReadBufferSize:           rwBufferSize,
+		WriteBufferSize:          rwBufferSize,
 		StreamResponseBody:       true,
+		ResponseBodyPreviewSize:  defaultPreviewSize,
 		MaxRetries:               2,
 		RetryDelay:               500 * time.Millisecond,
 		RequestDelay:             0,
 		AutoThrottle:             false,
-		DisableKeepAlive:         false, // Keep connections alive
+		DisableKeepAlive:         false,
 		DisablePathNormalizing:   true,
 		Dialer:                   nil,
 		MaxConsecutiveFailedReqs: 15,
@@ -102,6 +123,31 @@ func NewHTTPClient(opts *HTTPClientOptions) *HTTPClient {
 		opts = DefaultHTTPClientOptions()
 	}
 
+	// Preprocess custom headers for fast access in hot path
+	opts.PreprocessCustomHeaders()
+
+	// Calculate appropriate sizes based on preview size
+	previewSize := opts.ResponseBodyPreviewSize
+	if previewSize <= 0 {
+		previewSize = 1024 // Default if not specified
+	}
+
+	// Ensure MaxResponseBodySize is large enough for headers + preview
+	requiredBodySize := DefaultHeadersBuffSize + previewSize + DefaultBufferPadding
+	if opts.MaxResponseBodySize < requiredBodySize {
+		opts.MaxResponseBodySize = requiredBodySize
+	}
+
+	// Ensure read/write buffers are sized appropriately
+	requiredBufferSize := opts.MaxResponseBodySize + DefaultBufferPadding
+	if opts.ReadBufferSize <= 0 || opts.ReadBufferSize < requiredBufferSize {
+		opts.ReadBufferSize = requiredBufferSize
+	}
+	if opts.WriteBufferSize <= 0 || opts.WriteBufferSize < requiredBufferSize {
+		opts.WriteBufferSize = requiredBufferSize
+	}
+
+	// Continue with existing initialization...
 	if opts.Dialer == nil {
 		opts.Dialer = CreateHTTPClientDialer(opts.DialTimeout, opts.ProxyURL)
 	}
@@ -143,8 +189,7 @@ func NewHTTPClient(opts *HTTPClientOptions) *HTTPClient {
 			MinVersion:         tls.VersionTLS10,
 			MaxVersion:         tls.VersionTLS13,
 			Renegotiation:      tls.RenegotiateOnceAsClient,
-			ClientSessionCache: tls.NewLRUClientSessionCache(512), // Session cache to resume sessions
-			//SessionTicketsDisabled: true,
+			ClientSessionCache: tls.NewLRUClientSessionCache(512),
 		},
 	}
 
@@ -213,16 +258,28 @@ func NewDefaultHTTPClient(httpClientOpts *HTTPClientOptions) *HTTPClient {
 		if httpClientOpts.MaxConsecutiveFailedReqs > 0 {
 			opts.MaxConsecutiveFailedReqs = httpClientOpts.MaxConsecutiveFailedReqs
 		}
+		if len(httpClientOpts.CustomHTTPHeaders) > 0 {
+			opts.CustomHTTPHeaders = httpClientOpts.CustomHTTPHeaders
+		}
+
+		// Handle ResponseBodyPreviewSize and associated buffer sizes
+		if httpClientOpts.ResponseBodyPreviewSize > 0 {
+			opts.ResponseBodyPreviewSize = httpClientOpts.ResponseBodyPreviewSize
+		}
+
+		// Apply max response body size if explicitly set
 		if httpClientOpts.MaxResponseBodySize > 0 {
 			opts.MaxResponseBodySize = httpClientOpts.MaxResponseBodySize
 		}
+
+		// Apply read/write buffer sizes if explicitly set
 		if httpClientOpts.ReadBufferSize > 0 {
 			opts.ReadBufferSize = httpClientOpts.ReadBufferSize
 		}
+
 		if httpClientOpts.WriteBufferSize > 0 {
 			opts.WriteBufferSize = httpClientOpts.WriteBufferSize
 		}
-
 	}
 
 	return NewHTTPClient(opts)
@@ -444,4 +501,85 @@ func (c *HTTPClient) EnableStreamResponseBody() {
 func (c *HTTPClient) Close() {
 	c.client.CloseIdleConnections()
 	c.throttler.ResetThrottler()
+}
+
+// // DoRawHAProxyRequest sends a raw HAProxy exploit request, carefully preserving header order
+// // The raw request is already built and stored in req.Body()
+// func (c *HTTPClient) DoRawHAProxyRequest(req *fasthttp.Request, resp *fasthttp.Response, bypassPayload payload.BypassPayload) (int64, error) {
+// 	// Extract necessary connection details directly from the bypassPayload
+// 	scheme := bypassPayload.Scheme
+// 	host := bypassPayload.Host
+// 	if scheme == "" {
+// 		scheme = "http" // Default to HTTP if not specified
+// 	}
+
+// 	// Create a TCP connection directly
+// 	dialFunc := c.client.Dial
+// 	if dialFunc == nil {
+// 		dialFunc = fasthttp.Dial // Use default if not set
+// 	}
+
+// 	// Connect to the target
+// 	start := time.Now()
+// 	conn, err := dialFunc(scheme + "://" + host)
+// 	if err != nil {
+// 		return 0, fmt.Errorf("error connecting to HAProxy target %s: %w", host, err)
+// 	}
+// 	defer conn.Close()
+
+// 	// Our raw request is already constructed and in the body
+// 	rawRequest := req.Body()
+// 	if len(rawRequest) == 0 {
+// 		return 0, fmt.Errorf("empty raw HAProxy request")
+// 	}
+
+// 	// Send the raw request exactly as-is
+// 	if _, err = conn.Write(rawRequest); err != nil {
+// 		return 0, fmt.Errorf("error writing raw HAProxy request: %w", err)
+// 	}
+
+// 	// Use a buffer to read the response
+// 	bufReader := bufio.NewReader(conn)
+
+// 	// Parse the response directly
+// 	if err = resp.Read(bufReader); err != nil {
+// 		return 0, fmt.Errorf("error reading HAProxy response: %w", err)
+// 	}
+
+// 	// Calculate request time
+// 	requestTime := time.Since(start)
+
+// 	return requestTime.Milliseconds(), nil
+// }
+
+// PreprocessCustomHeaders parses raw CLI header strings into optimized format
+func (opts *HTTPClientOptions) PreprocessCustomHeaders() {
+	if len(opts.CustomHTTPHeaders) == 0 {
+		return
+	}
+
+	opts.ParsedHeaders = make([]ParsedHeader, 0, len(opts.CustomHTTPHeaders))
+	opts.HeaderOverrides = make(map[string]bool, len(opts.CustomHTTPHeaders))
+
+	for _, header := range opts.CustomHTTPHeaders {
+		colonIdx := strings.Index(header, ":")
+		if colonIdx == -1 {
+			continue // Skip invalid headers
+		}
+
+		name := strings.TrimSpace(header[:colonIdx])
+		value := strings.TrimSpace(header[colonIdx+1:])
+
+		if name == "" {
+			continue // Skip empty header names
+		}
+
+		opts.ParsedHeaders = append(opts.ParsedHeaders, ParsedHeader{
+			Name:  name,
+			Value: value,
+		})
+
+		// Track header override using lowercase for case-insensitive lookup
+		opts.HeaderOverrides[strings.ToLower(name)] = true
+	}
 }

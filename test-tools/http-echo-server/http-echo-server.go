@@ -202,6 +202,13 @@ func handleConnection(conn net.Conn, dump string, timeout int, template string) 
 		}
 	}
 
+	// Try to read any remaining body data with a short timeout
+	conn.SetReadDeadline(time.Now().Add(100 * time.Millisecond))
+	remaining, _ := io.ReadAll(reader)
+	if len(remaining) > 0 {
+		request.WriteString(string(remaining))
+	}
+
 	requestStr := request.String()
 
 	// Print the request with proper formatting
@@ -242,19 +249,21 @@ func handleConnection(conn net.Conn, dump string, timeout int, template string) 
 		if err := os.WriteFile(dump, []byte(requestStr), 0644); err != nil {
 			log.Printf("Failed to dump request: %v", err)
 		} else {
-			log.Printf("\nRequest dumped to: %s\n", dump)
+			log.Printf("Request dumped to: %s", dump)
 		}
 	}
 }
 
 // Helper function to print requests
-
 func printRequest(req string, verbose bool, isTLS bool) {
 	if verbose {
-		// Replace special characters with colored versions
+		// Handle CRLF sequences first with a placeholder to avoid double-processing
+		req = strings.ReplaceAll(req, "\r\n", "CRLF_PLACEHOLDER")
+
+		// Handle remaining special characters (standalone \r and \n)
 		specialChars := map[string]string{
 			"\r": colorGreen + "\\r" + colorReset,
-			"\n": colorGreen + "\\n\n" + colorReset, // Keep the extra newline for readability
+			"\n": colorGreen + "\\n" + colorReset + "\n",
 			"\t": colorGreen + "\\t" + colorReset,
 			"\v": colorGreen + "\\v" + colorReset, // Vertical tab
 			"\f": colorGreen + "\\f" + colorReset, // Form feed
@@ -265,12 +274,16 @@ func printRequest(req string, verbose bool, isTLS bool) {
 		for char, replacement := range specialChars {
 			req = strings.ReplaceAll(req, char, replacement)
 		}
+
+		// Finally replace CRLF placeholder with proper formatted \r\n
+		req = strings.ReplaceAll(req, "CRLF_PLACEHOLDER", colorGreen+"\\r\\n"+colorReset+"\n")
 	}
 
-	// Color the text terminal req
+	// Color the terminal output based on connection type
 	if isTLS {
 		fmt.Print(colorYellow + req + colorReset)
 	} else {
 		fmt.Print(colorWhite + req + colorReset)
 	}
+	fmt.Println() // Add extra newline for separation between requests
 }

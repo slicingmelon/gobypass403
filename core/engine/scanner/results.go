@@ -54,18 +54,18 @@ func InitDB(dbFilePath string, workers int) error {
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 target_url TEXT NOT NULL,
                 bypass_module TEXT NOT NULL,
-                curl_cmd TEXT,
+                status_code INTEGER,
+                content_length INTEGER,
                 response_headers TEXT,
                 response_body_preview TEXT,
-                status_code INTEGER,
-                content_type TEXT,
-                content_length INTEGER,
                 response_body_bytes INTEGER,
                 title TEXT,
                 server_info TEXT,
                 redirect_url TEXT,
-                response_time INTEGER,
+                curl_cmd TEXT,
                 debug_token TEXT,
+                response_time INTEGER,
+                content_type TEXT,
                 scan_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
 
@@ -83,10 +83,10 @@ func InitDB(dbFilePath string, workers int) error {
 		// Pre-prepare the single statement with correct SQL syntax
 		stmt, err := db.Prepare(`
             INSERT INTO scan_results (
-                target_url, bypass_module, curl_cmd, response_headers,
-                response_body_preview, status_code, content_type, content_length,
-                response_body_bytes, title, server_info, redirect_url,
-                response_time, debug_token
+                target_url, bypass_module, status_code, content_length,
+                response_headers, response_body_preview, response_body_bytes,
+                title, server_info, redirect_url, curl_cmd, debug_token, 
+                response_time, content_type
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `)
 		if err != nil {
@@ -144,7 +144,6 @@ func PrintResultsTableFromDB(targetURL, bypassModule string) error {
 	placeholders := strings.Repeat("?,", len(queryModules))
 	placeholders = placeholders[:len(placeholders)-1] // Remove trailing comma
 
-	// Modified query to order correctly and include new fields
 	query := fmt.Sprintf(`
         SELECT 
             bypass_module, curl_cmd, status_code, 
@@ -198,7 +197,7 @@ func PrintResultsTableFromDB(targetURL, bypassModule string) error {
 
 		err := rows.Scan(&module, &curlCmd, &statusCode, &responseBodyBytes,
 			&contentLength, &contentType, &title, &serverInfo,
-			&responseBodyPreview) // Reverted scan (removed responseHeaders)
+			&responseBodyPreview)
 		if err != nil {
 			return fmt.Errorf("failed to scan row: %v", err)
 		}
@@ -212,7 +211,7 @@ func PrintResultsTableFromDB(targetURL, bypassModule string) error {
 		}
 
 		statusStr := bytesutil.Itoa(statusCode)
-		lengthStr := formatBytes(lengthToDisplay) // Reverted: length for display column
+		lengthStr := formatBytes(lengthToDisplay)
 
 		// Check if we need to start a new group (major: module/status, or minor: lengthToDisplay)
 		if module != currentModule || statusStr != currentStatus || lengthToDisplay != currentLength {
@@ -222,10 +221,7 @@ func PrintResultsTableFromDB(targetURL, bypassModule string) error {
 					tableData = append(tableData, currentGroup.rows...)
 
 					// Add separator with dots matching previous module length
-					dotCount := len(currentModule) // currentModule is still the *old* module here
-					if dotCount < 4 {
-						dotCount = 4
-					}
+					dotCount := max(len(currentModule), 4)
 					// Ensure tableData[0] (header) exists before trying to get its length for separator
 					if len(tableData) > 0 && len(tableData[0]) > 0 {
 						separator := make([]string, len(tableData[0]))
@@ -256,7 +252,7 @@ func PrintResultsTableFromDB(targetURL, bypassModule string) error {
 		// Add to current group
 		currentGroup.rows = append(currentGroup.rows, []string{
 			module,
-			curlCmd,
+			LimitStringWithSuffix(curlCmd, 115),
 			statusStr,
 			lengthStr, // Reverted: Use the original length string for display
 			formatContentType(contentType),
@@ -282,7 +278,7 @@ func PrintResultsTableFromDB(targetURL, bypassModule string) error {
 
 	// Display header directly to avoid an allocation
 	pterm.DefaultHeader.WithBackgroundStyle(pterm.NewStyle(pterm.BgGreen)).
-		Println("Results for " + targetURL)
+		Println("Results summary for " + targetURL)
 
 	// Configure the table
 	table := pterm.DefaultTable.
@@ -329,18 +325,18 @@ func AppendResultsToDB(results []*Result) error {
 		_, err := txStmt.Exec(
 			result.TargetURL,
 			result.BypassModule,
-			result.CurlCMD,
+			result.StatusCode,
+			result.ContentLength,
 			result.ResponseHeaders,
 			result.ResponseBodyPreview,
-			result.StatusCode,
-			result.ContentType,
-			result.ContentLength,
 			result.ResponseBodyBytes,
 			result.Title,
 			result.ServerInfo,
 			result.RedirectURL,
-			result.ResponseTime,
+			result.CurlCMD,
 			result.DebugToken,
+			result.ResponseTime,
+			result.ContentType,
 		)
 		if err != nil {
 			return fmt.Errorf("failed to insert result: %v", err)
@@ -409,16 +405,16 @@ func LimitStringWithSuffix(s string, maxLen int) string {
 		return s
 	}
 
-	return s[:maxLen-2] + ".."
+	return s[:maxLen-4] + "[..]"
 }
 
 func LimitStringwithPreffixAndSuffix(s string, maxLen int) string {
-	if maxLen < 4 {
-		maxLen = 4
+	if maxLen < 6 {
+		maxLen = 6
 	}
 	if len(s) <= maxLen {
 		return s
 	}
-	n := (maxLen / 2) - 1
-	return s[:n] + ".." + s[len(s)-n:]
+	n := (maxLen / 2) - 2
+	return s[:n] + "[..]" + s[len(s)-n:]
 }

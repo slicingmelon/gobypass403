@@ -1,18 +1,16 @@
 /*
-GOBypass403
+GoByPASS403
 Author: slicingmelon <github.com/slicingmelon>
 X: x.com/pedro_infosec
 */
 package payload
 
 // This file contains various payload related utilities.
-
 import (
 	"crypto/sha256"
 	"embed"
 	"encoding/hex"
 	"fmt"
-	"net/textproto"
 	"os"
 	"path/filepath"
 	"strings"
@@ -24,28 +22,6 @@ import (
 )
 
 var (
-	charsetTable = func() [62]byte {
-		// Initialize with 62 chars (26 lowercase + 26 uppercase + 10 digits)
-		var table [62]byte
-
-		// 0-9 (10 chars)
-		for i := 0; i < 10; i++ {
-			table[i] = byte(i) + '0'
-		}
-
-		// A-Z (26 chars)
-		for i := 0; i < 26; i++ {
-			table[i+10] = byte(i) + 'A'
-		}
-
-		// a-z (26 chars)
-		for i := 0; i < 26; i++ {
-			table[i+36] = byte(i) + 'a'
-		}
-
-		return table
-	}()
-
 	hexChars = []byte("0123456789ABCDEF")
 )
 
@@ -337,11 +313,6 @@ func ReplaceNth(s, old, new string, n int) string {
 	return s[:pos] + new + s[pos+len(old):]
 }
 
-// Helper function to check if a byte is a letter
-func isLetterASCII(c byte) bool {
-	return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')
-}
-
 // Helper function to convert a slice of Header structs to a map
 func HeadersToMap(headers []Headers) map[string]string {
 	m := make(map[string]string)
@@ -389,7 +360,7 @@ func encodeQueryAndFragmentChars(path string) string {
 
 // isControlByte checks if a byte is an ASCII control character (0x00-0x1F, 0x7F)
 func isControlByteASCII(b byte) bool {
-	return (b >= 0x00 && b <= 0x1F) || b == 0x7F
+	return (b <= 0x1F) || b == 0x7F
 }
 
 // isSpecialCharASCII checks if a byte is an ASCII special character (punctuation or symbol within 0-127)
@@ -406,8 +377,13 @@ func isSpecialCharASCII(b byte) bool {
 	return unicode.IsPunct(r) || unicode.IsSymbol(r)
 }
 
+// Helper function to check if a byte is a letter
+func isLetterASCII(c byte) bool {
+	return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')
+}
+
 func isSpaceASCII(b byte) bool {
-	return b == ' '
+	return b == 0x20
 }
 
 // isAlphanumeric checks if a byte is a standard ASCII letter or digit.
@@ -430,14 +406,16 @@ BenchmarkBypassPayloadToBaseURL/with_sprintf-20
 10295320	       120.5 ns/op	      56 B/op	       3 allocs/op
 PASS
 ok  	github.com/slicingmelon/gobypass403/tests/benchmark	5.679s
+
+BenchmarkBypassPayloadToBaseURL/with_strings_builder - Added for comparison
 */
 func BypassPayloadToBaseURL(bypassPayload BypassPayload) string {
-	// Pre-allocate capacity: len(scheme) + len("://") + len(host)
-	b := make([]byte, 0, len(bypassPayload.Scheme)+3+len(bypassPayload.Host))
-	b = append(b, bypassPayload.Scheme...)
-	b = append(b, "://"...)
-	b = append(b, bypassPayload.Host...)
-	return string(b)
+	var sb strings.Builder
+	sb.Grow(len(bypassPayload.Scheme) + 3 + len(bypassPayload.Host))
+	sb.WriteString(bypassPayload.Scheme)
+	sb.WriteString("://")
+	sb.WriteString(bypassPayload.Host)
+	return sb.String()
 }
 
 // TryNormalizationForms tries different normalization forms of a URL
@@ -507,17 +485,32 @@ func FullURLToBypassPayload(fullURL string, method string, headers []Headers) (B
 
 // BypassPayloadToFullURL converts a bypass payload to a full URL (utility function for unit tests)
 func BypassPayloadToFullURL(bypassPayload BypassPayload) string {
-	// Single pre-allocation, no path normalization
-	b := make([]byte, 0, len(bypassPayload.Scheme)+3+len(bypassPayload.Host)+len(bypassPayload.RawURI))
-	b = append(b, bypassPayload.Scheme...)
-	b = append(b, "://"...)
-	b = append(b, bypassPayload.Host...)
-	b = append(b, bypassPayload.RawURI...)
-	return string(b)
+	var sb strings.Builder
+	sb.Grow(len(bypassPayload.Scheme) + 3 + len(bypassPayload.Host) + len(bypassPayload.RawURI))
+	sb.WriteString(bypassPayload.Scheme)
+	sb.WriteString("://")
+	sb.WriteString(bypassPayload.Host)
+	sb.WriteString(bypassPayload.RawURI)
+	return sb.String()
 }
 
 // NormalizeHeaderKey canonicalizes a header key string.
 // Example: "x-abc-test" becomes "X-Abc-Test"
+// func NormalizeHeaderKey(key string) string {
+// 	return textproto.CanonicalMIMEHeaderKey(key)
+// }
+
 func NormalizeHeaderKey(key string) string {
-	return textproto.CanonicalMIMEHeaderKey(key)
+	if key == "" {
+		return key
+	}
+
+	// Split by hyphens and capitalize each part
+	parts := strings.Split(key, "-")
+	for i, part := range parts {
+		if len(part) > 0 {
+			parts[i] = strings.ToUpper(part[:1]) + strings.ToLower(part[1:])
+		}
+	}
+	return strings.Join(parts, "-")
 }

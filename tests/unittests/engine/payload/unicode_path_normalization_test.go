@@ -3,7 +3,9 @@ package tests
 import (
 	"encoding/hex"
 	"fmt"
+	"net"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -12,88 +14,127 @@ import (
 )
 
 func TestUnicodePathNormalizationsPayloads(t *testing.T) {
+	startTime := time.Now()
+	t.Logf("TestUnicodePathNormalizationsPayloads started at: %s", startTime.Format(time.RFC3339Nano))
+
 	// Use a URL with multiple path segments and characters to replace
-	targetURL := "http://localhost/admin/./config/../users/"
+	baseTargetURL := "http://localhost/admin/./config/../users/"
 	moduleName := "unicode_path_normalization"
 
-	// 1. Generate Payloads
+	// 1. Start a listener to get a free port
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("Failed to start listener: %v", err)
+	}
+	serverAddr := listener.Addr().String() // host:port
+
+	// Update the target URL with the actual server address
+	targetURL := strings.Replace(baseTargetURL, "localhost", serverAddr, 1)
+	t.Logf("Updated target URL to: %s (took %s)", targetURL, time.Since(startTime))
+
+	// 2. Generate Payloads with the ACTUAL server address
+	pgStartTime := time.Now()
 	pg := payload.NewPayloadGenerator(payload.PayloadGeneratorOptions{
-		TargetURL:    targetURL, // Use placeholder initially
+		TargetURL:    targetURL,
 		BypassModule: moduleName,
 	})
 	generatedPayloads := pg.GenerateUnicodePathNormalizationsPayloads(targetURL, moduleName)
 	if len(generatedPayloads) == 0 {
 		t.Fatalf("No payloads were generated for %s", moduleName)
 	}
-	numPayloads := len(generatedPayloads) // This is the count *after* internal unique filtering
-	t.Logf("Generated %d payloads for %s.", numPayloads, moduleName)
+	numPayloads := len(generatedPayloads)
+	t.Logf("Generated %d payloads for %s. (took %s)", numPayloads, moduleName, time.Since(pgStartTime))
 
-	// 2. Prepare expected URIs map (unique check is done inside generator)
+	// Prepare expected URIs map
 	expectedURIsHex := make(map[string]struct{})
 	for _, p := range generatedPayloads {
 		hexURI := hex.EncodeToString([]byte(p.RawURI))
-		if _, exists := expectedURIsHex[hexURI]; exists {
-			// This should ideally not happen if the generator's unique check works
-			t.Logf("Warning: Duplicate RawURI found after generation: %s (Hex: %s)", p.RawURI, hexURI)
-		}
 		expectedURIsHex[hexURI] = struct{}{}
 	}
-	// Use the count of unique expected URIs for the channel size
 	expectedUniqueCount := len(expectedURIsHex)
 	if expectedUniqueCount != numPayloads {
-		// Log difference if the map size differs from the generator's returned slice length
-		t.Logf("Note: Count of unique expected URIs (%d) differs slightly from generator's returned count (%d). Using unique count for channel.", expectedUniqueCount, numPayloads)
+		t.Logf("Warning: Number of unique expected URIs (%d) differs from total generated payloads (%d) for %s. This indicates duplicate RawURIs were generated.", expectedUniqueCount, numPayloads, moduleName)
 	}
 
-	// 3. Create the channel for server results with the exact size needed
-	receivedURIsChan := make(chan string, expectedUniqueCount)
+	// Dynamically size the channel based on the number of payloads
+	receivedDataChan := make(chan RequestData, numPayloads)
 
-	// 4. Start the server
-	serverAddr, stopServer := startRawTestServer(t, receivedURIsChan)
-	defer stopServer() // Ensure server stops eventually
+	// Start the test server using the listener and correctly sized channel
+	serverStartTime := time.Now()
+	stopServer := startRawTestServerWithListener(t, listener, receivedDataChan)
+	defer stopServer()
+	t.Logf("Test server started. (took %s)", time.Since(serverStartTime))
 
-	// 5. Update payload destinations
+	// Goroutine to collect received requests concurrently
+	var collectedRequests []RequestData
+	var collectWg sync.WaitGroup
+	collectWg.Add(1)
+	go func() {
+		defer collectWg.Done()
+		for reqData := range receivedDataChan {
+			collectedRequests = append(collectedRequests, reqData)
+		}
+	}()
+
+	// Update payload destinations to use the actual server address
 	for i := range generatedPayloads {
-		generatedPayloads[i].Scheme = "http" // Match the listener
+		generatedPayloads[i].Scheme = "http"
 		generatedPayloads[i].Host = serverAddr
 	}
 
-	// 6. Send Requests
+	// Send Requests using RequestWorkerPool
+	clientSendStartTime := time.Now()
 	clientOpts := rawhttp.DefaultHTTPClientOptions()
-	clientOpts.Timeout = 5 * time.Second                   // Allow slightly longer timeout
-	clientOpts.MaxRetries = 0                              // No retries
-	clientOpts.MaxConsecutiveFailedReqs = numPayloads + 20 // Allow some failures
+	clientOpts.Timeout = 3 * time.Second
+	clientOpts.MaxRetries = 0
+	clientOpts.MaxConsecutiveFailedReqs = numPayloads + 10 // Allow for all payloads to fail
 
-	wp := rawhttp.NewRequestWorkerPool(clientOpts, 20) // Use a reasonable number of workers
+	// Use a reasonable number of workers for local testing
+	wp := rawhttp.NewRequestWorkerPool(clientOpts, 100)
+	defer wp.Close()
+
 	resultsChan := wp.ProcessRequests(generatedPayloads)
 
-	// 7. Drain client results
+	// Drain the results channel
 	responseCount := 0
 	for range resultsChan {
 		responseCount++
 	}
-	wp.Close()
-	t.Logf("Client processed %d responses for %s.", responseCount, moduleName)
+	t.Logf("Client processed %d responses out of %d payloads. (took %s to send and drain)",
+		responseCount, numPayloads, time.Since(clientSendStartTime))
 
-	// 8. Close Server's Results Channel
-	// Allow a moment for server handlers
-	time.Sleep(200 * time.Millisecond)
-	close(receivedURIsChan)
+	// Explicitly stop the server and wait for all its goroutines to finish
+	serverStopStartTime := time.Now()
+	t.Log("Stopping test server...")
+	stopServer()
+	t.Logf("Test server stopped. (took %s)", time.Since(serverStopStartTime))
 
-	// 9. Verify Received URIs
+	// Now it's safe to close receivedDataChan, as all server handlers are done
+	close(receivedDataChan)
+
+	// Wait for the collector goroutine to finish processing all items from the channel
+	collectorWaitStartTime := time.Now()
+	t.Log("Waiting for request collector to finish...")
+	collectWg.Wait()
+	t.Logf("Request collector finished. (took %s)", time.Since(collectorWaitStartTime))
+
+	// Verify Received URIs
+	verificationStartTime := time.Now()
 	receivedURIsHex := make(map[string]struct{})
-	for uri := range receivedURIsChan { // Drain the channel
-		hexURI := hex.EncodeToString([]byte(uri))
+	receivedCount := len(collectedRequests)
+	for _, reqData := range collectedRequests {
+		hexURI := hex.EncodeToString([]byte(reqData.URI))
 		receivedURIsHex[hexURI] = struct{}{}
 	}
 
-	// 10. Comparison
-	receivedCount := len(receivedURIsHex)
+	t.Logf("Server received %d total requests, %d unique URIs", receivedCount, len(receivedURIsHex))
 
-	if expectedUniqueCount != receivedCount {
-		t.Errorf("Mismatch in count for %s: Expected %d unique URIs, Server received %d unique URIs", moduleName, expectedUniqueCount, receivedCount)
+	// Comparison
+	if len(expectedURIsHex) != len(receivedURIsHex) {
+		t.Errorf("Mismatch in count for %s: Expected %d unique URIs, Server received %d unique URIs",
+			moduleName, len(expectedURIsHex), len(receivedURIsHex))
 
-		// Find and log ALL missing/extra URIs
+		// Find missing/extra
 		missing := []string{}
 		for hexExp := range expectedURIsHex {
 			if _, found := receivedURIsHex[hexExp]; !found {
@@ -108,15 +149,14 @@ func TestUnicodePathNormalizationsPayloads(t *testing.T) {
 				extra = append(extra, fmt.Sprintf("'%s' (Hex: %s)", string(rawBytes), hexRcv))
 			}
 		}
-		// Use Fatalf only if missing URIs are found.
 		if len(missing) > 0 {
-			t.Fatalf("URIs expected but not received by server for %s:\n%s", moduleName, strings.Join(missing, "\n"))
+			t.Errorf("URIs expected but not received by server for %s:\n%s", moduleName, strings.Join(missing, "\n"))
 		}
 		if len(extra) > 0 {
 			t.Errorf("URIs received by server but not expected for %s:\n%s", moduleName, strings.Join(extra, "\n"))
 		}
 	} else {
-		// Counts match, now perform FULL verification of each URI
+		// If counts match, verify all expected URIs were received
 		match := true
 		for hexExp := range expectedURIsHex {
 			if _, found := receivedURIsHex[hexExp]; !found {
@@ -126,7 +166,10 @@ func TestUnicodePathNormalizationsPayloads(t *testing.T) {
 			}
 		}
 		if match {
-			t.Logf("Successfully verified all %d unique received URIs match the %d expected unique URIs for %s.", receivedCount, expectedUniqueCount, moduleName)
+			t.Logf("Successfully verified %d unique received URIs against expected URIs for %s.", len(receivedURIsHex), moduleName)
 		}
 	}
+
+	t.Logf("Verification finished. (took %s)", time.Since(verificationStartTime))
+	t.Logf("TestUnicodePathNormalizationsPayloads finished. Total time: %s", time.Since(startTime))
 }
