@@ -510,6 +510,14 @@ This module is especially powerful for:
 
 # Changelog
 
+## 0.8.0
+
+- Majoir updated.
+- New module `haproxy_bypasses`. 
+- Bypass attempts using request smuggling (haproxy CVE).
+- Multiple code optimizations.
+- Documentation updated on the main README.md file. 
+
 ## 0.7.9
 
 - Updated all unit tests.
