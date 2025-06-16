@@ -189,7 +189,7 @@ func NewHTTPClient(opts *HTTPClientOptions) *HTTPClient {
 			MinVersion:         tls.VersionTLS10,
 			MaxVersion:         tls.VersionTLS13,
 			Renegotiation:      tls.RenegotiateOnceAsClient,
-			ClientSessionCache: tls.NewLRUClientSessionCache(512),
+			ClientSessionCache: tls.NewLRUClientSessionCache(1024),
 		},
 	}
 
