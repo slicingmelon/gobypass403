@@ -510,6 +510,11 @@ This module is especially powerful for:
 
 # Changelog
 
+## 0.8.1
+
+- Updated go to 1.24.1.
+- Increased TLS LRUSessionCache size.
+
 ## 0.8.0
 
 - Major update.
