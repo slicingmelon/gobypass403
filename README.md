@@ -566,13 +566,13 @@ The summary table provides a quick overview of successful bypasses, allowing sec
 
 ## Full Findings Database
 
-All scan results are comprehensively stored in a local SQLite database containing detailed information about every bypass attempt:
+All scan results are stored in a local SQLite database containing detailed information about every bypass attempt:
 
 **Stored Data Per Request**:
 - **Target details**: Original URL, bypass module used, scan timestamp
 - **Response metrics**: HTTP status code, content length, response time
 - **Content analysis**: Response headers, body preview, content type, page title, server information
-- **Reproduction data**: Complete curl command and debug token
+- **Reproduction data**: Curl PoC command and debug token
 - **Redirect tracking**: Redirect URLs if applicable
 
 **Why SQLite?** Given that comprehensive bypass testing can generate hundreds or thousands of requests, storing everything in a structured database allows for:
@@ -587,7 +587,7 @@ All scan results are comprehensively stored in a local SQLite database containin
 
 ### Curl PoC Commands
 
-Every successful bypass attempt includes a ready-to-use curl command that exactly replicates the request:
+Every successful bypass attempt includes a ready-to-use curl command that exactly replicates the request. Example below:
 
 ```bash
 curl -X POST "https://target.com/admin" -H "X-Forwarded-For: 127.0.0.1"
@@ -601,7 +601,7 @@ These curl commands are:
 
 ### Debug Token System
 
-GoBypass403 implements a sophisticated debug token system for precise request reproduction and analysis.
+GoBypass403 implements a custom, complex debug token system for precise request reproduction and analysis.
 
 Each payload generates a unique debug token that serves as a compressed fingerprint of the entire request. The token generation process:
 
@@ -624,16 +624,16 @@ Each payload generates a unique debug token that serves as a compressed fingerpr
 
 #### Debug Token Usage
 
-**In Debug Mode** (`-d` flag):
-```bash
-./gobypass403 -u https://target.com/admin -d
-```
-When debug mode is enabled, each request includes the debug token as a custom header, making it visible in request logs and easier to correlate with results.
-
 **For Request Reproduction** (`-r` flag):
 ```bash
 ./gobypass403 -r "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
 ```
+
+**In Debug Mode** (`-d` flag):
+```bash
+./gobypass403 -u https://target.com/admin -d
+```
+When debug mode is enabled, each HTTP request also includes the debug token as a custom header, making it visible in request logs and easier to correlate with results.
 
 **Token Decoding Process**:
 1. Base64 decode the token string
@@ -661,7 +661,6 @@ This debug token system enables precise request reproduction, detailed analysis,
 # Changelog
 
 Full changelog at [CHANGELOG](./CHANGELOG.md).
-
 
 # Motivation
 
