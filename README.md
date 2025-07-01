@@ -32,6 +32,12 @@ X <[@pedro_infosec](https://x.com/pedro_infosec)>
   - [11. headers\_port](#11-headers_port)
   - [12. headers\_url](#12-headers_url)
   - [13. headers\_host](#13-headers_host)
+- [Findings](#findings)
+  - [Findings summary](#findings-summary)
+  - [Full findings](#full-findings)
+  - [Reproducing the findings](#reproducing-the-findings)
+    - [Curl PoC Command](#curl-poc-command)
+    - [Debug Token](#debug-token)
 - [Changelog](#changelog)
 - [Motivation](#motivation)
   - [Credits](#credits)
@@ -541,6 +547,27 @@ This module is especially powerful for:
 - Virtual host confusion attacks
 - DNS-based access control evasion
 - Load balancer and reverse proxy misconfigurations
+
+# Findings
+
+## Findings summary
+
+...
+
+
+## Full findings
+
+...
+
+## Reproducing the findings
+
+### Curl PoC Command
+
+...
+
+### Debug Token
+
+...
 
 # Changelog
 
