@@ -7,6 +7,7 @@
 !go.mod
 !go.sum
 !.goreleaser.yml
+!LICENSE
 
 !cmd/
 !cmd/**
