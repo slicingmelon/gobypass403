@@ -14,9 +14,9 @@ import (
 
 	"database/sql"
 
-	"github.com/VictoriaMetrics/VictoriaMetrics/lib/bytesutil"
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/pterm/pterm"
+	"github.com/slicingmelon/go-bytesutil/bytesutil"
 )
 
 // to optimize

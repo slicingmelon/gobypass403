@@ -4,7 +4,6 @@ go 1.24.1
 
 require (
 	fortio.org/progressbar v0.12.0
-	github.com/VictoriaMetrics/VictoriaMetrics v1.114.0
 	github.com/VictoriaMetrics/fastcache v1.12.2
 	github.com/alitto/pond/v2 v2.3.0
 	github.com/andybalholm/brotli v1.1.1
@@ -17,6 +16,7 @@ require (
 	github.com/pierrec/lz4/v4 v4.1.22
 	github.com/pterm/pterm v0.12.80
 	github.com/refraction-networking/utls v1.6.7
+	github.com/slicingmelon/go-bytesutil v0.0.1
 	github.com/slicingmelon/go-rawurlparser v0.3.1
 	github.com/stretchr/testify v1.10.0
 	github.com/valyala/fasthttp v1.59.0
@@ -28,8 +28,6 @@ require (
 	atomicgo.dev/cursor v0.2.0 // indirect
 	atomicgo.dev/keyboard v0.2.9 // indirect
 	atomicgo.dev/schedule v0.1.0 // indirect
-	github.com/VictoriaMetrics/metrics v1.35.2 // indirect
-	github.com/VictoriaMetrics/metricsql v0.84.3 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/cloudflare/circl v1.3.7 // indirect
 	github.com/containerd/console v1.0.3 // indirect
@@ -43,12 +41,10 @@ require (
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
-	github.com/valyala/fastrand v1.1.0 // indirect
-	github.com/valyala/histogram v1.2.0 // indirect
-	github.com/valyala/quicktemplate v1.8.0 // indirect
 	github.com/vmihailenco/tagparser/v2 v2.0.0 // indirect
 	github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e // indirect
 	golang.org/x/crypto v0.38.0 // indirect
+	golang.org/x/exp v0.0.0-20250305212735-054e65f0b394 // indirect
 	golang.org/x/net v0.40.0 // indirect
 	golang.org/x/sys v0.33.0 // indirect
 	golang.org/x/term v0.32.0 // indirect

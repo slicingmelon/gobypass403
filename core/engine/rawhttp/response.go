@@ -14,7 +14,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/VictoriaMetrics/VictoriaMetrics/lib/bytesutil"
+	"github.com/slicingmelon/go-bytesutil/bytesutil"
 	"github.com/slicingmelon/gobypass403/core/engine/payload"
 	GB403Logger "github.com/slicingmelon/gobypass403/core/utils/logger"
 	"github.com/valyala/fasthttp"
@@ -38,23 +38,21 @@ var (
 	respPreviewBufPool bytesutil.ByteBufferPool
 
 	// Pre-computed byte slices for static strings
-	curlFlags         = []byte("-skgi --path-as-is")
-	curlMethodX       = []byte("-X")
-	curlHeaderH       = []byte("-H")
-	strColonSpace     = []byte(": ")
-	strColon          = []byte(":")
-	strSingleQuote    = []byte("'")
-	strSpace          = []byte(" ")
-	strLowerThan      = []byte("<")
-	strGreaterThan    = []byte(">")
-	strCRLF           = []byte("\r\n")
+	curlFlags   = []byte("-skgi --path-as-is")
+	curlMethodX = []byte("-X")
+	curlHeaderH = []byte("-H")
+	//strColon          = []byte(":")
+	strSingleQuote = []byte("'")
+	strSpace       = []byte(" ")
+	//strLowerThan      = []byte("<")
+	//strGreaterThan    = []byte(">")
 	strHTML           = []byte("html")
 	strTitle          = []byte("<title>")
 	strCloseTitle     = []byte("</title>")
 	strLocationHeader = []byte("Location")
 	strSchemeDelim    = []byte("://")
-	strHostHeader     = []byte("Host")
-	strUserAgent      = []byte("User-Agent")
+	//strHostHeader     = []byte("Host")
+	//strUserAgent      = []byte("User-Agent")
 
 	strErrorReadingPreview = []byte("Error reading response preview")
 )
