@@ -2,7 +2,14 @@
 
 A powerful WAF (HTTP 403/401) and URL parser bypass tool developed in Go, designed to preserve exact URL paths and structures during testing. Unlike Go's standard libraries, the tool enables true raw HTTP requests without any encoding or normalization, ensuring complete control over the request structure. This functionality is powered by a full-stack HTTP client, independent of Go's internals, and a custom URL parser.
 
+### Author 
+
+slicingmelon <<https://github.com/slicingmelon>>.
+
+X <[@pedro_infosec](https://x.com/pedro_infosec)>.
+
 - [GoByPASS403](#gobypass403)
+    - [Author](#author)
 - [Features](#features)
 - [Precompiled Binaries](#precompiled-binaries)
 - [Build](#build)
