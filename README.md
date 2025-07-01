@@ -33,11 +33,15 @@ X <[@pedro_infosec](https://x.com/pedro_infosec)>
   - [12. headers\_url](#12-headers_url)
   - [13. headers\_host](#13-headers_host)
 - [Findings](#findings)
-  - [Findings summary](#findings-summary)
-  - [Full findings](#full-findings)
-  - [Reproducing the findings](#reproducing-the-findings)
-    - [Curl PoC Command](#curl-poc-command)
-    - [Debug Token](#debug-token)
+  - [Findings Summary](#findings-summary)
+  - [Full Findings Database](#full-findings-database)
+  - [Reproducing Findings](#reproducing-findings)
+    - [Curl PoC Commands](#curl-poc-commands)
+    - [Debug Token System](#debug-token-system)
+      - [How Debug Tokens Work](#how-debug-tokens-work)
+      - [Token Structure](#token-structure)
+      - [Debug Token Usage](#debug-token-usage)
+      - [Token Storage and Access](#token-storage-and-access)
 - [Changelog](#changelog)
 - [Motivation](#motivation)
   - [Credits](#credits)
@@ -550,24 +554,126 @@ This module is especially powerful for:
 
 # Findings
 
-## Findings summary
+## Findings Summary
 
-...
+When GoBypass403 completes a scan, it displays a comprehensive summary table showing all successful bypass attempts. The results are intelligently grouped and organized for easy analysis:
 
+- **Grouping Logic**: Results are grouped by bypass module → status code → content length
+- **Result Limiting**: Maximum 5 results per group to maintain readability
+- **Table Format**: Displays module name, curl command (truncated), HTTP status, content length, content type, page title, and server information
+- **Visual Separation**: Groups are separated with dotted lines for better visual organization
 
-## Full findings
+The summary table provides a quick overview of successful bypasses, allowing security testers to immediately identify which techniques worked and prioritize further investigation.
 
-...
+## Full Findings Database
 
-## Reproducing the findings
+All scan results are comprehensively stored in a local SQLite database with the following schema:
 
-### Curl PoC Command
+```sql
+CREATE TABLE scan_results (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    target_url TEXT NOT NULL,
+    bypass_module TEXT NOT NULL,
+    status_code INTEGER,
+    content_length INTEGER,
+    response_headers TEXT,
+    response_body_preview TEXT,
+    response_body_bytes INTEGER,
+    title TEXT,
+    server_info TEXT,
+    redirect_url TEXT,
+    curl_cmd TEXT,
+    debug_token TEXT,
+    response_time INTEGER,
+    content_type TEXT,
+    scan_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+```
 
-...
+**Why SQLite?** Given that comprehensive bypass testing can generate hundreds or thousands of requests, storing everything in a structured database allows for:
+- Efficient querying and filtering of results
+- Persistent storage of all attempt details
+- Advanced analysis using SQL queries
+- Integration with external tools and scripts
 
-### Debug Token
+**Accessing Full Data**: Use any SQLite browser/GUI tool (like DB Browser for SQLite, DBeaver, or SQLiteStudio) to explore the complete dataset, run custom queries, and perform detailed analysis of all bypass attempts.
 
-...
+## Reproducing Findings
+
+### Curl PoC Commands
+
+Every successful bypass attempt includes a ready-to-use curl command that exactly replicates the request:
+
+```bash
+curl -X POST "https://target.com/admin" -H "X-Forwarded-For: 127.0.0.1"
+```
+
+These curl commands are:
+- **Exact replicas** of the successful bypass requests
+- **Immediately executable** for manual verification
+- **Stored in both** the summary table and SQLite database
+- **Properly escaped** and formatted for shell execution
+
+### Debug Token System
+
+GoBypass403 implements a sophisticated debug token system for precise request reproduction and analysis.
+
+#### How Debug Tokens Work
+
+Each payload generates a unique debug token that serves as a compressed fingerprint of the entire request. The token generation process:
+
+1. **Seed-Based Generation**: Every payload gets a unique 4-byte random nonce
+2. **Comprehensive Encoding**: Captures all request components (method, headers, body, URL, etc.)
+3. **Efficient Compression**: Uses Snappy compression + Base64 encoding
+4. **Indexed Optimization**: Common HTTP methods and bypass modules use byte indices instead of full strings
+
+#### Token Structure
+
+```
+[Version][Nonce][Scheme][Host][URI][Method][Headers][BypassModule][Body]
+│    1B  │  6B  │  Var │ Var │Var│  Var  │   Var   │     Var     │ Var │
+```
+
+- **Version** (1 byte): Token format version
+- **Nonce** (6 bytes): Unique 4-byte random identifier + length prefix
+- **Variable Fields**: All request components with length prefixes
+- **Final Encoding**: `base64(snappy(raw_bytes))`
+
+#### Debug Token Usage
+
+**In Debug Mode** (`-d` flag):
+```bash
+./gobypass403 -u https://target.com/admin -d
+```
+When debug mode is enabled, each request includes the debug token as a custom header, making it visible in request logs and easier to correlate with results.
+
+**For Request Reproduction** (`-r` flag):
+```bash
+./gobypass403 -r "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+```
+
+**Token Decoding Process**:
+1. Base64 decode the token string
+2. Snappy decompress the bytes
+3. Parse the structured binary format
+4. Reconstruct the exact original request
+5. Execute the request with identical parameters
+
+#### Token Storage and Access
+
+- **SQLite Database**: All debug tokens are stored in the `debug_token` column
+- **Exclusive Storage**: Debug tokens are ONLY available in the SQLite database (not in terminal output)
+- **Persistent Access**: Tokens remain available for reproduction even after scan completion
+- **Query Support**: Use SQL queries to find tokens based on status codes, modules, or other criteria
+
+Example SQL query to find debug tokens:
+```sql
+SELECT debug_token, curl_cmd, status_code 
+FROM scan_results 
+WHERE status_code = 200 AND bypass_module = 'headers_ip';
+```
+
+This debug token system enables precise request reproduction, detailed analysis, and integration with other security testing workflows.
 
 # Changelog
 
