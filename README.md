@@ -38,7 +38,6 @@ X <[@pedro_infosec](https://x.com/pedro_infosec)>
   - [Reproducing Findings](#reproducing-findings)
     - [Curl PoC Commands](#curl-poc-commands)
     - [Debug Token System](#debug-token-system)
-      - [How Debug Tokens Work](#how-debug-tokens-work)
       - [Token Structure](#token-structure)
       - [Debug Token Usage](#debug-token-usage)
       - [Token Storage and Access](#token-storage-and-access)
@@ -567,28 +566,14 @@ The summary table provides a quick overview of successful bypasses, allowing sec
 
 ## Full Findings Database
 
-All scan results are comprehensively stored in a local SQLite database with the following schema:
+All scan results are comprehensively stored in a local SQLite database containing detailed information about every bypass attempt:
 
-```sql
-CREATE TABLE scan_results (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    target_url TEXT NOT NULL,
-    bypass_module TEXT NOT NULL,
-    status_code INTEGER,
-    content_length INTEGER,
-    response_headers TEXT,
-    response_body_preview TEXT,
-    response_body_bytes INTEGER,
-    title TEXT,
-    server_info TEXT,
-    redirect_url TEXT,
-    curl_cmd TEXT,
-    debug_token TEXT,
-    response_time INTEGER,
-    content_type TEXT,
-    scan_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-```
+**Stored Data Per Request**:
+- **Target details**: Original URL, bypass module used, scan timestamp
+- **Response metrics**: HTTP status code, content length, response time
+- **Content analysis**: Response headers, body preview, content type, page title, server information
+- **Reproduction data**: Complete curl command and debug token
+- **Redirect tracking**: Redirect URLs if applicable
 
 **Why SQLite?** Given that comprehensive bypass testing can generate hundreds or thousands of requests, storing everything in a structured database allows for:
 - Efficient querying and filtering of results
@@ -617,8 +602,6 @@ These curl commands are:
 ### Debug Token System
 
 GoBypass403 implements a sophisticated debug token system for precise request reproduction and analysis.
-
-#### How Debug Tokens Work
 
 Each payload generates a unique debug token that serves as a compressed fingerprint of the entire request. The token generation process:
 
