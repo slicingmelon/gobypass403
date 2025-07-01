@@ -3,7 +3,6 @@ package tests
 import (
 	"bufio"
 	"bytes"
-	"fmt"
 	"net"
 	"strings"
 	"testing"
@@ -473,7 +472,7 @@ func TestBuildRawHTTPRequestWithCustomRequestLine(t *testing.T) {
 
 	// Check if the raw URI was preserved correctly
 	// The expected first line should contain the exact raw URI from the payload
-	expectedRequestLine := fmt.Sprintf("GET @testrawline HTTP/1.1")
+	expectedRequestLine := "GET @testrawline HTTP/1.1"
 	if !strings.HasPrefix(firstLine, expectedRequestLine) {
 		t.Errorf("Raw request line not correctly preserved. Got: '%s', Want: '%s'", firstLine, expectedRequestLine)
 	}
