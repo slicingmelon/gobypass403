@@ -636,3 +636,5 @@ This tool was inspired by and based on [laluka's bypass-url-parser](https://gith
 
 Special thanks to [laluka](https://github.com/laluka) for open-sourcing his work and his vast bypass techniques implemented in his tool.
 
+
+This project is licensed under the [MIT License](LICENSE).
