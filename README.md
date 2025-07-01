@@ -622,7 +622,7 @@ Each payload generates a unique debug token that serves as a compressed fingerpr
 - **Variable Fields**: All request components with length prefixes
 - **Final Encoding**: `base64(snappy(raw_bytes))`
 
-![gobypass403 Debug Token Structure](images/gobypass403-debug-token-structure.png)
+<img src="images/gobypass403-debug-token-structure.png" alt="gobypass403 Debug Token Structure" width="400"/>
 
 #### Debug Token Usage
 
