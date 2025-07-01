@@ -2,7 +2,15 @@
 
 A powerful WAF (HTTP 403/401) and URL parser bypass tool developed in Go, designed to preserve exact URL paths and structures during testing. Unlike Go's standard libraries, the tool enables true raw HTTP requests without any encoding or normalization, ensuring complete control over the request structure. This functionality is powered by a full-stack HTTP client, independent of Go's internals, and a custom URL parser.
 
+### Author 
+
+slicingmelon <<https://github.com/slicingmelon>>
+
+X <[@pedro_infosec](https://x.com/pedro_infosec)>
+
+
 - [GoByPASS403](#gobypass403)
+    - [Author](#author)
 - [Features](#features)
 - [Precompiled Binaries](#precompiled-binaries)
 - [Build](#build)
@@ -25,14 +33,6 @@ A powerful WAF (HTTP 403/401) and URL parser bypass tool developed in Go, design
   - [12. headers\_url](#12-headers_url)
   - [13. headers\_host](#13-headers_host)
 - [Changelog](#changelog)
-  - [0.8.1](#081)
-  - [0.8.0](#080)
-  - [0.7.9](#079)
-  - [0.7.8](#078)
-  - [27 March 2025](#27-march-2025)
-  - [14 February 2025](#14-february-2025)
-  - [09 January 2025](#09-january-2025)
-  - [05 November 2024](#05-november-2024)
 - [Motivation](#motivation)
   - [Credits](#credits)
 
@@ -160,7 +160,7 @@ Example Results 1
 
 # Bypass Modules
 
-Some description..
+The next section describes each bypass module in detail. Each module implements a distinct set of techniques designed to uncover specific vulnerabilities in WAFs, ACLs, reverse proxies, and web server misconfigurations.
 
 ## 1. char_encode
 
@@ -544,70 +544,7 @@ This module is especially powerful for:
 
 # Changelog
 
-## 0.8.1
-
-- Updated go to 1.24.1.
-- Increased TLS LRUSessionCache size.
-- Now using custom go-bytesutil pkgs.
-- Public repo from now on.
-
-## 0.8.0
-
-- Major update.
-- New module haproxy_bypasses.
-- Bypass attempts using request smuggling (haproxy CVE).
-- Multiple code optimizations.
-- Documentation updated on the main README.md file.
-
-## 0.7.9
-
-- Updated all unit tests.
-- Each bypass module now has its own deduplication algorithm.
-- Added a global deduplication component that filters bypass modules to ensure the same payload is not sent more than once across different modules.
-- Refactored `mid_paths` module entirely - it now generates payloads more efficiently, bypass coverage increased as well. 
-- Updated payloads lists for `mid_paths` and `end_paths` modules.
-- Fixed a major bug when scanning a list of URLs using the `-l` CLI command.
-- Updated SQLite DB schema and table organization for better performance.
-- Updated GitHub workflow - Linux builds are now compatible with older libc versions.
-
-
-## 0.7.8
-
-- Updated internal HTTP client to fasthttp 1.62.0. All gobypass403 patches applied.
-- Added CVE-2025-29927 bypass, via `x-middleware-subrequest`.
-- Proper unit-tests for most of the bypass modules.
-- Payload files version detection. Updated the `-update-payloads` CLI command.
-- Important updates on the final output table. The results table now includes only a summary of the findings, up to 5 unique results, sorted per url -> bypass module -> status code -> number of bytes in the HTTP response. 
-- New CLI options:
-  - `-mct, -match-content-type` Filter results by content type(s) substring (example: -mct application/json,text/html)
-  - `-min-cl, -min-content-length` Filter results by minimum Content-Length (example: -min-cl 100).
-  - `-max-cl, -max-content-length`  Filter results by maximum Content-Length (example: -max-cl 5000).
-- Modular bypass modules. Each bypass module has its own .go file. 
-- New bypass modules: `nginx_bypasses`, `unicode_path_normalization`, `path_prefix`.
-- All bypass modules generating unicode/reverse unicode normalization payloads now rely on a pre-built charmap available in the payloads directory.  
-- Updated support for `Transfer-Encoding: identity` HTTP responses.
-- Several code refactors, including performance updates.
-- New, fully refactored, progressbar. 
-
-## 27 March 2025
-
-- Major release.
-
-## 14 February 2025
-
-- Implemented retry attempts on failed requests, using linear backoff algorithm to increase the delay between retries.
-- Autothrottler, throttles the requests exponentially based on known status codes.
-- Option to resend the exact request at any time using the debug token.
-- Refactored most of the core engine/rawhttp modules to improve performance and reduce allocations.
-- Plus way more improvements...
-
-## 09 January 2025
-
-- Refactored the entire codebase. Everything will be documented separately. 
-
-## 05 November 2024
-
-- First official release
+Full changelog at [CHANGELOG](./CHANGELOG.md).
 
 
 # Motivation
