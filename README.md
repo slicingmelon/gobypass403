@@ -549,6 +549,7 @@ This module is especially powerful for:
 - Updated go to 1.24.1.
 - Increased TLS LRUSessionCache size.
 - Now using custom go-bytesutil pkgs.
+- Public repo from now on.
 
 ## 0.8.0
 
