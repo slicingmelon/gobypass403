@@ -1,3 +1,8 @@
+# 0.8.2
+
+- Updated README.
+- Small refactoring.
+ 
 # 0.8.1
 
 - Updated go to 1.24.1.
