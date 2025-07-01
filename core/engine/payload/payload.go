@@ -12,8 +12,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/VictoriaMetrics/VictoriaMetrics/lib/bytesutil"
 	"github.com/golang/snappy"
+	"github.com/slicingmelon/go-bytesutil/bytesutil"
 	"github.com/slicingmelon/gobypass403/core/engine/recon"
 )
 

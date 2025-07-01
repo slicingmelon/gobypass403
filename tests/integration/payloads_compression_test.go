@@ -9,11 +9,11 @@ import (
 	"testing"
 	"unsafe"
 
-	"github.com/VictoriaMetrics/VictoriaMetrics/lib/bytesutil"
 	"github.com/andybalholm/brotli"
 	"github.com/golang/snappy"
 	"github.com/klauspost/compress/zstd"
 	"github.com/pierrec/lz4/v4"
+	"github.com/slicingmelon/go-bytesutil/bytesutil"
 	"github.com/slicingmelon/gobypass403/core/engine/payload"
 	"github.com/vmihailenco/msgpack/v5"
 )
