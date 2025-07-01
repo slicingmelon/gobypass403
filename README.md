@@ -4,9 +4,10 @@ A powerful WAF (HTTP 403/401) and URL parser bypass tool developed in Go, design
 
 ### Author 
 
-slicingmelon <<https://github.com/slicingmelon>>.
+slicingmelon <<https://github.com/slicingmelon>>
 
-X <[@pedro_infosec](https://x.com/pedro_infosec)>.
+X <[@pedro_infosec](https://x.com/pedro_infosec)>
+
 
 - [GoByPASS403](#gobypass403)
     - [Author](#author)
