@@ -2,7 +2,41 @@
 
 A powerful WAF (HTTP 403/401) and URL parser bypass tool developed in Go, designed to preserve exact URL paths and structures during testing. Unlike Go's standard libraries, the tool enables true raw HTTP requests without any encoding or normalization, ensuring complete control over the request structure. This functionality is powered by a full-stack HTTP client, independent of Go's internals, and a custom URL parser.
 
-## Features
+- [GoByPASS403](#gobypass403)
+- [Features](#features)
+- [Precompiled Binaries](#precompiled-binaries)
+- [Build](#build)
+- [Usage](#usage)
+  - [Standard WAF 403/401 Bypass](#standard-waf-403401-bypass)
+  - [Find CDN Bypasses Using A List Of Hosts](#find-cdn-bypasses-using-a-list-of-hosts)
+  - [Screenshots](#screenshots)
+- [Bypass Modules](#bypass-modules)
+  - [1. char\_encode](#1-char_encode)
+  - [2. mid\_paths](#2-mid_paths)
+  - [3. end\_paths](#3-end_paths)
+  - [4. path\_prefix](#4-path_prefix)
+  - [5. http\_methods](#5-http_methods)
+  - [6. case\_substitution](#6-case_substitution)
+  - [7. nginx\_bypasses](#7-nginx_bypasses)
+  - [8. unicode\_path\_normalization](#8-unicode_path_normalization)
+  - [9. headers\_scheme](#9-headers_scheme)
+  - [10. headers\_ip](#10-headers_ip)
+  - [11. headers\_port](#11-headers_port)
+  - [12. headers\_url](#12-headers_url)
+  - [13. headers\_host](#13-headers_host)
+- [Changelog](#changelog)
+  - [0.8.1](#081)
+  - [0.8.0](#080)
+  - [0.7.9](#079)
+  - [0.7.8](#078)
+  - [27 March 2025](#27-march-2025)
+  - [14 February 2025](#14-february-2025)
+  - [09 January 2025](#09-january-2025)
+  - [05 November 2024](#05-november-2024)
+- [Motivation](#motivation)
+  - [Credits](#credits)
+
+# Features
 
 - **Raw URL Preservation**: Unlike other Go tools that use the standard `net/url` package which automatically normalizes and encodes URLs, GoBypass403 preserves the exact URL structure similar, even better than curl's `--path-as-is` or Burp Engine. This is crucial for WAF bypass attempts where path traversal and specific URL structures need to be maintained.
 
@@ -514,6 +548,7 @@ This module is especially powerful for:
 
 - Updated go to 1.24.1.
 - Increased TLS LRUSessionCache size.
+- Now using custom go-bytesutil pkgs.
 
 ## 0.8.0
 
@@ -574,7 +609,7 @@ This module is especially powerful for:
 - First official release
 
 
-## Motivation
+# Motivation
 
 Traditional Go-based security tools often struggle with WAF bypasses because Go's standard libraries are designed to be secure by default, automatically normalizing URLs and encoding special characters. This makes it difficult to test certain types of bypasses that rely on specific URL structures or character sequences.
 
@@ -593,7 +628,7 @@ Quote from laluka:
 >This is surprisingly hard to achieve in python without losing all of the lib goodies like parsing, ssl/tls encapsulation and so on.
 So, be like me, use curl as a backend, it's gonna be just fine.
 
-### Credits
+## Credits
 
 
 This tool was inspired by and based on [laluka's bypass-url-parser](https://github.com/laluka/bypass-url-parser). All credit for the original concept and bypass techniques goes to him.

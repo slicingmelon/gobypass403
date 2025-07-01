@@ -7,7 +7,7 @@ on:
 
 jobs:
   build-linux:
-    name: Build Linux Binary
+    name: Build Static Linux Binary
     runs-on: ubuntu-latest
     container:
       image: debian:buster
@@ -25,7 +25,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3
 
-      - name: Build (CGO enabled)
+      - name: Build Static Linux Binary (CGO enabled)
         env:
           CGO_ENABLED: 1
           GOOS: linux
@@ -33,7 +33,7 @@ jobs:
         run: |
           git config --global --add safe.directory /__w/gobypass403/gobypass403
           mkdir -p dist
-          go build -v -o dist/gobypass403-linux-amd64 ./cmd/gobypass403
+          go build -v -a -ldflags '-extldflags "-static"' -o dist/gobypass403-linux-amd64 ./cmd/gobypass403
 
       - name: Upload Linux Release
         uses: softprops/action-gh-release@v1
@@ -65,7 +65,7 @@ jobs:
         with:
           go-version: 1.24.1
 
-      - name: Build (CGO enabled)
+      - name: Build macOS & Windows binaries (CGO enabled)
         shell: bash
         env:
           CGO_ENABLED: 1
@@ -74,8 +74,15 @@ jobs:
         run: |
           mkdir -p dist
           EXT=""
-          if [ "${{ matrix.goos }}" = "windows" ]; then EXT=".exe"; fi
-          go build -v -o dist/gobypass403-${{ matrix.goos }}-${{ matrix.goarch }}$EXT ./cmd/gobypass403
+          if [ "${{ matrix.goos }}" = "windows" ]; then
+            EXT=".exe"
+          fi
+          OUTPUT_NAME="dist/gobypass403-${{ matrix.goos }}-${{ matrix.goarch }}${EXT}"
+          if [ "${{ matrix.goos }}" = "windows" ]; then
+            go build -v -a -ldflags '-extldflags "-static"' -o ${OUTPUT_NAME} ./cmd/gobypass403
+          else
+            go build -v -o ${OUTPUT_NAME} ./cmd/gobypass403
+          fi
 
       - name: Upload Release Assets
         uses: softprops/action-gh-release@v1
