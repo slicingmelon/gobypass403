@@ -10,12 +10,10 @@ jobs:
     name: Build Static Linux Binary
     runs-on: ubuntu-latest
     container:
-      image: debian:buster
+      image: alpine:3.22
     steps:
       - name: Install dependencies
-        run: |
-          apt update
-          apt install -y build-essential git curl pkg-config sqlite3 libsqlite3-dev
+        run: apk add --no-cache build-base git curl pkgconf sqlite-dev musl-dev
 
       - name: Set up Go
         uses: actions/setup-go@v4
@@ -25,7 +23,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3
 
-      - name: Build Static Linux Binary (CGO enabled)
+      - name: Build Static Linux Binary (CGO enabled with musl)
         env:
           CGO_ENABLED: 1
           GOOS: linux
