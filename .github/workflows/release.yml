@@ -11,6 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     container:
       image: alpine:3.22
+
     steps:
       - name: Install dependencies
         run: apk add --no-cache build-base git curl pkgconf sqlite-dev musl-dev
@@ -23,20 +24,29 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3
 
-      - name: Build Static Linux Binary (CGO enabled with musl)
+      - name: Configure Git Safe Directory
+        run: git config --global --add safe.directory /__w/gobypass403/gobypass403
+
+      - name: Extract version from Git tag
+        run: |
+          VERSION=$(git describe --tags --abbrev=0 | sed 's/^v//')
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+        shell: sh
+
+      - name: Build Static Linux Binary (CGO + musl)
         env:
           CGO_ENABLED: 1
           GOOS: linux
           GOARCH: amd64
         run: |
-          git config --global --add safe.directory /__w/gobypass403/gobypass403
           mkdir -p dist
-          go build -v -a -ldflags '-extldflags "-static"' -o dist/gobypass403-linux-amd64 ./cmd/gobypass403
+          go build -v -a -ldflags '-extldflags "-static"' \
+            -o dist/gobypass403_${VERSION}_linux-amd64 ./cmd/gobypass403
 
       - name: Upload Linux Release
         uses: softprops/action-gh-release@v1
         with:
-          files: dist/gobypass403-linux-amd64
+          files: dist/gobypass403_${{ env.VERSION }}_linux-amd64
           draft: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -58,12 +68,18 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3
 
+      - name: Extract version from Git tag
+        run: |
+          VERSION=$(git describe --tags --abbrev=0 | sed 's/^v//')
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+        shell: bash
+
       - name: Set up Go
         uses: actions/setup-go@v4
         with:
           go-version: 1.24.1
 
-      - name: Build macOS & Windows binaries (CGO enabled)
+      - name: Build macOS & Windows binaries
         shell: bash
         env:
           CGO_ENABLED: 1
@@ -75,7 +91,7 @@ jobs:
           if [ "${{ matrix.goos }}" = "windows" ]; then
             EXT=".exe"
           fi
-          OUTPUT_NAME="dist/gobypass403-${{ matrix.goos }}-${{ matrix.goarch }}${EXT}"
+          OUTPUT_NAME="dist/gobypass403_${VERSION}_${{ matrix.goos }}-${{ matrix.goarch }}${EXT}"
           if [ "${{ matrix.goos }}" = "windows" ]; then
             go build -v -a -ldflags '-extldflags "-static"' -o ${OUTPUT_NAME} ./cmd/gobypass403
           else
