@@ -79,7 +79,7 @@ go build .\cmd\gobypass403\
 ## GoReleaser 
 
 ```bash
-goreleaser build --snapshot --clean --single-target --output gobypass403.exe
+goreleaser build --snapshot --clean --single-target --output .
 ```
 
 # Usage
