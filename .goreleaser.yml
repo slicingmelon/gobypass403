@@ -12,7 +12,6 @@ before:
   hooks:
     - go mod tidy
 
-# this is fine
 checksum:
   name_template: "checksums.txt"
   algorithm: sha256
