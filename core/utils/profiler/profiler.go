@@ -32,7 +32,7 @@ func NewProfiler() *Profiler {
 }
 
 func (p *Profiler) Start() error {
-	if err := os.MkdirAll(p.profileDir, 0755); err != nil {
+	if err := os.MkdirAll(p.profileDir, 0o755); err != nil {
 		GB403Logger.Error().Msgf("Failed to create profile directory: %v", err)
 		return fmt.Errorf("create profile directory: %w", err)
 	}

@@ -94,7 +94,7 @@ func UpdatePayloads() error {
 		return fmt.Errorf("failed to get payloads directory: %w", err)
 	}
 
-	if err := os.MkdirAll(payloadsDir, 0755); err != nil {
+	if err := os.MkdirAll(payloadsDir, 0o755); err != nil {
 		return fmt.Errorf("failed to create payloads directory: %w", err)
 	}
 

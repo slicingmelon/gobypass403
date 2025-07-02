@@ -418,7 +418,7 @@ func (o *CliOptions) validateModule() error {
 
 // setupOutputDir creates the output directory
 func (o *CliOptions) setupOutputDir() error {
-	if err := os.MkdirAll(o.OutDir, 0755); err != nil {
+	if err := os.MkdirAll(o.OutDir, 0o755); err != nil {
 		return fmt.Errorf("failed to create output directory: %v", err)
 	}
 	return nil
