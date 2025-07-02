@@ -1,8 +1,9 @@
-# 0.8.3
+# 0.8.3-0.8.4
 
 - Updated Github Actions workflow, linux static builds are done in Alpine with musl. Fixing issue [#1](https://github.com/slicingmelon/gobypass403/issues/1).
 - Updated default output dir to `/tmp/gobypass403_tmp/` instead of `/tmp/`.
 - Pre-compiled release binaries now include the version in the filename.
+- Updated .goreleaser.yml just for local dev/snapshot builds.
 
 # 0.8.2
 
