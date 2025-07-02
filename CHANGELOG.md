@@ -1,3 +1,8 @@
+# 0.8.3
+
+- Updated github actions, linux static builds are done in Alpine with musl. (https://github.com/slicingmelon/gobypass403/issues/1)
+
+
 # 0.8.2
 
 - Updated README.
