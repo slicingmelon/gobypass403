@@ -40,7 +40,7 @@ jobs:
           GOARCH: amd64
         run: |
           mkdir -p dist
-          go build -v -a -ldflags '-extldflags "-static"' \
+          go build -v -a -ldflags "-X github.com/slicingmelon/gobypass403/core/cli.GOBYPASS403_VERSION=${VERSION} -s -w -extldflags '-static'" \
             -o dist/gobypass403_${VERSION}_linux_amd64 ./cmd/gobypass403
 
       - name: Upload Linux artifacts
@@ -90,10 +90,11 @@ jobs:
             EXT=".exe"
           fi
           OUTPUT_NAME="dist/gobypass403_${VERSION}_${{ matrix.goos }}_${{ matrix.goarch }}${EXT}"
+          LDFLAGS="-X github.com/slicingmelon/gobypass403/core/cli.GOBYPASS403_VERSION=${VERSION} -s -w"
           if [ "${{ matrix.goos }}" = "windows" ]; then
-            go build -v -a -ldflags '-extldflags "-static"' -o ${OUTPUT_NAME} ./cmd/gobypass403
+            go build -v -a -ldflags "${LDFLAGS} -extldflags '-static'" -o ${OUTPUT_NAME} ./cmd/gobypass403
           else
-            go build -v -o ${OUTPUT_NAME} ./cmd/gobypass403
+            go build -v -ldflags "${LDFLAGS}" -o ${OUTPUT_NAME} ./cmd/gobypass403
           fi
 
       - name: Upload artifacts
