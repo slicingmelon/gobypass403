@@ -16,7 +16,7 @@ import (
 )
 
 func main() {
-	GB403Logger.Info().Msgf("Initializing GoByPASS403...\n")
+	GB403Logger.Info().Msgf("Initializing GoByPASS403 v%s...\n", cli.GOBYPASS403_VERSION)
 
 	if err := payload.InitializePayloadsDir(); err != nil {
 		GB403Logger.Error().Msgf("Failed to initialize payloads: %v", err)

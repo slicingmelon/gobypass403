@@ -105,7 +105,7 @@ func parseFlags() (*CliOptions, error) {
 
 	// Set up custom usage
 	flag.Usage = func() {
-		fmt.Fprintf(os.Stderr, "GoByPASS403\n\n")
+		fmt.Fprintf(os.Stderr, "GoByPASS403 v%s\n\n", GOBYPASS403_VERSION)
 		fmt.Fprintf(os.Stderr, "Usage:\n")
 		for _, f := range flags {
 			names := strings.Split(f.name, ",")
