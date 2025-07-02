@@ -41,7 +41,7 @@ jobs:
         run: |
           mkdir -p dist
           go build -v -a -ldflags '-extldflags "-static"' \
-            -o dist/gobypass403_${VERSION}_linux-amd64 ./cmd/gobypass403
+            -o dist/gobypass403_${VERSION}_linux_amd64 ./cmd/gobypass403
 
       - name: Upload Linux artifacts
         uses: actions/upload-artifact@v4
@@ -89,7 +89,7 @@ jobs:
           if [ "${{ matrix.goos }}" = "windows" ]; then
             EXT=".exe"
           fi
-          OUTPUT_NAME="dist/gobypass403_${VERSION}_${{ matrix.goos }}-${{ matrix.goarch }}${EXT}"
+          OUTPUT_NAME="dist/gobypass403_${VERSION}_${{ matrix.goos }}_${{ matrix.goarch }}${EXT}"
           if [ "${{ matrix.goos }}" = "windows" ]; then
             go build -v -a -ldflags '-extldflags "-static"' -o ${OUTPUT_NAME} ./cmd/gobypass403
           else
