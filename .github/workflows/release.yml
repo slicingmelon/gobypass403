@@ -121,14 +121,13 @@ jobs:
       - name: Extract changelog for current version
         id: changelog
         run: |
-          VERSION="${GITHUB_REF#refs/tags/}"
           if [ -f CHANGELOG.md ]; then
-            BODY=$(sed -n "/^# ${VERSION#v}/,/^#/p" CHANGELOG.md | sed '$d' | head -50)
-            echo 'body<<EOF' >> $GITHUB_OUTPUT
-            echo "$BODY" >> $GITHUB_OUTPUT
-            echo 'EOF' >> $GITHUB_OUTPUT
+            BODY=$(awk 'NR > 1 && /^#/ {exit} NR > 1 {print}' CHANGELOG.md)
+            echo 'body<<EOF' >> "$GITHUB_OUTPUT"
+            echo "$BODY" >> "$GITHUB_OUTPUT"
+            echo 'EOF' >> "$GITHUB_OUTPUT"
           else
-            echo 'body=Release $VERSION' >> $GITHUB_OUTPUT
+            echo "body=Release for ${{ github.ref_name }}" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Create Draft Release
