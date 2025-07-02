@@ -10,7 +10,7 @@ jobs:
     name: Build Static Linux Binary
     runs-on: ubuntu-latest
     container:
-      image: alpine:3.22
+      image: alpine:latest
     steps:
       - name: Install dependencies
         run: apk add --no-cache build-base git curl pkgconf sqlite-dev musl-dev
@@ -23,6 +23,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3
 
+      - name: Get version from tag
+        run: echo "VERSION=${GITHUB_REF_NAME#v}" >> $GITHUB_ENV
+        shell: bash
+
       - name: Build Static Linux Binary (CGO enabled with musl)
         env:
           CGO_ENABLED: 1
@@ -31,12 +35,12 @@ jobs:
         run: |
           git config --global --add safe.directory /__w/gobypass403/gobypass403
           mkdir -p dist
-          go build -v -a -ldflags '-extldflags "-static"' -o dist/gobypass403-linux-amd64 ./cmd/gobypass403
+          go build -v -a -ldflags '-extldflags "-static"' -o dist/gobypass403-${VERSION}-linux-amd64 ./cmd/gobypass403
 
       - name: Upload Linux Release
         uses: softprops/action-gh-release@v1
         with:
-          files: dist/gobypass403-linux-amd64
+          files: dist/gobypass403-${VERSION}-linux-amd64
           draft: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -58,6 +62,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3
 
+      - name: Get version from tag
+        run: echo "VERSION=${GITHUB_REF_NAME#v}" >> $GITHUB_ENV
+        shell: bash
+
       - name: Set up Go
         uses: actions/setup-go@v4
         with:
@@ -75,7 +83,7 @@ jobs:
           if [ "${{ matrix.goos }}" = "windows" ]; then
             EXT=".exe"
           fi
-          OUTPUT_NAME="dist/gobypass403-${{ matrix.goos }}-${{ matrix.goarch }}${EXT}"
+          OUTPUT_NAME="dist/gobypass403-${VERSION}-${{ matrix.goos }}-${{ matrix.goarch }}${EXT}"
           if [ "${{ matrix.goos }}" = "windows" ]; then
             go build -v -a -ldflags '-extldflags "-static"' -o ${OUTPUT_NAME} ./cmd/gobypass403
           else
