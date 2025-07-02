@@ -56,6 +56,7 @@ func InitDB(dbFilePath string, workers int) error {
                 bypass_module TEXT NOT NULL,
                 status_code INTEGER,
                 content_length INTEGER,
+                content_type TEXT,
                 response_headers TEXT,
                 response_body_preview TEXT,
                 response_body_bytes INTEGER,
@@ -65,7 +66,6 @@ func InitDB(dbFilePath string, workers int) error {
                 curl_cmd TEXT,
                 debug_token TEXT,
                 response_time INTEGER,
-                content_type TEXT,
                 scan_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
 
@@ -83,10 +83,10 @@ func InitDB(dbFilePath string, workers int) error {
 		// Pre-prepare the single statement with correct SQL syntax
 		stmt, err := db.Prepare(`
             INSERT INTO scan_results (
-                target_url, bypass_module, status_code, content_length,
+                target_url, bypass_module, status_code, content_length, content_type,
                 response_headers, response_body_preview, response_body_bytes,
                 title, server_info, redirect_url, curl_cmd, debug_token, 
-                response_time, content_type
+                response_time
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `)
 		if err != nil {
@@ -327,6 +327,7 @@ func AppendResultsToDB(results []*Result) error {
 			result.BypassModule,
 			result.StatusCode,
 			result.ContentLength,
+			result.ContentType,
 			result.ResponseHeaders,
 			result.ResponseBodyPreview,
 			result.ResponseBodyBytes,
@@ -336,7 +337,6 @@ func AppendResultsToDB(results []*Result) error {
 			result.CurlCMD,
 			result.DebugToken,
 			result.ResponseTime,
-			result.ContentType,
 		)
 		if err != nil {
 			return fmt.Errorf("failed to insert result: %v", err)
