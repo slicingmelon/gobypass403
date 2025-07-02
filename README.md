@@ -14,6 +14,8 @@ X <[@pedro_infosec](https://x.com/pedro_infosec)>
 - [Features](#features)
 - [Precompiled Binaries](#precompiled-binaries)
 - [Build](#build)
+  - [Standard Build](#standard-build)
+  - [GoReleaser](#goreleaser)
 - [Usage](#usage)
   - [Standard WAF 403/401 Bypass](#standard-waf-403401-bypass)
   - [Find CDN Bypasses Using A List Of Hosts](#find-cdn-bypasses-using-a-list-of-hosts)
@@ -66,10 +68,18 @@ X <[@pedro_infosec](https://x.com/pedro_infosec)>
 
 # Build
 
+## Standard Build
+
 ```bash
 git clone https://github.com/slicingmelon/gobypass403.git
 go get
 go build .\cmd\gobypass403\
+```
+
+## GoReleaser 
+
+```bash
+goreleaser build --snapshot --clean --single-target --output gobypass403.exe
 ```
 
 # Usage
