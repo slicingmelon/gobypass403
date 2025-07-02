@@ -7,39 +7,49 @@ on:
 
 jobs:
   build-linux:
-    name: Build Static Linux Binary
-    runs-on: ubuntu-latest
-    container:
-      image: alpine:latest
+  name: Build Static Linux Binary
+  runs-on: ubuntu-latest
+  container:
+    image: alpine:3.22
 
-    steps:
-      - name: Install dependencies
-        run: apk add --no-cache build-base git curl pkgconf sqlite-dev musl-dev
+  steps:
+    - name: Install dependencies
+      run: apk add --no-cache build-base git curl pkgconf sqlite-dev musl-dev
 
-      - name: Set up Go
-        uses: actions/setup-go@v4
-        with:
-          go-version: 1.24.1
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: 1.24.1
 
-      - name: Checkout
-        uses: actions/checkout@v3
+    - name: Checkout
+      uses: actions/checkout@v3
 
-      - name: Extract version from Git tag
-        run: |
-          VERSION=$(git describe --tags --abbrev=0 | sed 's/^v//')
-          echo "VERSION=$VERSION" >> $GITHUB_ENV
-        shell: sh
+    - name: Configure Git Safe Directory
+      run: git config --global --add safe.directory /__w/gobypass403/gobypass403
 
-      - name: Build Static Linux Binary (CGO + musl)
-        env:
-          CGO_ENABLED: 1
-          GOOS: linux
-          GOARCH: amd64
-        run: |
-          git config --global --add safe.directory /__w/gobypass403/gobypass403
-          mkdir -p dist
-          go build -v -a -ldflags '-extldflags "-static"' \
-            -o dist/gobypass403_${VERSION}_linux-amd64 ./cmd/gobypass403
+    - name: Extract version from Git tag
+      run: |
+        VERSION=$(git describe --tags --abbrev=0 | sed 's/^v//')
+        echo "VERSION=$VERSION" >> $GITHUB_ENV
+      shell: sh
+
+    - name: Build Static Linux Binary (CGO + musl)
+      env:
+        CGO_ENABLED: 1
+        GOOS: linux
+        GOARCH: amd64
+      run: |
+        mkdir -p dist
+        go build -v -a -ldflags '-extldflags "-static"' \
+          -o dist/gobypass403_${VERSION}_linux-amd64 ./cmd/gobypass403
+
+    - name: Upload Linux Release
+      uses: softprops/action-gh-release@v1
+      with:
+        files: dist/gobypass403_${{ env.VERSION }}_linux-amd64
+        draft: true
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Upload Linux Release
         uses: softprops/action-gh-release@v1
