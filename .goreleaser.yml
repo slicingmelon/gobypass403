@@ -2,7 +2,7 @@ builds:
   - id: gobypass403
     main: ./cmd/gobypass403
     binary: gobypass403
-    goos: [windows]
+    goos: [windows, linux, darwin]
     goarch: [amd64]
     env: [CGO_ENABLED=1]
     ldflags:
