@@ -166,7 +166,7 @@ func (o *CliOptions) setDefaults() {
 
 	// Output directory default
 	if o.OutDir == "" {
-		o.OutDir = filepath.Join(os.TempDir(), fmt.Sprintf("gobypass403-%x", time.Now().UnixNano()))
+		o.OutDir = filepath.Join(os.TempDir(), "gobypass403_tmp", fmt.Sprintf("gobypass403_%x", time.Now().UnixNano()))
 	}
 
 	if o.ResultsDBFile == "" {
