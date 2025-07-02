@@ -1,44 +1,21 @@
-project_name: gobypass403
+builds:
+  - id: gobypass403
+    main: ./cmd/gobypass403
+    binary: gobypass403
+    goos: [windows]
+    goarch: [amd64]
+    env: [CGO_ENABLED=1]
+    ldflags:
+      - -X github.com/slicingmelon/gobypass403/core/cli.GOBYPASS403_VERSION={{.Version}} -s -w
 
 before:
   hooks:
     - go mod tidy
 
-builds:
-  - id: gobypass403
-    main: ./cmd/gobypass403
-    binary: gobypass403
-    goos:
-      - linux
-      - windows
-      - darwin
-    goarch:
-      - amd64
-      - arm64
-    env:
-      - CGO_ENABLED=1
-    ldflags:
-      - -X github.com/slicingmelon/gobypass403/core/cli.GOBYPASS403_VERSION={{.Version}} -s -w
-
-archives:
-  - format: zip
-    name_template: >
-      {{ .ProjectName }}_{{ .Version }}{{ if ne .GitBranch "main" }}_beta{{ end }}_{{ .Os }}_{{ .Arch }}
-    files:
-      - LICENSE
-      - README.md
-      - CHANGELOG.md
-
+# this is fine
 checksum:
   name_template: "checksums.txt"
   algorithm: sha256
-
-changelog:
-  sort: asc
-  filters:
-    exclude:
-      - "^docs:"
-      - "^chore:"
 
 release:
   draft: true
