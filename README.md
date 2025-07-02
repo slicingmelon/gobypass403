@@ -12,10 +12,11 @@ X <[@pedro_infosec](https://x.com/pedro_infosec)>
 - [GoByPASS403](#gobypass403)
     - [Author](#author)
 - [Features](#features)
-- [Precompiled Binaries](#precompiled-binaries)
-- [Build](#build)
-  - [Standard Build](#standard-build)
-  - [GoReleaser](#goreleaser)
+- [Installation](#installation)
+  - [Precompiled Binaries (Recommended)](#precompiled-binaries-recommended)
+  - [Build Locally](#build-locally)
+    - [Standard Build](#standard-build)
+    - [GoReleaser](#goreleaser)
 - [Usage](#usage)
   - [Standard WAF 403/401 Bypass](#standard-waf-403401-bypass)
   - [Find CDN Bypasses Using A List Of Hosts](#find-cdn-bypasses-using-a-list-of-hosts)
@@ -62,21 +63,23 @@ X <[@pedro_infosec](https://x.com/pedro_infosec)>
 
 - **CDN Bypass Support**: Special features for testing CDN-based bypasses using host substitution
 
-# Precompiled Binaries
+# Installation
+
+## Precompiled Binaries (Recommended)
 
 - Windows, Linux and MacOS builds available: https://github.com/slicingmelon/gobypass403/releases/latest.
 
-# Build
+## Build Locally
 
-## Standard Build
+### Standard Build
 
 ```bash
 git clone https://github.com/slicingmelon/gobypass403.git
-go get
+go mod download
 go build .\cmd\gobypass403\
 ```
 
-## GoReleaser 
+### GoReleaser 
 
 ```bash
 goreleaser build --snapshot --clean --single-target --output .
