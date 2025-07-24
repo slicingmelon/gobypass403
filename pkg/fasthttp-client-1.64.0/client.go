@@ -2252,10 +2252,10 @@ func (q *wantConnQueue) clearFront() (cleaned bool) {
 type PipelineClient struct {
 	noCopy noCopy
 
-	// Logger for logging client errors.
-	//
-	// By default standard logger from log package is used.
-	Logger Logger
+	// GOBYPASS403 PATCH: START
+	// Commented out Logger to avoid dependency
+	// Logger Logger
+	// GOBYPASS403 PATCH: END
 
 	// Callback for connection establishing to the host.
 	//
@@ -2369,7 +2369,10 @@ type pipelineConnClient struct {
 
 	workPool sync.Pool
 
-	Logger Logger
+	// GOBYPASS403 PATCH: START
+	// Commented out Logger to avoid dependency
+	// Logger Logger
+	// GOBYPASS403 PATCH: END
 
 	Dial      DialFunc
 	TLSConfig *tls.Config
@@ -2672,7 +2675,10 @@ func (c *PipelineClient) newConnClient() *pipelineConnClient {
 		WriteBufferSize:               c.WriteBufferSize,
 		ReadTimeout:                   c.ReadTimeout,
 		WriteTimeout:                  c.WriteTimeout,
-		Logger:                        c.Logger,
+		// GOBYPASS403 PATCH: START
+		// Commented out Logger assignment to avoid dependency
+		// Logger:                        c.Logger,
+		// GOBYPASS403 PATCH: END
 	}
 	c.connClients = append(c.connClients, cc)
 	return cc
@@ -2701,7 +2707,10 @@ func (c *pipelineConnClient) init() {
 			// Keep restarting the worker if it fails (connection errors for example).
 			for {
 				if err := c.worker(); err != nil {
-					c.logger().Printf("error in PipelineClient(%q): %v", c.Addr, err)
+					// GOBYPASS403 PATCH: START
+					// Commented out logging to avoid Logger dependency
+					// c.logger().Printf("error in PipelineClient(%q): %v", c.Addr, err)
+					// GOBYPASS403 PATCH: END
 					if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
 						// Throttle client reconnections on timeout errors
 						time.Sleep(time.Second)
@@ -2935,12 +2944,15 @@ func (c *pipelineConnClient) reader(conn net.Conn, stopCh <-chan struct{}) error
 	}
 }
 
-func (c *pipelineConnClient) logger() Logger {
-	if c.Logger != nil {
-		return c.Logger
-	}
-	return defaultLogger
-}
+// GOBYPASS403 PATCH: START
+// Commented out logger method to avoid Logger dependency
+// func (c *pipelineConnClient) logger() Logger {
+// 	if c.Logger != nil {
+// 		return c.Logger
+// 	}
+// 	return defaultLogger
+// }
+// GOBYPASS403 PATCH: END
 
 // PendingRequests returns the current number of pending requests pipelined
 // to the server.
