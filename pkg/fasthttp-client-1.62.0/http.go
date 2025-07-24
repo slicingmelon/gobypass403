@@ -544,9 +544,9 @@ func (resp *Response) BodyInflate() ([]byte, error) {
 	return inflateData(resp.Body())
 }
 
-func (ctx *RequestCtx) RequestBodyStream() io.Reader {
-	return ctx.Request.bodyStream
-}
+// func (ctx *RequestCtx) RequestBodyStream() io.Reader {
+// 	return ctx.Request.bodyStream
+// }
 
 func (req *Request) BodyUnzstd() ([]byte, error) {
 	return unzstdData(req.Body())
@@ -2282,6 +2282,8 @@ func limitedReaderSize(r io.Reader) int64 {
 	}
 	return lr.N
 }
+
+const maxSmallFileSize = 2 * 4096
 
 func writeBodyFixedSize(w *bufio.Writer, r io.Reader, size int64) error {
 	if size > maxSmallFileSize {
