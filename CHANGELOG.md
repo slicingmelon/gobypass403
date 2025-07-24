@@ -3,7 +3,8 @@
 - Added new CLI parameter `-strict-scheme` to perform testing only on the original scheme.
 - Updated `headers_urls` payloads.
 - The tool is now using a full, idependent, modified fasthttp client, completely stripped from any code unrelated to the client's comopnenets. 
-  
+- Also updated the internal fasthttp client to 1.64.0.
+    
 # 0.8.3-0.8.4
 
 - Updated Github Actions workflow, linux static builds are done in Alpine with musl. Fixing issue [#1](https://github.com/slicingmelon/gobypass403/issues/1).
