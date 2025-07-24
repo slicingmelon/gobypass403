@@ -129,6 +129,8 @@ Usage:
         Filter results by maximum Content-Length (example: -max-cl 5000)
   -H, -header
         Custom HTTP header (example: -H "X-My-Header: value"), can be used multiple times
+  -sc, -strict-scheme
+        Only test URLs with the original scheme from input (prevents auto-expansion to http/https) (Default: false)
   -http2
         Enable HTTP2 client (Default: false)
   -x, -proxy
