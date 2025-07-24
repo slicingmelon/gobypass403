@@ -2717,12 +2717,13 @@ func (h *RequestHeader) parseFirstLine(buf []byte) (int, error) {
 	}
 	h.method = append(h.method[:0], b[:n]...)
 
-	if !isValidMethod(h.method) {
-		if h.secureErrorLogMessage {
-			return 0, errors.New("unsupported http request method")
-		}
-		return 0, fmt.Errorf("unsupported http request method %q in %q", h.method, buf)
-	}
+	// PATCH gobypass403
+	// if !isValidMethod(h.method) {
+	// 	if h.secureErrorLogMessage {
+	// 		return 0, errors.New("unsupported http request method")
+	// 	}
+	// 	return 0, fmt.Errorf("unsupported http request method %q in %q", h.method, buf)
+	// }
 
 	b = b[n+1:]
 
@@ -2739,25 +2740,26 @@ func (h *RequestHeader) parseFirstLine(buf []byte) (int, error) {
 
 	protoStr := b[n+1:]
 
+	// PATCH gobypass403
 	// Follow RFCs 7230 and 9112 and require that HTTP versions match the following pattern: HTTP/[0-9]\.[0-9]
-	if len(protoStr) != len(strHTTP11) {
-		if h.secureErrorLogMessage {
-			return 0, fmt.Errorf("unsupported HTTP version %q", protoStr)
-		}
-		return 0, fmt.Errorf("unsupported HTTP version %q in %q", protoStr, buf)
-	}
-	if !bytes.HasPrefix(protoStr, strHTTP11[:5]) {
-		if h.secureErrorLogMessage {
-			return 0, fmt.Errorf("unsupported HTTP version %q", protoStr)
-		}
-		return 0, fmt.Errorf("unsupported HTTP version %q in %q", protoStr, buf)
-	}
-	if protoStr[5] < '0' || protoStr[5] > '9' || protoStr[7] < '0' || protoStr[7] > '9' {
-		if h.secureErrorLogMessage {
-			return 0, fmt.Errorf("unsupported HTTP version %q", protoStr)
-		}
-		return 0, fmt.Errorf("unsupported HTTP version %q in %q", protoStr, buf)
-	}
+	// if len(protoStr) != len(strHTTP11) {
+	// 	if h.secureErrorLogMessage {
+	// 		return 0, fmt.Errorf("unsupported HTTP version %q", protoStr)
+	// 	}
+	// 	return 0, fmt.Errorf("unsupported HTTP version %q in %q", protoStr, buf)
+	// }
+	// if !bytes.HasPrefix(protoStr, strHTTP11[:5]) {
+	// 	if h.secureErrorLogMessage {
+	// 		return 0, fmt.Errorf("unsupported HTTP version %q", protoStr)
+	// 	}
+	// 	return 0, fmt.Errorf("unsupported HTTP version %q in %q", protoStr, buf)
+	// }
+	// if protoStr[5] < '0' || protoStr[5] > '9' || protoStr[7] < '0' || protoStr[7] > '9' {
+	// 	if h.secureErrorLogMessage {
+	// 		return 0, fmt.Errorf("unsupported HTTP version %q", protoStr)
+	// 	}
+	// 	return 0, fmt.Errorf("unsupported HTTP version %q in %q", protoStr, buf)
+	// }
 
 	h.noHTTP11 = !bytes.Equal(protoStr, strHTTP11)
 	h.protocol = append(h.protocol[:0], protoStr...)
@@ -2824,12 +2826,13 @@ func (h *ResponseHeader) parseHeaders(buf []byte) (int, error) {
 		}
 		normalizeHeaderKey(s.key, disableNormalizing)
 
-		for _, ch := range s.value {
-			if !validHeaderValueByte(ch) {
-				h.connectionClose = true
-				return 0, fmt.Errorf("invalid header value %q", s.value)
-			}
-		}
+		// PATCH gobypass403
+		// for _, ch := range s.value {
+		// 	if !validHeaderValueByte(ch) {
+		// 		h.connectionClose = true
+		// 		return 0, fmt.Errorf("invalid header value %q", s.value)
+		// 	}
+		// }
 
 		switch s.key[0] | 0x20 {
 		case 'c':
@@ -2946,12 +2949,13 @@ func (h *RequestHeader) parseHeaders(buf []byte) (int, error) {
 		}
 		normalizeHeaderKey(s.key, disableNormalizing)
 
-		for _, ch := range s.value {
-			if !validHeaderValueByte(ch) {
-				h.connectionClose = true
-				return 0, fmt.Errorf("invalid header value %q", s.value)
-			}
-		}
+		// PATCH gobypass403
+		// for _, ch := range s.value {
+		// 	if !validHeaderValueByte(ch) {
+		// 		h.connectionClose = true
+		// 		return 0, fmt.Errorf("invalid header value %q", s.value)
+		// 	}
+		// }
 
 		if h.disableSpecialHeader {
 			h.h = appendArgBytes(h.h, s.key, s.value, argsHasValue)

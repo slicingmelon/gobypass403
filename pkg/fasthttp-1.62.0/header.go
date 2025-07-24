@@ -2882,13 +2882,14 @@ func (h *RequestHeader) parseFirstLine(buf []byte) (int, error) {
 	}
 	h.method = append(h.method[:0], b[:n]...)
 
-	// PATCH gobypass403
+	// GOBYPASS403 PATCH: remove method validation
 	// if !isValidMethod(h.method) {
 	// 	if h.secureErrorLogMessage {
 	// 		return 0, errors.New("unsupported http request method")
 	// 	}
 	// 	return 0, fmt.Errorf("unsupported http request method %q in %q", h.method, buf)
 	// }
+	// GOBYPASS403 PATCH:
 
 	b = b[n+1:]
 
@@ -2905,7 +2906,7 @@ func (h *RequestHeader) parseFirstLine(buf []byte) (int, error) {
 
 	protoStr := b[n+1:]
 
-	// PATCH gobypass403
+	// GOBYPASS403 PATCH: remove HTTP version validation
 	// Follow RFCs 7230 and 9112 and require that HTTP versions match the following pattern: HTTP/[0-9]\.[0-9]
 	// if len(protoStr) != len(strHTTP11) {
 	// 	if h.secureErrorLogMessage {
@@ -2925,6 +2926,7 @@ func (h *RequestHeader) parseFirstLine(buf []byte) (int, error) {
 	// 	}
 	// 	return 0, fmt.Errorf("unsupported HTTP version %q in %q", protoStr, buf)
 	// }
+	// GOBYPASS403 PATCH: END
 
 	h.noHTTP11 = !bytes.Equal(protoStr, strHTTP11)
 	h.proto = append(h.proto[:0], protoStr...)
@@ -2991,13 +2993,14 @@ func (h *ResponseHeader) parseHeaders(buf []byte) (int, error) {
 		}
 		normalizeHeaderKey(s.key, disableNormalizing)
 
-		// PATCH gobypass403
+		// GOBYPASS403 PATCH: remove header value validation
 		// for _, ch := range s.value {
 		// 	if !validHeaderValueByte(ch) {
 		// 		h.connectionClose = true
 		// 		return 0, fmt.Errorf("invalid header value %q", s.value)
 		// 	}
 		// }
+		// GOBYPASS403 PATCH: END
 
 		switch s.key[0] | 0x20 {
 		case 'c':

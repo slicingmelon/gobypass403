@@ -554,7 +554,7 @@ func (resp *Response) BodyInflate() ([]byte, error) {
 	return inflateData(resp.Body())
 }
 
-// PATH gobypass403
+// PATCH gobypass403
 // func (ctx *RequestCtx) RequestBodyStream() io.Reader {
 // 	return ctx.Request.bodyStream
 // }
@@ -1606,6 +1606,9 @@ func (req *Request) onlyMultipartForm() bool {
 // Write doesn't flush request to w for performance reasons.
 //
 // See also WriteTo.
+// --- GOBYPASS403 PATCH: START ---
+// Patched to prevent overwriting the original RawURI
+// req.Header.SetRequestURIBytes(uri.RequestURI())
 func (req *Request) Write(w *bufio.Writer) error {
 	if len(req.Header.Host()) == 0 || req.parsedURI {
 		uri := req.URI()
@@ -1618,7 +1621,11 @@ func (req *Request) Write(w *bufio.Writer) error {
 		} else if !req.UseHostHeader {
 			req.Header.SetHostBytes(host)
 		}
-		req.Header.SetRequestURIBytes(uri.RequestURI())
+
+		// --- GOBYPASS403 PATCH: START ---
+		// Removed this line to prevent overwriting the original RawURI
+		//req.Header.SetRequestURIBytes(uri.RequestURI())
+		// --- GOBYPASS403 PATCH: END ---
 
 		if len(uri.username) > 0 {
 			// RequestHeader.SetBytesKV only uses RequestHeader.bufKV.key
@@ -2296,6 +2303,9 @@ func limitedReaderSize(r io.Reader) int64 {
 	}
 	return lr.N
 }
+
+// PATCH gobypass403
+const maxSmallFileSize = 2 * 4096
 
 func writeBodyFixedSize(w *bufio.Writer, r io.Reader, size int64) error {
 	if size > maxSmallFileSize {
