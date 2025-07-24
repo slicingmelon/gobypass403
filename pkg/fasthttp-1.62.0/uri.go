@@ -336,7 +336,7 @@ func (u *URI) parse(host, uri []byte, isTLS bool) error {
 	} else {
 		u.hasHash = false // Reset if '#' was part of the query string
 	}
-	// END GOBYPASS403 PATCH
+	// GOBYPASS403 PATCH: END
 
 	// Ignore query in fragment part
 	if fragmentIndex >= 0 && queryIndex > fragmentIndex {

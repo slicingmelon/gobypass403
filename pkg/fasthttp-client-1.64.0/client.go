@@ -1839,6 +1839,11 @@ func (c *HostClient) ReleaseConn(cc *clientConn) {
 	}
 }
 
+const (
+	defaultWriteBufferSize = 4096
+	defaultReadBufferSize  = 4096
+)
+
 func (c *HostClient) AcquireWriter(conn net.Conn) *bufio.Writer {
 	var v any
 	if c.clientWriterPool != nil {
