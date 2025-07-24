@@ -247,7 +247,30 @@ func (p *URLRecon) expandURLSchemes(targetURL string) ([]string, error) {
 		schemes[scheme] = true
 	}
 
-	// Generate URLs for each unique scheme
+	// If strict scheme is enabled, only use the original scheme if it's supported
+	if p.opts.StrictScheme {
+		originalScheme := parsedURL.Scheme
+		if originalScheme == "" {
+			return nil, fmt.Errorf("original URL has no scheme and strict-scheme is enabled")
+		}
+
+		if !schemes[originalScheme] {
+			GB403Logger.Verbose().Msgf("Original scheme '%s' not supported by host %s (supported: %v)",
+				originalScheme, host, getSchemesList(schemes))
+			return nil, fmt.Errorf("original scheme '%s' not supported by host %s", originalScheme, host)
+		}
+
+		// Only return URL with original scheme
+		pathAndQuery := parsedURL.Path
+		if parsedURL.Query != "" {
+			pathAndQuery += "?" + parsedURL.Query
+		}
+
+		GB403Logger.Verbose().Msgf("Strict scheme mode: using only original scheme '%s' for %s", originalScheme, host)
+		return []string{fmt.Sprintf("%s://%s%s", originalScheme, host, pathAndQuery)}, nil
+	}
+
+	// Normal behavior: generate URLs for each unique scheme
 	urls := make([]string, 0, len(schemes))
 	pathAndQuery := parsedURL.Path
 	if parsedURL.Query != "" {
@@ -259,4 +282,13 @@ func (p *URLRecon) expandURLSchemes(targetURL string) ([]string, error) {
 	}
 
 	return urls, nil
+}
+
+// Helper function to convert schemes map to slice for logging
+func getSchemesList(schemes map[string]bool) []string {
+	var list []string
+	for scheme := range schemes {
+		list = append(list, scheme)
+	}
+	return list
 }

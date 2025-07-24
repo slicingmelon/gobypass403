@@ -80,6 +80,9 @@ type CliOptions struct {
 
 	// Enable profiler
 	Profile bool
+
+	// StrictScheme preserves original URL scheme
+	StrictScheme bool
 }
 
 // AvailableModes defines all bypass modes and their status, true if enabled, false if disabled
