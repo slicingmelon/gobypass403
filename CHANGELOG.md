@@ -2,6 +2,7 @@
 
 - Added new CLI parameter `-strict-scheme` to perform testing only on the original scheme.
 - Updated `headers_urls` payloads.
+- The tool is now using a full, idependent, modified fasthttp client, completely stripped from any code unrelated to the client's comopnenets. 
   
 # 0.8.3-0.8.4
 
