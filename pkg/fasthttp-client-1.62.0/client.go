@@ -1842,6 +1842,11 @@ func (c *HostClient) ReleaseConn(cc *clientConn) {
 	}
 }
 
+const (
+	defaultReadBufferSize  = 4096
+	defaultWriteBufferSize = 4096
+)
+
 func (c *HostClient) AcquireWriter(conn net.Conn) *bufio.Writer {
 	var v any
 	if c.clientWriterPool != nil {
@@ -2247,6 +2252,27 @@ func (q *wantConnQueue) clearFront() (cleaned bool) {
 		q.failedWaiters.Add(-1)
 		cleaned = true
 	}
+}
+
+// Logger is used for logging formatted messages.
+type Logger interface {
+	// Printf must have the same semantics as log.Printf.
+	Printf(format string, args ...any)
+}
+
+var ctxLoggerLock sync.Mutex
+
+type ctxLogger struct {
+	//ctx    *RequestCtx
+	logger Logger
+}
+
+func (cl *ctxLogger) Printf(format string, args ...any) {
+	msg := fmt.Sprintf(format, args...)
+	ctxLoggerLock.Lock()
+	//cl.logger.Printf("%.3f %s - %s", time.Since(cl.ctx.ConnTime()).Seconds(), cl.ctx.String(), msg)
+	cl.logger.Printf("%.3f - %s", time.Since(time.Now()).Seconds(), msg)
+	ctxLoggerLock.Unlock()
 }
 
 // PipelineClient pipelines requests over a limited set of concurrent
@@ -2951,7 +2977,8 @@ func (c *pipelineConnClient) logger() Logger {
 	if c.Logger != nil {
 		return c.Logger
 	}
-	return defaultLogger
+	//return defaultLogger
+	return nil
 }
 
 // PendingRequests returns the current number of pending requests pipelined
