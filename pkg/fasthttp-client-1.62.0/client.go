@@ -2254,26 +2254,26 @@ func (q *wantConnQueue) clearFront() (cleaned bool) {
 	}
 }
 
-// Logger is used for logging formatted messages.
-type Logger interface {
-	// Printf must have the same semantics as log.Printf.
-	Printf(format string, args ...any)
-}
+// // Logger is used for logging formatted messages.
+// type Logger interface {
+// 	// Printf must have the same semantics as log.Printf.
+// 	Printf(format string, args ...any)
+// }
 
-var ctxLoggerLock sync.Mutex
+// var ctxLoggerLock sync.Mutex
 
-type ctxLogger struct {
-	//ctx    *RequestCtx
-	logger Logger
-}
+// type ctxLogger struct {
+// 	//ctx    *RequestCtx
+// 	logger Logger
+// }
 
-func (cl *ctxLogger) Printf(format string, args ...any) {
-	msg := fmt.Sprintf(format, args...)
-	ctxLoggerLock.Lock()
-	//cl.logger.Printf("%.3f %s - %s", time.Since(cl.ctx.ConnTime()).Seconds(), cl.ctx.String(), msg)
-	cl.logger.Printf("%.3f - %s", time.Since(time.Now()).Seconds(), msg)
-	ctxLoggerLock.Unlock()
-}
+// func (cl *ctxLogger) Printf(format string, args ...any) {
+// 	msg := fmt.Sprintf(format, args...)
+// 	ctxLoggerLock.Lock()
+// 	//cl.logger.Printf("%.3f %s - %s", time.Since(cl.ctx.ConnTime()).Seconds(), cl.ctx.String(), msg)
+// 	cl.logger.Printf("%.3f - %s", time.Since(time.Now()).Seconds(), msg)
+// 	ctxLoggerLock.Unlock()
+// }
 
 // PipelineClient pipelines requests over a limited set of concurrent
 // connections to the given Addr.
@@ -2293,7 +2293,7 @@ type PipelineClient struct {
 	// Logger for logging client errors.
 	//
 	// By default standard logger from log package is used.
-	Logger Logger
+	//Logger Logger
 
 	// Callback for connection establishing to the host.
 	//
@@ -2407,7 +2407,7 @@ type pipelineConnClient struct {
 
 	workPool sync.Pool
 
-	Logger Logger
+	//Logger Logger
 
 	Dial      DialFunc
 	TLSConfig *tls.Config
@@ -2710,7 +2710,7 @@ func (c *PipelineClient) newConnClient() *pipelineConnClient {
 		WriteBufferSize:               c.WriteBufferSize,
 		ReadTimeout:                   c.ReadTimeout,
 		WriteTimeout:                  c.WriteTimeout,
-		Logger:                        c.Logger,
+		//Logger:                        c.Logger,
 	}
 	c.connClients = append(c.connClients, cc)
 	return cc
@@ -2739,7 +2739,7 @@ func (c *pipelineConnClient) init() {
 			// Keep restarting the worker if it fails (connection errors for example).
 			for {
 				if err := c.worker(); err != nil {
-					c.logger().Printf("error in PipelineClient(%q): %v", c.Addr, err)
+					//c.logger().Printf("error in PipelineClient(%q): %v", c.Addr, err)
 					if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
 						// Throttle client reconnections on timeout errors
 						time.Sleep(time.Second)
@@ -2973,13 +2973,13 @@ func (c *pipelineConnClient) reader(conn net.Conn, stopCh <-chan struct{}) error
 	}
 }
 
-func (c *pipelineConnClient) logger() Logger {
-	if c.Logger != nil {
-		return c.Logger
-	}
-	//return defaultLogger
-	return nil
-}
+// func (c *pipelineConnClient) logger() Logger {
+// 	if c.Logger != nil {
+// 		return c.Logger
+// 	}
+// 	//return defaultLogger
+// 	return nil
+// }
 
 // PendingRequests returns the current number of pending requests pipelined
 // to the server.
