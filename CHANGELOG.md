@@ -1,3 +1,7 @@
+# 0.8.5
+
+- Added new CLI parameter `-strict-scheme` to perform testing only on the original scheme.
+  
 # 0.8.3-0.8.4
 
 - Updated Github Actions workflow, linux static builds are done in Alpine with musl. Fixing issue [#1](https://github.com/slicingmelon/gobypass403/issues/1).

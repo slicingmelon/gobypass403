@@ -101,6 +101,7 @@ func parseFlags() (*CliOptions, error) {
 		{name: "rn,resend-num,resend-request-num", usage: "Number of times to resend the debugged request", value: &opts.ResendNum, defVal: 1},
 		{name: "profile", usage: "Enable pprof profiler", value: &opts.Profile, defVal: false},
 		{name: "update-payloads", usage: "Update payload files to latest version", value: &opts.UpdatePayloads, defVal: false},
+		{name: "sc,strict-scheme", usage: "Only test URLs with the original scheme from input (prevents auto-expansion to http/https)", value: &opts.StrictScheme, defVal: false},
 	}
 
 	// Set up custom usage
