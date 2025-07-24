@@ -1,6 +1,7 @@
 # 0.8.5
 
 - Added new CLI parameter `-strict-scheme` to perform testing only on the original scheme.
+- Updated `headers_urls` payloads.
   
 # 0.8.3-0.8.4
 
