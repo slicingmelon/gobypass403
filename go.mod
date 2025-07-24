@@ -49,4 +49,4 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
-replace github.com/valyala/fasthttp => ./pkg/fasthttp-client-1.62.0
+replace github.com/valyala/fasthttp => ./pkg/fasthttp-client-1.64.0
