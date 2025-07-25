@@ -28,7 +28,8 @@ Special: %0A (newline) for advanced techniques
 Injection Techniques:
 Append to end: /admin → /admin<char>
 After trailing slash: /admin → /admin/<char>
-After leading slash: /admin → /<char>admin ← This is NOT your Google discovery!
+After leading slash: /admin → /<char>admin
+Before leading slash: /admin → <char>/admin ← Malformed URI for normalization bypass
 After each segment: /a/b → /a<char>/b
 Before each segment: /a/b → /a/<char>b
 After first char: /admin → /a<char>dmin
