@@ -248,6 +248,32 @@ func (h *RequestHeader) SetContentLength(contentLength int) {
 	}
 }
 
+// ContentLength returns Content-Length header value.
+//
+// It may be negative:
+// -1 means Transfer-Encoding: chunked.
+// -2 means Transfer-Encoding: identity.
+func (h *RequestHeader) ContentLength() int {
+	if h.disableSpecialHeader {
+		// GOBYPASS403 PATCH: Parse Content-Length from raw headers when special headers are disabled
+		v := peekArgBytes(h.h, strContentLength)
+		if len(v) == 0 {
+			// Check for Transfer-Encoding: chunked
+			te := peekArgBytes(h.h, strTransferEncoding)
+			if bytes.Equal(te, strChunked) {
+				return -1 // chunked
+			}
+			return -2 // identity
+		}
+		n, err := parseContentLength(v)
+		if err != nil {
+			return -2 // identity on parse error
+		}
+		return n
+	}
+	return h.contentLength
+}
+
 func (h *ResponseHeader) isCompressibleContentType() bool {
 	contentType := h.ContentType()
 	return bytes.HasPrefix(contentType, strTextSlash) ||

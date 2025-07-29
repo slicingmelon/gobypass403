@@ -282,9 +282,7 @@ func WrapRawFastHTTPRequest(req *fasthttp.Request, rawRequest *bytesutil.ByteBuf
 		return err
 	}
 
-	if len(bypassPayload.Body) > 0 {
-		req.SetBodyRaw([]byte(bypassPayload.Body))
-	}
+	// GOBYPASS403 PATCH: SetBodyRaw workaround no longer needed thanks to ContentLength patch in header.go
 
 	// Apply flags again after parsing to ensure they stick
 	//applyReqFlags(req)

@@ -1839,10 +1839,13 @@ func (c *HostClient) ReleaseConn(cc *clientConn) {
 	}
 }
 
+// GOBYPASS403 PATCH START
 const (
 	defaultWriteBufferSize = 4096
 	defaultReadBufferSize  = 4096
 )
+
+// GOBYPASS403 PATH END
 
 func (c *HostClient) AcquireWriter(conn net.Conn) *bufio.Writer {
 	var v any

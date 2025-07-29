@@ -16,7 +16,7 @@ require (
 	github.com/pierrec/lz4/v4 v4.1.22
 	github.com/pterm/pterm v0.12.81
 	github.com/refraction-networking/utls v1.8.0
-	github.com/slicingmelon/go-bytesutil v0.0.1
+	github.com/slicingmelon/go-bytesutil v0.0.2
 	github.com/slicingmelon/go-rawurlparser v0.3.1
 	github.com/stretchr/testify v1.10.0
 	github.com/valyala/fasthttp v1.64.0

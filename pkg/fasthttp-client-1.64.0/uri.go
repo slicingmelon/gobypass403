@@ -61,7 +61,7 @@ type URI struct {
 	// GOBYPASS403 PATCH: Track original presence of delimiters
 	hasQueryString bool
 	hasHash        bool
-	// END GOBYPASS403 PATCH
+	// GOBYPASS403 PATCH END
 
 	// Path values are sent as-is without normalization.
 	//
@@ -723,7 +723,7 @@ func (u *URI) RequestURI() []byte {
 			dst = append(dst, u.hash...)
 		}
 	}
-	// END GOBYPASS403 PATCH
+	// GOBYPASS403 PATCH END
 
 	u.requestURI = dst
 	return u.requestURI
