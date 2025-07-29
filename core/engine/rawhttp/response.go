@@ -220,7 +220,7 @@ func BuildCurlCommandWithOpts(bypassPayload payload.BypassPayload, clientOpts *H
 		cmdBuf.Write(strSpace)
 		cmdBuf.Write(curlMethodX)
 		cmdBuf.Write(strSpace)
-		cmdBuf.Write(bytesutil.ToUnsafeBytes(bypassPayload.Method))
+		cmdBuf.WriteString(bypassPayload.Method)
 	}
 
 	// Headers from bypassPayload
@@ -229,9 +229,9 @@ func BuildCurlCommandWithOpts(bypassPayload payload.BypassPayload, clientOpts *H
 		cmdBuf.Write(curlHeaderH)
 		cmdBuf.Write(strSpace)
 		cmdBuf.Write(strSingleQuote)
-		cmdBuf.Write(bytesutil.ToUnsafeBytes(h.Header))
+		cmdBuf.WriteString(h.Header)
 		cmdBuf.Write(strColonSpace)
-		cmdBuf.Write(bytesutil.ToUnsafeBytes(h.Value))
+		cmdBuf.WriteString(h.Value)
 		cmdBuf.Write(strSingleQuote)
 	}
 
@@ -247,9 +247,9 @@ func BuildCurlCommandWithOpts(bypassPayload payload.BypassPayload, clientOpts *H
 				cmdBuf.Write(curlHeaderH)
 				cmdBuf.Write(strSpace)
 				cmdBuf.Write(strSingleQuote)
-				cmdBuf.Write(bytesutil.ToUnsafeBytes(headerName))
+				cmdBuf.WriteString(headerName)
 				cmdBuf.Write(strColonSpace)
-				cmdBuf.Write(bytesutil.ToUnsafeBytes(headerValue))
+				cmdBuf.WriteString(headerValue)
 				cmdBuf.Write(strSingleQuote)
 			}
 		}
@@ -260,14 +260,14 @@ func BuildCurlCommandWithOpts(bypassPayload payload.BypassPayload, clientOpts *H
 	cmdBuf.Write(strSingleQuote)
 
 	// Scheme
-	cmdBuf.Write(bytesutil.ToUnsafeBytes(bypassPayload.Scheme))
+	cmdBuf.WriteString(bypassPayload.Scheme)
 	cmdBuf.Write(strSchemeDelim)
 
 	// Host
-	cmdBuf.Write(bytesutil.ToUnsafeBytes(bypassPayload.Host))
+	cmdBuf.WriteString(bypassPayload.Host)
 
 	// RawURI
-	cmdBuf.Write(bytesutil.ToUnsafeBytes(bypassPayload.RawURI))
+	cmdBuf.WriteString(bypassPayload.RawURI)
 
 	cmdBuf.Write(strSingleQuote)
 
@@ -290,12 +290,12 @@ func GetResponseHeaders(h *fasthttp.ResponseHeader, statusCode int, dest []byte)
 	headerBuf.Write(strCRLF)
 
 	// Process headers
-	h.VisitAll(func(key, value []byte) {
+	for key, value := range h.All() {
 		headerBuf.Write(key)
 		headerBuf.Write(strColonSpace)
 		headerBuf.Write(value)
 		headerBuf.Write(strCRLF)
-	})
+	}
 	headerBuf.Write(strCRLF)
 
 	// Append to existing slice instead of creating new one
@@ -305,11 +305,11 @@ func GetResponseHeaders(h *fasthttp.ResponseHeader, statusCode int, dest []byte)
 // Helper function to peek a header key case insensitive
 func PeekResponseHeaderKeyCaseInsensitive(h *fasthttp.Response, key []byte) []byte {
 	var result []byte
-	h.Header.VisitAll(func(k, v []byte) {
+	for k, v := range h.Header.All() {
 		if result == nil && bytes.EqualFold(k, key) {
 			result = v
 		}
-	})
+	}
 	return result
 }
 
