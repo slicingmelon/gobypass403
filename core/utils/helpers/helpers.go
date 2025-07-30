@@ -180,11 +180,11 @@ func SplitCurlCommandMultiline(curlCmd string, maxLineLength int) string {
 	var lineContinuation string
 	var indent string
 	if runtime.GOOS == "windows" {
-		lineContinuation = " `" // PowerShell continuation
-		indent = "  "           // Indent continuation lines
+		lineContinuation = " `"
+		indent = "  "
 	} else {
-		lineContinuation = " \\" // Unix/Linux continuation
-		indent = "  "            // Indent continuation lines
+		lineContinuation = " \\"
+		indent = "  "
 	}
 
 	var result strings.Builder
