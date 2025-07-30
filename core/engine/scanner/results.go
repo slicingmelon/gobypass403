@@ -17,7 +17,6 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/pterm/pterm"
 	"github.com/slicingmelon/go-bytesutil/bytesutil"
-	"github.com/slicingmelon/gobypass403/core/utils/helpers"
 )
 
 // to optimize
@@ -250,11 +249,10 @@ func PrintResultsTableFromDB(targetURL, bypassModule string) error {
 			continue
 		}
 
-		// Add to current group
-		multilineCurlCmd := helpers.SplitCurlCommandMultiline(curlCmd, 50)
+		// Add to current group - use smart truncation for clean table display
 		currentGroup.rows = append(currentGroup.rows, []string{
 			module,
-			multilineCurlCmd, // Apply multiline formatting for proper display
+			LimitStringwithPreffixAndSuffix(curlCmd, 80), // Show beginning and end of curl command
 			statusStr,
 			lengthStr, // Reverted: Use the original length string for display
 			formatContentType(contentType),

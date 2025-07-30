@@ -199,6 +199,35 @@ func SplitCurlCommandMultiline(curlCmd string, maxLineLength int) string {
 	for i := 1; i < len(words); i++ {
 		word := words[i]
 
+		// If a single word is longer than maxLineLength, put it on its own line
+		if len(word) > maxLineLength {
+			// Finish current line if it has content
+			if len(currentLine) > 0 {
+				if isFirstLine {
+					result.WriteString(currentLine)
+					isFirstLine = false
+				} else {
+					result.WriteString(indent + currentLine)
+				}
+				result.WriteString(lineContinuation)
+				result.WriteString("\n")
+			}
+
+			// Put the oversized word on its own line
+			if isFirstLine {
+				result.WriteString(word)
+				isFirstLine = false
+			} else {
+				result.WriteString(indent + word)
+			}
+			result.WriteString(lineContinuation)
+			result.WriteString("\n")
+
+			// Reset for next words
+			currentLine = ""
+			continue
+		}
+
 		// Check if adding this word would exceed max length
 		testLine := currentLine + " " + word
 		if len(testLine) > maxLineLength && len(currentLine) > 0 {
@@ -216,7 +245,9 @@ func SplitCurlCommandMultiline(curlCmd string, maxLineLength int) string {
 			currentLine = word
 		} else {
 			// Add word to current line
-			if currentLine == words[0] {
+			if currentLine == "" {
+				currentLine = word
+			} else if currentLine == words[0] {
 				currentLine = testLine // First line
 			} else {
 				currentLine = currentLine + " " + word
@@ -224,11 +255,13 @@ func SplitCurlCommandMultiline(curlCmd string, maxLineLength int) string {
 		}
 	}
 
-	// Add the final line
-	if isFirstLine {
-		result.WriteString(currentLine)
-	} else {
-		result.WriteString(indent + currentLine)
+	// Add the final line if it has content
+	if len(currentLine) > 0 {
+		if isFirstLine {
+			result.WriteString(currentLine)
+		} else {
+			result.WriteString(indent + currentLine)
+		}
 	}
 
 	return result.String()
