@@ -252,7 +252,7 @@ func PrintResultsTableFromDB(targetURL, bypassModule string) error {
 		// Add to current group
 		currentGroup.rows = append(currentGroup.rows, []string{
 			module,
-			LimitStringWithSuffix(curlCmd, 115),
+			curlCmd, // No longer limiting since we use multiline formatting
 			statusStr,
 			lengthStr, // Reverted: Use the original length string for display
 			formatContentType(contentType),
@@ -284,6 +284,7 @@ func PrintResultsTableFromDB(targetURL, bypassModule string) error {
 	table := pterm.DefaultTable.
 		WithHasHeader().
 		WithBoxed().
+		WithRowSeparator("-").
 		WithData(tableData)
 
 	// Render table directly into a string (avoiding the extra allocation)

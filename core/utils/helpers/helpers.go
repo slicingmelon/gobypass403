@@ -151,6 +151,89 @@ func SanitizeNonPrintableBytes(input []byte) string {
 	return sb.String()
 }
 
+// SanitizeNonPrintableBytesForCurl sanitizes non-printable bytes in a byte slice
+// by URL-encoding them, making the curl command actually executable
+func SanitizeNonPrintableBytesForCurl(input []byte) string {
+	var sb strings.Builder
+	sb.Grow(len(input))
+
+	for _, b := range input {
+		// Keep printable ASCII (32-126), LF (10), CR (13)
+		if (b >= 32 && b <= 126) || b == 10 || b == 13 {
+			sb.WriteByte(b)
+		} else {
+			// URL-encode non-printable bytes for curl compatibility
+			sb.WriteString(fmt.Sprintf("%%%02X", b))
+		}
+	}
+	return sb.String()
+}
+
+// SplitCurlCommandMultiline splits long curl commands into multiple lines
+// with proper OS-specific line continuation characters and formatting
+func SplitCurlCommandMultiline(curlCmd string, maxLineLength int) string {
+	if len(curlCmd) <= maxLineLength {
+		return curlCmd
+	}
+
+	// Detect OS for line continuation
+	var lineContinuation string
+	var indent string
+	if runtime.GOOS == "windows" {
+		lineContinuation = " `" // PowerShell continuation
+		indent = "  "           // Indent continuation lines
+	} else {
+		lineContinuation = " \\" // Unix/Linux continuation
+		indent = "  "            // Indent continuation lines
+	}
+
+	var result strings.Builder
+	words := strings.Fields(curlCmd)
+	if len(words) == 0 {
+		return curlCmd
+	}
+
+	currentLine := words[0] // Start with first word (curl/curl.exe)
+	isFirstLine := true
+
+	for i := 1; i < len(words); i++ {
+		word := words[i]
+
+		// Check if adding this word would exceed max length
+		testLine := currentLine + " " + word
+		if len(testLine) > maxLineLength && len(currentLine) > 0 {
+			// Write current line with continuation
+			if isFirstLine {
+				result.WriteString(currentLine)
+				isFirstLine = false
+			} else {
+				result.WriteString(indent + currentLine)
+			}
+			result.WriteString(lineContinuation)
+			result.WriteString("\n")
+
+			// Start new line with current word
+			currentLine = word
+		} else {
+			// Add word to current line
+			if currentLine == words[0] {
+				currentLine = testLine // First line
+			} else {
+				currentLine = currentLine + " " + word
+			}
+		}
+	}
+
+	// Add the final line
+	if isFirstLine {
+		result.WriteString(currentLine)
+	} else {
+		result.WriteString(indent + currentLine)
+	}
+
+	return result.String()
+}
+
 // IsIPv4 works the same way as net.ParseIP,
 // but without check for IPv6 case and without returning net.IP slice, whereby IsIPv4 makes no allocations.
 // from gofiber/utils
