@@ -140,12 +140,15 @@ func (r *ReconService) ProcessHost(input string) (*ReconResult, error) {
 		CNAMEs:       make([]string, 0), // Initialize the slice
 	}
 
+	// Parse IP once and reuse the result
+	parsedIP := net.ParseIP(host)
+
 	// IP and CNAME resolution happens in parallel
 	var wg sync.WaitGroup
 	var mu sync.Mutex // To protect concurrent access to result
 
 	// Only do CNAME lookup if it's not an IP address
-	if net.ParseIP(host) == nil {
+	if parsedIP == nil {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
@@ -161,8 +164,8 @@ func (r *ReconService) ProcessHost(input string) (*ReconResult, error) {
 
 	// Continue with existing IP resolution code...
 	var ips []net.IP
-	if ip := net.ParseIP(host); ip != nil {
-		ips = []net.IP{ip}
+	if parsedIP != nil {
+		ips = []net.IP{parsedIP}
 	} else {
 		ips, err = r.ResolveDomain(host)
 		if err != nil {
