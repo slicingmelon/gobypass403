@@ -250,9 +250,11 @@ func PrintResultsTableFromDB(targetURL, bypassModule string) error {
 		}
 
 		// Add to current group
+		// Truncate curl command for table display (pterm doesn't handle multiline cells well)
+		displayCurlCmd := LimitStringwithPreffixAndSuffix(curlCmd, 60)
 		currentGroup.rows = append(currentGroup.rows, []string{
 			module,
-			curlCmd, // No longer limiting since we use multiline formatting
+			displayCurlCmd, // Truncated for table display
 			statusStr,
 			lengthStr, // Reverted: Use the original length string for display
 			formatContentType(contentType),

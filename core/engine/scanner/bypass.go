@@ -295,14 +295,13 @@ func (s *Scanner) RunBypassModule(bypassModule string, targetURL string) int {
 
 		// Process valid result
 		sanitizedCurlCmd := helpers.SanitizeNonPrintableBytesForCurl(response.CurlCommand)
-		multilineCurlCmd := helpers.SplitCurlCommandMultiline(sanitizedCurlCmd, 50)
 
 		result := &Result{
 			TargetURL:           string(response.URL),
 			BypassModule:        string(response.BypassModule),
 			StatusCode:          response.StatusCode,
 			ResponseHeaders:     helpers.SanitizeNonPrintableBytes(response.ResponseHeaders),
-			CurlCMD:             multilineCurlCmd,
+			CurlCMD:             sanitizedCurlCmd,
 			ResponseBodyPreview: string(response.ResponsePreview),
 			ContentType:         string(response.ContentType),
 			ContentLength:       response.ContentLength,
@@ -397,14 +396,13 @@ func (s *Scanner) ResendRequestFromToken(debugToken string, resendCount int) ([]
 		// Process Valid Response
 		if matchStatusCodes(response.StatusCode, s.scannerOpts.MatchStatusCodes) {
 			sanitizedCurlCmd := helpers.SanitizeNonPrintableBytesForCurl(response.CurlCommand)
-			multilineCurlCmd := helpers.SplitCurlCommandMultiline(sanitizedCurlCmd, 50)
 
 			result := &Result{
 				TargetURL:           targetURL,
 				BypassModule:        string(response.BypassModule),
 				StatusCode:          response.StatusCode,
 				ResponseHeaders:     helpers.SanitizeNonPrintableBytes(response.ResponseHeaders),
-				CurlCMD:             multilineCurlCmd,
+				CurlCMD:             sanitizedCurlCmd,
 				ResponseBodyPreview: string(response.ResponsePreview),
 				ContentType:         string(response.ContentType),
 				ContentLength:       response.ContentLength,
