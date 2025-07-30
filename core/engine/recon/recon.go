@@ -306,7 +306,7 @@ func (r *ReconService) ProbePort(ip string, port string, host string) (string, b
 		tlsConfig := &tls.Config{
 			InsecureSkipVerify: true,
 			MinVersion:         tls.VersionTLS10,
-			ServerName:         host,
+			//ServerName:         host,
 		}
 
 		tlsConn := tls.Client(conn, tlsConfig)
