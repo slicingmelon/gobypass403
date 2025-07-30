@@ -285,6 +285,7 @@ func PrintResultsTableFromDB(targetURL, bypassModule string) error {
 		WithHasHeader().
 		WithBoxed().
 		WithRowSeparator("-").
+		WithHeaderRowSeparator("-").
 		WithData(tableData)
 
 	// Render table directly into a string (avoiding the extra allocation)
