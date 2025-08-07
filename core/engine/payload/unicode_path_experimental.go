@@ -93,65 +93,93 @@ func (pg *PayloadGenerator) generateMidPathsWithCustomPayloads(targetURL string,
 		return jobs
 	}
 
+	// Get the path, ensuring it starts with a slash for processing
 	path := parsedURL.Path
 	if path == "" {
 		path = "/"
 	}
+
+	// Handle query string
 	query := ""
 	if parsedURL.Query != "" {
 		query = "?" + parsedURL.Query
 	}
 
+	// Map to store unique paths (for deduplication)
 	uniquePaths := make(map[string]struct{})
+
+	// Helper function to add paths with proper handling of special characters
 	addPathWithVariants := func(path string) {
+		// Add path as-is
 		uniquePaths[path+query] = struct{}{}
+
+		// Add path with encoded special characters if needed
 		if strings.ContainsAny(path, "?#") {
 			encodedPath := encodeQueryAndFragmentChars(path)
 			uniquePaths[encodedPath+query] = struct{}{}
 		}
 	}
 
+	// Split path into segments for insertion
 	hasLeadingSlash := strings.HasPrefix(path, "/")
 	pathWithoutLeadingSlash := strings.TrimPrefix(path, "/")
 	segments := strings.Split(pathWithoutLeadingSlash, "/")
 
+	// 1. Variants before the entire path
 	for _, payload := range payloads {
+		// Before path without leading slash: PAYLOAD/a/b
 		addPathWithVariants(payload + path)
+
+		// Before path with leading slash: /PAYLOAD/a/b
 		addPathWithVariants("/" + payload + path)
+
+		// Special case - preserve double slashes if payload ends with slash: /PAYLOAD//a/b
 		if strings.HasSuffix(payload, "/") && hasLeadingSlash {
-			addPathWithVariants("/" + payload + path)
+			addPathWithVariants("/" + payload + path) // This keeps the double slash
 		}
 	}
 
+	// Skip segment manipulations if path is just "/"
 	if path != "/" {
+		// 2. Process each segment
 		for i, segment := range segments {
 			if segment == "" {
-				continue
+				continue // Skip empty segments
 			}
 
 			for _, payload := range payloads {
+				// Create path prefix up to current segment
 				prefix := ""
 				if hasLeadingSlash {
 					prefix = "/"
 				}
-				prefix += strings.Join(segments[:i], "/")
-				if i > 0 && len(segments[:i]) > 0 && segments[i-1] != "" {
-					prefix += "/"
+				for j := 0; j < i; j++ {
+					if segments[j] != "" {
+						prefix += segments[j] + "/"
+					}
 				}
 
+				// Create path suffix after current segment
 				suffix := ""
-				if i+1 < len(segments) {
-					suffix = "/" + strings.Join(segments[i+1:], "/")
+				for j := i + 1; j < len(segments); j++ {
+					if segments[j] != "" {
+						suffix += "/" + segments[j]
+					}
 				}
 
+				// Variants at segment:
+
+				// Payload fused with segment start: /PAYLOADsegment/
 				segStartFused := prefix + payload + segment + suffix
 				addPathWithVariants(segStartFused)
 				addPathWithVariants("/" + strings.TrimPrefix(segStartFused, "/"))
 
+				// Payload fused with segment end: /segmentPAYLOAD/
 				segEndFused := prefix + segment + payload + suffix
 				addPathWithVariants(segEndFused)
 				addPathWithVariants("/" + strings.TrimPrefix(segEndFused, "/"))
 
+				// Payload after slash before segment: /segment/PAYLOAD/next
 				if i < len(segments)-1 || suffix == "" {
 					afterSlash := prefix + segment + "/" + payload + suffix
 					addPathWithVariants(afterSlash)
@@ -161,10 +189,15 @@ func (pg *PayloadGenerator) generateMidPathsWithCustomPayloads(targetURL string,
 		}
 	}
 
+	// Convert unique paths to BypassPayload jobs
 	for rawURI := range uniquePaths {
+		// Skip if it's just the query
 		if rawURI == query && query != "" {
 			continue
 		}
+
+		// DO NOT normalize double slashes - they're important for bypass techniques
+
 		job := BypassPayload{
 			OriginalURL:  targetURL,
 			Method:       "GET",
