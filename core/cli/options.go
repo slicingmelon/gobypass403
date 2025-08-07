@@ -102,6 +102,7 @@ var AvailableModules = map[string]bool{
 	"headers_url":                true,
 	"headers_host":               true,
 	"unicode_path_normalization": true,
+	"unicode_path_experimental":  true,
 }
 
 func (o *CliOptions) printUsage(flagName ...string) {
