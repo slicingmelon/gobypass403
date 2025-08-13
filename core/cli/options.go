@@ -114,15 +114,12 @@ func matchGlob(pattern, text string) bool {
 		return true
 	}
 
-	// Handle patterns without wildcards
 	if !strings.Contains(pattern, "*") {
 		return pattern == text
 	}
 
-	// Split pattern by * to get parts
 	parts := strings.Split(pattern, "*")
 
-	// If pattern starts with *, we don't need to match from beginning
 	if !strings.HasPrefix(pattern, "*") {
 		if !strings.HasPrefix(text, parts[0]) {
 			return false
@@ -130,16 +127,14 @@ func matchGlob(pattern, text string) bool {
 		text = text[len(parts[0]):]
 		parts = parts[1:]
 	} else {
-		parts = parts[1:] // Remove empty first part
+		parts = parts[1:]
 	}
 
-	// If pattern ends with *, we don't need to match to end
 	matchToEnd := !strings.HasSuffix(pattern, "*")
 	if !matchToEnd && len(parts) > 0 {
-		parts = parts[:len(parts)-1] // Remove empty last part
+		parts = parts[:len(parts)-1]
 	}
 
-	// Match middle parts
 	for i, part := range parts {
 		if part == "" {
 			continue
@@ -150,7 +145,6 @@ func matchGlob(pattern, text string) bool {
 			return false
 		}
 
-		// For the last part, if we need to match to end
 		if i == len(parts)-1 && matchToEnd {
 			return strings.HasSuffix(text, part)
 		}
@@ -435,14 +429,11 @@ func (o *CliOptions) validateModule() error {
 		return fmt.Errorf("bypass module cannot be empty")
 	}
 
-	// Always process as comma-separated list
 	modules := strings.Split(o.Module, ",")
 	finalModules := make([]string, 0, len(modules))
 
-	// Check for "all" first
 	for _, m := range modules {
 		if strings.TrimSpace(m) == "all" {
-			// Expand to all available modules except "dumb_check"
 			for moduleName := range AvailableModules {
 				if moduleName != "dumb_check" {
 					finalModules = append(finalModules, moduleName)
@@ -452,7 +443,6 @@ func (o *CliOptions) validateModule() error {
 		}
 	}
 
-	// If not "all", validate individual modules (including glob patterns)
 	if len(finalModules) == 0 {
 		for _, m := range modules {
 			m = strings.TrimSpace(m)
@@ -460,9 +450,7 @@ func (o *CliOptions) validateModule() error {
 				continue
 			}
 
-			// Check if this is a glob pattern (contains *)
 			if strings.Contains(m, "*") {
-				// Find all modules that match this glob pattern
 				matchedModules := make([]string, 0)
 				for moduleName := range AvailableModules {
 					if enabled := AvailableModules[moduleName]; enabled && matchGlob(m, moduleName) {
@@ -474,14 +462,12 @@ func (o *CliOptions) validateModule() error {
 					return fmt.Errorf("no modules match pattern: %s", m)
 				}
 
-				// Add all matched modules
 				for _, matched := range matchedModules {
 					if !slices.Contains(finalModules, matched) {
 						finalModules = append(finalModules, matched)
 					}
 				}
 			} else {
-				// Exact module name
 				if enabled, exists := AvailableModules[m]; !exists || !enabled {
 					return fmt.Errorf("invalid module: %s", m)
 				}
@@ -492,7 +478,6 @@ func (o *CliOptions) validateModule() error {
 		}
 	}
 
-	// Process exclusions if provided
 	if o.ExcludeModule != "" {
 		excludeModules := strings.Split(o.ExcludeModule, ",")
 		for _, exclude := range excludeModules {
@@ -501,9 +486,7 @@ func (o *CliOptions) validateModule() error {
 				continue
 			}
 
-			// Check if this is a glob pattern (contains *)
 			if strings.Contains(exclude, "*") {
-				// Remove all modules that match this glob pattern
 				filteredModules := make([]string, 0, len(finalModules))
 				for _, moduleName := range finalModules {
 					if !matchGlob(exclude, moduleName) {
@@ -512,12 +495,10 @@ func (o *CliOptions) validateModule() error {
 				}
 				finalModules = filteredModules
 			} else {
-				// Exact module name exclusion
 				for i := 0; i < len(finalModules); i++ {
 					if finalModules[i] == exclude {
-						// Remove this module
 						finalModules = append(finalModules[:i], finalModules[i+1:]...)
-						i-- // Adjust index after removal
+						i--
 					}
 				}
 			}
