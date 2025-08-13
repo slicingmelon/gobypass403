@@ -4,6 +4,8 @@
 - Updated `headers_urls` payloads.
 - The tool is now using a full, idependent, modified fasthttp client, completely stripped from any code unrelated to the client's comopnenets. 
 - Also updated the internal fasthttp client to 1.64.0.
+- New CLI option -em/-exclude-module.
+- `-m` and `-em` now support glob patterns with *.
     
 # 0.8.3-0.8.4
 
