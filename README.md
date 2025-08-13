@@ -98,7 +98,9 @@ Usage:
   -shf, -substitute-hosts-file
         File containing a list of hosts to substitute target URL's hostname (mostly used in CDN bypasses by providing a list of CDNs)
   -m, -module
-        Bypass module (all,path_prefix,mid_paths,end_paths,http_methods,case_substitution,char_encode,nginx_bypasses,unicode_path_normalization,headers_scheme,headers_ip,headers_port,headers_url,headers_host) (Default: all)
+        Bypass module (all,path_prefix,mid_paths,end_paths,http_methods,case_substitution,char_encode,nginx_bypasses,haproxy_bypasses,unicode_path_normalization,headers_scheme,headers_ip,headers_port,headers_url,headers_host). Supports glob patterns with * (e.g., headers*,*bypass*) (Default: all)
+  -em, -exclude-module
+        Exclude specific bypass modules. Supports glob patterns with * (e.g., -em unicode*,*experimental). Takes precedence over -m
   -o, -outdir
         Output directory
   -cr, -concurrent-requests

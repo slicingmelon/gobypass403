@@ -30,6 +30,7 @@ type CliOptions struct {
 
 	// Scan configuration
 	Module                   string
+	ExcludeModule            string
 	MatchStatusCodesStr      string
 	MatchStatusCodes         []int
 	MatchContentType         string   // New field for multiple types
@@ -486,6 +487,38 @@ func (o *CliOptions) validateModule() error {
 				}
 				if !slices.Contains(finalModules, m) {
 					finalModules = append(finalModules, m)
+				}
+			}
+		}
+	}
+
+	// Process exclusions if provided
+	if o.ExcludeModule != "" {
+		excludeModules := strings.Split(o.ExcludeModule, ",")
+		for _, exclude := range excludeModules {
+			exclude = strings.TrimSpace(exclude)
+			if exclude == "" {
+				continue
+			}
+
+			// Check if this is a glob pattern (contains *)
+			if strings.Contains(exclude, "*") {
+				// Remove all modules that match this glob pattern
+				filteredModules := make([]string, 0, len(finalModules))
+				for _, moduleName := range finalModules {
+					if !matchGlob(exclude, moduleName) {
+						filteredModules = append(filteredModules, moduleName)
+					}
+				}
+				finalModules = filteredModules
+			} else {
+				// Exact module name exclusion
+				for i := 0; i < len(finalModules); i++ {
+					if finalModules[i] == exclude {
+						// Remove this module
+						finalModules = append(finalModules[:i], finalModules[i+1:]...)
+						i-- // Adjust index after removal
+					}
 				}
 			}
 		}
