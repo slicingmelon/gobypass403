@@ -105,6 +105,61 @@ var AvailableModules = map[string]bool{
 	"unicode_path_experimental":  true,
 }
 
+// matchGlob performs simple glob pattern matching
+// Supports * as wildcard that matches any sequence of characters
+func matchGlob(pattern, text string) bool {
+	// Handle exact match first
+	if pattern == text {
+		return true
+	}
+
+	// Handle patterns without wildcards
+	if !strings.Contains(pattern, "*") {
+		return pattern == text
+	}
+
+	// Split pattern by * to get parts
+	parts := strings.Split(pattern, "*")
+
+	// If pattern starts with *, we don't need to match from beginning
+	if !strings.HasPrefix(pattern, "*") {
+		if !strings.HasPrefix(text, parts[0]) {
+			return false
+		}
+		text = text[len(parts[0]):]
+		parts = parts[1:]
+	} else {
+		parts = parts[1:] // Remove empty first part
+	}
+
+	// If pattern ends with *, we don't need to match to end
+	matchToEnd := !strings.HasSuffix(pattern, "*")
+	if !matchToEnd && len(parts) > 0 {
+		parts = parts[:len(parts)-1] // Remove empty last part
+	}
+
+	// Match middle parts
+	for i, part := range parts {
+		if part == "" {
+			continue
+		}
+
+		idx := strings.Index(text, part)
+		if idx == -1 {
+			return false
+		}
+
+		// For the last part, if we need to match to end
+		if i == len(parts)-1 && matchToEnd {
+			return strings.HasSuffix(text, part)
+		}
+
+		text = text[idx+len(part):]
+	}
+
+	return true
+}
+
 func (o *CliOptions) printUsage(flagName ...string) {
 	if len(flagName) == 0 {
 		flag.Usage()
@@ -372,7 +427,7 @@ func (o *CliOptions) processStatusCodes() error {
 	return nil
 }
 
-// validateModule checks if the specified module is valid
+// validateModule checks if the specified module is valid and supports glob patterns
 func (o *CliOptions) validateModule() error {
 	if o.Module == "" {
 		o.printUsage("module")
@@ -396,17 +451,43 @@ func (o *CliOptions) validateModule() error {
 		}
 	}
 
-	// If not "all", validate individual modules
+	// If not "all", validate individual modules (including glob patterns)
 	if len(finalModules) == 0 {
 		for _, m := range modules {
 			m = strings.TrimSpace(m)
 			if m == "" {
 				continue
 			}
-			if enabled, exists := AvailableModules[m]; !exists || !enabled {
-				return fmt.Errorf("invalid module: %s", m)
+
+			// Check if this is a glob pattern (contains *)
+			if strings.Contains(m, "*") {
+				// Find all modules that match this glob pattern
+				matchedModules := make([]string, 0)
+				for moduleName := range AvailableModules {
+					if enabled := AvailableModules[moduleName]; enabled && matchGlob(m, moduleName) {
+						matchedModules = append(matchedModules, moduleName)
+					}
+				}
+
+				if len(matchedModules) == 0 {
+					return fmt.Errorf("no modules match pattern: %s", m)
+				}
+
+				// Add all matched modules
+				for _, matched := range matchedModules {
+					if !slices.Contains(finalModules, matched) {
+						finalModules = append(finalModules, matched)
+					}
+				}
+			} else {
+				// Exact module name
+				if enabled, exists := AvailableModules[m]; !exists || !enabled {
+					return fmt.Errorf("invalid module: %s", m)
+				}
+				if !slices.Contains(finalModules, m) {
+					finalModules = append(finalModules, m)
+				}
 			}
-			finalModules = append(finalModules, m)
 		}
 	}
 
