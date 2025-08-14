@@ -249,8 +249,7 @@ func PrintResultsTableFromDB(targetURL, bypassModule string) error {
 			continue
 		}
 
-		// Add to current group - use smart formatting for curl commands
-		//formattedCurl := smartFormatCurlCommand(curlCmd, 60)
+		// Add to current group - use multiline formatting for curl commands
 		formattedCurl := SplitCurlPocIntoMultiLines(curlCmd, 60)
 		currentGroup.rows = append(currentGroup.rows, []string{
 			module,
@@ -445,14 +444,30 @@ func SplitCurlPocIntoMultiLines(curlCmd string, maxLen int) string {
 		return curlCmd
 	}
 
+	// Pre-process tokens: split any long tokens (except the last one which is likely the URL)
+	processedTokens := make([]string, 0, len(tokens)*2) // Pre-allocate with some extra space
+
+	for i, token := range tokens {
+		isLastToken := i == len(tokens)-1
+
+		if len(token) > maxLen && !isLastToken {
+			// Split long non-URL tokens into chunks
+			chunks := splitLongToken(token, maxLen)
+			processedTokens = append(processedTokens, chunks...)
+		} else {
+			processedTokens = append(processedTokens, token)
+		}
+	}
+
 	var lines []string
 	var currentLine strings.Builder
 
 	// Start with the curl command
-	currentLine.WriteString(tokens[0])
+	currentLine.WriteString(processedTokens[0])
 
-	for i := 1; i < len(tokens); i++ {
-		token := tokens[i]
+	for i := 1; i < len(processedTokens); i++ {
+		token := processedTokens[i]
+		isLastToken := i == len(processedTokens)-1
 
 		// Check if adding this token would exceed maxLen
 		testLine := currentLine.String() + " " + token
@@ -463,8 +478,8 @@ func SplitCurlPocIntoMultiLines(curlCmd string, maxLen int) string {
 			currentLine.WriteString(token)
 		} else {
 			// Token doesn't fit, need to handle it
-			if isLongURL(token) && len(token) > maxLen {
-				// Handle long URLs by smart splitting
+			if isLastToken && isURLToken(token) && len(token) > maxLen {
+				// Handle long URLs (last token) by smart splitting at path boundaries
 				urlLines := splitLongURL(token, maxLen, lineContinuation)
 
 				// Add current line with continuation
@@ -497,25 +512,6 @@ func SplitCurlPocIntoMultiLines(curlCmd string, maxLen int) string {
 	return strings.Join(lines, "\n")
 }
 
-// smartFormatCurlCommand decides whether to use multiline formatting or truncation
-// based on the resulting line count to optimize table display
-func smartFormatCurlCommand(curlCmd string, maxLen int) string {
-	if len(curlCmd) <= maxLen {
-		return curlCmd
-	}
-
-	// Try multiline formatting first
-	multilineResult := SplitCurlPocIntoMultiLines(curlCmd, maxLen)
-	lineCount := strings.Count(multilineResult, "\n") + 1
-
-	// If multiline would result in more than 3 lines, use truncation instead
-	if lineCount > 3 {
-		return LimitStringwithPreffixAndSuffix(curlCmd, maxLen*2) // Allow longer for truncated version
-	}
-
-	return multilineResult
-}
-
 // parseCurlTokens parses a curl command into individual tokens, preserving quoted strings
 func parseCurlTokens(curlCmd string) []string {
 	var tokens []string
@@ -529,16 +525,17 @@ func parseCurlTokens(curlCmd string) []string {
 		r := runes[i]
 
 		if !inQuotes {
-			if r == '\'' || r == '"' {
+			switch r {
+			case '\'', '"':
 				inQuotes = true
 				quoteChar = r
 				current.WriteRune(r)
-			} else if r == ' ' || r == '\t' {
+			case ' ', '\t':
 				if current.Len() > 0 {
 					tokens = append(tokens, current.String())
 					current.Reset()
 				}
-			} else {
+			default:
 				current.WriteRune(r)
 			}
 		} else {
@@ -559,12 +556,8 @@ func parseCurlTokens(curlCmd string) []string {
 	return tokens
 }
 
-// isLongURL checks if a token is likely a URL (quoted string starting with http/https)
-func isLongURL(token string) bool {
-	if len(token) < 10 {
-		return false
-	}
-
+// isURLToken checks if a token is likely a URL (more reliable than length-based check)
+func isURLToken(token string) bool {
 	// Check for quoted URLs
 	if (strings.HasPrefix(token, "'http") && strings.HasSuffix(token, "'")) ||
 		(strings.HasPrefix(token, "\"http") && strings.HasSuffix(token, "\"")) {
@@ -573,6 +566,54 @@ func isLongURL(token string) bool {
 
 	// Check for unquoted URLs
 	return strings.HasPrefix(token, "http://") || strings.HasPrefix(token, "https://")
+}
+
+// splitLongToken splits a long non-URL token into smaller chunks
+func splitLongToken(token string, maxLen int) []string {
+	if len(token) <= maxLen {
+		return []string{token}
+	}
+
+	var chunks []string
+
+	// Handle quoted strings specially
+	if (strings.HasPrefix(token, "'") && strings.HasSuffix(token, "'")) ||
+		(strings.HasPrefix(token, "\"") && strings.HasSuffix(token, "\"")) {
+
+		quote := string(token[0])
+		content := token[1 : len(token)-1] // Remove quotes
+
+		// Split the content into chunks
+		chunkSize := maxLen - 2 // Account for quotes
+		if chunkSize < 1 {
+			chunkSize = maxLen - 1 // Fallback
+		}
+
+		for len(content) > 0 {
+			if len(content) <= chunkSize {
+				chunks = append(chunks, quote+content+quote)
+				break
+			}
+
+			chunk := content[:chunkSize]
+			chunks = append(chunks, quote+chunk+quote)
+			content = content[chunkSize:]
+		}
+	} else {
+		// Handle unquoted strings - simple chunking
+		for len(token) > 0 {
+			if len(token) <= maxLen {
+				chunks = append(chunks, token)
+				break
+			}
+
+			chunk := token[:maxLen]
+			chunks = append(chunks, chunk)
+			token = token[maxLen:]
+		}
+	}
+
+	return chunks
 }
 
 // splitLongURL intelligently splits a long URL at path boundaries
