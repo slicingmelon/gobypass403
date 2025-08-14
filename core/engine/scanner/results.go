@@ -249,10 +249,12 @@ func PrintResultsTableFromDB(targetURL, bypassModule string) error {
 			continue
 		}
 
-		// Add to current group - use smart multiline formatting for curl commands
+		// Add to current group - use smart formatting for curl commands
+		//formattedCurl := smartFormatCurlCommand(curlCmd, 60)
+		formattedCurl := SplitCurlPocIntoMultiLines(curlCmd, 60)
 		currentGroup.rows = append(currentGroup.rows, []string{
 			module,
-			SplitCurlPocIntoMultiLines(curlCmd, 80), // Smart multiline curl command formatting
+			formattedCurl,
 			statusStr,
 			lengthStr, // Reverted: Use the original length string for display
 			formatContentType(contentType),
@@ -493,6 +495,25 @@ func SplitCurlPocIntoMultiLines(curlCmd string, maxLen int) string {
 	}
 
 	return strings.Join(lines, "\n")
+}
+
+// smartFormatCurlCommand decides whether to use multiline formatting or truncation
+// based on the resulting line count to optimize table display
+func smartFormatCurlCommand(curlCmd string, maxLen int) string {
+	if len(curlCmd) <= maxLen {
+		return curlCmd
+	}
+
+	// Try multiline formatting first
+	multilineResult := SplitCurlPocIntoMultiLines(curlCmd, maxLen)
+	lineCount := strings.Count(multilineResult, "\n") + 1
+
+	// If multiline would result in more than 3 lines, use truncation instead
+	if lineCount > 3 {
+		return LimitStringwithPreffixAndSuffix(curlCmd, maxLen*2) // Allow longer for truncated version
+	}
+
+	return multilineResult
 }
 
 // parseCurlTokens parses a curl command into individual tokens, preserving quoted strings
