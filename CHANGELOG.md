@@ -6,6 +6,7 @@
 - Also updated the internal fasthttp client to 1.64.0.
 - New CLI option -em/-exclude-module.
 - `-m` and `-em` now support glob patterns with *.
+- Updated `internal_midpaths.lst` payloads.
     
 # 0.8.3-0.8.4
 
