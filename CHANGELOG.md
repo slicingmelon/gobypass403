@@ -7,6 +7,9 @@
 - New CLI option -em/-exclude-module.
 - `-m` and `-em` now support glob patterns with *.
 - Updated `internal_midpaths.lst` payloads.
+- Updated internal tool `unicodecharmap.go`.
+- Updated internal `unicode_char_map.json`.
+- Updated `unicode_path_normalization` module.
     
 # 0.8.3-0.8.4
 

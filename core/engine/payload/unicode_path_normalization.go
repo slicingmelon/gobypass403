@@ -398,38 +398,34 @@ func (pg *PayloadGenerator) GenerateUnicodePathNormalizationsPayloads(targetURL 
 	return jobs
 }
 
-// Helper function to create a path with a replaced segment
-func createPathWithReplacedSegment(segments []string, index int, newSegment string) string {
-	var newPath strings.Builder
-	newPath.WriteString("/")
-
-	for i := 1; i < len(segments); i++ {
-		if i == index {
-			newPath.WriteString(newSegment)
-		} else {
-			newPath.WriteString(segments[i])
-		}
-
-		if i < len(segments)-1 && segments[i] != "" {
-			newPath.WriteString("/")
-		}
-	}
-
-	return newPath.String()
-}
-
 // unicodefySegment converts a string segment into its raw Unicode and URL-encoded equivalents.
-// It uses the first available mapping for each character.
+// It uses the first available unicode mapping that's different from the original character.
 func unicodefySegment(segment string, asciiToMappings map[int][]UnicodeMapping) (string, string) {
 	var rawBuilder strings.Builder
 	var encodedBuilder strings.Builder
 
 	for _, r := range segment {
 		if mappings, exists := asciiToMappings[int(r)]; exists && len(mappings) > 0 {
-			// Use the first mapping as the most likely "standard" alternative (e.g., full-width)
-			mapping := mappings[0]
-			rawBuilder.WriteString(mapping.Unicode)
-			encodedBuilder.WriteString(mapping.URLEncoded)
+			// Find the first mapping that's actually different from the original character
+			var selectedMapping *UnicodeMapping
+			originalChar := string(r)
+
+			for _, mapping := range mappings {
+				if mapping.Unicode != originalChar {
+					selectedMapping = &mapping
+					break
+				}
+			}
+
+			if selectedMapping != nil {
+				rawBuilder.WriteString(selectedMapping.Unicode)
+				encodedBuilder.WriteString(selectedMapping.URLEncoded)
+			} else {
+				// No different unicode mapping found, use original character
+				rawBuilder.WriteRune(r)
+				// For the encoded version, we must still encode the original character to maintain consistency
+				encodedBuilder.WriteString(fmt.Sprintf("%%%02X", r))
+			}
 		} else {
 			// No mapping found, use original character
 			rawBuilder.WriteRune(r)
