@@ -190,29 +190,36 @@ The next section describes each bypass module in detail. Each module implements 
 
 ## 1. char_encode
 
-The `char_encode` module implements targeted character encoding techniques to bypass WAF pattern matching. It systematically generates payloads by applying URL encoding to specific characters in the path.
+The `char_encode` module implements comprehensive character encoding techniques to bypass WAF pattern matching. It systematically generates payloads by applying URL encoding using five distinct strategies.
 
-The module works on four strategic positions:
+The module implements five core encoding techniques:
 
-- Last character of the path
-- First character after any leading slash
-- Each character in the last path segment
-- Each character throughout the entire path
+1. **Last Character Encoding:** Encodes the last character of the entire path.
+2. **First Character Encoding:** Encodes the first character of the path (after any leading '/').
+3. **Last Segment Character Encoding:** Encodes each character in the last path segment individually.
+4. **Full Path Character Encoding:** Encodes each character in the entire path individually.
+5. **Full Segment Encoding Variations:** Encodes all characters within complete path segments, creating fully URL-encoded versions of each segment.
 
-For each position, it generates:
-- Single encoding (`%xx`)
-- Double encoding (`%25xx`)
-- Triple encoding (`%2525xx`)
+For each technique, it generates three encoding variants:
+- Single encoding: `%61` (standard percent encoding)
+- Double encoding: `%2561` (encoding the percent sign itself)
+- Triple encoding: `%252561` (encoding the percent sign twice)
 
-For example, with a URL like `https://example.com/admin`:
+Example payloads for `https://example.com/admin/test`:
 
 ```
-/admin → /admi%6e          # Last character encoded
-/admin → /%61dmin          # First character encoded  
-/admin → /adm%69n          # Character in path encoded
+# Individual character encoding
+/admin/test → /admi%6e/test     # Last character encoded
+/admin/test → /%61dmin/test     # First character encoded  
+/admin/test → /admin/t%65st     # Character in last segment encoded
+
+# Full segment encoding  
+/admin/test → /%61%64%6d%69%6e/test           # Full "admin" segment encoded
+/admin/test → /admin/%74%65%73%74             # Full "test" segment encoded
+/admin/test → /%61%64%6d%69%6e/%74%65%73%74   # Both segments fully encoded
 ```
 
-Special characters like `?` and `#` are handled with proper percent-encoding to preserve query parameters.
+All variations preserve the original query string if present. Special characters like `?` and `#` are handled with proper percent-encoding to preserve query parameters.
 
 ## 2. mid_paths
 

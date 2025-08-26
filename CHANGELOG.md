@@ -10,6 +10,7 @@
 - Updated internal tool `unicodecharmap.go`.
 - Updated internal `unicode_char_map.json`.
 - Updated `unicode_path_normalization` module.
+- Updated `char_encode` module.
     
 # 0.8.3-0.8.4
 
