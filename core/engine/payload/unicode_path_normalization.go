@@ -34,6 +34,10 @@ Payload generation techniques include:
  4. **Unicode Slash Insertion:** Takes Unicode equivalents of the slash character
     (`/`) and inserts them next to existing slashes in the path, creating
     variants like `/admin/(unicode_slash)login`.
+ 5. **Full Segment Unicode Variations:** For each path segment, creates a fully
+    Unicode-fied version (e.g., `/admin` -> `/ＡＤＭＩＮ`). It then generates
+    payloads by replacing each segment individually, and finally by replacing
+    all segments at once. Both raw and URL-encoded variants are generated.
 
 All variations preserve the original query string if present.
 */
@@ -331,6 +335,64 @@ func (pg *PayloadGenerator) GenerateUnicodePathNormalizationsPayloads(targetURL 
 		}
 	}
 
+	// --- 5. Full segment Unicode variations ---
+	if len(segments) > 1 {
+		unicodeSegmentsRaw := make([]string, len(segments))
+		unicodeSegmentsEnc := make([]string, len(segments))
+		canBeUnicodefied := make([]bool, len(segments))
+		anyCanBeUnicodefied := false
+
+		for i, segment := range segments {
+			if segment == "" {
+				continue
+			}
+			raw, enc := unicodefySegment(segment, asciiToMappings)
+			if raw != segment {
+				unicodeSegmentsRaw[i] = raw
+				unicodeSegmentsEnc[i] = enc
+				canBeUnicodefied[i] = true
+				anyCanBeUnicodefied = true
+			}
+		}
+
+		if anyCanBeUnicodefied {
+			// 5.1 Replace one segment at a time
+			for i := 1; i < len(segments); i++ {
+				if canBeUnicodefied[i] {
+					addJob(createPathWithReplacedSegment(segments, i, unicodeSegmentsRaw[i]) + query)
+					addJob(createPathWithReplacedSegment(segments, i, unicodeSegmentsEnc[i]) + query)
+				}
+			}
+
+			// 5.2 Replace all possible segments at once
+			numReplacable := 0
+			for _, can := range canBeUnicodefied {
+				if can {
+					numReplacable++
+				}
+			}
+
+			if numReplacable > 1 {
+				tempSegmentsRaw := make([]string, len(segments))
+				copy(tempSegmentsRaw, segments)
+				tempSegmentsEnc := make([]string, len(segments))
+				copy(tempSegmentsEnc, segments)
+
+				for i := 1; i < len(segments); i++ {
+					if canBeUnicodefied[i] {
+						tempSegmentsRaw[i] = unicodeSegmentsRaw[i]
+						tempSegmentsEnc[i] = unicodeSegmentsEnc[i]
+					}
+				}
+				allRawPath := "/" + strings.Join(tempSegmentsRaw[1:], "/")
+				addJob(allRawPath + query)
+
+				allEncPath := "/" + strings.Join(tempSegmentsEnc[1:], "/")
+				addJob(allEncPath + query)
+			}
+		}
+	}
+
 	GB403Logger.Debug().BypassModule(bypassModule).
 		Msgf("Generated %d unicode normalization payloads for %s", len(jobs), targetURL)
 	return jobs
@@ -354,6 +416,28 @@ func createPathWithReplacedSegment(segments []string, index int, newSegment stri
 	}
 
 	return newPath.String()
+}
+
+// unicodefySegment converts a string segment into its raw Unicode and URL-encoded equivalents.
+// It uses the first available mapping for each character.
+func unicodefySegment(segment string, asciiToMappings map[int][]UnicodeMapping) (string, string) {
+	var rawBuilder strings.Builder
+	var encodedBuilder strings.Builder
+
+	for _, r := range segment {
+		if mappings, exists := asciiToMappings[int(r)]; exists && len(mappings) > 0 {
+			// Use the first mapping as the most likely "standard" alternative (e.g., full-width)
+			mapping := mappings[0]
+			rawBuilder.WriteString(mapping.Unicode)
+			encodedBuilder.WriteString(mapping.URLEncoded)
+		} else {
+			// No mapping found, use original character
+			rawBuilder.WriteRune(r)
+			// For the encoded version, we must still encode the original character to maintain consistency
+			encodedBuilder.WriteString(fmt.Sprintf("%%%02X", r))
+		}
+	}
+	return rawBuilder.String(), encodedBuilder.String()
 }
 
 /**
