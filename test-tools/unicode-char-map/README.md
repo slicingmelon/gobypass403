@@ -40,54 +40,100 @@ The tool scans the entire Unicode range (up to `0x10FFFF`) and uses four differe
 
 The output is a JSON array where each object represents a target character from your specified range that has at least one Unicode normalization mapping.
 
-Here is a sample entry for the character `E` (value 69):
+Here is a sample entry for the characters `a` (ascii 97) and `b` (ascii 98):
 
 ```json
  {
-    "value": 69,
-    "char": "E",
+    "ascii": 97,
+    "char": "a",
     "mappings": [
       {
-        "unicode": "E",
-        "utf8_bytes": "\\x45",
-        "url_encoded": "%45",
-        "normalizes_as": "E",
-        "normalizes_as_hex": "\\x45",
+        "unicode": "a",
+        "utf8_bytes": "\\x61",
+        "url_encoded": "%61",
+        "normalizes_as": "a",
+        "normalizes_as_hex": "\\x61",
         "form": "NFKC"
       },
       {
-        "unicode": "ᴱ",
-        "utf8_bytes": "\\xE1\\xB4\\xB1",
-        "url_encoded": "%E1%B4%B1",
-        "normalizes_as": "E",
-        "normalizes_as_hex": "\\x45",
+        "unicode": "ª",
+        "utf8_bytes": "\\xC2\\xAA",
+        "url_encoded": "%C2%AA",
+        "normalizes_as": "a",
+        "normalizes_as_hex": "\\x61",
         "form": "NFKC"
       },
       {
-        "unicode": "ℰ",
-        "utf8_bytes": "\\xE2\\x84\\xB0",
-        "url_encoded": "%E2%84%B0",
-        "normalizes_as": "E",
-        "normalizes_as_hex": "\\x45",
+        "unicode": "ᵃ",
+        "utf8_bytes": "\\xE1\\xB5\\x83",
+        "url_encoded": "%E1%B5%83",
+        "normalizes_as": "a",
+        "normalizes_as_hex": "\\x61",
         "form": "NFKC"
       },
       {
-        "unicode": "Ⓔ",
-        "utf8_bytes": "\\xE2\\x92\\xBA",
-        "url_encoded": "%E2%92%BA",
-        "normalizes_as": "E",
-        "normalizes_as_hex": "\\x45",
+        "unicode": "ₐ",
+        "utf8_bytes": "\\xE2\\x82\\x90",
+        "url_encoded": "%E2%82%90",
+        "normalizes_as": "a",
+        "normalizes_as_hex": "\\x61",
         "form": "NFKC"
       },
       {
-        "unicode": "Ｅ",
-        "utf8_bytes": "\\xEF\\xBC\\xA5",
-        "url_encoded": "%EF%BC%A5",
-        "normalizes_as": "E",
-        "normalizes_as_hex": "\\x45",
+        "unicode": "ⓐ",
+        "utf8_bytes": "\\xE2\\x93\\x90",
+        "url_encoded": "%E2%93%90",
+        "normalizes_as": "a",
+        "normalizes_as_hex": "\\x61",
         "form": "NFKC"
       }
     ]
-  }
+  },
+  {
+    "ascii": 98,
+    "char": "b",
+    "mappings": [
+      {
+        "unicode": "b",
+        "utf8_bytes": "\\x62",
+        "url_encoded": "%62",
+        "normalizes_as": "b",
+        "normalizes_as_hex": "\\x62",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ᵇ",
+        "utf8_bytes": "\\xE1\\xB5\\x87",
+        "url_encoded": "%E1%B5%87",
+        "normalizes_as": "b",
+        "normalizes_as_hex": "\\x62",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ⓑ",
+        "utf8_bytes": "\\xE2\\x93\\x91",
+        "url_encoded": "%E2%93%91",
+        "normalizes_as": "b",
+        "normalizes_as_hex": "\\x62",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ｂ",
+        "utf8_bytes": "\\xEF\\xBD\\x82",
+        "url_encoded": "%EF%BD%82",
+        "normalizes_as": "b",
+        "normalizes_as_hex": "\\x62",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "𝐛",
+        "utf8_bytes": "\\xF0\\x9D\\x90\\x9B",
+        "url_encoded": "%F0%9D%90%9B",
+        "normalizes_as": "b",
+        "normalizes_as_hex": "\\x62",
+        "form": "NFKC"
+      }
+    ]
+  },
 ```
 
