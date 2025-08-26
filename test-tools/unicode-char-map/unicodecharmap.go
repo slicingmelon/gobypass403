@@ -2,8 +2,10 @@ package main
 
 import (
 	"encoding/json"
+	"flag"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 	"unicode"
 
@@ -21,13 +23,13 @@ type UnicodeMapping struct {
 
 // An ordered map representation
 type OrderedCharMap struct {
-	ASCII    int              `json:"ascii"`
+	Value    int              `json:"value"`
 	Char     string           `json:"char"`
 	Mappings []UnicodeMapping `json:"mappings"`
 }
 
 // Helper function to get readable representation of control characters
-func getReadableASCII(r rune) string {
+func getReadableChar(r rune) string {
 	switch r {
 	case 0:
 		return "\\0" // null
@@ -38,21 +40,25 @@ func getReadableASCII(r rune) string {
 	case 13:
 		return "\\r" // carriage return
 	default:
-		if r < 32 || r == 127 {
-			return fmt.Sprintf("\\x%02X", r) // other control chars
+		// Check for C0 and C1 control characters and other non-printable runes
+		if unicode.IsControl(r) || !unicode.IsPrint(r) {
+			if r <= 0xFF {
+				return fmt.Sprintf("\\x%02X", r)
+			}
+			return fmt.Sprintf("\\u%04X", r)
 		}
 		return string(r) // printable chars
 	}
 }
 
-// GenerateFullCharMap generates a mapping for all ASCII characters (0-127)
-// and checks Unicode characters that normalize to them
-func GenerateFullCharMap() ([]OrderedCharMap, error) {
+// GenerateCharMap generates a mapping for a given character range
+// and checks Unicode characters that normalize to them.
+func GenerateCharMap(min, max, maxNorms int) ([]OrderedCharMap, error) {
 	// Initialize a temporary map
 	tempMap := make(map[int][]UnicodeMapping)
 
-	// Initialize with all ASCII characters (0-127)
-	for r := 0; r <= 127; r++ {
+	// Initialize with all characters in the target range
+	for r := min; r <= max; r++ {
 		tempMap[r] = []UnicodeMapping{}
 	}
 
@@ -66,9 +72,14 @@ func GenerateFullCharMap() ([]OrderedCharMap, error) {
 		{norm.NFD, "NFD"},
 	}
 
-	// Check all Unicode characters up to 0xFFFF (can extend to 0x10FFFF if needed)
-	for r := rune(0x80); r <= 0xFFFF; r++ {
-		// Skip control characters in the unicode range (but we will still map TO control chars)
+	// Check all Unicode characters up to 0x10FFFF
+	for r := rune(0); r <= 0x10FFFF; r++ {
+		// Skip surrogate pairs as they are not valid standalone characters.
+		if r >= 0xD800 && r <= 0xDFFF {
+			continue
+		}
+
+		// Skip control characters in the Unicode range, as they are not typically user-input.
 		if unicode.IsControl(r) {
 			continue
 		}
@@ -79,45 +90,52 @@ func GenerateFullCharMap() ([]OrderedCharMap, error) {
 		for _, n := range normForms {
 			normalized := n.form.String(char)
 
-			// If the character normalizes to a single ASCII character
-			if len(normalized) == 1 && normalized[0] <= 127 {
-				// Get ASCII value of normalized char
-				asciiVal := int(normalized[0])
+			// If the character normalizes to a single character within our target range
+			if len(normalized) == 1 {
+				normVal := int(rune(normalized[0]))
+				if normVal >= min && normVal <= max {
+					// Check if we've reached the max norms limit for this character.
+					if maxNorms > 0 && len(tempMap[normVal]) >= maxNorms {
+						continue // Skip if we already have enough mappings.
+					}
 
-				// Create UTF-8 bytes representation
-				var bytesRepr strings.Builder
-				for _, b := range []byte(char) {
-					bytesRepr.WriteString(fmt.Sprintf("\\x%02X", b))
+					// Create UTF-8 bytes representation
+					var bytesRepr strings.Builder
+					for _, b := range []byte(char) {
+						bytesRepr.WriteString(fmt.Sprintf("\\x%02X", b))
+					}
+
+					// Create URL-encoded representation
+					var urlEncoded strings.Builder
+					for _, b := range []byte(char) {
+						urlEncoded.WriteString(fmt.Sprintf("%%%02X", b))
+					}
+
+					// Add to map
+					tempMap[normVal] = append(tempMap[normVal], UnicodeMapping{
+						Unicode:         char,
+						UTF8Bytes:       bytesRepr.String(),
+						URLEncoded:      urlEncoded.String(),
+						NormalizeAs:     getReadableChar(rune(normVal)),
+						NormalizesAsHex: fmt.Sprintf("\\x%02X", normVal),
+						Form:            n.name,
+					})
+
+					break // Found a normalization, move to the next Unicode character.
 				}
-
-				// Create URL-encoded representation
-				var urlEncoded strings.Builder
-				for _, b := range []byte(char) {
-					urlEncoded.WriteString(fmt.Sprintf("%%%02X", b))
-				}
-
-				// Add to map
-				tempMap[asciiVal] = append(tempMap[asciiVal], UnicodeMapping{
-					Unicode:         char,
-					UTF8Bytes:       bytesRepr.String(),
-					URLEncoded:      urlEncoded.String(),
-					NormalizeAs:     getReadableASCII(rune(asciiVal)),
-					NormalizesAsHex: fmt.Sprintf("\\x%02X", asciiVal),
-					Form:            n.name,
-				})
-
-				break
 			}
 		}
 	}
 
-	// Convert to ordered slice
-	result := make([]OrderedCharMap, 128)
-	for i := 0; i <= 127; i++ {
-		result[i] = OrderedCharMap{
-			ASCII:    i,
-			Char:     getReadableASCII(rune(i)),
-			Mappings: tempMap[i],
+	// Convert to ordered slice, only including entries with mappings
+	result := make([]OrderedCharMap, 0, max-min+1)
+	for i := min; i <= max; i++ {
+		if len(tempMap[i]) > 0 {
+			result = append(result, OrderedCharMap{
+				Value:    i,
+				Char:     getReadableChar(rune(i)),
+				Mappings: tempMap[i],
+			})
 		}
 	}
 
@@ -125,25 +143,55 @@ func GenerateFullCharMap() ([]OrderedCharMap, error) {
 }
 
 func main() {
-	fmt.Println("Generating Unicode mappings for all ASCII characters (0-127)...")
+	// Define flags
+	rangeStr := flag.String("range", "0-127", "The target character range to generate mappings for (e.g., '0-255').")
+	maxNorms := flag.Int("max-norms", 0, "Maximum number of normalization mappings per character (0 for unlimited).")
+	outputFile := flag.String("output", "unicode_char_map.json", "Output file name for the JSON map.")
+	flag.Parse()
 
-	charMap, err := GenerateFullCharMap()
-	if err != nil {
-		fmt.Printf("Error generating character map: %v\n", err)
+	// Parse range string
+	parts := strings.Split(*rangeStr, "-")
+	if len(parts) != 2 {
+		fmt.Fprintln(os.Stderr, "Error: Invalid range format. Please use 'min-max'.")
 		os.Exit(1)
 	}
 
-	// Save to a fixed file name
-	outputFile := "unicode_char_map.json"
+	min, err := strconv.Atoi(parts[0])
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error parsing min value from range: %v\n", err)
+		os.Exit(1)
+	}
+
+	max, err := strconv.Atoi(parts[1])
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error parsing max value from range: %v\n", err)
+		os.Exit(1)
+	}
+
+	if min < 0 || max < 0 || min > max {
+		fmt.Fprintln(os.Stderr, "Error: Invalid range values. Min and max must be non-negative, and min must be <= max.")
+		os.Exit(1)
+	}
+
+	fmt.Printf("Generating Unicode mappings for character range %d-%d...\n", min, max)
+	if *maxNorms > 0 {
+		fmt.Printf("Limiting to a maximum of %d mappings per character.\n", *maxNorms)
+	}
+
+	charMap, err := GenerateCharMap(min, max, *maxNorms)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error generating character map: %v\n", err)
+		os.Exit(1)
+	}
 
 	data, err := json.MarshalIndent(charMap, "", "  ")
 	if err != nil {
-		fmt.Printf("Error marshaling JSON: %v\n", err)
+		fmt.Fprintf(os.Stderr, "Error marshaling JSON: %v\n", err)
 		os.Exit(1)
 	}
 
-	if err := os.WriteFile(outputFile, data, 0644); err != nil {
-		fmt.Printf("Error writing to file: %v\n", err)
+	if err := os.WriteFile(*outputFile, data, 0644); err != nil {
+		fmt.Fprintf(os.Stderr, "Error writing to file: %v\n", err)
 		os.Exit(1)
 	}
 
@@ -153,6 +201,6 @@ func main() {
 		totalMappings += len(entry.Mappings)
 	}
 
-	fmt.Printf("Completed successfully! Found %d Unicode characters that normalize to ASCII\n", totalMappings)
-	fmt.Printf("Results saved to %s\n", outputFile)
+	fmt.Printf("Completed successfully! Found %d Unicode characters that normalize to the target range.\n", totalMappings)
+	fmt.Printf("Results saved to %s\n", *outputFile)
 }
