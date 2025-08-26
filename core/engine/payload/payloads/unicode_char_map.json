@@ -164,6 +164,14 @@
     "char": " ",
     "mappings": [
       {
+        "unicode": " ",
+        "utf8_bytes": "\\x20",
+        "url_encoded": "%20",
+        "normalizes_as": " ",
+        "normalizes_as_hex": "\\x20",
+        "form": "NFKC"
+      },
+      {
         "unicode": " ",
         "utf8_bytes": "\\xC2\\xA0",
         "url_encoded": "%C2%A0",
@@ -194,94 +202,6 @@
         "normalizes_as": " ",
         "normalizes_as_hex": "\\x20",
         "form": "NFKC"
-      },
-      {
-        "unicode": " ",
-        "utf8_bytes": "\\xE2\\x80\\x83",
-        "url_encoded": "%E2%80%83",
-        "normalizes_as": " ",
-        "normalizes_as_hex": "\\x20",
-        "form": "NFKC"
-      },
-      {
-        "unicode": " ",
-        "utf8_bytes": "\\xE2\\x80\\x84",
-        "url_encoded": "%E2%80%84",
-        "normalizes_as": " ",
-        "normalizes_as_hex": "\\x20",
-        "form": "NFKC"
-      },
-      {
-        "unicode": " ",
-        "utf8_bytes": "\\xE2\\x80\\x85",
-        "url_encoded": "%E2%80%85",
-        "normalizes_as": " ",
-        "normalizes_as_hex": "\\x20",
-        "form": "NFKC"
-      },
-      {
-        "unicode": " ",
-        "utf8_bytes": "\\xE2\\x80\\x86",
-        "url_encoded": "%E2%80%86",
-        "normalizes_as": " ",
-        "normalizes_as_hex": "\\x20",
-        "form": "NFKC"
-      },
-      {
-        "unicode": " ",
-        "utf8_bytes": "\\xE2\\x80\\x87",
-        "url_encoded": "%E2%80%87",
-        "normalizes_as": " ",
-        "normalizes_as_hex": "\\x20",
-        "form": "NFKC"
-      },
-      {
-        "unicode": " ",
-        "utf8_bytes": "\\xE2\\x80\\x88",
-        "url_encoded": "%E2%80%88",
-        "normalizes_as": " ",
-        "normalizes_as_hex": "\\x20",
-        "form": "NFKC"
-      },
-      {
-        "unicode": " ",
-        "utf8_bytes": "\\xE2\\x80\\x89",
-        "url_encoded": "%E2%80%89",
-        "normalizes_as": " ",
-        "normalizes_as_hex": "\\x20",
-        "form": "NFKC"
-      },
-      {
-        "unicode": " ",
-        "utf8_bytes": "\\xE2\\x80\\x8A",
-        "url_encoded": "%E2%80%8A",
-        "normalizes_as": " ",
-        "normalizes_as_hex": "\\x20",
-        "form": "NFKC"
-      },
-      {
-        "unicode": " ",
-        "utf8_bytes": "\\xE2\\x80\\xAF",
-        "url_encoded": "%E2%80%AF",
-        "normalizes_as": " ",
-        "normalizes_as_hex": "\\x20",
-        "form": "NFKC"
-      },
-      {
-        "unicode": " ",
-        "utf8_bytes": "\\xE2\\x81\\x9F",
-        "url_encoded": "%E2%81%9F",
-        "normalizes_as": " ",
-        "normalizes_as_hex": "\\x20",
-        "form": "NFKC"
-      },
-      {
-        "unicode": "　",
-        "utf8_bytes": "\\xE3\\x80\\x80",
-        "url_encoded": "%E3%80%80",
-        "normalizes_as": " ",
-        "normalizes_as_hex": "\\x20",
-        "form": "NFKC"
       }
     ]
   },
@@ -289,6 +209,14 @@
     "ascii": 33,
     "char": "!",
     "mappings": [
+      {
+        "unicode": "!",
+        "utf8_bytes": "\\x21",
+        "url_encoded": "%21",
+        "normalizes_as": "!",
+        "normalizes_as_hex": "\\x21",
+        "form": "NFKC"
+      },
       {
         "unicode": "︕",
         "utf8_bytes": "\\xEF\\xB8\\x95",
@@ -320,6 +248,14 @@
     "char": "\"",
     "mappings": [
       {
+        "unicode": "\"",
+        "utf8_bytes": "\\x22",
+        "url_encoded": "%22",
+        "normalizes_as": "\"",
+        "normalizes_as_hex": "\\x22",
+        "form": "NFKC"
+      },
+      {
         "unicode": "＂",
         "utf8_bytes": "\\xEF\\xBC\\x82",
         "url_encoded": "%EF%BC%82",
@@ -333,6 +269,14 @@
     "ascii": 35,
     "char": "#",
     "mappings": [
+      {
+        "unicode": "#",
+        "utf8_bytes": "\\x23",
+        "url_encoded": "%23",
+        "normalizes_as": "#",
+        "normalizes_as_hex": "\\x23",
+        "form": "NFKC"
+      },
       {
         "unicode": "﹟",
         "utf8_bytes": "\\xEF\\xB9\\x9F",
@@ -356,6 +300,14 @@
     "char": "$",
     "mappings": [
       {
+        "unicode": "$",
+        "utf8_bytes": "\\x24",
+        "url_encoded": "%24",
+        "normalizes_as": "$",
+        "normalizes_as_hex": "\\x24",
+        "form": "NFKC"
+      },
+      {
         "unicode": "﹩",
         "utf8_bytes": "\\xEF\\xB9\\xA9",
         "url_encoded": "%EF%B9%A9",
@@ -377,6 +329,14 @@
     "ascii": 37,
     "char": "%",
     "mappings": [
+      {
+        "unicode": "%",
+        "utf8_bytes": "\\x25",
+        "url_encoded": "%25",
+        "normalizes_as": "%",
+        "normalizes_as_hex": "\\x25",
+        "form": "NFKC"
+      },
       {
         "unicode": "﹪",
         "utf8_bytes": "\\xEF\\xB9\\xAA",
@@ -400,6 +360,14 @@
     "char": "\u0026",
     "mappings": [
       {
+        "unicode": "\u0026",
+        "utf8_bytes": "\\x26",
+        "url_encoded": "%26",
+        "normalizes_as": "\u0026",
+        "normalizes_as_hex": "\\x26",
+        "form": "NFKC"
+      },
+      {
         "unicode": "﹠",
         "utf8_bytes": "\\xEF\\xB9\\xA0",
         "url_encoded": "%EF%B9%A0",
@@ -422,6 +390,14 @@
     "char": "'",
     "mappings": [
       {
+        "unicode": "'",
+        "utf8_bytes": "\\x27",
+        "url_encoded": "%27",
+        "normalizes_as": "'",
+        "normalizes_as_hex": "\\x27",
+        "form": "NFKC"
+      },
+      {
         "unicode": "＇",
         "utf8_bytes": "\\xEF\\xBC\\x87",
         "url_encoded": "%EF%BC%87",
@@ -435,6 +411,14 @@
     "ascii": 40,
     "char": "(",
     "mappings": [
+      {
+        "unicode": "(",
+        "utf8_bytes": "\\x28",
+        "url_encoded": "%28",
+        "normalizes_as": "(",
+        "normalizes_as_hex": "\\x28",
+        "form": "NFKC"
+      },
       {
         "unicode": "⁽",
         "utf8_bytes": "\\xE2\\x81\\xBD",
@@ -466,14 +450,6 @@
         "normalizes_as": "(",
         "normalizes_as_hex": "\\x28",
         "form": "NFKC"
-      },
-      {
-        "unicode": "（",
-        "utf8_bytes": "\\xEF\\xBC\\x88",
-        "url_encoded": "%EF%BC%88",
-        "normalizes_as": "(",
-        "normalizes_as_hex": "\\x28",
-        "form": "NFKC"
       }
     ]
   },
@@ -481,6 +457,14 @@
     "ascii": 41,
     "char": ")",
     "mappings": [
+      {
+        "unicode": ")",
+        "utf8_bytes": "\\x29",
+        "url_encoded": "%29",
+        "normalizes_as": ")",
+        "normalizes_as_hex": "\\x29",
+        "form": "NFKC"
+      },
       {
         "unicode": "⁾",
         "utf8_bytes": "\\xE2\\x81\\xBE",
@@ -512,14 +496,6 @@
         "normalizes_as": ")",
         "normalizes_as_hex": "\\x29",
         "form": "NFKC"
-      },
-      {
-        "unicode": "）",
-        "utf8_bytes": "\\xEF\\xBC\\x89",
-        "url_encoded": "%EF%BC%89",
-        "normalizes_as": ")",
-        "normalizes_as_hex": "\\x29",
-        "form": "NFKC"
       }
     ]
   },
@@ -527,6 +503,14 @@
     "ascii": 42,
     "char": "*",
     "mappings": [
+      {
+        "unicode": "*",
+        "utf8_bytes": "\\x2A",
+        "url_encoded": "%2A",
+        "normalizes_as": "*",
+        "normalizes_as_hex": "\\x2A",
+        "form": "NFKC"
+      },
       {
         "unicode": "﹡",
         "utf8_bytes": "\\xEF\\xB9\\xA1",
@@ -549,6 +533,14 @@
     "ascii": 43,
     "char": "+",
     "mappings": [
+      {
+        "unicode": "+",
+        "utf8_bytes": "\\x2B",
+        "url_encoded": "%2B",
+        "normalizes_as": "+",
+        "normalizes_as_hex": "\\x2B",
+        "form": "NFKC"
+      },
       {
         "unicode": "⁺",
         "utf8_bytes": "\\xE2\\x81\\xBA",
@@ -580,14 +572,6 @@
         "normalizes_as": "+",
         "normalizes_as_hex": "\\x2B",
         "form": "NFKC"
-      },
-      {
-        "unicode": "＋",
-        "utf8_bytes": "\\xEF\\xBC\\x8B",
-        "url_encoded": "%EF%BC%8B",
-        "normalizes_as": "+",
-        "normalizes_as_hex": "\\x2B",
-        "form": "NFKC"
       }
     ]
   },
@@ -595,6 +579,14 @@
     "ascii": 44,
     "char": ",",
     "mappings": [
+      {
+        "unicode": ",",
+        "utf8_bytes": "\\x2C",
+        "url_encoded": "%2C",
+        "normalizes_as": ",",
+        "normalizes_as_hex": "\\x2C",
+        "form": "NFKC"
+      },
       {
         "unicode": "︐",
         "utf8_bytes": "\\xEF\\xB8\\x90",
@@ -626,6 +618,14 @@
     "char": "-",
     "mappings": [
       {
+        "unicode": "-",
+        "utf8_bytes": "\\x2D",
+        "url_encoded": "%2D",
+        "normalizes_as": "-",
+        "normalizes_as_hex": "\\x2D",
+        "form": "NFKC"
+      },
+      {
         "unicode": "﹣",
         "utf8_bytes": "\\xEF\\xB9\\xA3",
         "url_encoded": "%EF%B9%A3",
@@ -647,6 +647,14 @@
     "ascii": 46,
     "char": ".",
     "mappings": [
+      {
+        "unicode": ".",
+        "utf8_bytes": "\\x2E",
+        "url_encoded": "%2E",
+        "normalizes_as": ".",
+        "normalizes_as_hex": "\\x2E",
+        "form": "NFKC"
+      },
       {
         "unicode": "․",
         "utf8_bytes": "\\xE2\\x80\\xA4",
@@ -678,6 +686,14 @@
     "char": "/",
     "mappings": [
       {
+        "unicode": "/",
+        "utf8_bytes": "\\x2F",
+        "url_encoded": "%2F",
+        "normalizes_as": "/",
+        "normalizes_as_hex": "\\x2F",
+        "form": "NFKC"
+      },
+      {
         "unicode": "／",
         "utf8_bytes": "\\xEF\\xBC\\x8F",
         "url_encoded": "%EF%BC%8F",
@@ -691,6 +707,14 @@
     "ascii": 48,
     "char": "0",
     "mappings": [
+      {
+        "unicode": "0",
+        "utf8_bytes": "\\x30",
+        "url_encoded": "%30",
+        "normalizes_as": "0",
+        "normalizes_as_hex": "\\x30",
+        "form": "NFKC"
+      },
       {
         "unicode": "⁰",
         "utf8_bytes": "\\xE2\\x81\\xB0",
@@ -730,6 +754,14 @@
     "char": "1",
     "mappings": [
       {
+        "unicode": "1",
+        "utf8_bytes": "\\x31",
+        "url_encoded": "%31",
+        "normalizes_as": "1",
+        "normalizes_as_hex": "\\x31",
+        "form": "NFKC"
+      },
+      {
         "unicode": "¹",
         "utf8_bytes": "\\xC2\\xB9",
         "url_encoded": "%C2%B9",
@@ -767,6 +799,14 @@
     "ascii": 50,
     "char": "2",
     "mappings": [
+      {
+        "unicode": "2",
+        "utf8_bytes": "\\x32",
+        "url_encoded": "%32",
+        "normalizes_as": "2",
+        "normalizes_as_hex": "\\x32",
+        "form": "NFKC"
+      },
       {
         "unicode": "²",
         "utf8_bytes": "\\xC2\\xB2",
@@ -806,6 +846,14 @@
     "char": "3",
     "mappings": [
       {
+        "unicode": "3",
+        "utf8_bytes": "\\x33",
+        "url_encoded": "%33",
+        "normalizes_as": "3",
+        "normalizes_as_hex": "\\x33",
+        "form": "NFKC"
+      },
+      {
         "unicode": "³",
         "utf8_bytes": "\\xC2\\xB3",
         "url_encoded": "%C2%B3",
@@ -843,6 +891,14 @@
     "ascii": 52,
     "char": "4",
     "mappings": [
+      {
+        "unicode": "4",
+        "utf8_bytes": "\\x34",
+        "url_encoded": "%34",
+        "normalizes_as": "4",
+        "normalizes_as_hex": "\\x34",
+        "form": "NFKC"
+      },
       {
         "unicode": "⁴",
         "utf8_bytes": "\\xE2\\x81\\xB4",
@@ -882,6 +938,14 @@
     "char": "5",
     "mappings": [
       {
+        "unicode": "5",
+        "utf8_bytes": "\\x35",
+        "url_encoded": "%35",
+        "normalizes_as": "5",
+        "normalizes_as_hex": "\\x35",
+        "form": "NFKC"
+      },
+      {
         "unicode": "⁵",
         "utf8_bytes": "\\xE2\\x81\\xB5",
         "url_encoded": "%E2%81%B5",
@@ -919,6 +983,14 @@
     "ascii": 54,
     "char": "6",
     "mappings": [
+      {
+        "unicode": "6",
+        "utf8_bytes": "\\x36",
+        "url_encoded": "%36",
+        "normalizes_as": "6",
+        "normalizes_as_hex": "\\x36",
+        "form": "NFKC"
+      },
       {
         "unicode": "⁶",
         "utf8_bytes": "\\xE2\\x81\\xB6",
@@ -958,6 +1030,14 @@
     "char": "7",
     "mappings": [
       {
+        "unicode": "7",
+        "utf8_bytes": "\\x37",
+        "url_encoded": "%37",
+        "normalizes_as": "7",
+        "normalizes_as_hex": "\\x37",
+        "form": "NFKC"
+      },
+      {
         "unicode": "⁷",
         "utf8_bytes": "\\xE2\\x81\\xB7",
         "url_encoded": "%E2%81%B7",
@@ -995,6 +1075,14 @@
     "ascii": 56,
     "char": "8",
     "mappings": [
+      {
+        "unicode": "8",
+        "utf8_bytes": "\\x38",
+        "url_encoded": "%38",
+        "normalizes_as": "8",
+        "normalizes_as_hex": "\\x38",
+        "form": "NFKC"
+      },
       {
         "unicode": "⁸",
         "utf8_bytes": "\\xE2\\x81\\xB8",
@@ -1034,6 +1122,14 @@
     "char": "9",
     "mappings": [
       {
+        "unicode": "9",
+        "utf8_bytes": "\\x39",
+        "url_encoded": "%39",
+        "normalizes_as": "9",
+        "normalizes_as_hex": "\\x39",
+        "form": "NFKC"
+      },
+      {
         "unicode": "⁹",
         "utf8_bytes": "\\xE2\\x81\\xB9",
         "url_encoded": "%E2%81%B9",
@@ -1072,6 +1168,14 @@
     "char": ":",
     "mappings": [
       {
+        "unicode": ":",
+        "utf8_bytes": "\\x3A",
+        "url_encoded": "%3A",
+        "normalizes_as": ":",
+        "normalizes_as_hex": "\\x3A",
+        "form": "NFKC"
+      },
+      {
         "unicode": "︓",
         "utf8_bytes": "\\xEF\\xB8\\x93",
         "url_encoded": "%EF%B8%93",
@@ -1101,6 +1205,14 @@
     "ascii": 59,
     "char": ";",
     "mappings": [
+      {
+        "unicode": ";",
+        "utf8_bytes": "\\x3B",
+        "url_encoded": "%3B",
+        "normalizes_as": ";",
+        "normalizes_as_hex": "\\x3B",
+        "form": "NFKC"
+      },
       {
         "unicode": ";",
         "utf8_bytes": "\\xCD\\xBE",
@@ -1140,6 +1252,14 @@
     "char": "\u003c",
     "mappings": [
       {
+        "unicode": "\u003c",
+        "utf8_bytes": "\\x3C",
+        "url_encoded": "%3C",
+        "normalizes_as": "\u003c",
+        "normalizes_as_hex": "\\x3C",
+        "form": "NFKC"
+      },
+      {
         "unicode": "﹤",
         "utf8_bytes": "\\xEF\\xB9\\xA4",
         "url_encoded": "%EF%B9%A4",
@@ -1161,6 +1281,14 @@
     "ascii": 61,
     "char": "=",
     "mappings": [
+      {
+        "unicode": "=",
+        "utf8_bytes": "\\x3D",
+        "url_encoded": "%3D",
+        "normalizes_as": "=",
+        "normalizes_as_hex": "\\x3D",
+        "form": "NFKC"
+      },
       {
         "unicode": "⁼",
         "utf8_bytes": "\\xE2\\x81\\xBC",
@@ -1200,6 +1328,14 @@
     "char": "\u003e",
     "mappings": [
       {
+        "unicode": "\u003e",
+        "utf8_bytes": "\\x3E",
+        "url_encoded": "%3E",
+        "normalizes_as": "\u003e",
+        "normalizes_as_hex": "\\x3E",
+        "form": "NFKC"
+      },
+      {
         "unicode": "﹥",
         "utf8_bytes": "\\xEF\\xB9\\xA5",
         "url_encoded": "%EF%B9%A5",
@@ -1221,6 +1357,14 @@
     "ascii": 63,
     "char": "?",
     "mappings": [
+      {
+        "unicode": "?",
+        "utf8_bytes": "\\x3F",
+        "url_encoded": "%3F",
+        "normalizes_as": "?",
+        "normalizes_as_hex": "\\x3F",
+        "form": "NFKC"
+      },
       {
         "unicode": "︖",
         "utf8_bytes": "\\xEF\\xB8\\x96",
@@ -1252,6 +1396,14 @@
     "char": "@",
     "mappings": [
       {
+        "unicode": "@",
+        "utf8_bytes": "\\x40",
+        "url_encoded": "%40",
+        "normalizes_as": "@",
+        "normalizes_as_hex": "\\x40",
+        "form": "NFKC"
+      },
+      {
         "unicode": "﹫",
         "utf8_bytes": "\\xEF\\xB9\\xAB",
         "url_encoded": "%EF%B9%AB",
@@ -1273,6 +1425,14 @@
     "ascii": 65,
     "char": "A",
     "mappings": [
+      {
+        "unicode": "A",
+        "utf8_bytes": "\\x41",
+        "url_encoded": "%41",
+        "normalizes_as": "A",
+        "normalizes_as_hex": "\\x41",
+        "form": "NFKC"
+      },
       {
         "unicode": "ᴬ",
         "utf8_bytes": "\\xE1\\xB4\\xAC",
@@ -1296,6 +1456,14 @@
         "normalizes_as": "A",
         "normalizes_as_hex": "\\x41",
         "form": "NFKC"
+      },
+      {
+        "unicode": "𝐀",
+        "utf8_bytes": "\\xF0\\x9D\\x90\\x80",
+        "url_encoded": "%F0%9D%90%80",
+        "normalizes_as": "A",
+        "normalizes_as_hex": "\\x41",
+        "form": "NFKC"
       }
     ]
   },
@@ -1303,6 +1471,14 @@
     "ascii": 66,
     "char": "B",
     "mappings": [
+      {
+        "unicode": "B",
+        "utf8_bytes": "\\x42",
+        "url_encoded": "%42",
+        "normalizes_as": "B",
+        "normalizes_as_hex": "\\x42",
+        "form": "NFKC"
+      },
       {
         "unicode": "ᴮ",
         "utf8_bytes": "\\xE1\\xB4\\xAE",
@@ -1342,6 +1518,14 @@
     "char": "C",
     "mappings": [
       {
+        "unicode": "C",
+        "utf8_bytes": "\\x43",
+        "url_encoded": "%43",
+        "normalizes_as": "C",
+        "normalizes_as_hex": "\\x43",
+        "form": "NFKC"
+      },
+      {
         "unicode": "ℂ",
         "utf8_bytes": "\\xE2\\x84\\x82",
         "url_encoded": "%E2%84%82",
@@ -1372,22 +1556,6 @@
         "normalizes_as": "C",
         "normalizes_as_hex": "\\x43",
         "form": "NFKC"
-      },
-      {
-        "unicode": "ꟲ",
-        "utf8_bytes": "\\xEA\\x9F\\xB2",
-        "url_encoded": "%EA%9F%B2",
-        "normalizes_as": "C",
-        "normalizes_as_hex": "\\x43",
-        "form": "NFKC"
-      },
-      {
-        "unicode": "Ｃ",
-        "utf8_bytes": "\\xEF\\xBC\\xA3",
-        "url_encoded": "%EF%BC%A3",
-        "normalizes_as": "C",
-        "normalizes_as_hex": "\\x43",
-        "form": "NFKC"
       }
     ]
   },
@@ -1395,6 +1563,14 @@
     "ascii": 68,
     "char": "D",
     "mappings": [
+      {
+        "unicode": "D",
+        "utf8_bytes": "\\x44",
+        "url_encoded": "%44",
+        "normalizes_as": "D",
+        "normalizes_as_hex": "\\x44",
+        "form": "NFKC"
+      },
       {
         "unicode": "ᴰ",
         "utf8_bytes": "\\xE1\\xB4\\xB0",
@@ -1426,14 +1602,6 @@
         "normalizes_as": "D",
         "normalizes_as_hex": "\\x44",
         "form": "NFKC"
-      },
-      {
-        "unicode": "Ｄ",
-        "utf8_bytes": "\\xEF\\xBC\\xA4",
-        "url_encoded": "%EF%BC%A4",
-        "normalizes_as": "D",
-        "normalizes_as_hex": "\\x44",
-        "form": "NFKC"
       }
     ]
   },
@@ -1441,6 +1609,14 @@
     "ascii": 69,
     "char": "E",
     "mappings": [
+      {
+        "unicode": "E",
+        "utf8_bytes": "\\x45",
+        "url_encoded": "%45",
+        "normalizes_as": "E",
+        "normalizes_as_hex": "\\x45",
+        "form": "NFKC"
+      },
       {
         "unicode": "ᴱ",
         "utf8_bytes": "\\xE1\\xB4\\xB1",
@@ -1480,6 +1656,14 @@
     "char": "F",
     "mappings": [
       {
+        "unicode": "F",
+        "utf8_bytes": "\\x46",
+        "url_encoded": "%46",
+        "normalizes_as": "F",
+        "normalizes_as_hex": "\\x46",
+        "form": "NFKC"
+      },
+      {
         "unicode": "ℱ",
         "utf8_bytes": "\\xE2\\x84\\xB1",
         "url_encoded": "%E2%84%B1",
@@ -1518,6 +1702,14 @@
     "char": "G",
     "mappings": [
       {
+        "unicode": "G",
+        "utf8_bytes": "\\x47",
+        "url_encoded": "%47",
+        "normalizes_as": "G",
+        "normalizes_as_hex": "\\x47",
+        "form": "NFKC"
+      },
+      {
         "unicode": "ᴳ",
         "utf8_bytes": "\\xE1\\xB4\\xB3",
         "url_encoded": "%E1%B4%B3",
@@ -1540,6 +1732,14 @@
         "normalizes_as": "G",
         "normalizes_as_hex": "\\x47",
         "form": "NFKC"
+      },
+      {
+        "unicode": "𝐆",
+        "utf8_bytes": "\\xF0\\x9D\\x90\\x86",
+        "url_encoded": "%F0%9D%90%86",
+        "normalizes_as": "G",
+        "normalizes_as_hex": "\\x47",
+        "form": "NFKC"
       }
     ]
   },
@@ -1547,6 +1747,14 @@
     "ascii": 72,
     "char": "H",
     "mappings": [
+      {
+        "unicode": "H",
+        "utf8_bytes": "\\x48",
+        "url_encoded": "%48",
+        "normalizes_as": "H",
+        "normalizes_as_hex": "\\x48",
+        "form": "NFKC"
+      },
       {
         "unicode": "ᴴ",
         "utf8_bytes": "\\xE1\\xB4\\xB4",
@@ -1578,22 +1786,6 @@
         "normalizes_as": "H",
         "normalizes_as_hex": "\\x48",
         "form": "NFKC"
-      },
-      {
-        "unicode": "Ⓗ",
-        "utf8_bytes": "\\xE2\\x92\\xBD",
-        "url_encoded": "%E2%92%BD",
-        "normalizes_as": "H",
-        "normalizes_as_hex": "\\x48",
-        "form": "NFKC"
-      },
-      {
-        "unicode": "Ｈ",
-        "utf8_bytes": "\\xEF\\xBC\\xA8",
-        "url_encoded": "%EF%BC%A8",
-        "normalizes_as": "H",
-        "normalizes_as_hex": "\\x48",
-        "form": "NFKC"
       }
     ]
   },
@@ -1601,6 +1793,14 @@
     "ascii": 73,
     "char": "I",
     "mappings": [
+      {
+        "unicode": "I",
+        "utf8_bytes": "\\x49",
+        "url_encoded": "%49",
+        "normalizes_as": "I",
+        "normalizes_as_hex": "\\x49",
+        "form": "NFKC"
+      },
       {
         "unicode": "ᴵ",
         "utf8_bytes": "\\xE1\\xB4\\xB5",
@@ -1632,22 +1832,6 @@
         "normalizes_as": "I",
         "normalizes_as_hex": "\\x49",
         "form": "NFKC"
-      },
-      {
-        "unicode": "Ⓘ",
-        "utf8_bytes": "\\xE2\\x92\\xBE",
-        "url_encoded": "%E2%92%BE",
-        "normalizes_as": "I",
-        "normalizes_as_hex": "\\x49",
-        "form": "NFKC"
-      },
-      {
-        "unicode": "Ｉ",
-        "utf8_bytes": "\\xEF\\xBC\\xA9",
-        "url_encoded": "%EF%BC%A9",
-        "normalizes_as": "I",
-        "normalizes_as_hex": "\\x49",
-        "form": "NFKC"
       }
     ]
   },
@@ -1655,6 +1839,14 @@
     "ascii": 74,
     "char": "J",
     "mappings": [
+      {
+        "unicode": "J",
+        "utf8_bytes": "\\x4A",
+        "url_encoded": "%4A",
+        "normalizes_as": "J",
+        "normalizes_as_hex": "\\x4A",
+        "form": "NFKC"
+      },
       {
         "unicode": "ᴶ",
         "utf8_bytes": "\\xE1\\xB4\\xB6",
@@ -1678,6 +1870,14 @@
         "normalizes_as": "J",
         "normalizes_as_hex": "\\x4A",
         "form": "NFKC"
+      },
+      {
+        "unicode": "𝐉",
+        "utf8_bytes": "\\xF0\\x9D\\x90\\x89",
+        "url_encoded": "%F0%9D%90%89",
+        "normalizes_as": "J",
+        "normalizes_as_hex": "\\x4A",
+        "form": "NFKC"
       }
     ]
   },
@@ -1685,6 +1885,14 @@
     "ascii": 75,
     "char": "K",
     "mappings": [
+      {
+        "unicode": "K",
+        "utf8_bytes": "\\x4B",
+        "url_encoded": "%4B",
+        "normalizes_as": "K",
+        "normalizes_as_hex": "\\x4B",
+        "form": "NFKC"
+      },
       {
         "unicode": "ᴷ",
         "utf8_bytes": "\\xE1\\xB4\\xB7",
@@ -1724,6 +1932,14 @@
     "char": "L",
     "mappings": [
       {
+        "unicode": "L",
+        "utf8_bytes": "\\x4C",
+        "url_encoded": "%4C",
+        "normalizes_as": "L",
+        "normalizes_as_hex": "\\x4C",
+        "form": "NFKC"
+      },
+      {
         "unicode": "ᴸ",
         "utf8_bytes": "\\xE1\\xB4\\xB8",
         "url_encoded": "%E1%B4%B8",
@@ -1754,14 +1970,6 @@
         "normalizes_as": "L",
         "normalizes_as_hex": "\\x4C",
         "form": "NFKC"
-      },
-      {
-        "unicode": "Ｌ",
-        "utf8_bytes": "\\xEF\\xBC\\xAC",
-        "url_encoded": "%EF%BC%AC",
-        "normalizes_as": "L",
-        "normalizes_as_hex": "\\x4C",
-        "form": "NFKC"
       }
     ]
   },
@@ -1769,6 +1977,14 @@
     "ascii": 77,
     "char": "M",
     "mappings": [
+      {
+        "unicode": "M",
+        "utf8_bytes": "\\x4D",
+        "url_encoded": "%4D",
+        "normalizes_as": "M",
+        "normalizes_as_hex": "\\x4D",
+        "form": "NFKC"
+      },
       {
         "unicode": "ᴹ",
         "utf8_bytes": "\\xE1\\xB4\\xB9",
@@ -1800,14 +2016,6 @@
         "normalizes_as": "M",
         "normalizes_as_hex": "\\x4D",
         "form": "NFKC"
-      },
-      {
-        "unicode": "Ｍ",
-        "utf8_bytes": "\\xEF\\xBC\\xAD",
-        "url_encoded": "%EF%BC%AD",
-        "normalizes_as": "M",
-        "normalizes_as_hex": "\\x4D",
-        "form": "NFKC"
       }
     ]
   },
@@ -1815,6 +2023,14 @@
     "ascii": 78,
     "char": "N",
     "mappings": [
+      {
+        "unicode": "N",
+        "utf8_bytes": "\\x4E",
+        "url_encoded": "%4E",
+        "normalizes_as": "N",
+        "normalizes_as_hex": "\\x4E",
+        "form": "NFKC"
+      },
       {
         "unicode": "ᴺ",
         "utf8_bytes": "\\xE1\\xB4\\xBA",
@@ -1854,6 +2070,14 @@
     "char": "O",
     "mappings": [
       {
+        "unicode": "O",
+        "utf8_bytes": "\\x4F",
+        "url_encoded": "%4F",
+        "normalizes_as": "O",
+        "normalizes_as_hex": "\\x4F",
+        "form": "NFKC"
+      },
+      {
         "unicode": "ᴼ",
         "utf8_bytes": "\\xE1\\xB4\\xBC",
         "url_encoded": "%E1%B4%BC",
@@ -1876,6 +2100,14 @@
         "normalizes_as": "O",
         "normalizes_as_hex": "\\x4F",
         "form": "NFKC"
+      },
+      {
+        "unicode": "𝐎",
+        "utf8_bytes": "\\xF0\\x9D\\x90\\x8E",
+        "url_encoded": "%F0%9D%90%8E",
+        "normalizes_as": "O",
+        "normalizes_as_hex": "\\x4F",
+        "form": "NFKC"
       }
     ]
   },
@@ -1883,6 +2115,14 @@
     "ascii": 80,
     "char": "P",
     "mappings": [
+      {
+        "unicode": "P",
+        "utf8_bytes": "\\x50",
+        "url_encoded": "%50",
+        "normalizes_as": "P",
+        "normalizes_as_hex": "\\x50",
+        "form": "NFKC"
+      },
       {
         "unicode": "ᴾ",
         "utf8_bytes": "\\xE1\\xB4\\xBE",
@@ -1922,6 +2162,14 @@
     "char": "Q",
     "mappings": [
       {
+        "unicode": "Q",
+        "utf8_bytes": "\\x51",
+        "url_encoded": "%51",
+        "normalizes_as": "Q",
+        "normalizes_as_hex": "\\x51",
+        "form": "NFKC"
+      },
+      {
         "unicode": "ℚ",
         "utf8_bytes": "\\xE2\\x84\\x9A",
         "url_encoded": "%E2%84%9A",
@@ -1960,6 +2208,14 @@
     "char": "R",
     "mappings": [
       {
+        "unicode": "R",
+        "utf8_bytes": "\\x52",
+        "url_encoded": "%52",
+        "normalizes_as": "R",
+        "normalizes_as_hex": "\\x52",
+        "form": "NFKC"
+      },
+      {
         "unicode": "ᴿ",
         "utf8_bytes": "\\xE1\\xB4\\xBF",
         "url_encoded": "%E1%B4%BF",
@@ -1990,22 +2246,6 @@
         "normalizes_as": "R",
         "normalizes_as_hex": "\\x52",
         "form": "NFKC"
-      },
-      {
-        "unicode": "Ⓡ",
-        "utf8_bytes": "\\xE2\\x93\\x87",
-        "url_encoded": "%E2%93%87",
-        "normalizes_as": "R",
-        "normalizes_as_hex": "\\x52",
-        "form": "NFKC"
-      },
-      {
-        "unicode": "Ｒ",
-        "utf8_bytes": "\\xEF\\xBC\\xB2",
-        "url_encoded": "%EF%BC%B2",
-        "normalizes_as": "R",
-        "normalizes_as_hex": "\\x52",
-        "form": "NFKC"
       }
     ]
   },
@@ -2013,6 +2253,14 @@
     "ascii": 83,
     "char": "S",
     "mappings": [
+      {
+        "unicode": "S",
+        "utf8_bytes": "\\x53",
+        "url_encoded": "%53",
+        "normalizes_as": "S",
+        "normalizes_as_hex": "\\x53",
+        "form": "NFKC"
+      },
       {
         "unicode": "Ⓢ",
         "utf8_bytes": "\\xE2\\x93\\x88",
@@ -2028,6 +2276,22 @@
         "normalizes_as": "S",
         "normalizes_as_hex": "\\x53",
         "form": "NFKC"
+      },
+      {
+        "unicode": "𝐒",
+        "utf8_bytes": "\\xF0\\x9D\\x90\\x92",
+        "url_encoded": "%F0%9D%90%92",
+        "normalizes_as": "S",
+        "normalizes_as_hex": "\\x53",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "𝑆",
+        "utf8_bytes": "\\xF0\\x9D\\x91\\x86",
+        "url_encoded": "%F0%9D%91%86",
+        "normalizes_as": "S",
+        "normalizes_as_hex": "\\x53",
+        "form": "NFKC"
       }
     ]
   },
@@ -2035,6 +2299,14 @@
     "ascii": 84,
     "char": "T",
     "mappings": [
+      {
+        "unicode": "T",
+        "utf8_bytes": "\\x54",
+        "url_encoded": "%54",
+        "normalizes_as": "T",
+        "normalizes_as_hex": "\\x54",
+        "form": "NFKC"
+      },
       {
         "unicode": "ᵀ",
         "utf8_bytes": "\\xE1\\xB5\\x80",
@@ -2058,6 +2330,14 @@
         "normalizes_as": "T",
         "normalizes_as_hex": "\\x54",
         "form": "NFKC"
+      },
+      {
+        "unicode": "𝐓",
+        "utf8_bytes": "\\xF0\\x9D\\x90\\x93",
+        "url_encoded": "%F0%9D%90%93",
+        "normalizes_as": "T",
+        "normalizes_as_hex": "\\x54",
+        "form": "NFKC"
       }
     ]
   },
@@ -2065,6 +2345,14 @@
     "ascii": 85,
     "char": "U",
     "mappings": [
+      {
+        "unicode": "U",
+        "utf8_bytes": "\\x55",
+        "url_encoded": "%55",
+        "normalizes_as": "U",
+        "normalizes_as_hex": "\\x55",
+        "form": "NFKC"
+      },
       {
         "unicode": "ᵁ",
         "utf8_bytes": "\\xE1\\xB5\\x81",
@@ -2088,6 +2376,14 @@
         "normalizes_as": "U",
         "normalizes_as_hex": "\\x55",
         "form": "NFKC"
+      },
+      {
+        "unicode": "𝐔",
+        "utf8_bytes": "\\xF0\\x9D\\x90\\x94",
+        "url_encoded": "%F0%9D%90%94",
+        "normalizes_as": "U",
+        "normalizes_as_hex": "\\x55",
+        "form": "NFKC"
       }
     ]
   },
@@ -2095,6 +2391,14 @@
     "ascii": 86,
     "char": "V",
     "mappings": [
+      {
+        "unicode": "V",
+        "utf8_bytes": "\\x56",
+        "url_encoded": "%56",
+        "normalizes_as": "V",
+        "normalizes_as_hex": "\\x56",
+        "form": "NFKC"
+      },
       {
         "unicode": "Ⅴ",
         "utf8_bytes": "\\xE2\\x85\\xA4",
@@ -2134,6 +2438,14 @@
     "char": "W",
     "mappings": [
       {
+        "unicode": "W",
+        "utf8_bytes": "\\x57",
+        "url_encoded": "%57",
+        "normalizes_as": "W",
+        "normalizes_as_hex": "\\x57",
+        "form": "NFKC"
+      },
+      {
         "unicode": "ᵂ",
         "utf8_bytes": "\\xE1\\xB5\\x82",
         "url_encoded": "%E1%B5%82",
@@ -2156,6 +2468,14 @@
         "normalizes_as": "W",
         "normalizes_as_hex": "\\x57",
         "form": "NFKC"
+      },
+      {
+        "unicode": "𝐖",
+        "utf8_bytes": "\\xF0\\x9D\\x90\\x96",
+        "url_encoded": "%F0%9D%90%96",
+        "normalizes_as": "W",
+        "normalizes_as_hex": "\\x57",
+        "form": "NFKC"
       }
     ]
   },
@@ -2163,6 +2483,14 @@
     "ascii": 88,
     "char": "X",
     "mappings": [
+      {
+        "unicode": "X",
+        "utf8_bytes": "\\x58",
+        "url_encoded": "%58",
+        "normalizes_as": "X",
+        "normalizes_as_hex": "\\x58",
+        "form": "NFKC"
+      },
       {
         "unicode": "Ⅹ",
         "utf8_bytes": "\\xE2\\x85\\xA9",
@@ -2186,6 +2514,14 @@
         "normalizes_as": "X",
         "normalizes_as_hex": "\\x58",
         "form": "NFKC"
+      },
+      {
+        "unicode": "𝐗",
+        "utf8_bytes": "\\xF0\\x9D\\x90\\x97",
+        "url_encoded": "%F0%9D%90%97",
+        "normalizes_as": "X",
+        "normalizes_as_hex": "\\x58",
+        "form": "NFKC"
       }
     ]
   },
@@ -2193,6 +2529,14 @@
     "ascii": 89,
     "char": "Y",
     "mappings": [
+      {
+        "unicode": "Y",
+        "utf8_bytes": "\\x59",
+        "url_encoded": "%59",
+        "normalizes_as": "Y",
+        "normalizes_as_hex": "\\x59",
+        "form": "NFKC"
+      },
       {
         "unicode": "Ⓨ",
         "utf8_bytes": "\\xE2\\x93\\x8E",
@@ -2208,6 +2552,22 @@
         "normalizes_as": "Y",
         "normalizes_as_hex": "\\x59",
         "form": "NFKC"
+      },
+      {
+        "unicode": "𝐘",
+        "utf8_bytes": "\\xF0\\x9D\\x90\\x98",
+        "url_encoded": "%F0%9D%90%98",
+        "normalizes_as": "Y",
+        "normalizes_as_hex": "\\x59",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "𝑌",
+        "utf8_bytes": "\\xF0\\x9D\\x91\\x8C",
+        "url_encoded": "%F0%9D%91%8C",
+        "normalizes_as": "Y",
+        "normalizes_as_hex": "\\x59",
+        "form": "NFKC"
       }
     ]
   },
@@ -2215,6 +2575,14 @@
     "ascii": 90,
     "char": "Z",
     "mappings": [
+      {
+        "unicode": "Z",
+        "utf8_bytes": "\\x5A",
+        "url_encoded": "%5A",
+        "normalizes_as": "Z",
+        "normalizes_as_hex": "\\x5A",
+        "form": "NFKC"
+      },
       {
         "unicode": "ℤ",
         "utf8_bytes": "\\xE2\\x84\\xA4",
@@ -2254,6 +2622,14 @@
     "char": "[",
     "mappings": [
       {
+        "unicode": "[",
+        "utf8_bytes": "\\x5B",
+        "url_encoded": "%5B",
+        "normalizes_as": "[",
+        "normalizes_as_hex": "\\x5B",
+        "form": "NFKC"
+      },
+      {
         "unicode": "﹇",
         "utf8_bytes": "\\xEF\\xB9\\x87",
         "url_encoded": "%EF%B9%87",
@@ -2275,6 +2651,14 @@
     "ascii": 92,
     "char": "\\",
     "mappings": [
+      {
+        "unicode": "\\",
+        "utf8_bytes": "\\x5C",
+        "url_encoded": "%5C",
+        "normalizes_as": "\\",
+        "normalizes_as_hex": "\\x5C",
+        "form": "NFKC"
+      },
       {
         "unicode": "﹨",
         "utf8_bytes": "\\xEF\\xB9\\xA8",
@@ -2298,6 +2682,14 @@
     "char": "]",
     "mappings": [
       {
+        "unicode": "]",
+        "utf8_bytes": "\\x5D",
+        "url_encoded": "%5D",
+        "normalizes_as": "]",
+        "normalizes_as_hex": "\\x5D",
+        "form": "NFKC"
+      },
+      {
         "unicode": "﹈",
         "utf8_bytes": "\\xEF\\xB9\\x88",
         "url_encoded": "%EF%B9%88",
@@ -2320,6 +2712,14 @@
     "char": "^",
     "mappings": [
       {
+        "unicode": "^",
+        "utf8_bytes": "\\x5E",
+        "url_encoded": "%5E",
+        "normalizes_as": "^",
+        "normalizes_as_hex": "\\x5E",
+        "form": "NFKC"
+      },
+      {
         "unicode": "＾",
         "utf8_bytes": "\\xEF\\xBC\\xBE",
         "url_encoded": "%EF%BC%BE",
@@ -2333,6 +2733,14 @@
     "ascii": 95,
     "char": "_",
     "mappings": [
+      {
+        "unicode": "_",
+        "utf8_bytes": "\\x5F",
+        "url_encoded": "%5F",
+        "normalizes_as": "_",
+        "normalizes_as_hex": "\\x5F",
+        "form": "NFKC"
+      },
       {
         "unicode": "︳",
         "utf8_bytes": "\\xEF\\xB8\\xB3",
@@ -2364,22 +2772,6 @@
         "normalizes_as": "_",
         "normalizes_as_hex": "\\x5F",
         "form": "NFKC"
-      },
-      {
-        "unicode": "﹏",
-        "utf8_bytes": "\\xEF\\xB9\\x8F",
-        "url_encoded": "%EF%B9%8F",
-        "normalizes_as": "_",
-        "normalizes_as_hex": "\\x5F",
-        "form": "NFKC"
-      },
-      {
-        "unicode": "＿",
-        "utf8_bytes": "\\xEF\\xBC\\xBF",
-        "url_encoded": "%EF%BC%BF",
-        "normalizes_as": "_",
-        "normalizes_as_hex": "\\x5F",
-        "form": "NFKC"
       }
     ]
   },
@@ -2387,6 +2779,14 @@
     "ascii": 96,
     "char": "`",
     "mappings": [
+      {
+        "unicode": "`",
+        "utf8_bytes": "\\x60",
+        "url_encoded": "%60",
+        "normalizes_as": "`",
+        "normalizes_as_hex": "\\x60",
+        "form": "NFKC"
+      },
       {
         "unicode": "`",
         "utf8_bytes": "\\xE1\\xBF\\xAF",
@@ -2409,6 +2809,14 @@
     "ascii": 97,
     "char": "a",
     "mappings": [
+      {
+        "unicode": "a",
+        "utf8_bytes": "\\x61",
+        "url_encoded": "%61",
+        "normalizes_as": "a",
+        "normalizes_as_hex": "\\x61",
+        "form": "NFKC"
+      },
       {
         "unicode": "ª",
         "utf8_bytes": "\\xC2\\xAA",
@@ -2440,14 +2848,6 @@
         "normalizes_as": "a",
         "normalizes_as_hex": "\\x61",
         "form": "NFKC"
-      },
-      {
-        "unicode": "ａ",
-        "utf8_bytes": "\\xEF\\xBD\\x81",
-        "url_encoded": "%EF%BD%81",
-        "normalizes_as": "a",
-        "normalizes_as_hex": "\\x61",
-        "form": "NFKC"
       }
     ]
   },
@@ -2455,6 +2855,14 @@
     "ascii": 98,
     "char": "b",
     "mappings": [
+      {
+        "unicode": "b",
+        "utf8_bytes": "\\x62",
+        "url_encoded": "%62",
+        "normalizes_as": "b",
+        "normalizes_as_hex": "\\x62",
+        "form": "NFKC"
+      },
       {
         "unicode": "ᵇ",
         "utf8_bytes": "\\xE1\\xB5\\x87",
@@ -2478,6 +2886,14 @@
         "normalizes_as": "b",
         "normalizes_as_hex": "\\x62",
         "form": "NFKC"
+      },
+      {
+        "unicode": "𝐛",
+        "utf8_bytes": "\\xF0\\x9D\\x90\\x9B",
+        "url_encoded": "%F0%9D%90%9B",
+        "normalizes_as": "b",
+        "normalizes_as_hex": "\\x62",
+        "form": "NFKC"
       }
     ]
   },
@@ -2485,6 +2901,14 @@
     "ascii": 99,
     "char": "c",
     "mappings": [
+      {
+        "unicode": "c",
+        "utf8_bytes": "\\x63",
+        "url_encoded": "%63",
+        "normalizes_as": "c",
+        "normalizes_as_hex": "\\x63",
+        "form": "NFKC"
+      },
       {
         "unicode": "ᶜ",
         "utf8_bytes": "\\xE1\\xB6\\x9C",
@@ -2524,6 +2948,14 @@
     "char": "d",
     "mappings": [
       {
+        "unicode": "d",
+        "utf8_bytes": "\\x64",
+        "url_encoded": "%64",
+        "normalizes_as": "d",
+        "normalizes_as_hex": "\\x64",
+        "form": "NFKC"
+      },
+      {
         "unicode": "ᵈ",
         "utf8_bytes": "\\xE1\\xB5\\x88",
         "url_encoded": "%E1%B5%88",
@@ -2554,14 +2986,6 @@
         "normalizes_as": "d",
         "normalizes_as_hex": "\\x64",
         "form": "NFKC"
-      },
-      {
-        "unicode": "ｄ",
-        "utf8_bytes": "\\xEF\\xBD\\x84",
-        "url_encoded": "%EF%BD%84",
-        "normalizes_as": "d",
-        "normalizes_as_hex": "\\x64",
-        "form": "NFKC"
       }
     ]
   },
@@ -2569,6 +2993,14 @@
     "ascii": 101,
     "char": "e",
     "mappings": [
+      {
+        "unicode": "e",
+        "utf8_bytes": "\\x65",
+        "url_encoded": "%65",
+        "normalizes_as": "e",
+        "normalizes_as_hex": "\\x65",
+        "form": "NFKC"
+      },
       {
         "unicode": "ᵉ",
         "utf8_bytes": "\\xE1\\xB5\\x89",
@@ -2600,22 +3032,6 @@
         "normalizes_as": "e",
         "normalizes_as_hex": "\\x65",
         "form": "NFKC"
-      },
-      {
-        "unicode": "ⓔ",
-        "utf8_bytes": "\\xE2\\x93\\x94",
-        "url_encoded": "%E2%93%94",
-        "normalizes_as": "e",
-        "normalizes_as_hex": "\\x65",
-        "form": "NFKC"
-      },
-      {
-        "unicode": "ｅ",
-        "utf8_bytes": "\\xEF\\xBD\\x85",
-        "url_encoded": "%EF%BD%85",
-        "normalizes_as": "e",
-        "normalizes_as_hex": "\\x65",
-        "form": "NFKC"
       }
     ]
   },
@@ -2623,6 +3039,14 @@
     "ascii": 102,
     "char": "f",
     "mappings": [
+      {
+        "unicode": "f",
+        "utf8_bytes": "\\x66",
+        "url_encoded": "%66",
+        "normalizes_as": "f",
+        "normalizes_as_hex": "\\x66",
+        "form": "NFKC"
+      },
       {
         "unicode": "ᶠ",
         "utf8_bytes": "\\xE1\\xB6\\xA0",
@@ -2646,6 +3070,14 @@
         "normalizes_as": "f",
         "normalizes_as_hex": "\\x66",
         "form": "NFKC"
+      },
+      {
+        "unicode": "𝐟",
+        "utf8_bytes": "\\xF0\\x9D\\x90\\x9F",
+        "url_encoded": "%F0%9D%90%9F",
+        "normalizes_as": "f",
+        "normalizes_as_hex": "\\x66",
+        "form": "NFKC"
       }
     ]
   },
@@ -2653,6 +3085,14 @@
     "ascii": 103,
     "char": "g",
     "mappings": [
+      {
+        "unicode": "g",
+        "utf8_bytes": "\\x67",
+        "url_encoded": "%67",
+        "normalizes_as": "g",
+        "normalizes_as_hex": "\\x67",
+        "form": "NFKC"
+      },
       {
         "unicode": "ᵍ",
         "utf8_bytes": "\\xE1\\xB5\\x8D",
@@ -2692,6 +3132,14 @@
     "char": "h",
     "mappings": [
       {
+        "unicode": "h",
+        "utf8_bytes": "\\x68",
+        "url_encoded": "%68",
+        "normalizes_as": "h",
+        "normalizes_as_hex": "\\x68",
+        "form": "NFKC"
+      },
+      {
         "unicode": "ʰ",
         "utf8_bytes": "\\xCA\\xB0",
         "url_encoded": "%CA%B0",
@@ -2722,14 +3170,6 @@
         "normalizes_as": "h",
         "normalizes_as_hex": "\\x68",
         "form": "NFKC"
-      },
-      {
-        "unicode": "ｈ",
-        "utf8_bytes": "\\xEF\\xBD\\x88",
-        "url_encoded": "%EF%BD%88",
-        "normalizes_as": "h",
-        "normalizes_as_hex": "\\x68",
-        "form": "NFKC"
       }
     ]
   },
@@ -2737,6 +3177,14 @@
     "ascii": 105,
     "char": "i",
     "mappings": [
+      {
+        "unicode": "i",
+        "utf8_bytes": "\\x69",
+        "url_encoded": "%69",
+        "normalizes_as": "i",
+        "normalizes_as_hex": "\\x69",
+        "form": "NFKC"
+      },
       {
         "unicode": "ᵢ",
         "utf8_bytes": "\\xE1\\xB5\\xA2",
@@ -2768,30 +3216,6 @@
         "normalizes_as": "i",
         "normalizes_as_hex": "\\x69",
         "form": "NFKC"
-      },
-      {
-        "unicode": "ⅰ",
-        "utf8_bytes": "\\xE2\\x85\\xB0",
-        "url_encoded": "%E2%85%B0",
-        "normalizes_as": "i",
-        "normalizes_as_hex": "\\x69",
-        "form": "NFKC"
-      },
-      {
-        "unicode": "ⓘ",
-        "utf8_bytes": "\\xE2\\x93\\x98",
-        "url_encoded": "%E2%93%98",
-        "normalizes_as": "i",
-        "normalizes_as_hex": "\\x69",
-        "form": "NFKC"
-      },
-      {
-        "unicode": "ｉ",
-        "utf8_bytes": "\\xEF\\xBD\\x89",
-        "url_encoded": "%EF%BD%89",
-        "normalizes_as": "i",
-        "normalizes_as_hex": "\\x69",
-        "form": "NFKC"
       }
     ]
   },
@@ -2799,6 +3223,14 @@
     "ascii": 106,
     "char": "j",
     "mappings": [
+      {
+        "unicode": "j",
+        "utf8_bytes": "\\x6A",
+        "url_encoded": "%6A",
+        "normalizes_as": "j",
+        "normalizes_as_hex": "\\x6A",
+        "form": "NFKC"
+      },
       {
         "unicode": "ʲ",
         "utf8_bytes": "\\xCA\\xB2",
@@ -2830,14 +3262,6 @@
         "normalizes_as": "j",
         "normalizes_as_hex": "\\x6A",
         "form": "NFKC"
-      },
-      {
-        "unicode": "ｊ",
-        "utf8_bytes": "\\xEF\\xBD\\x8A",
-        "url_encoded": "%EF%BD%8A",
-        "normalizes_as": "j",
-        "normalizes_as_hex": "\\x6A",
-        "form": "NFKC"
       }
     ]
   },
@@ -2845,6 +3269,14 @@
     "ascii": 107,
     "char": "k",
     "mappings": [
+      {
+        "unicode": "k",
+        "utf8_bytes": "\\x6B",
+        "url_encoded": "%6B",
+        "normalizes_as": "k",
+        "normalizes_as_hex": "\\x6B",
+        "form": "NFKC"
+      },
       {
         "unicode": "ᵏ",
         "utf8_bytes": "\\xE1\\xB5\\x8F",
@@ -2884,6 +3316,14 @@
     "char": "l",
     "mappings": [
       {
+        "unicode": "l",
+        "utf8_bytes": "\\x6C",
+        "url_encoded": "%6C",
+        "normalizes_as": "l",
+        "normalizes_as_hex": "\\x6C",
+        "form": "NFKC"
+      },
+      {
         "unicode": "ˡ",
         "utf8_bytes": "\\xCB\\xA1",
         "url_encoded": "%CB%A1",
@@ -2914,22 +3354,6 @@
         "normalizes_as": "l",
         "normalizes_as_hex": "\\x6C",
         "form": "NFKC"
-      },
-      {
-        "unicode": "ⓛ",
-        "utf8_bytes": "\\xE2\\x93\\x9B",
-        "url_encoded": "%E2%93%9B",
-        "normalizes_as": "l",
-        "normalizes_as_hex": "\\x6C",
-        "form": "NFKC"
-      },
-      {
-        "unicode": "ｌ",
-        "utf8_bytes": "\\xEF\\xBD\\x8C",
-        "url_encoded": "%EF%BD%8C",
-        "normalizes_as": "l",
-        "normalizes_as_hex": "\\x6C",
-        "form": "NFKC"
       }
     ]
   },
@@ -2937,6 +3361,14 @@
     "ascii": 109,
     "char": "m",
     "mappings": [
+      {
+        "unicode": "m",
+        "utf8_bytes": "\\x6D",
+        "url_encoded": "%6D",
+        "normalizes_as": "m",
+        "normalizes_as_hex": "\\x6D",
+        "form": "NFKC"
+      },
       {
         "unicode": "ᵐ",
         "utf8_bytes": "\\xE1\\xB5\\x90",
@@ -2968,14 +3400,6 @@
         "normalizes_as": "m",
         "normalizes_as_hex": "\\x6D",
         "form": "NFKC"
-      },
-      {
-        "unicode": "ｍ",
-        "utf8_bytes": "\\xEF\\xBD\\x8D",
-        "url_encoded": "%EF%BD%8D",
-        "normalizes_as": "m",
-        "normalizes_as_hex": "\\x6D",
-        "form": "NFKC"
       }
     ]
   },
@@ -2983,6 +3407,14 @@
     "ascii": 110,
     "char": "n",
     "mappings": [
+      {
+        "unicode": "n",
+        "utf8_bytes": "\\x6E",
+        "url_encoded": "%6E",
+        "normalizes_as": "n",
+        "normalizes_as_hex": "\\x6E",
+        "form": "NFKC"
+      },
       {
         "unicode": "ⁿ",
         "utf8_bytes": "\\xE2\\x81\\xBF",
@@ -3022,6 +3454,14 @@
     "char": "o",
     "mappings": [
       {
+        "unicode": "o",
+        "utf8_bytes": "\\x6F",
+        "url_encoded": "%6F",
+        "normalizes_as": "o",
+        "normalizes_as_hex": "\\x6F",
+        "form": "NFKC"
+      },
+      {
         "unicode": "º",
         "utf8_bytes": "\\xC2\\xBA",
         "url_encoded": "%C2%BA",
@@ -3052,22 +3492,6 @@
         "normalizes_as": "o",
         "normalizes_as_hex": "\\x6F",
         "form": "NFKC"
-      },
-      {
-        "unicode": "ⓞ",
-        "utf8_bytes": "\\xE2\\x93\\x9E",
-        "url_encoded": "%E2%93%9E",
-        "normalizes_as": "o",
-        "normalizes_as_hex": "\\x6F",
-        "form": "NFKC"
-      },
-      {
-        "unicode": "ｏ",
-        "utf8_bytes": "\\xEF\\xBD\\x8F",
-        "url_encoded": "%EF%BD%8F",
-        "normalizes_as": "o",
-        "normalizes_as_hex": "\\x6F",
-        "form": "NFKC"
       }
     ]
   },
@@ -3075,6 +3499,14 @@
     "ascii": 112,
     "char": "p",
     "mappings": [
+      {
+        "unicode": "p",
+        "utf8_bytes": "\\x70",
+        "url_encoded": "%70",
+        "normalizes_as": "p",
+        "normalizes_as_hex": "\\x70",
+        "form": "NFKC"
+      },
       {
         "unicode": "ᵖ",
         "utf8_bytes": "\\xE1\\xB5\\x96",
@@ -3114,6 +3546,14 @@
     "char": "q",
     "mappings": [
       {
+        "unicode": "q",
+        "utf8_bytes": "\\x71",
+        "url_encoded": "%71",
+        "normalizes_as": "q",
+        "normalizes_as_hex": "\\x71",
+        "form": "NFKC"
+      },
+      {
         "unicode": "ⓠ",
         "utf8_bytes": "\\xE2\\x93\\xA0",
         "url_encoded": "%E2%93%A0",
@@ -3128,6 +3568,22 @@
         "normalizes_as": "q",
         "normalizes_as_hex": "\\x71",
         "form": "NFKC"
+      },
+      {
+        "unicode": "𐞥",
+        "utf8_bytes": "\\xF0\\x90\\x9E\\xA5",
+        "url_encoded": "%F0%90%9E%A5",
+        "normalizes_as": "q",
+        "normalizes_as_hex": "\\x71",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "𝐪",
+        "utf8_bytes": "\\xF0\\x9D\\x90\\xAA",
+        "url_encoded": "%F0%9D%90%AA",
+        "normalizes_as": "q",
+        "normalizes_as_hex": "\\x71",
+        "form": "NFKC"
       }
     ]
   },
@@ -3135,6 +3591,14 @@
     "ascii": 114,
     "char": "r",
     "mappings": [
+      {
+        "unicode": "r",
+        "utf8_bytes": "\\x72",
+        "url_encoded": "%72",
+        "normalizes_as": "r",
+        "normalizes_as_hex": "\\x72",
+        "form": "NFKC"
+      },
       {
         "unicode": "ʳ",
         "utf8_bytes": "\\xCA\\xB3",
@@ -3174,6 +3638,14 @@
     "char": "s",
     "mappings": [
       {
+        "unicode": "s",
+        "utf8_bytes": "\\x73",
+        "url_encoded": "%73",
+        "normalizes_as": "s",
+        "normalizes_as_hex": "\\x73",
+        "form": "NFKC"
+      },
+      {
         "unicode": "ſ",
         "utf8_bytes": "\\xC5\\xBF",
         "url_encoded": "%C5%BF",
@@ -3204,14 +3676,6 @@
         "normalizes_as": "s",
         "normalizes_as_hex": "\\x73",
         "form": "NFKC"
-      },
-      {
-        "unicode": "ｓ",
-        "utf8_bytes": "\\xEF\\xBD\\x93",
-        "url_encoded": "%EF%BD%93",
-        "normalizes_as": "s",
-        "normalizes_as_hex": "\\x73",
-        "form": "NFKC"
       }
     ]
   },
@@ -3219,6 +3683,14 @@
     "ascii": 116,
     "char": "t",
     "mappings": [
+      {
+        "unicode": "t",
+        "utf8_bytes": "\\x74",
+        "url_encoded": "%74",
+        "normalizes_as": "t",
+        "normalizes_as_hex": "\\x74",
+        "form": "NFKC"
+      },
       {
         "unicode": "ᵗ",
         "utf8_bytes": "\\xE1\\xB5\\x97",
@@ -3258,6 +3730,14 @@
     "char": "u",
     "mappings": [
       {
+        "unicode": "u",
+        "utf8_bytes": "\\x75",
+        "url_encoded": "%75",
+        "normalizes_as": "u",
+        "normalizes_as_hex": "\\x75",
+        "form": "NFKC"
+      },
+      {
         "unicode": "ᵘ",
         "utf8_bytes": "\\xE1\\xB5\\x98",
         "url_encoded": "%E1%B5%98",
@@ -3296,6 +3776,14 @@
     "char": "v",
     "mappings": [
       {
+        "unicode": "v",
+        "utf8_bytes": "\\x76",
+        "url_encoded": "%76",
+        "normalizes_as": "v",
+        "normalizes_as_hex": "\\x76",
+        "form": "NFKC"
+      },
+      {
         "unicode": "ᵛ",
         "utf8_bytes": "\\xE1\\xB5\\x9B",
         "url_encoded": "%E1%B5%9B",
@@ -3326,14 +3814,6 @@
         "normalizes_as": "v",
         "normalizes_as_hex": "\\x76",
         "form": "NFKC"
-      },
-      {
-        "unicode": "ｖ",
-        "utf8_bytes": "\\xEF\\xBD\\x96",
-        "url_encoded": "%EF%BD%96",
-        "normalizes_as": "v",
-        "normalizes_as_hex": "\\x76",
-        "form": "NFKC"
       }
     ]
   },
@@ -3341,6 +3821,14 @@
     "ascii": 119,
     "char": "w",
     "mappings": [
+      {
+        "unicode": "w",
+        "utf8_bytes": "\\x77",
+        "url_encoded": "%77",
+        "normalizes_as": "w",
+        "normalizes_as_hex": "\\x77",
+        "form": "NFKC"
+      },
       {
         "unicode": "ʷ",
         "utf8_bytes": "\\xCA\\xB7",
@@ -3364,6 +3852,14 @@
         "normalizes_as": "w",
         "normalizes_as_hex": "\\x77",
         "form": "NFKC"
+      },
+      {
+        "unicode": "𝐰",
+        "utf8_bytes": "\\xF0\\x9D\\x90\\xB0",
+        "url_encoded": "%F0%9D%90%B0",
+        "normalizes_as": "w",
+        "normalizes_as_hex": "\\x77",
+        "form": "NFKC"
       }
     ]
   },
@@ -3371,6 +3867,14 @@
     "ascii": 120,
     "char": "x",
     "mappings": [
+      {
+        "unicode": "x",
+        "utf8_bytes": "\\x78",
+        "url_encoded": "%78",
+        "normalizes_as": "x",
+        "normalizes_as_hex": "\\x78",
+        "form": "NFKC"
+      },
       {
         "unicode": "ˣ",
         "utf8_bytes": "\\xCB\\xA3",
@@ -3402,14 +3906,6 @@
         "normalizes_as": "x",
         "normalizes_as_hex": "\\x78",
         "form": "NFKC"
-      },
-      {
-        "unicode": "ｘ",
-        "utf8_bytes": "\\xEF\\xBD\\x98",
-        "url_encoded": "%EF%BD%98",
-        "normalizes_as": "x",
-        "normalizes_as_hex": "\\x78",
-        "form": "NFKC"
       }
     ]
   },
@@ -3417,6 +3913,14 @@
     "ascii": 121,
     "char": "y",
     "mappings": [
+      {
+        "unicode": "y",
+        "utf8_bytes": "\\x79",
+        "url_encoded": "%79",
+        "normalizes_as": "y",
+        "normalizes_as_hex": "\\x79",
+        "form": "NFKC"
+      },
       {
         "unicode": "ʸ",
         "utf8_bytes": "\\xCA\\xB8",
@@ -3440,6 +3944,14 @@
         "normalizes_as": "y",
         "normalizes_as_hex": "\\x79",
         "form": "NFKC"
+      },
+      {
+        "unicode": "𝐲",
+        "utf8_bytes": "\\xF0\\x9D\\x90\\xB2",
+        "url_encoded": "%F0%9D%90%B2",
+        "normalizes_as": "y",
+        "normalizes_as_hex": "\\x79",
+        "form": "NFKC"
       }
     ]
   },
@@ -3447,6 +3959,14 @@
     "ascii": 122,
     "char": "z",
     "mappings": [
+      {
+        "unicode": "z",
+        "utf8_bytes": "\\x7A",
+        "url_encoded": "%7A",
+        "normalizes_as": "z",
+        "normalizes_as_hex": "\\x7A",
+        "form": "NFKC"
+      },
       {
         "unicode": "ᶻ",
         "utf8_bytes": "\\xE1\\xB6\\xBB",
@@ -3470,6 +3990,14 @@
         "normalizes_as": "z",
         "normalizes_as_hex": "\\x7A",
         "form": "NFKC"
+      },
+      {
+        "unicode": "𝐳",
+        "utf8_bytes": "\\xF0\\x9D\\x90\\xB3",
+        "url_encoded": "%F0%9D%90%B3",
+        "normalizes_as": "z",
+        "normalizes_as_hex": "\\x7A",
+        "form": "NFKC"
       }
     ]
   },
@@ -3477,6 +4005,14 @@
     "ascii": 123,
     "char": "{",
     "mappings": [
+      {
+        "unicode": "{",
+        "utf8_bytes": "\\x7B",
+        "url_encoded": "%7B",
+        "normalizes_as": "{",
+        "normalizes_as_hex": "\\x7B",
+        "form": "NFKC"
+      },
       {
         "unicode": "︷",
         "utf8_bytes": "\\xEF\\xB8\\xB7",
@@ -3508,6 +4044,14 @@
     "char": "|",
     "mappings": [
       {
+        "unicode": "|",
+        "utf8_bytes": "\\x7C",
+        "url_encoded": "%7C",
+        "normalizes_as": "|",
+        "normalizes_as_hex": "\\x7C",
+        "form": "NFKC"
+      },
+      {
         "unicode": "｜",
         "utf8_bytes": "\\xEF\\xBD\\x9C",
         "url_encoded": "%EF%BD%9C",
@@ -3521,6 +4065,14 @@
     "ascii": 125,
     "char": "}",
     "mappings": [
+      {
+        "unicode": "}",
+        "utf8_bytes": "\\x7D",
+        "url_encoded": "%7D",
+        "normalizes_as": "}",
+        "normalizes_as_hex": "\\x7D",
+        "form": "NFKC"
+      },
       {
         "unicode": "︸",
         "utf8_bytes": "\\xEF\\xB8\\xB8",
@@ -3552,6 +4104,14 @@
     "char": "~",
     "mappings": [
       {
+        "unicode": "~",
+        "utf8_bytes": "\\x7E",
+        "url_encoded": "%7E",
+        "normalizes_as": "~",
+        "normalizes_as_hex": "\\x7E",
+        "form": "NFKC"
+      },
+      {
         "unicode": "～",
         "utf8_bytes": "\\xEF\\xBD\\x9E",
         "url_encoded": "%EF%BD%9E",
@@ -3564,6 +4124,646 @@
   {
     "ascii": 127,
     "char": "\\x7F",
+    "mappings": []
+  },
+  {
+    "ascii": 128,
+    "char": "\\x80",
+    "mappings": []
+  },
+  {
+    "ascii": 129,
+    "char": "\\x81",
+    "mappings": []
+  },
+  {
+    "ascii": 130,
+    "char": "\\x82",
+    "mappings": []
+  },
+  {
+    "ascii": 131,
+    "char": "\\x83",
+    "mappings": []
+  },
+  {
+    "ascii": 132,
+    "char": "\\x84",
+    "mappings": []
+  },
+  {
+    "ascii": 133,
+    "char": "\\x85",
+    "mappings": []
+  },
+  {
+    "ascii": 134,
+    "char": "\\x86",
+    "mappings": []
+  },
+  {
+    "ascii": 135,
+    "char": "\\x87",
+    "mappings": []
+  },
+  {
+    "ascii": 136,
+    "char": "\\x88",
+    "mappings": []
+  },
+  {
+    "ascii": 137,
+    "char": "\\x89",
+    "mappings": []
+  },
+  {
+    "ascii": 138,
+    "char": "\\x8A",
+    "mappings": []
+  },
+  {
+    "ascii": 139,
+    "char": "\\x8B",
+    "mappings": []
+  },
+  {
+    "ascii": 140,
+    "char": "\\x8C",
+    "mappings": []
+  },
+  {
+    "ascii": 141,
+    "char": "\\x8D",
+    "mappings": []
+  },
+  {
+    "ascii": 142,
+    "char": "\\x8E",
+    "mappings": []
+  },
+  {
+    "ascii": 143,
+    "char": "\\x8F",
+    "mappings": []
+  },
+  {
+    "ascii": 144,
+    "char": "\\x90",
+    "mappings": []
+  },
+  {
+    "ascii": 145,
+    "char": "\\x91",
+    "mappings": []
+  },
+  {
+    "ascii": 146,
+    "char": "\\x92",
+    "mappings": []
+  },
+  {
+    "ascii": 147,
+    "char": "\\x93",
+    "mappings": []
+  },
+  {
+    "ascii": 148,
+    "char": "\\x94",
+    "mappings": []
+  },
+  {
+    "ascii": 149,
+    "char": "\\x95",
+    "mappings": []
+  },
+  {
+    "ascii": 150,
+    "char": "\\x96",
+    "mappings": []
+  },
+  {
+    "ascii": 151,
+    "char": "\\x97",
+    "mappings": []
+  },
+  {
+    "ascii": 152,
+    "char": "\\x98",
+    "mappings": []
+  },
+  {
+    "ascii": 153,
+    "char": "\\x99",
+    "mappings": []
+  },
+  {
+    "ascii": 154,
+    "char": "\\x9A",
+    "mappings": []
+  },
+  {
+    "ascii": 155,
+    "char": "\\x9B",
+    "mappings": []
+  },
+  {
+    "ascii": 156,
+    "char": "\\x9C",
+    "mappings": []
+  },
+  {
+    "ascii": 157,
+    "char": "\\x9D",
+    "mappings": []
+  },
+  {
+    "ascii": 158,
+    "char": "\\x9E",
+    "mappings": []
+  },
+  {
+    "ascii": 159,
+    "char": "\\x9F",
+    "mappings": []
+  },
+  {
+    "ascii": 160,
+    "char": "\\xA0",
+    "mappings": []
+  },
+  {
+    "ascii": 161,
+    "char": "¡",
+    "mappings": []
+  },
+  {
+    "ascii": 162,
+    "char": "¢",
+    "mappings": []
+  },
+  {
+    "ascii": 163,
+    "char": "£",
+    "mappings": []
+  },
+  {
+    "ascii": 164,
+    "char": "¤",
+    "mappings": []
+  },
+  {
+    "ascii": 165,
+    "char": "¥",
+    "mappings": []
+  },
+  {
+    "ascii": 166,
+    "char": "¦",
+    "mappings": []
+  },
+  {
+    "ascii": 167,
+    "char": "§",
+    "mappings": []
+  },
+  {
+    "ascii": 168,
+    "char": "¨",
+    "mappings": []
+  },
+  {
+    "ascii": 169,
+    "char": "©",
+    "mappings": []
+  },
+  {
+    "ascii": 170,
+    "char": "ª",
+    "mappings": []
+  },
+  {
+    "ascii": 171,
+    "char": "«",
+    "mappings": []
+  },
+  {
+    "ascii": 172,
+    "char": "¬",
+    "mappings": []
+  },
+  {
+    "ascii": 173,
+    "char": "\\xAD",
+    "mappings": []
+  },
+  {
+    "ascii": 174,
+    "char": "®",
+    "mappings": []
+  },
+  {
+    "ascii": 175,
+    "char": "¯",
+    "mappings": []
+  },
+  {
+    "ascii": 176,
+    "char": "°",
+    "mappings": []
+  },
+  {
+    "ascii": 177,
+    "char": "±",
+    "mappings": []
+  },
+  {
+    "ascii": 178,
+    "char": "²",
+    "mappings": []
+  },
+  {
+    "ascii": 179,
+    "char": "³",
+    "mappings": []
+  },
+  {
+    "ascii": 180,
+    "char": "´",
+    "mappings": []
+  },
+  {
+    "ascii": 181,
+    "char": "µ",
+    "mappings": []
+  },
+  {
+    "ascii": 182,
+    "char": "¶",
+    "mappings": []
+  },
+  {
+    "ascii": 183,
+    "char": "·",
+    "mappings": []
+  },
+  {
+    "ascii": 184,
+    "char": "¸",
+    "mappings": []
+  },
+  {
+    "ascii": 185,
+    "char": "¹",
+    "mappings": []
+  },
+  {
+    "ascii": 186,
+    "char": "º",
+    "mappings": []
+  },
+  {
+    "ascii": 187,
+    "char": "»",
+    "mappings": []
+  },
+  {
+    "ascii": 188,
+    "char": "¼",
+    "mappings": []
+  },
+  {
+    "ascii": 189,
+    "char": "½",
+    "mappings": []
+  },
+  {
+    "ascii": 190,
+    "char": "¾",
+    "mappings": []
+  },
+  {
+    "ascii": 191,
+    "char": "¿",
+    "mappings": []
+  },
+  {
+    "ascii": 192,
+    "char": "À",
+    "mappings": []
+  },
+  {
+    "ascii": 193,
+    "char": "Á",
+    "mappings": []
+  },
+  {
+    "ascii": 194,
+    "char": "Â",
+    "mappings": []
+  },
+  {
+    "ascii": 195,
+    "char": "Ã",
+    "mappings": []
+  },
+  {
+    "ascii": 196,
+    "char": "Ä",
+    "mappings": []
+  },
+  {
+    "ascii": 197,
+    "char": "Å",
+    "mappings": []
+  },
+  {
+    "ascii": 198,
+    "char": "Æ",
+    "mappings": []
+  },
+  {
+    "ascii": 199,
+    "char": "Ç",
+    "mappings": []
+  },
+  {
+    "ascii": 200,
+    "char": "È",
+    "mappings": []
+  },
+  {
+    "ascii": 201,
+    "char": "É",
+    "mappings": []
+  },
+  {
+    "ascii": 202,
+    "char": "Ê",
+    "mappings": []
+  },
+  {
+    "ascii": 203,
+    "char": "Ë",
+    "mappings": []
+  },
+  {
+    "ascii": 204,
+    "char": "Ì",
+    "mappings": []
+  },
+  {
+    "ascii": 205,
+    "char": "Í",
+    "mappings": []
+  },
+  {
+    "ascii": 206,
+    "char": "Î",
+    "mappings": []
+  },
+  {
+    "ascii": 207,
+    "char": "Ï",
+    "mappings": []
+  },
+  {
+    "ascii": 208,
+    "char": "Ð",
+    "mappings": []
+  },
+  {
+    "ascii": 209,
+    "char": "Ñ",
+    "mappings": []
+  },
+  {
+    "ascii": 210,
+    "char": "Ò",
+    "mappings": []
+  },
+  {
+    "ascii": 211,
+    "char": "Ó",
+    "mappings": []
+  },
+  {
+    "ascii": 212,
+    "char": "Ô",
+    "mappings": []
+  },
+  {
+    "ascii": 213,
+    "char": "Õ",
+    "mappings": []
+  },
+  {
+    "ascii": 214,
+    "char": "Ö",
+    "mappings": []
+  },
+  {
+    "ascii": 215,
+    "char": "×",
+    "mappings": []
+  },
+  {
+    "ascii": 216,
+    "char": "Ø",
+    "mappings": []
+  },
+  {
+    "ascii": 217,
+    "char": "Ù",
+    "mappings": []
+  },
+  {
+    "ascii": 218,
+    "char": "Ú",
+    "mappings": []
+  },
+  {
+    "ascii": 219,
+    "char": "Û",
+    "mappings": []
+  },
+  {
+    "ascii": 220,
+    "char": "Ü",
+    "mappings": []
+  },
+  {
+    "ascii": 221,
+    "char": "Ý",
+    "mappings": []
+  },
+  {
+    "ascii": 222,
+    "char": "Þ",
+    "mappings": []
+  },
+  {
+    "ascii": 223,
+    "char": "ß",
+    "mappings": []
+  },
+  {
+    "ascii": 224,
+    "char": "à",
+    "mappings": []
+  },
+  {
+    "ascii": 225,
+    "char": "á",
+    "mappings": []
+  },
+  {
+    "ascii": 226,
+    "char": "â",
+    "mappings": []
+  },
+  {
+    "ascii": 227,
+    "char": "ã",
+    "mappings": []
+  },
+  {
+    "ascii": 228,
+    "char": "ä",
+    "mappings": []
+  },
+  {
+    "ascii": 229,
+    "char": "å",
+    "mappings": []
+  },
+  {
+    "ascii": 230,
+    "char": "æ",
+    "mappings": []
+  },
+  {
+    "ascii": 231,
+    "char": "ç",
+    "mappings": []
+  },
+  {
+    "ascii": 232,
+    "char": "è",
+    "mappings": []
+  },
+  {
+    "ascii": 233,
+    "char": "é",
+    "mappings": []
+  },
+  {
+    "ascii": 234,
+    "char": "ê",
+    "mappings": []
+  },
+  {
+    "ascii": 235,
+    "char": "ë",
+    "mappings": []
+  },
+  {
+    "ascii": 236,
+    "char": "ì",
+    "mappings": []
+  },
+  {
+    "ascii": 237,
+    "char": "í",
+    "mappings": []
+  },
+  {
+    "ascii": 238,
+    "char": "î",
+    "mappings": []
+  },
+  {
+    "ascii": 239,
+    "char": "ï",
+    "mappings": []
+  },
+  {
+    "ascii": 240,
+    "char": "ð",
+    "mappings": []
+  },
+  {
+    "ascii": 241,
+    "char": "ñ",
+    "mappings": []
+  },
+  {
+    "ascii": 242,
+    "char": "ò",
+    "mappings": []
+  },
+  {
+    "ascii": 243,
+    "char": "ó",
+    "mappings": []
+  },
+  {
+    "ascii": 244,
+    "char": "ô",
+    "mappings": []
+  },
+  {
+    "ascii": 245,
+    "char": "õ",
+    "mappings": []
+  },
+  {
+    "ascii": 246,
+    "char": "ö",
+    "mappings": []
+  },
+  {
+    "ascii": 247,
+    "char": "÷",
+    "mappings": []
+  },
+  {
+    "ascii": 248,
+    "char": "ø",
+    "mappings": []
+  },
+  {
+    "ascii": 249,
+    "char": "ù",
+    "mappings": []
+  },
+  {
+    "ascii": 250,
+    "char": "ú",
+    "mappings": []
+  },
+  {
+    "ascii": 251,
+    "char": "û",
+    "mappings": []
+  },
+  {
+    "ascii": 252,
+    "char": "ü",
+    "mappings": []
+  },
+  {
+    "ascii": 253,
+    "char": "ý",
+    "mappings": []
+  },
+  {
+    "ascii": 254,
+    "char": "þ",
+    "mappings": []
+  },
+  {
+    "ascii": 255,
+    "char": "ÿ",
     "mappings": []
   }
 ]
