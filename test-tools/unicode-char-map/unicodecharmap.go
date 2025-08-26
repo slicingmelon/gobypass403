@@ -23,7 +23,7 @@ type UnicodeMapping struct {
 
 // An ordered map representation
 type OrderedCharMap struct {
-	Value    int              `json:"value"`
+	ASCII    int              `json:"ascii"`
 	Char     string           `json:"char"`
 	Mappings []UnicodeMapping `json:"mappings"`
 }
@@ -127,16 +127,14 @@ func GenerateCharMap(min, max, maxNorms int) ([]OrderedCharMap, error) {
 		}
 	}
 
-	// Convert to ordered slice, only including entries with mappings
+	// Convert to ordered slice, including entries without mappings
 	result := make([]OrderedCharMap, 0, max-min+1)
 	for i := min; i <= max; i++ {
-		if len(tempMap[i]) > 0 {
-			result = append(result, OrderedCharMap{
-				Value:    i,
-				Char:     getReadableChar(rune(i)),
-				Mappings: tempMap[i],
-			})
-		}
+		result = append(result, OrderedCharMap{
+			ASCII:    i,
+			Char:     getReadableChar(rune(i)),
+			Mappings: tempMap[i],
+		})
 	}
 
 	return result, nil
