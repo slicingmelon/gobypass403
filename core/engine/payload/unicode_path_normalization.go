@@ -9,6 +9,35 @@ import (
 	GB403Logger "github.com/slicingmelon/gobypass403/core/utils/logger"
 )
 
+/*
+GenerateUnicodePathNormalizationsPayloads generates payloads based on Unicode
+normalization bypass techniques, targeting path characters with unicode variants.
+
+The function uses unicode_char_map.json which contains mappings from ASCII to
+Unicode characters that normalize to the ASCII character.
+
+Payload generation techniques include:
+ 1. **Double Slash Variations:** Inserts an extra slash at each path separator
+    position one by one (e.g., `/admin//login`) and creates a variant where all
+    slashes are doubled (e.g., `//admin//login`).
+ 2. **Full Path Character Variations:** Replaces path characters with their
+    Unicode equivalents. For each character in the path with a known mapping,
+    it generates variants by replacing both single occurrences and all occurrences.
+    Each replacement is tested in three forms:
+    - Raw Unicode (`/admin/logＥn`)
+    - URL-encoded (`/admin/log%EF%BC%A5n`)
+    - UTF-8 bytes (`/admin/log\\xEF\\xBC\\xA5n`)
+ 3. **Path Segment Character Variations:** Iterates through each path segment
+    (e.g., `admin`, `login`) and systematically replaces characters within it.
+    This includes comprehensive replacement of the first and last characters, as
+    well as replacing each character in the segment one by one.
+ 4. **Unicode Slash Insertion:** Takes Unicode equivalents of the slash character
+    (`/`) and inserts them next to existing slashes in the path, creating
+    variants like `/admin/(unicode_slash)login`.
+
+All variations preserve the original query string if present.
+*/
+
 // UnicodeMapping represents a single Unicode character that normalizes to an ASCII character
 type UnicodeMapping struct {
 	Unicode         string `json:"unicode"`
@@ -42,23 +71,6 @@ func ReadUnicodeCharMap() ([]OrderedCharMap, error) {
 	return charMap, nil
 }
 
-/*
-GenerateUnicodePathNormalizationsPayloads generates payloads based on Unicode
-normalization bypass techniques, targeting path characters with unicode variants.
-
-The function uses unicode_char_map.json which contains mappings from ASCII to
-Unicode characters that normalize to the ASCII character.
-
-Payload generation techniques include:
- 1. **Path Separator Variations:** Generates variations with double slashes (e.g., "//admin/login").
- 2. **Unicode Path Character Variations:** Replaces path characters with their Unicode equivalents.
-    This includes raw Unicode, URL-encoded, and UTF-8 byte representations.
- 3. **Path Segment Character Variations:** Replaces characters within path segments.
-    Focuses especially on first and last characters of each segment.
- 4. **Mixed Character Variations:** Creates combinations of different Unicode representations.
-
-All variations preserve the original query string if present.
-*/
 func (pg *PayloadGenerator) GenerateUnicodePathNormalizationsPayloads(targetURL string, bypassModule string) []BypassPayload {
 	var jobs []BypassPayload
 
