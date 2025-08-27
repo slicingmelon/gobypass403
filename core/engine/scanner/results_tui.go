@@ -338,7 +338,7 @@ func (m *TUIModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						m.selDetail = clamp(m.selDetail+1, 0, len(m.detailRows)-1)
 					} else if msg.Button == tea.MouseButtonLeft {
 						// Handle left click - find which result was clicked (accounting for multiline)
-						clickY := msg.Y - headerLinesDet - 2
+						clickY := msg.Y - 3 // Skip title (1) + help (1) + blank line (1)
 						if clickY >= 0 {
 							resultIdx := m.findResultFromLineClick(clickY)
 							if resultIdx >= 0 && resultIdx < len(m.detailRows) {
@@ -456,83 +456,11 @@ func (m *TUIModel) viewDetails() string {
 		return b.String()
 	}
 
-	// Calculate column widths based on available space
-	avail := m.width
-	if avail < 80 {
-		avail = 80
-	}
+	// Calculate dynamic column widths based on content (like pterm does)
+	colWidths := m.calculateColumnWidths()
 
-	// Reserve space for separators (6 * 2 = 12)
-	totalPadding := 12
-	copyW := len(copyLblStyle)
-
-	// Calculate curl column width (remaining space after fixed columns)
-	fixedCols := dColModule + dColStatus + dColLength + dColType + dColTitle + dColServer + copyW
-	curlAvail := avail - fixedCols - totalPadding
-	if curlAvail < 30 {
-		curlAvail = 30
-	}
-
-	// Header - matching original table format: Module, Curl CMD, Status, Length, Type, Title, Server
-	b.WriteString(
-		thStyle.Render(padRight("Module", dColModule)) + "  " +
-			thStyle.Render(padRight("Curl CMD", curlAvail)) + "  " +
-			thStyle.Render(padRight("Status", dColStatus)) + "  " +
-			thStyle.Render(padRight("Length", dColLength)) + "  " +
-			thStyle.Render(padRight("Type", dColType)) + "  " +
-			thStyle.Render(padRight("Title", dColTitle)) + "  " +
-			thStyle.Render(padRight("Server", dColServer)) + "\n")
-	b.WriteString(strings.Repeat(borderRune, clamp(m.width, 0, 200)) + "\n")
-
-	// Compute copy hitbox - position after curl column
-	m.copyStart = dColModule + 2 + curlAvail + 1 // space before [Copy]
-	m.copyEnd = m.copyStart + len(copyLblStyle)
-
-	for i, r := range m.detailRows {
-		// Display curl command as multiline (like original table)
-		curlLines := strings.Split(r.curlCmd, "\n")
-
-		// Build the row with multiline support
-		for lineIdx, curlLine := range curlLines {
-			var rowLine string
-
-			if lineIdx == 0 {
-				// First line: show all columns
-				// Truncate curl line if too long
-				curlDisplay := curlLine
-				if len(curlDisplay) > curlAvail {
-					curlDisplay = curlDisplay[:curlAvail-1] + "…"
-				}
-
-				rowLine = padRight(r.module, dColModule) + "  " +
-					padRight(curlDisplay, curlAvail) + " " + okStyle.Render(copyLblStyle) + "  " +
-					padRight(r.status, dColStatus) + "  " +
-					padRight(r.length, dColLength) + "  " +
-					padRight(r.contentType, dColType) + "  " +
-					padRight(r.title, dColTitle) + "  " +
-					padRight(r.server, dColServer)
-			} else {
-				// Continuation lines: only show curl command
-				curlDisplay := curlLine
-				if len(curlDisplay) > curlAvail {
-					curlDisplay = curlDisplay[:curlAvail-1] + "…"
-				}
-
-				rowLine = padRight("", dColModule) + "  " +
-					padRight(curlDisplay, curlAvail) + "  " +
-					padRight("", dColStatus+len(copyLblStyle)+2) + "  " +
-					padRight("", dColLength) + "  " +
-					padRight("", dColType) + "  " +
-					padRight("", dColTitle) + "  " +
-					padRight("", dColServer)
-			}
-
-			if i == m.selDetail {
-				rowLine = selRowStyle.Render(rowLine)
-			}
-			b.WriteString(rowLine + "\n")
-		}
-	}
+	// Render table with proper borders (like original pterm table)
+	m.renderTableWithBorders(&b, colWidths)
 
 	if m.statusMsg != "" {
 		b.WriteString("\n" + mutedStyle.Render(m.statusMsg) + "\n")
@@ -544,9 +472,24 @@ func (m *TUIModel) viewDetails() string {
 
 func (m *TUIModel) findResultFromLineClick(clickY int) int {
 	// Calculate which result was clicked based on line position
-	// Each result can span multiple lines due to multiline curl commands
-	currentLine := 0
+	// Account for: header (3 lines), separator lines between groups, and multiline curl commands
+	currentLine := 3 // Skip header (border + header + border)
+
+	// Track groups for separators (same logic as render function)
+	var currentModule, currentStatus, currentLength string
+
 	for i, r := range m.detailRows {
+		// Add separator line if needed (same logic as render)
+		if i > 0 && (r.module != currentModule || r.status != currentStatus || r.length != currentLength) {
+			currentLine++ // Skip separator line
+		}
+
+		// Update current group
+		currentModule = r.module
+		currentStatus = r.status
+		currentLength = r.length
+
+		// Calculate lines for this result
 		curlLines := strings.Split(r.curlCmd, "\n")
 		resultLines := len(curlLines)
 
@@ -556,6 +499,189 @@ func (m *TUIModel) findResultFromLineClick(clickY int) int {
 		currentLine += resultLines
 	}
 	return -1 // Not found
+}
+
+type ColumnWidths struct {
+	module  int
+	curl    int
+	status  int
+	length  int
+	colType int
+	title   int
+	server  int
+	copy    int
+}
+
+func (m *TUIModel) calculateColumnWidths() ColumnWidths {
+	// Calculate column widths based on content (like pterm auto-sizing)
+	widths := ColumnWidths{
+		module:  len("Module"),
+		curl:    len("Curl CMD"),
+		status:  len("Status"),
+		length:  len("Length"),
+		colType: len("Type"),
+		title:   len("Title"),
+		server:  len("Server"),
+		copy:    len(copyLblStyle),
+	}
+
+	// Find maximum width needed for each column
+	for _, r := range m.detailRows {
+		if len(r.module) > widths.module {
+			widths.module = len(r.module)
+		}
+		if len(r.status) > widths.status {
+			widths.status = len(r.status)
+		}
+		if len(r.length) > widths.length {
+			widths.length = len(r.length)
+		}
+		if len(r.contentType) > widths.colType {
+			widths.colType = len(r.contentType)
+		}
+		if len(r.title) > widths.title {
+			widths.title = len(r.title)
+		}
+		if len(r.server) > widths.server {
+			widths.server = len(r.server)
+		}
+
+		// For curl, find the longest line in the multiline command
+		curlLines := strings.Split(r.curlCmd, "\n")
+		for _, line := range curlLines {
+			if len(line) > widths.curl {
+				widths.curl = len(line)
+			}
+		}
+	}
+
+	return widths
+}
+
+func (m *TUIModel) renderTableWithBorders(b *strings.Builder, widths ColumnWidths) {
+	// Render header with borders (matching original pterm style)
+	m.renderTableHeader(b, widths)
+
+	// Calculate copy button position for mouse clicks
+	m.copyStart = 3 + widths.module + 3 // "| module | "
+	m.copyEnd = m.copyStart + widths.curl
+
+	// Track current group for separators (same logic as original results.go)
+	var currentModule, currentStatus string
+	var currentLength string
+
+	for i, r := range m.detailRows {
+		// Check if we need a separator (same grouping logic as original)
+		if i > 0 && (r.module != currentModule || r.status != currentStatus || r.length != currentLength) {
+			// Add separator line between groups (dotted line like original)
+			m.renderGroupSeparator(b, widths)
+		}
+
+		// Update current group
+		currentModule = r.module
+		currentStatus = r.status
+		currentLength = r.length
+
+		// Render the result row with multiline curl
+		m.renderResultRow(b, r, widths, i == m.selDetail)
+	}
+
+	// Render bottom border
+	m.renderTableBorder(b, widths)
+}
+
+func (m *TUIModel) renderTableHeader(b *strings.Builder, widths ColumnWidths) {
+	// Top border
+	m.renderTableBorder(b, widths)
+
+	// Header row with borders
+	line := "| " + thStyle.Render(padToWidth("Module", widths.module)) +
+		" | " + thStyle.Render(padToWidth("Curl CMD", widths.curl)) +
+		" | " + thStyle.Render(padToWidth("Status", widths.status)) +
+		" | " + thStyle.Render(padToWidth("Length", widths.length)) +
+		" | " + thStyle.Render(padToWidth("Type", widths.colType)) +
+		" | " + thStyle.Render(padToWidth("Title", widths.title)) +
+		" | " + thStyle.Render(padToWidth("Server", widths.server)) + " |"
+
+	b.WriteString(line + "\n")
+
+	// Header separator
+	m.renderTableBorder(b, widths)
+}
+
+func (m *TUIModel) renderTableBorder(b *strings.Builder, widths ColumnWidths) {
+	border := "+" + strings.Repeat("-", widths.module+2) +
+		"+" + strings.Repeat("-", widths.curl+2) +
+		"+" + strings.Repeat("-", widths.status+2) +
+		"+" + strings.Repeat("-", widths.length+2) +
+		"+" + strings.Repeat("-", widths.colType+2) +
+		"+" + strings.Repeat("-", widths.title+2) +
+		"+" + strings.Repeat("-", widths.server+2) + "+"
+	b.WriteString(border + "\n")
+}
+
+func (m *TUIModel) renderGroupSeparator(b *strings.Builder, widths ColumnWidths) {
+	// Dotted separator line (like original results.go)
+	separator := "|" + strings.Repeat(".", widths.module+2) +
+		"|" + strings.Repeat(".", widths.curl+2) +
+		"|" + strings.Repeat(".", widths.status+2) +
+		"|" + strings.Repeat(".", widths.length+2) +
+		"|" + strings.Repeat(".", widths.colType+2) +
+		"|" + strings.Repeat(".", widths.title+2) +
+		"|" + strings.Repeat(".", widths.server+2) + "|"
+	b.WriteString(separator + "\n")
+}
+
+func (m *TUIModel) renderResultRow(b *strings.Builder, r TUIResultRow, widths ColumnWidths, isSelected bool) {
+	curlLines := strings.Split(r.curlCmd, "\n")
+
+	for lineIdx, curlLine := range curlLines {
+		var line string
+
+		if lineIdx == 0 {
+			// First line: show all columns with [Copy] button
+			copyButton := " " + okStyle.Render(copyLblStyle)
+			curlWithCopy := curlLine + copyButton
+			if len(curlWithCopy) > widths.curl {
+				// Ensure [Copy] button is always visible
+				availableForCurl := widths.curl - len(copyButton) - 1 // -1 for "…"
+				if availableForCurl > 0 {
+					curlWithCopy = curlLine[:availableForCurl] + "…" + copyButton
+				} else {
+					curlWithCopy = copyButton // Just show [Copy] if no space
+				}
+			}
+
+			line = "| " + padToWidth(r.module, widths.module) +
+				" | " + padToWidth(curlWithCopy, widths.curl) +
+				" | " + padToWidth(r.status, widths.status) +
+				" | " + padToWidth(r.length, widths.length) +
+				" | " + padToWidth(r.contentType, widths.colType) +
+				" | " + padToWidth(r.title, widths.title) +
+				" | " + padToWidth(r.server, widths.server) + " |"
+		} else {
+			// Continuation lines: only show curl command
+			line = "| " + padToWidth("", widths.module) +
+				" | " + padToWidth(curlLine, widths.curl) +
+				" | " + padToWidth("", widths.status) +
+				" | " + padToWidth("", widths.length) +
+				" | " + padToWidth("", widths.colType) +
+				" | " + padToWidth("", widths.title) +
+				" | " + padToWidth("", widths.server) + " |"
+		}
+
+		if isSelected {
+			line = selRowStyle.Render(line)
+		}
+		b.WriteString(line + "\n")
+	}
+}
+
+func padToWidth(s string, width int) string {
+	if len(s) >= width {
+		return s[:width]
+	}
+	return s + strings.Repeat(" ", width-len(s))
 }
 
 /* ---------- actions ---------- */
