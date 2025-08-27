@@ -2,15 +2,15 @@
 
 A powerful WAF (HTTP 403/401) and URL parser bypass tool developed in Go, designed to preserve exact URL paths and structures during testing. Unlike Go's standard libraries, the tool enables true raw HTTP requests without any encoding or normalization, ensuring complete control over the request structure. This functionality is powered by a full-stack HTTP client, independent of Go's internals, and a custom URL parser.
 
-### Author 
+## Author <!-- omit in toc -->
 
-slicingmelon <<https://github.com/slicingmelon>>
+**slicingmelon**<br><br>
+[![GitHub](https://img.shields.io/badge/GitHub-slicingmelon-black?logo=github)](https://github.com/slicingmelon)<br>
+[![X](https://img.shields.io/badge/X-@pedro__infosec-1DA1F2?logo=x)](https://x.com/pedro_infosec)
 
-X <[@pedro_infosec](https://x.com/pedro_infosec)>
-
+---
 
 - [GoByPASS403](#gobypass403)
-    - [Author](#author)
 - [Features](#features)
 - [Installation](#installation)
   - [Precompiled Binaries (Recommended)](#precompiled-binaries-recommended)
@@ -30,6 +30,8 @@ X <[@pedro_infosec](https://x.com/pedro_infosec)>
   - [6. case\_substitution](#6-case_substitution)
   - [7. nginx\_bypasses](#7-nginx_bypasses)
   - [8. haproxy\_bypasses](#8-haproxy_bypasses)
+    - [CVE-2021-40346: HTTP Request Smuggling via Integer Overflow](#cve-2021-40346-http-request-smuggling-via-integer-overflow)
+    - [CVE-2023-45539: URL Fragment ACL Bypass](#cve-2023-45539-url-fragment-acl-bypass)
   - [9. unicode\_path\_normalization](#9-unicode_path_normalization)
   - [10. headers\_scheme](#10-headers_scheme)
   - [11. headers\_ip](#11-headers_ip)
