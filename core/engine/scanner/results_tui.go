@@ -184,12 +184,13 @@ type TUIModel struct {
 /* ---------- styles ---------- */
 
 var (
-	titleStyle   = lipgloss.NewStyle().Bold(true)
-	mutedStyle   = lipgloss.NewStyle().Faint(true)
-	thStyle      = lipgloss.NewStyle().Bold(true)
-	selRowStyle  = lipgloss.NewStyle().Background(lipgloss.Color("236"))
-	okStyle      = lipgloss.NewStyle().Foreground(lipgloss.Color("42")).Bold(true)
-	failStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("1")).Bold(true)
+	titleStyle  = lipgloss.NewStyle().Bold(true)
+	mutedStyle  = lipgloss.NewStyle().Faint(true)
+	thStyle     = lipgloss.NewStyle().Bold(true)
+	selRowStyle = lipgloss.NewStyle().Background(lipgloss.Color("236"))
+	okStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("42")).Bold(true)
+	failStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("1")).Bold(true)
+	// Keep copy label plain (no ANSI styling) so width calculations stay correct
 	copyLblStyle = "[Copy]"
 
 	// dashboard column widths
@@ -556,16 +557,62 @@ func (m *TUIModel) calculateColumnWidthsForRows(rows []TUIResultRow) ColumnWidth
 		// For curl, find the longest line in the multiline command (limit to reasonable width)
 		curlLines := strings.Split(r.curlCmd, "\n")
 		for _, line := range curlLines {
-			lineLen := len(line) + len(copyLblStyle) + 1 // Add space for " [Copy]"
+			lineLen := len(line) + len(copyLblStyle) + 1 // space before [Copy]
 			if lineLen > widths.curl {
 				widths.curl = lineLen
 			}
 		}
 	}
 
-	// Limit curl column to reasonable width to prevent breaking terminal
-	if widths.curl > 80 {
-		widths.curl = 80
+	// Respect terminal width: allocate remaining width to curl column
+	// Available total width (fallback to 120 when unknown)
+	avail := m.width
+	if avail <= 0 {
+		avail = 120
+	}
+	// There are 6 separators between 7 columns, each rendered as " | " (3 chars)
+	const sepCount = 6
+	const sepWidth = 3 * sepCount
+
+	// Ensure minimum widths for non-curl columns (keep table usable)
+	minModule := dColModule
+	minStatus := dColStatus
+	minLength := dColLength
+	minType := dColType
+	minTitle := dColTitle
+	minServer := dColServer
+
+	if widths.module < minModule {
+		widths.module = minModule
+	}
+	if widths.status < minStatus {
+		widths.status = minStatus
+	}
+	if widths.length < minLength {
+		widths.length = minLength
+	}
+	if widths.colType < minType {
+		widths.colType = minType
+	}
+	if widths.title < minTitle {
+		widths.title = minTitle
+	}
+	if widths.server < minServer {
+		widths.server = minServer
+	}
+
+	fixed := widths.module + widths.status + widths.length + widths.colType + widths.title + widths.server
+	remaining := avail - fixed - sepWidth
+	if remaining < 20 {
+		remaining = 20 // keep curl visible at least
+	}
+
+	// Limit curl width to remaining space; also cap to a reasonable maximum
+	if widths.curl > remaining {
+		widths.curl = remaining
+	}
+	if widths.curl > 100 {
+		widths.curl = 100
 	}
 
 	return widths
@@ -575,9 +622,9 @@ func (m *TUIModel) renderSimpleTable(b *strings.Builder, widths ColumnWidths, ro
 	// Simple table header (like original results.go)
 	m.renderSimpleHeader(b, widths)
 
-	// Calculate copy button position for mouse clicks (simplified)
-	m.copyStart = widths.module + 3 // "Module | "
-	m.copyEnd = m.copyStart + widths.curl
+	// Calculate copy button hitbox: start of curl column plus the right-aligned [Copy]
+	m.copyStart = widths.module + 3 + (widths.curl - len(copyLblStyle) - 1) // space before [Copy]
+	m.copyEnd = m.copyStart + len(copyLblStyle)
 
 	// Track current group for separators (same logic as original results.go)
 	var currentModule, currentStatus, currentLength string
@@ -632,27 +679,31 @@ func (m *TUIModel) renderSimpleRow(b *strings.Builder, r TUIResultRow, widths Co
 		var line string
 
 		if lineIdx == 0 {
-			// First line: show all columns with [Copy] at end of curl
-			copyButton := " " + okStyle.Render(copyLblStyle)
+			// First line: show all columns with [Copy] right-aligned inside curl column
+			copyButton := " " + copyLblStyle
 
-			// Prepare curl column with [Copy] button
+			// Space available for curl text keeping room for copy label
+			spaceForCurl := widths.curl - len(copyButton)
+			if spaceForCurl < 0 {
+				spaceForCurl = 0
+			}
+
 			curlDisplay := curlLine
-			curlColumnContent := curlDisplay + copyButton
-
-			// Truncate curl if needed but always keep [Copy]
-			if len(curlColumnContent) > widths.curl {
-				maxCurlLen := widths.curl - len(copyButton) - 1 // -1 for "…"
-				if maxCurlLen > 0 {
-					curlDisplay = curlDisplay[:maxCurlLen] + "…"
+			if len(curlDisplay) > spaceForCurl {
+				// leave space for ellipsis
+				if spaceForCurl > 1 {
+					curlDisplay = curlDisplay[:spaceForCurl-1] + "…"
 				} else {
 					curlDisplay = ""
 				}
-				curlColumnContent = curlDisplay + copyButton
 			}
+
+			// Pad the curl text to fill the column, then append right-aligned copy
+			curlCell := fmt.Sprintf("%-*s%s", spaceForCurl, curlDisplay, copyButton)
 
 			line = fmt.Sprintf("%-*s | %-*s | %-*s | %-*s | %-*s | %-*s | %-*s",
 				widths.module, r.module,
-				widths.curl, curlColumnContent,
+				widths.curl, curlCell,
 				widths.status, r.status,
 				widths.length, r.length,
 				widths.colType, r.contentType,
