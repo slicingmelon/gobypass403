@@ -17,7 +17,6 @@ import (
 	"github.com/slicingmelon/gobypass403/core/engine/payload"
 	"github.com/slicingmelon/gobypass403/core/engine/rawhttp"
 	"github.com/slicingmelon/gobypass403/core/utils/helpers"
-	GB403Logger "github.com/slicingmelon/gobypass403/core/utils/logger"
 )
 
 // Global map to track already seen RawURIs across all bypass modules
@@ -47,9 +46,9 @@ func FilterUniqueBypassPayloads(payloads []payload.BypassPayload, bypassModule s
 
 	filtered := make([]payload.BypassPayload, 0, len(payloads))
 
-	seenRawURIsMutex.RLock()
-	initialSize := len(seenRawURIs)
-	seenRawURIsMutex.RUnlock()
+	// seenRawURIsMutex.RLock()
+	// initialSize := len(seenRawURIs) // Commented out - not used when logger disabled
+	// seenRawURIsMutex.RUnlock()
 
 	for _, p := range payloads {
 		seenRawURIsMutex.RLock()
@@ -70,15 +69,16 @@ func FilterUniqueBypassPayloads(payloads []payload.BypassPayload, bypassModule s
 		}
 	}
 
-	seenRawURIsMutex.RLock()
-	newSize := len(seenRawURIs)
-	seenRawURIsMutex.RUnlock()
+	// seenRawURIsMutex.RLock()
+	// newSize := len(seenRawURIs) // Commented out - not used when logger disabled
+	// seenRawURIsMutex.RUnlock()
 
 	// Calculate new unique RawURIs added
-	addedURIs := newSize - initialSize
+	// addedURIs := newSize - initialSize // Commented out - not used when logger disabled
 
-	GB403Logger.Verbose().Msgf("[%s] Filtered payloads: %d -> %d | Global RawURIs: %d -> %d (%d new unique)",
-		bypassModule, len(payloads), len(filtered), initialSize, newSize, addedURIs)
+	// Comment out verbose logger call - interferes with TUI display
+	// GB403Logger.Verbose().Msgf("[%s] Filtered payloads: %d -> %d | Global RawURIs: %d -> %d (%d new unique)",
+	//	bypassModule, len(payloads), len(filtered), initialSize, newSize, addedURIs)
 
 	return filtered
 }
@@ -163,7 +163,8 @@ func ResetSeenRawURIs() {
 	// Create a new map rather than clearing the existing one
 	// This is more efficient for large maps
 	seenRawURIs = make(map[string]string)
-	GB403Logger.Verbose().Msgf("Reset global RawURI tracking map\n")
+	// Comment out verbose logger call - interferes with TUI display
+	// GB403Logger.Verbose().Msgf("Reset global RawURI tracking map\n")
 }
 
 // Core Function
@@ -191,7 +192,9 @@ func (s *Scanner) RunAllBypasses(targetURL string, tuiController *TUIController)
 // Run a specific Bypass Module and return the number of findings
 func (s *Scanner) RunBypassModule(bypassModule string, targetURL string, tuiController *TUIController) int {
 	if !IsValidBypassModule(bypassModule) {
-		GB403Logger.Error().Msgf("Invalid bypass module: %s\n", bypassModule)
+		// Comment out logger call - interferes with TUI display
+		// GB403Logger.Error().Msgf("Invalid bypass module: %s\n", bypassModule)
+		tuiController.SendProgress(targetURL, bypassModule, 0, 0, true, "Invalid bypass module")
 		return 0
 	}
 
@@ -210,12 +213,14 @@ func (s *Scanner) RunBypassModule(bypassModule string, targetURL string, tuiCont
 
 	totalJobs := len(allJobs)
 	if totalJobs == 0 {
-		GB403Logger.Warning().Msgf("No jobs generated for bypass module: %s\n", bypassModule)
+		// Comment out logger call - interferes with TUI display
+		// GB403Logger.Warning().Msgf("No jobs generated for bypass module: %s\n", bypassModule)
 		tuiController.SendProgress(targetURL, bypassModule, 0, 0, true, "No jobs generated")
 		return 0
 	}
 
-	GB403Logger.PrintBypassModuleInfo(bypassModule, totalJobs, targetURL)
+	// Comment out logger call - interferes with TUI display
+	// GB403Logger.PrintBypassModuleInfo(bypassModule, totalJobs, targetURL)
 
 	// Send initial progress to TUI
 	tuiController.SendProgress(targetURL, bypassModule, 0, totalJobs, false, "")
@@ -333,7 +338,8 @@ func (s *Scanner) RunBypassModule(bypassModule string, targetURL string, tuiCont
 		go func(res *Result) {
 			defer dbWg.Done()
 			if err := AppendResultsToDB([]*Result{res}); err != nil {
-				GB403Logger.Error().Msgf("Failed to write result to DB: %v\n\n", err)
+				// Comment out error logger call - interferes with TUI display
+				// GB403Logger.Error().Msgf("Failed to write result to DB: %v\n\n", err)
 			} else {
 				resultCount.Add(1)
 			}

@@ -11,7 +11,6 @@ import (
 	"github.com/slicingmelon/go-rawurlparser"
 	"github.com/slicingmelon/gobypass403/core/engine/recon"
 	GB403ErrorHandler "github.com/slicingmelon/gobypass403/core/utils/error"
-	GB403Logger "github.com/slicingmelon/gobypass403/core/utils/logger"
 )
 
 type ScannerOpts struct {
@@ -70,11 +69,13 @@ func NewScanner(opts *ScannerOpts, urls []string) *Scanner {
 func (s *Scanner) Run() error {
 	defer s.Close()
 
-	GB403Logger.Info().Msgf("Initializing scanner with %d URLs", len(s.urls))
+	// Comment out logger call - interferes with TUI display
+	// GB403Logger.Info().Msgf("Initializing scanner with %d URLs", len(s.urls))
 
 	// Start scanning in background
 	go func() {
-		defer s.tuiController.Shutdown()
+		// Don't auto-shutdown TUI - let user decide when to quit
+		// defer s.tuiController.Shutdown()
 
 		for _, url := range s.urls {
 			parsedURL, err := rawurlparser.RawURLParse(url)
@@ -95,10 +96,12 @@ func (s *Scanner) Run() error {
 			_ = s.scanURL(url)
 		}
 
-		// All scanning complete - show final stats
-		GB403Logger.Success().Msgf("Findings saved to %s\n",
-			s.scannerOpts.ResultsDBFile)
-		GB403ErrorHandler.GetErrorHandler().PrintErrorStats()
+		// All scanning complete - don't print to stdout as it interferes with TUI
+		// GB403Logger.Success().Msgf("Findings saved to %s\n", s.scannerOpts.ResultsDBFile)
+		// GB403ErrorHandler.GetErrorHandler().PrintErrorStats()
+
+		// Could send a completion message to TUI instead if needed
+		// tuiController.SendProgress("SCAN_COMPLETE", "All targets completed", 0, 0, true, "")
 	}()
 
 	// Start TUI (blocks until user quits)
