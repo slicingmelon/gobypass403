@@ -19,7 +19,6 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/mattn/go-runewidth"
 	"github.com/slicingmelon/go-bytesutil/bytesutil"
 )
 
@@ -457,11 +456,18 @@ func (m *TUIModel) viewDetails() string {
 		return b.String()
 	}
 
+	// Limit results for performance (prevent freezing)
+	displayRows := m.detailRows
+	if len(displayRows) > 100 {
+		displayRows = displayRows[:100]
+		b.WriteString(mutedStyle.Render(fmt.Sprintf("Showing first 100 of %d results", len(m.detailRows))) + "\n")
+	}
+
 	// Calculate dynamic column widths based on content (like pterm does)
-	colWidths := m.calculateColumnWidths()
+	colWidths := m.calculateColumnWidthsForRows(displayRows)
 
 	// Render simple table like original (without complex borders)
-	m.renderSimpleTable(&b, colWidths)
+	m.renderSimpleTable(&b, colWidths, displayRows)
 
 	if m.statusMsg != "" {
 		b.WriteString("\n" + mutedStyle.Render(m.statusMsg) + "\n")
@@ -513,66 +519,70 @@ type ColumnWidths struct {
 	copy    int
 }
 
-func (m *TUIModel) calculateColumnWidths() ColumnWidths {
-	// Calculate column widths based on content using runewidth (like pterm auto-sizing)
+func (m *TUIModel) calculateColumnWidthsForRows(rows []TUIResultRow) ColumnWidths {
+	// Calculate column widths based on content (simplified)
 	widths := ColumnWidths{
-		module:  runewidth.StringWidth("Module"),
-		curl:    runewidth.StringWidth("Curl CMD"),
-		status:  runewidth.StringWidth("Status"),
-		length:  runewidth.StringWidth("Length"),
-		colType: runewidth.StringWidth("Type"),
-		title:   runewidth.StringWidth("Title"),
-		server:  runewidth.StringWidth("Server"),
-		copy:    runewidth.StringWidth(copyLblStyle),
+		module:  len("Module"),
+		curl:    len("Curl CMD"),
+		status:  len("Status"),
+		length:  len("Length"),
+		colType: len("Type"),
+		title:   len("Title"),
+		server:  len("Server"),
+		copy:    len(copyLblStyle),
 	}
 
-	// Find maximum width needed for each column using runewidth
-	for _, r := range m.detailRows {
-		if runewidth.StringWidth(r.module) > widths.module {
-			widths.module = runewidth.StringWidth(r.module)
+	// Find maximum width needed for each column
+	for _, r := range rows {
+		if len(r.module) > widths.module {
+			widths.module = len(r.module)
 		}
-		if runewidth.StringWidth(r.status) > widths.status {
-			widths.status = runewidth.StringWidth(r.status)
+		if len(r.status) > widths.status {
+			widths.status = len(r.status)
 		}
-		if runewidth.StringWidth(r.length) > widths.length {
-			widths.length = runewidth.StringWidth(r.length)
+		if len(r.length) > widths.length {
+			widths.length = len(r.length)
 		}
-		if runewidth.StringWidth(r.contentType) > widths.colType {
-			widths.colType = runewidth.StringWidth(r.contentType)
+		if len(r.contentType) > widths.colType {
+			widths.colType = len(r.contentType)
 		}
-		if runewidth.StringWidth(r.title) > widths.title {
-			widths.title = runewidth.StringWidth(r.title)
+		if len(r.title) > widths.title {
+			widths.title = len(r.title)
 		}
-		if runewidth.StringWidth(r.server) > widths.server {
-			widths.server = runewidth.StringWidth(r.server)
+		if len(r.server) > widths.server {
+			widths.server = len(r.server)
 		}
 
-		// For curl, find the longest line in the multiline command using runewidth
+		// For curl, find the longest line in the multiline command (limit to reasonable width)
 		curlLines := strings.Split(r.curlCmd, "\n")
 		for _, line := range curlLines {
-			lineWidth := runewidth.StringWidth(line)
-			if lineWidth > widths.curl {
-				widths.curl = lineWidth
+			lineLen := len(line) + len(copyLblStyle) + 1 // Add space for " [Copy]"
+			if lineLen > widths.curl {
+				widths.curl = lineLen
 			}
 		}
+	}
+
+	// Limit curl column to reasonable width to prevent breaking terminal
+	if widths.curl > 80 {
+		widths.curl = 80
 	}
 
 	return widths
 }
 
-func (m *TUIModel) renderSimpleTable(b *strings.Builder, widths ColumnWidths) {
+func (m *TUIModel) renderSimpleTable(b *strings.Builder, widths ColumnWidths, rows []TUIResultRow) {
 	// Simple table header (like original results.go)
 	m.renderSimpleHeader(b, widths)
 
-	// Calculate copy button position for mouse clicks using runewidth
-	moduleColEnd := cellWidth("Module", widths.module) + 3 // " | "
-	m.copyStart = moduleColEnd + 3                         // "Module | "
+	// Calculate copy button position for mouse clicks (simplified)
+	m.copyStart = widths.module + 3 // "Module | "
 	m.copyEnd = m.copyStart + widths.curl
 
 	// Track current group for separators (same logic as original results.go)
 	var currentModule, currentStatus, currentLength string
 
-	for i, r := range m.detailRows {
+	for i, r := range rows {
 		// Check if we need a separator (same grouping logic as original)
 		if i > 0 && (r.module != currentModule || r.status != currentStatus || r.length != currentLength) {
 			// Add separator line between groups (dotted line like original)
@@ -590,37 +600,28 @@ func (m *TUIModel) renderSimpleTable(b *strings.Builder, widths ColumnWidths) {
 }
 
 func (m *TUIModel) renderSimpleHeader(b *strings.Builder, widths ColumnWidths) {
-	// Table header with proper spacing
-	line := thStyle.Render(cellWidthPad("Module", widths.module)) + " | " +
-		thStyle.Render(cellWidthPad("Curl CMD", widths.curl)) + " | " +
-		thStyle.Render(cellWidthPad("Status", widths.status)) + " | " +
-		thStyle.Render(cellWidthPad("Length", widths.length)) + " | " +
-		thStyle.Render(cellWidthPad("Type", widths.colType)) + " | " +
-		thStyle.Render(cellWidthPad("Title", widths.title)) + " | " +
-		thStyle.Render(cellWidthPad("Server", widths.server))
+	// Simple table header (like original)
+	header := fmt.Sprintf("%-*s | %-*s | %-*s | %-*s | %-*s | %-*s | %-*s",
+		widths.module, "Module",
+		widths.curl, "Curl CMD",
+		widths.status, "Status",
+		widths.length, "Length",
+		widths.colType, "Type",
+		widths.title, "Title",
+		widths.server, "Server")
 
-	b.WriteString(line + "\n")
+	b.WriteString(thStyle.Render(header) + "\n")
 
-	// Header separator line
-	separator := strings.Repeat("-", widths.module) + "-+-" +
-		strings.Repeat("-", widths.curl) + "-+-" +
-		strings.Repeat("-", widths.status) + "-+-" +
-		strings.Repeat("-", widths.length) + "-+-" +
-		strings.Repeat("-", widths.colType) + "-+-" +
-		strings.Repeat("-", widths.title) + "-+-" +
-		strings.Repeat("-", widths.server)
+	// Simple separator line
+	separator := strings.Repeat("-", len(header))
 	b.WriteString(separator + "\n")
 }
 
 func (m *TUIModel) renderSimpleSeparator(b *strings.Builder, widths ColumnWidths) {
-	// Dotted separator line (like original results.go)
-	separator := strings.Repeat(".", widths.module) + ".|." +
-		strings.Repeat(".", widths.curl) + ".|." +
-		strings.Repeat(".", widths.status) + ".|." +
-		strings.Repeat(".", widths.length) + ".|." +
-		strings.Repeat(".", widths.colType) + ".|." +
-		strings.Repeat(".", widths.title) + ".|." +
-		strings.Repeat(".", widths.server)
+	// Simple dotted separator line (like original results.go)
+	totalWidth := widths.module + 3 + widths.curl + 3 + widths.status + 3 +
+		widths.length + 3 + widths.colType + 3 + widths.title + 3 + widths.server
+	separator := strings.Repeat(".", totalWidth)
 	b.WriteString(separator + "\n")
 }
 
@@ -631,36 +632,42 @@ func (m *TUIModel) renderSimpleRow(b *strings.Builder, r TUIResultRow, widths Co
 		var line string
 
 		if lineIdx == 0 {
-			// First line: show all columns with [Copy] button
+			// First line: show all columns with [Copy] at end of curl
 			copyButton := " " + okStyle.Render(copyLblStyle)
-			curlWithCopy := curlLine + copyButton
-			if cellWidth(curlWithCopy, 0) > widths.curl {
-				// Ensure [Copy] button is always visible
-				availableForCurl := widths.curl - cellWidth(copyButton, 0) - cellWidth("…", 0)
-				if availableForCurl > 0 {
-					truncated := truncateToWidth(curlLine, availableForCurl)
-					curlWithCopy = truncated + "…" + copyButton
+
+			// Prepare curl column with [Copy] button
+			curlDisplay := curlLine
+			curlColumnContent := curlDisplay + copyButton
+
+			// Truncate curl if needed but always keep [Copy]
+			if len(curlColumnContent) > widths.curl {
+				maxCurlLen := widths.curl - len(copyButton) - 1 // -1 for "…"
+				if maxCurlLen > 0 {
+					curlDisplay = curlDisplay[:maxCurlLen] + "…"
 				} else {
-					curlWithCopy = copyButton // Just show [Copy] if no space
+					curlDisplay = ""
 				}
+				curlColumnContent = curlDisplay + copyButton
 			}
 
-			line = cellWidthPad(r.module, widths.module) + " | " +
-				cellWidthPad(curlWithCopy, widths.curl) + " | " +
-				cellWidthPad(r.status, widths.status) + " | " +
-				cellWidthPad(r.length, widths.length) + " | " +
-				cellWidthPad(r.contentType, widths.colType) + " | " +
-				cellWidthPad(r.title, widths.title) + " | " +
-				cellWidthPad(r.server, widths.server)
+			line = fmt.Sprintf("%-*s | %-*s | %-*s | %-*s | %-*s | %-*s | %-*s",
+				widths.module, r.module,
+				widths.curl, curlColumnContent,
+				widths.status, r.status,
+				widths.length, r.length,
+				widths.colType, r.contentType,
+				widths.title, r.title,
+				widths.server, r.server)
 		} else {
-			// Continuation lines: only show curl command
-			line = cellWidthPad("", widths.module) + " | " +
-				cellWidthPad(curlLine, widths.curl) + " | " +
-				cellWidthPad("", widths.status) + " | " +
-				cellWidthPad("", widths.length) + " | " +
-				cellWidthPad("", widths.colType) + " | " +
-				cellWidthPad("", widths.title) + " | " +
-				cellWidthPad("", widths.server)
+			// Continuation lines: only show curl command (no other columns)
+			line = fmt.Sprintf("%-*s | %-*s | %-*s | %-*s | %-*s | %-*s | %-*s",
+				widths.module, "",
+				widths.curl, curlLine,
+				widths.status, "",
+				widths.length, "",
+				widths.colType, "",
+				widths.title, "",
+				widths.server, "")
 		}
 
 		if isSelected {
@@ -670,25 +677,16 @@ func (m *TUIModel) renderSimpleRow(b *strings.Builder, r TUIResultRow, widths Co
 	}
 }
 
-// Use runewidth for accurate character width calculation (handles wide glyphs)
-func cellWidth(s string, minWidth int) int {
-	w := runewidth.StringWidth(s)
-	if w < minWidth {
-		return minWidth
-	}
-	return w
+// Simple width calculation (avoiding runewidth complexity for now)
+func simpleWidth(s string) int {
+	return len(s)
 }
 
-func cellWidthPad(s string, width int) string {
-	currentWidth := runewidth.StringWidth(s)
-	if currentWidth >= width {
-		return runewidth.Truncate(s, width, "")
+func simplePad(s string, width int) string {
+	if len(s) >= width {
+		return s[:width]
 	}
-	return s + strings.Repeat(" ", width-currentWidth)
-}
-
-func truncateToWidth(s string, maxWidth int) string {
-	return runewidth.Truncate(s, maxWidth, "")
+	return s + strings.Repeat(" ", width-len(s))
 }
 
 /* ---------- actions ---------- */
