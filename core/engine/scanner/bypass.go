@@ -38,6 +38,7 @@ func FilterUniqueBypassPayloads(payloads []payload.BypassPayload, bypassModule s
 		"nginx_bypasses":             true,
 		"path_prefix":                true,
 		"unicode_path_normalization": true,
+		"unicode_path_truncation":    true,
 		"unicode_path_experimental":  true,
 	}
 

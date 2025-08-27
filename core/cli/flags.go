@@ -72,7 +72,7 @@ func parseFlags() (*CliOptions, error) {
 		{name: "u,url", usage: "Target URL (example: https://cms.facebook.com/login)", value: &opts.URL},
 		{name: "l,urls-file", usage: "File containing list of target URLs (one per line)", value: &opts.URLsFile},
 		{name: "shf,substitute-hosts-file", usage: "File containing a list of hosts to substitute target URL's hostname (mostly used in CDN bypasses by providing a list of CDNs)", value: &opts.SubstituteHostsFile},
-		{name: "m,module", usage: "Bypass module (all,path_prefix,mid_paths,end_paths,http_methods,case_substitution,char_encode,nginx_bypasses,haproxy_bypasses,unicode_path_normalization,headers_scheme,headers_ip,headers_port,headers_url,headers_host). Supports glob patterns with * (e.g., headers*,*bypass*)", value: &opts.Module, defVal: "all"},
+		{name: "m,module", usage: "Bypass module (all,path_prefix,mid_paths,end_paths,http_methods,case_substitution,char_encode,nginx_bypasses,haproxy_bypasses,unicode_path_normalization,unicode_path_truncation,headers_scheme,headers_ip,headers_port,headers_url,headers_host). Supports glob patterns with * (e.g., headers*,*bypass*)", value: &opts.Module, defVal: "all"},
 		{name: "em,exclude-module", usage: "Exclude specific bypass modules. Supports glob patterns with * (e.g., -em unicode*,*experimental). Takes precedence over -m", value: &opts.ExcludeModule},
 		{name: "o,outdir", usage: "Output directory", value: &opts.OutDir},
 		{name: "cr,concurrent-requests", usage: "Number of max concurrent requests", value: &opts.ConcurrentRequests, defVal: 15},

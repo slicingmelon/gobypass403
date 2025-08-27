@@ -35,6 +35,7 @@ var BypassModulesRegistry = []string{
 	"headers_url",
 	"headers_host",
 	"unicode_path_normalization",
+	"unicode_path_truncation",
 	"unicode_path_experimental",
 }
 
@@ -133,6 +134,8 @@ func (pg *PayloadGenerator) Generate() []BypassPayload {
 		return pg.GenerateHeadersHostPayloads(pg.targetURL, pg.bypassModule)
 	case "unicode_path_normalization":
 		return pg.GenerateUnicodePathNormalizationsPayloads(pg.targetURL, pg.bypassModule)
+	case "unicode_path_truncation":
+		return pg.GenerateUnicodePathTruncationPayloads(pg.targetURL, pg.bypassModule)
 	case "haproxy_bypasses":
 		return pg.GenerateHAProxyBypassPayloads(pg.targetURL, pg.bypassModule)
 	case "unicode_path_experimental":
