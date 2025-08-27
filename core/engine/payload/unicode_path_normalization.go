@@ -435,32 +435,3 @@ func unicodefySegment(segment string, asciiToMappings map[int][]UnicodeMapping) 
 	}
 	return rawBuilder.String(), encodedBuilder.String()
 }
-
-/**
-JS code used to fuzz unicode path chars
-
-const charsToCheck = ["\\", "/", ".", ":", "%", "~", "*", "<", ">", "|", "@", "!", "#", "+", "{", "}", "[", "]", ";", ",", "'", "\""];
-const normalizationForms = ["NFKC", "NFC", "NFD", "NFKD"];
-
-const normalizedMatches = new Set();
-
-// Loop through all code points (from 0x7f upwards)
-
-	for (let i = 0x7f; i <= 0x10FFFF; i++) {
-	    const char = String.fromCodePoint(i);
-
-	    if (i > 0x7f) {
-	        normalizationForms.forEach(form => {
-	            const normalized = char.normalize(form);
-
-	            for (let charToCheck of charsToCheck) {
-	                if (charToCheck === normalized) {
-	                    normalizedMatches.add(`${char}(${form})=${charToCheck}`);
-	                }
-	            }
-	        });
-	    }
-	}
-
-normalizedMatches.forEach(match => console.log(match));
-**/
