@@ -130,17 +130,17 @@ func (pg *PayloadGenerator) GenerateNginxACLsBypassPayloads(targetURL string, by
 	// Handle "/a/b" -> ["a", "b"]
 	var pathSegments []string
 	trimmedPath := strings.TrimPrefix(basePath, "/")
-	if basePath == "/" {
-		pathSegments = []string{""} // Represent root segment explicitly? Or handle differently?
+	switch basePath {
+	case "/":
 		// Let's treat "/" as having one segment "" for insertion logic? No, Split returns [""]
 		// If basePath is just "/", Split("", "/") gives [""].
 		// If basePath is "/a/b", Split("a/b", "/") gives ["a", "b"].
 		// If basePath is "/a/", Split("a/", "/") gives ["a", ""].
 		pathSegments = strings.Split(trimmedPath, "/")
-	} else if basePath == "" {
+	case "":
 		// Treat empty path as root for consistency? No, path is likely intended to be empty.
 		pathSegments = []string{}
-	} else {
+	default:
 		pathSegments = strings.Split(trimmedPath, "/")
 	}
 
