@@ -7,15 +7,17 @@
 - New CLI option -em/-exclude-module.
 - `-m` and `-em` now support glob patterns with *.
 - Updated `internal_midpaths.lst` payloads.
-- Updated internal tool `unicodecharmap.go`.
+- Updated internal tool `unicode_normalization_map.go`.
 - Replaced internal `unicode_char_map.json` with `unicode_normalization_map.json`.
+- Added a new tool `unicode_truncation_map.go`.
 - Updated `unicode_path_normalization` module.
 - Updated `char_encode` module.
 - New bypass module `haproxy_bypasses`, two CVEs included:
   - CVE-2021-40346: HTTP Request Smuggling via Integer Overflow
   - CVE-2023-45539: URL Fragment ACL Bypass
 - New bypass module `unicode_path_truncation`.
-  - Comes with an embedded unicode truncation charmap prebuilt like unicode_path_normalization module with its unicode normalization charmap file.
+  - Targets applications that perform byte-level truncation (`char & 0xFF`) on Unicode characters.
+  - Includes prebuilt `unicode_truncation_map.json` with comprehensive character mappings for all bytes (0x00-0xFF).
     
 # 0.8.3-0.8.4
 
