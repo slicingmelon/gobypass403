@@ -371,12 +371,13 @@ func (m *TUIModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					// Determine clicked row within viewport body
 					clickY := msg.Y - 5 // title + help + blank + header + sep
 					if clickY >= 0 {
-						resultIdx := m.findResultFromBodyLineClick(clickY + m.vp.YOffset)
-						if resultIdx >= 0 && resultIdx < len(m.detailRows) {
-							m.selDetail = resultIdx
-							onCopy := msg.X >= m.copyStart && msg.X < m.copyEnd
+						rowIdx, lineOffset := m.findResultFromBodyLineClickWithOffset(clickY + m.vp.YOffset)
+						if rowIdx >= 0 && rowIdx < len(m.detailRows) {
+							m.selDetail = rowIdx
+							// Only fire copy when clicking on the first line of the row where [Copy] is rendered
+							onCopy := (lineOffset == 0) && (msg.X >= m.copyStart && msg.X < m.copyEnd)
 							if onCopy || copyOnRowClick {
-								m.copyOneWithMsg(resultIdx, onCopy)
+								m.copyOneWithMsg(rowIdx, onCopy)
 							}
 							m.refreshDetailsContent()
 							m.ensureSelectionVisible()
@@ -556,6 +557,23 @@ func (m *TUIModel) findResultFromBodyLineClick(clickY int) int {
 	}
 	// Fallback to legacy calculation if not populated
 	return m.findResultFromLineClick(clickY)
+}
+
+// findResultFromBodyLineClickWithOffset returns row index and line offset within that row
+func (m *TUIModel) findResultFromBodyLineClickWithOffset(clickY int) (int, int) {
+	if len(m.rowStarts) != len(m.detailRows) || len(m.rowEnds) != len(m.detailRows) {
+		idx := m.findResultFromBodyLineClick(clickY)
+		if idx >= 0 {
+			return idx, 0
+		}
+		return -1, -1
+	}
+	for i := range m.rowStarts {
+		if clickY >= m.rowStarts[i] && clickY < m.rowEnds[i] {
+			return i, clickY - m.rowStarts[i]
+		}
+	}
+	return -1, -1
 }
 
 type ColumnWidths struct {
