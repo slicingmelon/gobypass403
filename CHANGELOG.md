@@ -8,7 +8,7 @@
 - `-m` and `-em` now support glob patterns with *.
 - Updated `internal_midpaths.lst` payloads.
 - Updated internal tool `unicodecharmap.go`.
-- Updated internal `unicode_char_map.json`.
+- Replaced internal `unicode_char_map.json` with `unicode_normalization_map.json`.
 - Updated `unicode_path_normalization` module.
 - Updated `char_encode` module.
 - New bypass module `haproxy_bypasses`, two CVEs included:

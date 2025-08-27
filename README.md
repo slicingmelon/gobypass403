@@ -465,7 +465,7 @@ The module generates comprehensive payloads for both vulnerabilities, with CVE-2
 
 ## 9. unicode_path_normalization 
 
-The `unicode_path_normalization` module generates payloads using Unicode character variants that normalize to standard ASCII characters, targeting systems that perform Unicode normalization during request processing. The module uses `unicode_char_map.json` which contains mappings from ASCII to Unicode characters that normalize to the original ASCII character.
+The `unicode_path_normalization` module generates payloads using Unicode character variants that normalize to standard ASCII characters, targeting systems that perform Unicode normalization during request processing. The module uses `unicode_normalization_map.json` which contains mappings from ASCII to Unicode characters that normalize to the original ASCII character.
 
 The module implements five core bypass techniques:
 

@@ -13,7 +13,7 @@ import (
 GenerateUnicodePathNormalizationsPayloads generates payloads based on Unicode
 normalization bypass techniques, targeting path characters with unicode variants.
 
-The function uses unicode_char_map.json which contains mappings from ASCII to
+The function uses unicode_normalization_map.json which contains mappings from ASCII to
 Unicode characters that normalize to the ASCII character.
 
 Payload generation techniques include:
@@ -59,17 +59,17 @@ type OrderedCharMap struct {
 	Mappings []UnicodeMapping `json:"mappings"`
 }
 
-// ReadUnicodeCharMap reads the unicode_char_map.json file
+// ReadUnicodeCharMap reads the unicode_normalization_map.json file
 func ReadUnicodeCharMap() ([]OrderedCharMap, error) {
 	// Try reading from local directory first
-	content, err := ReadPayloadsFromJSONFile("unicode_char_map.json")
+	content, err := ReadPayloadsFromJSONFile("unicode_normalization_map.json")
 	if err != nil {
-		return nil, fmt.Errorf("failed to read unicode_char_map.json: %w", err)
+		return nil, fmt.Errorf("failed to read unicode_normalization_map.json: %w", err)
 	}
 
 	var charMap []OrderedCharMap
 	if err := json.Unmarshal(content, &charMap); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal unicode_char_map.json: %w", err)
+		return nil, fmt.Errorf("failed to unmarshal unicode_normalization_map.json: %w", err)
 	}
 
 	return charMap, nil
