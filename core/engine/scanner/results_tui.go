@@ -213,7 +213,7 @@ var (
 
 	// details column widths (matching original table)
 	dColModule = 14
-	dColCurl   = 40 // Will be calculated dynamically
+	dColCurl   = 40
 	dColStatus = 7
 	dColLength = 8
 	dColType   = 12
@@ -224,8 +224,6 @@ var (
 	headerLinesDet  = 3
 	borderRune      = "─"
 )
-
-/* ---------- model impl ---------- */
 
 func NewTUIModel(targetNames []string) *TUIModel {
 	ts := make([]TUITarget, 0, len(targetNames))
@@ -243,8 +241,6 @@ func NewTUIModel(targetNames []string) *TUIModel {
 func (m *TUIModel) Init() tea.Cmd {
 	return tea.Batch(tea.EnterAltScreen, tick())
 }
-
-/* ---------- update ---------- */
 
 type tickMsg struct{}
 
@@ -286,8 +282,6 @@ func (m *TUIModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			})
 		}
 
-	// TUIResultMsg removed - results now queried from database
-
 	case TUIShutdownMsg:
 		return m, tea.Quit
 
@@ -310,7 +304,7 @@ func (m *TUIModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				if selectedTarget.complete {
 					m.activeTarget = selectedTarget.name
 					m.selDetail = 0
-					m.detailsLoaded = false // Force reload from database
+					m.detailsLoaded = false
 					m.view = viewDetails
 				}
 			}
@@ -349,7 +343,7 @@ func (m *TUIModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					if selectedTarget.complete {
 						m.activeTarget = selectedTarget.name
 						m.selDetail = 0
-						m.detailsLoaded = false // Force reload from database
+						m.detailsLoaded = false
 						m.view = viewDetails
 					}
 				}
@@ -913,14 +907,6 @@ func (m *TUIModel) renderRowFirstLine(r TUIResultRow, widths ColumnWidths) strin
 	curlDisplay := r.curlCmd
 	if idx := strings.Index(r.curlCmd, "\n"); idx >= 0 {
 		curlDisplay = r.curlCmd[:idx]
-	}
-	// Truncate curl if needed to fit with copy button
-	if runewidth.StringWidth(curlDisplay) > spaceForCurl {
-		if spaceForCurl > 1 {
-			curlDisplay = runewidth.Truncate(curlDisplay, spaceForCurl-1, "") + "…"
-		} else {
-			curlDisplay = ""
-		}
 	}
 	// Build curl cell with right-aligned copy button - safer approach
 	copyButtonWidth := runewidth.StringWidth(copyButton)
