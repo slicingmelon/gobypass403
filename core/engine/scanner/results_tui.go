@@ -15,8 +15,6 @@ import (
 	"strings"
 	"time"
 
-	"golang.design/x/clipboard"
-
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -58,10 +56,6 @@ func formatLengthTUI(contentLength int64, responseBodyBytes int) string {
 }
 
 func copyToClipboard(s string) error {
-	if err := clipboard.Init(); err == nil {
-		clipboard.Write(clipboard.FmtText, []byte(s))
-		return nil
-	}
 	switch runtime.GOOS {
 	case "windows":
 		cmd := exec.Command("cmd", "/C", "clip")
