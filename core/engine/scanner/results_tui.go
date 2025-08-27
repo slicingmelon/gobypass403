@@ -748,6 +748,17 @@ func (m *TUIModel) refreshDetailsContent() {
 	m.renderSimpleHeader(&hb, m.lastWidths)
 	m.cachedHeader = hb.String()
 
+	// recompute copy hitbox for current widths (ANSI-safe width)
+	copyLabelWidth := lipgloss.Width(copyLblStyle)
+	if copyLabelWidth == 0 {
+		copyLabelWidth = len(copyLblStyle)
+	}
+	m.copyStart = m.lastWidths.module + 3 + (m.lastWidths.curl - copyLabelWidth)
+	if m.copyStart < 0 {
+		m.copyStart = 0
+	}
+	m.copyEnd = m.copyStart + copyLabelWidth
+
 	// rebuild body
 	var bb strings.Builder
 	m.rowStarts = m.rowStarts[:0]
