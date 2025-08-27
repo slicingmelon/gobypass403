@@ -882,10 +882,18 @@ func (m *TUIModel) renderSimpleRow(b *strings.Builder, r TUIResultRow, widths Co
 				curlPadding = 0
 			}
 			curlCell := curlDisplay + strings.Repeat(" ", curlPadding) + copyButton
+			// Ensure curlCell is exactly widths.curl characters
+			actualWidth := runewidth.StringWidth(curlCell)
+			if actualWidth > widths.curl {
+				curlCell = runewidth.Truncate(curlCell, widths.curl, "")
+			} else if actualWidth < widths.curl {
+				// Add padding to reach exact width
+				curlCell = curlCell + strings.Repeat(" ", widths.curl-actualWidth)
+			}
 
 			line = fmt.Sprintf("%s | %s | %s | %s | %s | %s | %s |",
 				padRight(r.module, widths.module),
-				curlCell, // already perfectly sized with right-aligned copy button
+				curlCell, // already exactly widths.curl characters with right-aligned copy button
 				padRight(r.status, widths.status),
 				padRight(r.length, widths.length),
 				padRight(r.contentType, widths.colType),
@@ -935,9 +943,17 @@ func (m *TUIModel) renderRowFirstLine(r TUIResultRow, widths ColumnWidths) strin
 		curlPadding = 0
 	}
 	curlCell := curlDisplay + strings.Repeat(" ", curlPadding) + copyButton
+	// Ensure curlCell is exactly widths.curl characters
+	actualWidth := runewidth.StringWidth(curlCell)
+	if actualWidth > widths.curl {
+		curlCell = runewidth.Truncate(curlCell, widths.curl, "")
+	} else if actualWidth < widths.curl {
+		// Add padding to reach exact width
+		curlCell = curlCell + strings.Repeat(" ", widths.curl-actualWidth)
+	}
 	line := fmt.Sprintf("%s | %s | %s | %s | %s | %s | %s |",
 		padRight(r.module, widths.module),
-		curlCell, // already perfectly sized with right-aligned copy button
+		curlCell, // already exactly widths.curl characters with right-aligned copy button
 		padRight(r.status, widths.status),
 		padRight(r.length, widths.length),
 		padRight(r.contentType, widths.colType),
