@@ -189,6 +189,8 @@ type TUIModel struct {
 	lastWidths   ColumnWidths
 	rowStarts    []int
 	rowEnds      []int
+	rowCopyStart []int
+	rowCopyEnd   []int
 }
 
 /* ---------- styles ---------- */
@@ -375,7 +377,12 @@ func (m *TUIModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						if rowIdx >= 0 && rowIdx < len(m.detailRows) {
 							m.selDetail = rowIdx
 							// Only fire copy when clicking on the first line of the row where [Copy] is rendered
-							onCopy := (lineOffset == 0) && (msg.X >= m.copyStart && msg.X < m.copyEnd)
+							cStart, cEnd := m.copyStart, m.copyEnd
+							if rowIdx < len(m.rowCopyStart) && rowIdx < len(m.rowCopyEnd) {
+								cStart = m.rowCopyStart[rowIdx]
+								cEnd = m.rowCopyEnd[rowIdx]
+							}
+							onCopy := (lineOffset == 0) && (msg.X >= cStart && msg.X < cEnd)
 							if onCopy || copyOnRowClick {
 								m.copyOneWithMsg(rowIdx, onCopy)
 							}
@@ -781,6 +788,8 @@ func (m *TUIModel) refreshDetailsContent() {
 	var bb strings.Builder
 	m.rowStarts = m.rowStarts[:0]
 	m.rowEnds = m.rowEnds[:0]
+	m.rowCopyStart = m.rowCopyStart[:0]
+	m.rowCopyEnd = m.rowCopyEnd[:0]
 
 	// mirror renderSimpleTable but output to body only (no header)
 	var currentModule, currentStatus, currentLength string
@@ -794,7 +803,22 @@ func (m *TUIModel) refreshDetailsContent() {
 
 		// measure start/end lines for clickable row content only
 		start := strings.Count(bb.String(), "\n")
-		m.renderSimpleRow(&bb, r, m.lastWidths, i == m.selDetail)
+		// render first line separately to compute precise copy range for this row
+		first := m.renderRowFirstLine(r, m.lastWidths)
+		// compute copy range for this specific row
+		moduleWidth := m.lastWidths.module
+		curlWidth := m.lastWidths.curl
+		copyLabelWidth := lipgloss.Width(copyLblStyle)
+		if copyLabelWidth == 0 {
+			copyLabelWidth = len(copyLblStyle)
+		}
+		rowCopyStart := moduleWidth + 3 + (curlWidth - copyLabelWidth)
+		rowCopyEnd := rowCopyStart + copyLabelWidth
+		m.rowCopyStart = append(m.rowCopyStart, rowCopyStart)
+		m.rowCopyEnd = append(m.rowCopyEnd, rowCopyEnd)
+		bb.WriteString(first + "\n")
+		// render remaining continuation lines
+		m.renderRowContinuation(&bb, r, m.lastWidths)
 		end := strings.Count(bb.String(), "\n")
 		// add non-clickable solid border below row
 		m.renderRowBottomBorder(&bb, m.lastWidths)
@@ -876,6 +900,55 @@ func (m *TUIModel) renderSimpleRow(b *strings.Builder, r TUIResultRow, widths Co
 		if isSelected {
 			line = selRowStyle.Render(line)
 		}
+		b.WriteString(line + "\n")
+	}
+}
+
+// renderRowFirstLine renders only the first visual line for a row and returns it
+func (m *TUIModel) renderRowFirstLine(r TUIResultRow, widths ColumnWidths) string {
+	copyButton := " " + okStyle.Render(copyLblStyle)
+	spaceForCurl := widths.curl - runewidth.StringWidth(copyButton)
+	if spaceForCurl < 0 {
+		spaceForCurl = 0
+	}
+	curlDisplay := r.curlCmd
+	if idx := strings.Index(r.curlCmd, "\n"); idx >= 0 {
+		curlDisplay = r.curlCmd[:idx]
+	}
+	if runewidth.StringWidth(curlDisplay) > spaceForCurl {
+		if spaceForCurl > 1 {
+			curlDisplay = runewidth.Truncate(curlDisplay, spaceForCurl-1, "") + "…"
+		} else {
+			curlDisplay = ""
+		}
+	}
+	curlCell := padRight(curlDisplay, spaceForCurl) + copyButton
+	line := fmt.Sprintf("%s | %s | %s | %s | %s | %s | %s |",
+		padRight(r.module, widths.module),
+		padRight(curlCell, widths.curl),
+		padRight(r.status, widths.status),
+		padRight(r.length, widths.length),
+		padRight(r.contentType, widths.colType),
+		padRight(r.title, widths.title),
+		padRight(r.server, widths.server))
+	return line
+}
+
+// renderRowContinuation renders all continuation lines for a row after the first
+func (m *TUIModel) renderRowContinuation(b *strings.Builder, r TUIResultRow, widths ColumnWidths) {
+	curlLines := strings.Split(r.curlCmd, "\n")
+	if len(curlLines) <= 1 {
+		return
+	}
+	for i := 1; i < len(curlLines); i++ {
+		line := fmt.Sprintf("%s | %s | %s | %s | %s | %s | %s |",
+			padRight("", widths.module),
+			padRight(curlLines[i], widths.curl),
+			padRight("", widths.status),
+			padRight("", widths.length),
+			padRight("", widths.colType),
+			padRight("", widths.title),
+			padRight("", widths.server))
 		b.WriteString(line + "\n")
 	}
 }
