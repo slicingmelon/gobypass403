@@ -20,6 +20,7 @@ import (
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/mattn/go-runewidth"
 	"github.com/slicingmelon/go-bytesutil/bytesutil"
 )
 
@@ -320,8 +321,12 @@ func (m *TUIModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.view = viewDashboard
 			case "up", "k":
 				m.selDetail = clamp(m.selDetail-1, 0, len(m.detailRows)-1)
+				m.refreshDetailsContent()
+				m.ensureSelectionVisible()
 			case "down", "j":
 				m.selDetail = clamp(m.selDetail+1, 0, len(m.detailRows)-1)
+				m.refreshDetailsContent()
+				m.ensureSelectionVisible()
 			case "c":
 				m.copyOneWithMsg(m.selDetail, false)
 			case "A":
@@ -395,10 +400,12 @@ func padRight(s string, w int) string {
 	if w <= 0 {
 		return ""
 	}
-	if len(s) >= w {
-		return s[:w]
+	// width-aware padding using runewidth
+	sw := runewidth.StringWidth(s)
+	if sw >= w {
+		return runewidth.Truncate(s, w, "")
 	}
-	return s + strings.Repeat(" ", w-len(s))
+	return s + strings.Repeat(" ", w-sw)
 }
 
 func (m *TUIModel) View() string {
@@ -705,11 +712,11 @@ func (m *TUIModel) renderSimpleHeader(b *strings.Builder, widths ColumnWidths) {
 }
 
 func (m *TUIModel) renderSimpleSeparator(b *strings.Builder, widths ColumnWidths) {
-	// Simple dotted separator line (like original results.go) including right border
+	// Group border: dotted line + solid line (top/bottom)
 	totalWidth := widths.module + 3 + widths.curl + 3 + widths.status + 3 +
 		widths.length + 3 + widths.colType + 3 + widths.title + 3 + widths.server + 2
-	separator := strings.Repeat(".", totalWidth)
-	b.WriteString(separator + "\n")
+	b.WriteString(strings.Repeat(".", totalWidth) + "\n")
+	b.WriteString(strings.Repeat("-", totalWidth) + "\n")
 }
 
 // --- viewport helpers ---
@@ -781,43 +788,43 @@ func (m *TUIModel) renderSimpleRow(b *strings.Builder, r TUIResultRow, widths Co
 			// First line: show all columns with [Copy] right-aligned inside curl column
 			copyButton := " " + okStyle.Render(copyLblStyle)
 
-			// Space available for curl text keeping room for copy label
-			spaceForCurl := widths.curl - len(copyButton)
+			// Space available for curl text keeping room for copy label (width-aware)
+			spaceForCurl := widths.curl - runewidth.StringWidth(copyButton)
 			if spaceForCurl < 0 {
 				spaceForCurl = 0
 			}
 
 			curlDisplay := curlLine
-			if len(curlDisplay) > spaceForCurl {
+			if runewidth.StringWidth(curlDisplay) > spaceForCurl {
 				// leave space for ellipsis
 				if spaceForCurl > 1 {
-					curlDisplay = curlDisplay[:spaceForCurl-1] + "…"
+					curlDisplay = runewidth.Truncate(curlDisplay, spaceForCurl-1, "") + "…"
 				} else {
 					curlDisplay = ""
 				}
 			}
 
-			// Pad the curl text to fill the column, then append right-aligned copy
-			curlCell := fmt.Sprintf("%-*s%s", spaceForCurl, curlDisplay, copyButton)
+			// Pad the curl text (width-aware), then append right-aligned copy
+			curlCell := padRight(curlDisplay, spaceForCurl) + copyButton
 
-			line = fmt.Sprintf("%-*s | %-*s | %-*s | %-*s | %-*s | %-*s | %-*s |",
-				widths.module, r.module,
-				widths.curl, curlCell,
-				widths.status, r.status,
-				widths.length, r.length,
-				widths.colType, r.contentType,
-				widths.title, r.title,
-				widths.server, r.server)
+			line = fmt.Sprintf("%s | %s | %s | %s | %s | %s | %s |",
+				padRight(r.module, widths.module),
+				padRight(curlCell, widths.curl),
+				padRight(r.status, widths.status),
+				padRight(r.length, widths.length),
+				padRight(r.contentType, widths.colType),
+				padRight(r.title, widths.title),
+				padRight(r.server, widths.server))
 		} else {
 			// Continuation lines: only show curl command (no other columns)
-			line = fmt.Sprintf("%-*s | %-*s | %-*s | %-*s | %-*s | %-*s | %-*s |",
-				widths.module, "",
-				widths.curl, curlLine,
-				widths.status, "",
-				widths.length, "",
-				widths.colType, "",
-				widths.title, "",
-				widths.server, "")
+			line = fmt.Sprintf("%s | %s | %s | %s | %s | %s | %s |",
+				padRight("", widths.module),
+				padRight(curlLine, widths.curl),
+				padRight("", widths.status),
+				padRight("", widths.length),
+				padRight("", widths.colType),
+				padRight("", widths.title),
+				padRight("", widths.server))
 		}
 
 		if isSelected {
