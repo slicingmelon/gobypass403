@@ -6,7 +6,6 @@ X: x.com/pedro_infosec
 package scanner
 
 import (
-	"fmt"
 	"sync/atomic"
 
 	"github.com/slicingmelon/go-rawurlparser"
@@ -50,6 +49,7 @@ type Scanner struct {
 	scannerOpts        *ScannerOpts
 	urls               []string
 	progressBarEnabled atomic.Bool
+	tuiController      *TUIController
 }
 
 // NewScanner creates a new Scanner instance
@@ -59,6 +59,10 @@ func NewScanner(opts *ScannerOpts, urls []string) *Scanner {
 		urls:        urls,
 	}
 	s.progressBarEnabled.Store(!opts.DisableProgressBar)
+
+	// Initialize TUI controller with target URLs
+	s.tuiController = NewTUIController(urls)
+
 	return s
 }
 
@@ -68,45 +72,42 @@ func (s *Scanner) Run() error {
 
 	GB403Logger.Info().Msgf("Initializing scanner with %d URLs", len(s.urls))
 
-	for _, url := range s.urls {
-		parsedURL, err := rawurlparser.RawURLParse(url)
-		if err != nil {
-			// Keep one error handling as reference example
-			GB403ErrorHandler.GetErrorHandler().HandleErrorAndContinue(err, GB403ErrorHandler.ErrorContext{
-				Host:         parsedURL.BaseURL(),
-				ErrorSource:  "Scanner.Run.URLParse",
-				BypassModule: s.scannerOpts.BypassModule,
-			})
-			continue
+	// Start scanning in background
+	go func() {
+		defer s.tuiController.Shutdown()
+
+		for _, url := range s.urls {
+			parsedURL, err := rawurlparser.RawURLParse(url)
+			if err != nil {
+				// Send error to TUI
+				s.tuiController.SendProgress(url, "error", 0, 0, true, err.Error())
+
+				// Keep one error handling as reference example
+				GB403ErrorHandler.GetErrorHandler().HandleErrorAndContinue(err, GB403ErrorHandler.ErrorContext{
+					Host:         parsedURL.BaseURL(),
+					ErrorSource:  "Scanner.Run.URLParse",
+					BypassModule: s.scannerOpts.BypassModule,
+				})
+				continue
+			}
+
+			// Just scan and continue on error - no need for nested error handling
+			_ = s.scanURL(url)
 		}
 
-		// Just scan and continue on error - no need for nested error handling
-		_ = s.scanURL(url)
-	}
+		// All scanning complete - show final stats
+		GB403Logger.Success().Msgf("Findings saved to %s\n",
+			s.scannerOpts.ResultsDBFile)
+		GB403ErrorHandler.GetErrorHandler().PrintErrorStats()
+	}()
 
-	fmt.Println()
-	GB403Logger.Success().Msgf("Findings saved to %s\n\n",
-		s.scannerOpts.ResultsDBFile)
-	GB403ErrorHandler.GetErrorHandler().PrintErrorStats()
-	return nil
+	// Start TUI (blocks until user quits)
+	return s.tuiController.Start()
 }
 
 func (s *Scanner) scanURL(url string) error {
-	resultCount := s.RunAllBypasses(url)
-
-	if resultCount > 0 {
-		resultsFile := s.scannerOpts.ResultsDBFile
-
-		fmt.Println()
-		if err := PrintResultsTableFromDB(url, s.scannerOpts.BypassModule); err != nil {
-			GB403Logger.Error().Msgf("Failed to display results: %v\n", err)
-		} else {
-			fmt.Println()
-			GB403Logger.Success().Msgf("%d findings saved to %s\n\n",
-				resultCount, resultsFile)
-		}
-	}
-
+	// TUI will handle all display - just run the bypass modules
+	_ = s.RunAllBypasses(url, s.tuiController)
 	return nil
 }
 

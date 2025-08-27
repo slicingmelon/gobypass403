@@ -14,7 +14,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"fortio.org/progressbar"
 	"github.com/slicingmelon/gobypass403/core/engine/payload"
 	"github.com/slicingmelon/gobypass403/core/engine/rawhttp"
 	"github.com/slicingmelon/gobypass403/core/utils/helpers"
@@ -168,7 +167,7 @@ func ResetSeenRawURIs() {
 }
 
 // Core Function
-func (s *Scanner) RunAllBypasses(targetURL string) int {
+func (s *Scanner) RunAllBypasses(targetURL string, tuiController *TUIController) int {
 	totalFindings := 0
 
 	// Reset the global seen RawURIs map for this new target URL
@@ -182,7 +181,7 @@ func (s *Scanner) RunAllBypasses(targetURL string) int {
 		}
 
 		// Now RunBypassModule returns count instead of using channels
-		findings := s.RunBypassModule(module, targetURL)
+		findings := s.RunBypassModule(module, targetURL, tuiController)
 		totalFindings += findings
 	}
 
@@ -190,7 +189,7 @@ func (s *Scanner) RunAllBypasses(targetURL string) int {
 }
 
 // Run a specific Bypass Module and return the number of findings
-func (s *Scanner) RunBypassModule(bypassModule string, targetURL string) int {
+func (s *Scanner) RunBypassModule(bypassModule string, targetURL string, tuiController *TUIController) int {
 	if !IsValidBypassModule(bypassModule) {
 		GB403Logger.Error().Msgf("Invalid bypass module: %s\n", bypassModule)
 		return 0
@@ -212,10 +211,14 @@ func (s *Scanner) RunBypassModule(bypassModule string, targetURL string) int {
 	totalJobs := len(allJobs)
 	if totalJobs == 0 {
 		GB403Logger.Warning().Msgf("No jobs generated for bypass module: %s\n", bypassModule)
+		tuiController.SendProgress(targetURL, bypassModule, 0, 0, true, "No jobs generated")
 		return 0
 	}
 
 	GB403Logger.PrintBypassModuleInfo(bypassModule, totalJobs, targetURL)
+
+	// Send initial progress to TUI
+	tuiController.SendProgress(targetURL, bypassModule, 0, totalJobs, false, "")
 
 	maxModuleNameLength := 0
 	for _, module := range payload.BypassModulesRegistry {
@@ -227,12 +230,13 @@ func (s *Scanner) RunBypassModule(bypassModule string, targetURL string) int {
 	worker := NewBypassEngagement(bypassModule, targetURL, s.scannerOpts, totalJobs)
 	defer worker.Stop()
 
-	maxConcurrentReqs := s.scannerOpts.ConcurrentRequests
+	// maxConcurrentReqs := s.scannerOpts.ConcurrentRequests // Commented out - not used with TUI
 
+	// Comment out progress bar - TUI will handle display
 	// Create formatted prefix with padding
-	prefix := bypassModule + strings.Repeat(" ", maxModuleNameLength-len(bypassModule)+1)
+	// prefix := bypassModule + strings.Repeat(" ", maxModuleNameLength-len(bypassModule)+1)
 	// Create new progress bar
-	bar := NewProgressBar(prefix, progressbar.RedBar, 1, &s.progressBarEnabled)
+	// bar := NewProgressBar(prefix, progressbar.RedBar, 1, &s.progressBarEnabled)
 
 	responses := worker.requestPool.ProcessRequests(allJobs)
 	var dbWg sync.WaitGroup
@@ -243,21 +247,23 @@ func (s *Scanner) RunBypassModule(bypassModule string, targetURL string) int {
 			continue
 		}
 
-		// Update progress bar stats here
+		// Update TUI progress
 		completed := worker.requestPool.GetReqWPCompletedTasks()
-		currentRate := worker.requestPool.GetRequestRate()
-		avgRate := worker.requestPool.GetAverageRequestRate()
+		tuiController.SendProgress(targetURL, bypassModule, int(completed), totalJobs, false, "")
 
-		msg := fmt.Sprintf(
-			"Max Concurrent [%d req] | Rate [%d req/s] Avg [%d req/s] | Completed %d/%d    ",
-			maxConcurrentReqs, currentRate, avgRate, completed, uint64(totalJobs),
-		)
-		bar.WriteAbove(msg)
+		// Comment out progress bar updates - TUI handles display
+		// currentRate := worker.requestPool.GetRequestRate()
+		// avgRate := worker.requestPool.GetAverageRequestRate()
+		// msg := fmt.Sprintf(
+		//	"Max Concurrent [%d req] | Rate [%d req/s] Avg [%d req/s] | Completed %d/%d    ",
+		//	maxConcurrentReqs, currentRate, avgRate, completed, uint64(totalJobs),
+		// )
+		// bar.WriteAbove(msg)
 
 		// Check status code - if no match, skip
 		if !matchStatusCodes(response.StatusCode, s.scannerOpts.MatchStatusCodes) {
 			rawhttp.ReleaseResponseDetails(response)
-			bar.Progress((float64(completed) / float64(totalJobs)) * 100.0)
+			// bar.Progress((float64(completed) / float64(totalJobs)) * 100.0)
 			continue
 		}
 
@@ -272,7 +278,7 @@ func (s *Scanner) RunBypassModule(bypassModule string, targetURL string) int {
 			}
 			if !contentTypeMatched {
 				rawhttp.ReleaseResponseDetails(response)
-				bar.Progress((float64(completed) / float64(totalJobs)) * 100.0)
+				// bar.Progress((float64(completed) / float64(totalJobs)) * 100.0)
 				continue
 			}
 		}
@@ -281,7 +287,7 @@ func (s *Scanner) RunBypassModule(bypassModule string, targetURL string) int {
 		if s.scannerOpts.MinContentLength > 0 {
 			if response.ContentLength < 0 || response.ContentLength < int64(s.scannerOpts.MinContentLength) {
 				rawhttp.ReleaseResponseDetails(response)
-				bar.Progress((float64(completed) / float64(totalJobs)) * 100.0)
+				// bar.Progress((float64(completed) / float64(totalJobs)) * 100.0)
 				continue
 			}
 		}
@@ -290,7 +296,7 @@ func (s *Scanner) RunBypassModule(bypassModule string, targetURL string) int {
 		if s.scannerOpts.MaxContentLength > 0 && response.ContentLength >= 0 {
 			if response.ContentLength > int64(s.scannerOpts.MaxContentLength) {
 				rawhttp.ReleaseResponseDetails(response)
-				bar.Progress((float64(completed) / float64(totalJobs)) * 100.0)
+				// bar.Progress((float64(completed) / float64(totalJobs)) * 100.0)
 				continue
 			}
 		}
@@ -316,9 +322,12 @@ func (s *Scanner) RunBypassModule(bypassModule string, targetURL string) int {
 		}
 
 		rawhttp.ReleaseResponseDetails(response)
-		progressPercent := (float64(completed) / float64(totalJobs)) * 100.0
-		progressPercent = min(progressPercent, 100.0)
-		bar.Progress(progressPercent)
+		// progressPercent := (float64(completed) / float64(totalJobs)) * 100.0
+		// progressPercent = min(progressPercent, 100.0)
+		// bar.Progress(progressPercent)
+
+		// Send result to TUI
+		tuiController.SendResult(targetURL, result)
 
 		dbWg.Add(1)
 		go func(res *Result) {
@@ -332,8 +341,9 @@ func (s *Scanner) RunBypassModule(bypassModule string, targetURL string) int {
 
 	}
 
-	bar.End()
-	fmt.Println()
+	// Comment out progress bar end - TUI handles display
+	// bar.End()
+	// fmt.Println()
 
 	// Do this:
 	// bar.End()
@@ -341,6 +351,10 @@ func (s *Scanner) RunBypassModule(bypassModule string, targetURL string) int {
 	// fmt.Printf("✓ %-20s - %d results found\n", bypassModule, int(resultCount.Load()))
 
 	dbWg.Wait()
+
+	// Send final completion status to TUI
+	finalCompleted := worker.requestPool.GetReqWPCompletedTasks()
+	tuiController.SendProgress(targetURL, bypassModule, int(finalCompleted), totalJobs, true, "")
 
 	return int(resultCount.Load())
 }
@@ -381,22 +395,23 @@ func (s *Scanner) ResendRequestFromToken(debugToken string, resendCount int) ([]
 		jobs = append(jobs, jobCopy)
 	}
 
+	// Comment out progress bar for resend - TUI not integrated here yet
 	// Create formatted prefix
-	prefix := fmt.Sprintf("[Resend] %s", bypassPayload.BypassModule)
+	// prefix := fmt.Sprintf("[Resend] %s", bypassPayload.BypassModule)
 	// Create new progress bar with wrapper - simplified
-	bar := NewProgressBar(prefix, progressbar.BlueBar, 1, &s.progressBarEnabled)
-	bar.Progress(0)
+	// bar := NewProgressBar(prefix, progressbar.BlueBar, 1, &s.progressBarEnabled)
+	// bar.Progress(0)
 
 	responses := worker.requestPool.ProcessRequests(jobs)
 	var results []*Result
 
 	for response := range responses {
-		completed := worker.requestPool.GetReqWPCompletedTasks()
+		// completed := worker.requestPool.GetReqWPCompletedTasks() // Commented out - not used with TUI
 
 		if response == nil {
-			progressPercent := (float64(completed) / float64(totalJobs)) * 100.0
-			progressPercent = min(progressPercent, 100.0)
-			bar.Progress(progressPercent)
+			// progressPercent := (float64(completed) / float64(totalJobs)) * 100.0
+			// progressPercent = min(progressPercent, 100.0)
+			// bar.Progress(progressPercent)
 			continue
 		}
 
@@ -425,30 +440,32 @@ func (s *Scanner) ResendRequestFromToken(debugToken string, resendCount int) ([]
 
 		rawhttp.ReleaseResponseDetails(response)
 
-		currentRate := worker.requestPool.GetRequestRate()
-		avgRate := worker.requestPool.GetAverageRequestRate()
-		maxConcurrentReqs := s.scannerOpts.ConcurrentRequests
+		// Comment out progress bar updates for resend
+		// currentRate := worker.requestPool.GetRequestRate()
+		// avgRate := worker.requestPool.GetAverageRequestRate()
+		// maxConcurrentReqs := s.scannerOpts.ConcurrentRequests
 
-		msg := fmt.Sprintf(
-			"Max Concurrent [%d req] | Rate [%d req/s] Avg [%d req/s] | Completed %d/%d    ",
-			maxConcurrentReqs, currentRate, avgRate, completed, uint64(totalJobs),
-		)
-		bar.WriteAbove(msg)
+		// msg := fmt.Sprintf(
+		//	"Max Concurrent [%d req] | Rate [%d req/s] Avg [%d req/s] | Completed %d/%d    ",
+		//	maxConcurrentReqs, currentRate, avgRate, completed, uint64(totalJobs),
+		// )
+		// bar.WriteAbove(msg)
 
-		progressPercent := (float64(completed) / float64(totalJobs)) * 100.0
-		progressPercent = min(progressPercent, 100.0)
-		bar.Progress(progressPercent)
+		// progressPercent := (float64(completed) / float64(totalJobs)) * 100.0
+		// progressPercent = min(progressPercent, 100.0)
+		// bar.Progress(progressPercent)
 	}
 
-	finalCompleted := worker.requestPool.GetReqWPCompletedTasks()
+	// finalCompleted := worker.requestPool.GetReqWPCompletedTasks() // Commented out - not used with TUI
 
+	// Comment out final progress bar updates for resend
 	// Calculate the final, accurate progress percentage
-	finalProgressPercent := (float64(finalCompleted) / float64(totalJobs)) * 100.0
-	finalProgressPercent = min(finalProgressPercent, 100.0)
-	bar.Progress(finalProgressPercent)
-	bar.End()
+	// finalProgressPercent := (float64(finalCompleted) / float64(totalJobs)) * 100.0
+	// finalProgressPercent = min(finalProgressPercent, 100.0)
+	// bar.Progress(finalProgressPercent)
+	// bar.End()
 
-	fmt.Println()
+	// fmt.Println()
 
 	return results, nil
 }
