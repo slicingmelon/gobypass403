@@ -331,8 +331,7 @@ func (s *Scanner) RunBypassModule(bypassModule string, targetURL string, tuiCont
 		// progressPercent = min(progressPercent, 100.0)
 		// bar.Progress(progressPercent)
 
-		// Send result to TUI
-		tuiController.SendResult(targetURL, result)
+		// Result is already stored in DB via AppendResultsToDB - TUI will query DB when needed
 
 		dbWg.Add(1)
 		go func(res *Result) {

@@ -6,6 +6,7 @@ X: x.com/pedro_infosec
 package scanner
 
 import (
+	"database/sql"
 	"encoding/base64"
 	"fmt"
 	"os/exec"
@@ -18,6 +19,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/slicingmelon/go-bytesutil/bytesutil"
 )
 
 const copyOnRowClick = false
@@ -140,11 +142,6 @@ type TUIProgressMsg struct {
 	Err      string
 }
 
-type TUIResultMsg struct {
-	Target string
-	Row    TUIResultRow
-}
-
 type TUIShutdownMsg struct{}
 
 /* ---------- TUI model ---------- */
@@ -164,9 +161,10 @@ type TUIModel struct {
 	selDash int
 
 	// details
-	activeTarget string
-	rowsByTarget map[string][]TUIResultRow
-	selDetail    int
+	activeTarget  string
+	detailRows    []TUIResultRow
+	selDetail     int
+	detailsLoaded bool
 
 	// layout
 	width int
@@ -222,9 +220,10 @@ func NewTUIModel(targetNames []string) *TUIModel {
 		ts = append(ts, TUITarget{name: n, module: "-", total: 0, done: 0, complete: false})
 	}
 	return &TUIModel{
-		view:         viewDashboard,
-		targets:      ts,
-		rowsByTarget: make(map[string][]TUIResultRow),
+		view:          viewDashboard,
+		targets:       ts,
+		detailRows:    make([]TUIResultRow, 0),
+		detailsLoaded: false,
 	}
 }
 
@@ -266,9 +265,7 @@ func (m *TUIModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			})
 		}
 
-	case TUIResultMsg:
-		r := msg.Row
-		m.rowsByTarget[msg.Target] = append(m.rowsByTarget[msg.Target], r)
+	// TUIResultMsg removed - results now queried from database
 
 	case TUIShutdownMsg:
 		return m, tea.Quit
@@ -292,6 +289,7 @@ func (m *TUIModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				if selectedTarget.complete {
 					m.activeTarget = selectedTarget.name
 					m.selDetail = 0
+					m.detailsLoaded = false // Force reload from database
 					m.view = viewDetails
 				}
 			}
@@ -303,9 +301,9 @@ func (m *TUIModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case "b", "backspace":
 				m.view = viewDashboard
 			case "up", "k":
-				m.selDetail = clamp(m.selDetail-1, 0, len(m.rowsByTarget[m.activeTarget])-1)
+				m.selDetail = clamp(m.selDetail-1, 0, len(m.detailRows)-1)
 			case "down", "j":
-				m.selDetail = clamp(m.selDetail+1, 0, len(m.rowsByTarget[m.activeTarget])-1)
+				m.selDetail = clamp(m.selDetail+1, 0, len(m.detailRows)-1)
 			case "c":
 				m.copyOneWithMsg(m.selDetail, false)
 			case "A":
@@ -324,24 +322,24 @@ func (m *TUIModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					if selectedTarget.complete {
 						m.activeTarget = selectedTarget.name
 						m.selDetail = 0
+						m.detailsLoaded = false // Force reload from database
 						m.view = viewDetails
 					}
 				}
 			}
 		case viewDetails:
-			rows := m.rowsByTarget[m.activeTarget]
-			if len(rows) > 0 {
+			if len(m.detailRows) > 0 {
 				// Handle mouse actions
 				if msg.Action == tea.MouseActionPress {
 					// Handle wheel scrolling
 					if msg.Button == tea.MouseButtonWheelUp {
-						m.selDetail = clamp(m.selDetail-3, 0, len(rows)-1)
+						m.selDetail = clamp(m.selDetail-3, 0, len(m.detailRows)-1)
 					} else if msg.Button == tea.MouseButtonWheelDown {
-						m.selDetail = clamp(m.selDetail+3, 0, len(rows)-1)
+						m.selDetail = clamp(m.selDetail+3, 0, len(m.detailRows)-1)
 					} else if msg.Button == tea.MouseButtonLeft {
 						// Handle left click
 						rowIdx := msg.Y - headerLinesDet - 2
-						if rowIdx >= 0 && rowIdx < len(rows) {
+						if rowIdx >= 0 && rowIdx < len(m.detailRows) {
 							m.selDetail = rowIdx
 							onCopy := msg.X >= m.copyStart && msg.X < m.copyEnd
 							if onCopy || copyOnRowClick {
@@ -440,8 +438,17 @@ func (m *TUIModel) viewDetails() string {
 	b.WriteString(titleStyle.Render(header) + "\n")
 	b.WriteString(mutedStyle.Render("↑/↓ move   c copy row   A copy all   b/backspace back   q quit") + "\n\n")
 
-	rows := m.rowsByTarget[m.activeTarget]
-	if len(rows) == 0 {
+	// Load results from database if not already loaded
+	if !m.detailsLoaded {
+		err := m.loadResultsFromDB()
+		if err != nil {
+			b.WriteString(failStyle.Render("Error loading results: "+err.Error()) + "\n")
+			return b.String()
+		}
+		m.detailsLoaded = true
+	}
+
+	if len(m.detailRows) == 0 {
 		b.WriteString(mutedStyle.Render("No results found for this target.") + "\n")
 		return b.String()
 	}
@@ -478,9 +485,9 @@ func (m *TUIModel) viewDetails() string {
 	m.copyStart = dColModule + 2 + curlAvail + 1 // space before [Copy]
 	m.copyEnd = m.copyStart + len(copyLblStyle)
 
-	for i, r := range rows {
-		// Format curl command - use multiline formatting like original but show preview
-		curlPreview := r.curlCmd
+	for i, r := range m.detailRows {
+		// Format curl command - show preview for display, keep full for copying
+		curlPreview := oneLine(r.curlCmd) // Convert multiline to single line for display
 		if len(curlPreview) > curlAvail {
 			curlPreview = curlPreview[:curlAvail-1] + "…"
 		}
@@ -508,37 +515,189 @@ func (m *TUIModel) viewDetails() string {
 /* ---------- actions ---------- */
 
 func (m *TUIModel) copyOneWithMsg(i int, viaCopyButton bool) {
-	rows := m.rowsByTarget[m.activeTarget]
-	if i < 0 || i >= len(rows) {
+	if i < 0 || i >= len(m.detailRows) {
 		return
 	}
-	if err := copyToClipboard(rows[i].curlCmd); err != nil {
+	if err := copyToClipboard(m.detailRows[i].curlCmd); err != nil {
 		m.statusMsg = "copy failed: " + err.Error()
 	} else {
 		if viaCopyButton {
-			m.statusMsg = "✅ copied via [Copy]: " + rows[i].module
+			m.statusMsg = "✅ copied via [Copy]: " + m.detailRows[i].module
 		} else {
-			m.statusMsg = "✅ copied via 'c': " + rows[i].module
+			m.statusMsg = "✅ copied via 'c': " + m.detailRows[i].module
 		}
 	}
 	m.statusUntil = time.Now().Add(2 * time.Second)
 }
 
 func (m *TUIModel) copyAllCurrent() {
-	rows := m.rowsByTarget[m.activeTarget]
-	if len(rows) == 0 {
+	if len(m.detailRows) == 0 {
 		return
 	}
 	var out []string
-	for _, r := range rows {
+	for _, r := range m.detailRows {
 		out = append(out, r.curlCmd)
 	}
 	if err := copyToClipboard(strings.Join(out, "\n")); err != nil {
 		m.statusMsg = "copy-all failed: " + err.Error()
 	} else {
-		m.statusMsg = fmt.Sprintf("✅ copied ALL (%d items)", len(rows))
+		m.statusMsg = fmt.Sprintf("✅ copied ALL (%d items)", len(m.detailRows))
 	}
 	m.statusUntil = time.Now().Add(2 * time.Second)
+}
+
+/* ---------- Database Query (matching original algorithm) ---------- */
+
+func (m *TUIModel) loadResultsFromDB() error {
+	// Clear existing results
+	m.detailRows = m.detailRows[:0]
+
+	// Get all modules that have been scanned for this target
+	allModules := []string{
+		"dumb_check", "case_substitution", "end_paths", "mid_paths",
+		"http_methods", "headers", "ip_hosts", "ports", "proto_schemes", "url_encode",
+	}
+
+	// Query database using EXACT same approach as PrintResultsTableFromDB
+	if err := m.queryAndProcessResults(m.activeTarget, allModules); err != nil {
+		return fmt.Errorf("failed to query results: %v", err)
+	}
+
+	return nil
+}
+
+func (m *TUIModel) queryAndProcessResults(targetURL string, queryModules []string) error {
+	// Open read-only database connection (same as original)
+	roDb, err := sql.Open("sqlite3", "file:"+dbPath+"?_journal_mode=WAL&_synchronous=NORMAL&_busy_timeout=10000&cache=shared&mode=ro")
+	if err != nil {
+		return fmt.Errorf("failed to open read-only database: %v", err)
+	}
+	defer roDb.Close()
+
+	// Configure read-only connection for optimal performance
+	roDb.SetMaxOpenConns(10)
+	roDb.SetMaxIdleConns(5)
+
+	// Build query with placeholders (EXACT same as original)
+	placeholders := strings.Repeat("?,", len(queryModules))
+	placeholders = placeholders[:len(placeholders)-1] // Remove trailing comma
+
+	query := fmt.Sprintf(`
+        SELECT 
+            bypass_module, curl_cmd, status_code, 
+            response_body_bytes, content_length, content_type, title, server_info,
+            response_body_preview
+        FROM scan_results
+        WHERE target_url = ? AND bypass_module IN (%s)
+        ORDER BY status_code ASC, bypass_module ASC, 
+                 CASE WHEN content_length > 0 THEN content_length ELSE response_body_bytes END ASC
+    `, placeholders)
+
+	// Prepare query arguments (EXACT same as original)
+	args := make([]any, len(queryModules)+1)
+	args[0] = targetURL
+	for i, module := range queryModules {
+		args[i+1] = module
+	}
+
+	// Execute query
+	stmt, err := roDb.Prepare(query)
+	if err != nil {
+		return fmt.Errorf("failed to prepare query: %v", err)
+	}
+	defer stmt.Close()
+
+	rows, err := stmt.Query(args...)
+	if err != nil {
+		return fmt.Errorf("database query error: %v", err)
+	}
+	defer rows.Close()
+
+	// Implement EXACT same grouping algorithm as original
+	type ResultGroup struct {
+		rows []TUIResultRow
+		size int
+	}
+
+	var currentModule, currentStatus string
+	var currentLength int64 = -9999 // Same as original
+	var currentGroup ResultGroup
+
+	for rows.Next() {
+		var module, curlCmd, contentType, title, serverInfo string
+		var responseBodyPreview string
+		var statusCode, responseBodyBytes int
+		var contentLength sql.NullInt64
+
+		err := rows.Scan(&module, &curlCmd, &statusCode, &responseBodyBytes,
+			&contentLength, &contentType, &title, &serverInfo,
+			&responseBodyPreview)
+		if err != nil {
+			return fmt.Errorf("failed to scan row: %v", err)
+		}
+
+		// Determine effective content length (EXACT same logic as original)
+		var lengthToDisplay int64
+		if contentLength.Valid && contentLength.Int64 > 0 {
+			lengthToDisplay = contentLength.Int64
+		} else {
+			lengthToDisplay = int64(responseBodyBytes)
+		}
+
+		statusStr := bytesutil.Itoa(statusCode)
+		lengthStr := formatBytes(lengthToDisplay)
+
+		// Check if we need to start a new group (EXACT same logic as original)
+		if module != currentModule || statusStr != currentStatus || lengthToDisplay != currentLength {
+			// If it's a major group change (module or status differs)
+			if currentModule != "" && (module != currentModule || statusStr != currentStatus) {
+				if currentGroup.size > 0 { // Flush previous group's items
+					m.detailRows = append(m.detailRows, currentGroup.rows...)
+				}
+			} else if currentGroup.size > 0 { // Else, it's only a sub-group change (same module, same status, different length)
+				// Just flush the previous group's items, no separator
+				m.detailRows = append(m.detailRows, currentGroup.rows...)
+			}
+
+			// Start new group
+			currentModule = module
+			currentStatus = statusStr
+			currentLength = lengthToDisplay
+			currentGroup = ResultGroup{
+				rows: make([]TUIResultRow, 0, 5), // Max 5 items per sub-group
+				size: 0,
+			}
+		}
+
+		// Skip if we already have 5 results for this (module, status, length) - EXACT same as original
+		if currentGroup.size >= 5 {
+			continue
+		}
+
+		// Add to current group - use multiline formatting for curl commands (EXACT same as original)
+		formattedCurl := SplitCurlPocIntoMultiLines(curlCmd, 60)
+		currentGroup.rows = append(currentGroup.rows, TUIResultRow{
+			module:      module,
+			curlCmd:     formattedCurl, // Store full multiline curl for copying
+			status:      statusStr,
+			length:      lengthStr,
+			contentType: formatContentType(contentType),
+			title:       LimitStringWithSuffix(formatValue(title), 14),
+			server:      LimitStringWithSuffix(formatValue(serverInfo), 14),
+		})
+		currentGroup.size++
+	}
+
+	// Don't forget to add the last group (EXACT same as original)
+	if currentGroup.size > 0 {
+		m.detailRows = append(m.detailRows, currentGroup.rows...)
+	}
+
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("row iteration error: %v", err)
+	}
+
+	return nil
 }
 
 /* ---------- TUI Interface ---------- */
@@ -547,7 +706,6 @@ type TUIController struct {
 	model      *TUIModel
 	program    *tea.Program
 	progressCh chan TUIProgressMsg
-	resultCh   chan TUIResultMsg
 	shutdownCh chan TUIShutdownMsg
 }
 
@@ -560,7 +718,6 @@ func NewTUIController(targetURLs []string) *TUIController {
 		model:      model,
 		program:    program,
 		progressCh: make(chan TUIProgressMsg, 100),
-		resultCh:   make(chan TUIResultMsg, 1000),
 		shutdownCh: make(chan TUIShutdownMsg, 1),
 	}
 
@@ -574,8 +731,6 @@ func (c *TUIController) relayMessages() {
 	for {
 		select {
 		case msg := <-c.progressCh:
-			c.program.Send(msg)
-		case msg := <-c.resultCh:
 			c.program.Send(msg)
 		case msg := <-c.shutdownCh:
 			c.program.Send(msg)
@@ -599,30 +754,7 @@ func (c *TUIController) SendProgress(target, module string, done, total int, com
 	}
 }
 
-func (c *TUIController) SendResult(target string, result *Result) {
-	// Format data like the original table
-	lengthStr := formatLengthTUI(result.ContentLength, result.ResponseBodyBytes)
-	contentTypeStr := formatContentType(result.ContentType)
-	titleStr := LimitStringWithSuffix(formatValue(result.Title), 14)
-	serverStr := LimitStringWithSuffix(formatValue(result.ServerInfo), 14)
-
-	select {
-	case c.resultCh <- TUIResultMsg{
-		Target: target,
-		Row: TUIResultRow{
-			module:      result.BypassModule,
-			curlCmd:     result.CurlCMD, // Keep full multiline curl
-			status:      fmt.Sprintf("%d", result.StatusCode),
-			length:      lengthStr,
-			contentType: contentTypeStr,
-			title:       titleStr,
-			server:      serverStr,
-		},
-	}:
-	default:
-		// Channel full, skip this result
-	}
-}
+// SendResult method removed - results now queried from database when needed
 
 func (c *TUIController) Start() error {
 	return c.program.Start()
@@ -639,6 +771,4 @@ func (c *TUIController) GetProgressChannel() chan<- TUIProgressMsg {
 	return c.progressCh
 }
 
-func (c *TUIController) GetResultChannel() chan<- TUIResultMsg {
-	return c.resultCh
-}
+// GetResultChannel method removed - results now queried from database when needed
