@@ -696,14 +696,11 @@ func (m *TUIModel) renderSimpleTable(b *strings.Builder, widths ColumnWidths, ro
 	// Simple table header (like original results.go)
 	m.renderSimpleHeader(b, widths)
 
-	// Calculate copy button hitbox: start of curl column plus the right-aligned [Copy]
+	// Calculate copy button hitbox: truly right-aligned in curl column
 	copyButton := " " + okStyle.Render(copyLblStyle)
 	copyButtonWidth := runewidth.StringWidth(copyButton)
-	spaceForCurl := widths.curl - copyButtonWidth
-	if spaceForCurl < 0 {
-		spaceForCurl = 0
-	}
-	m.copyStart = widths.module + 3 + spaceForCurl
+	// Copy button is now always at the right edge of the curl column
+	m.copyStart = widths.module + 3 + widths.curl - copyButtonWidth
 	m.copyEnd = m.copyStart + copyButtonWidth
 
 	// Track current group for separators (same logic as original results.go)
@@ -782,11 +779,8 @@ func (m *TUIModel) refreshDetailsContent() {
 	// recompute copy hitbox for current widths (ANSI-safe width)
 	copyButton := " " + okStyle.Render(copyLblStyle)
 	copyButtonWidth := runewidth.StringWidth(copyButton)
-	spaceForCurl := m.lastWidths.curl - copyButtonWidth
-	if spaceForCurl < 0 {
-		spaceForCurl = 0
-	}
-	m.copyStart = m.lastWidths.module + 3 + spaceForCurl
+	// Copy button is now always at the right edge of the curl column
+	m.copyStart = m.lastWidths.module + 3 + m.lastWidths.curl - copyButtonWidth
 	if m.copyStart < 0 {
 		m.copyStart = 0
 	}
@@ -819,12 +813,8 @@ func (m *TUIModel) refreshDetailsContent() {
 		// Use runewidth to match the actual rendering logic
 		copyButton := " " + okStyle.Render(copyLblStyle)
 		copyButtonWidth := runewidth.StringWidth(copyButton)
-		spaceForCurl := curlWidth - copyButtonWidth
-		if spaceForCurl < 0 {
-			spaceForCurl = 0
-		}
-		// Copy button starts after: module + " | " + curlDisplay padding + actual copy button position
-		rowCopyStart := moduleWidth + 3 + spaceForCurl
+		// Copy button is now always at the right edge of the curl column
+		rowCopyStart := moduleWidth + 3 + curlWidth - copyButtonWidth
 		rowCopyEnd := rowCopyStart + copyButtonWidth
 		m.rowCopyStart = append(m.rowCopyStart, rowCopyStart)
 		m.rowCopyEnd = append(m.rowCopyEnd, rowCopyEnd)
@@ -877,21 +867,25 @@ func (m *TUIModel) renderSimpleRow(b *strings.Builder, r TUIResultRow, widths Co
 			}
 
 			curlDisplay := curlLine
+			// Build curl cell with copy button truly right-aligned
+			// truncate curl if needed to fit with copy button
 			if runewidth.StringWidth(curlDisplay) > spaceForCurl {
-				// leave space for ellipsis
 				if spaceForCurl > 1 {
 					curlDisplay = runewidth.Truncate(curlDisplay, spaceForCurl-1, "") + "…"
 				} else {
 					curlDisplay = ""
 				}
 			}
-
-			// Pad the curl text (width-aware), then append right-aligned copy
-			curlCell := padRight(curlDisplay, spaceForCurl) + copyButton
+			// Build the cell: curl text + padding + copy button (right-aligned)
+			curlPadding := widths.curl - runewidth.StringWidth(curlDisplay) - runewidth.StringWidth(copyButton)
+			if curlPadding < 0 {
+				curlPadding = 0
+			}
+			curlCell := curlDisplay + strings.Repeat(" ", curlPadding) + copyButton
 
 			line = fmt.Sprintf("%s | %s | %s | %s | %s | %s | %s |",
 				padRight(r.module, widths.module),
-				padRight(curlCell, widths.curl),
+				curlCell, // already perfectly sized with right-aligned copy button
 				padRight(r.status, widths.status),
 				padRight(r.length, widths.length),
 				padRight(r.contentType, widths.colType),
@@ -927,6 +921,7 @@ func (m *TUIModel) renderRowFirstLine(r TUIResultRow, widths ColumnWidths) strin
 	if idx := strings.Index(r.curlCmd, "\n"); idx >= 0 {
 		curlDisplay = r.curlCmd[:idx]
 	}
+	// Truncate curl if needed to fit with copy button
 	if runewidth.StringWidth(curlDisplay) > spaceForCurl {
 		if spaceForCurl > 1 {
 			curlDisplay = runewidth.Truncate(curlDisplay, spaceForCurl-1, "") + "…"
@@ -934,10 +929,15 @@ func (m *TUIModel) renderRowFirstLine(r TUIResultRow, widths ColumnWidths) strin
 			curlDisplay = ""
 		}
 	}
-	curlCell := padRight(curlDisplay, spaceForCurl) + copyButton
+	// Build the cell: curl text + padding + copy button (right-aligned)
+	curlPadding := widths.curl - runewidth.StringWidth(curlDisplay) - runewidth.StringWidth(copyButton)
+	if curlPadding < 0 {
+		curlPadding = 0
+	}
+	curlCell := curlDisplay + strings.Repeat(" ", curlPadding) + copyButton
 	line := fmt.Sprintf("%s | %s | %s | %s | %s | %s | %s |",
 		padRight(r.module, widths.module),
-		padRight(curlCell, widths.curl),
+		curlCell, // already perfectly sized with right-aligned copy button
 		padRight(r.status, widths.status),
 		padRight(r.length, widths.length),
 		padRight(r.contentType, widths.colType),
