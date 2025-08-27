@@ -174,11 +174,12 @@ func (pg *PayloadGenerator) generateHAProxy_CVE_2023_45539(targetURL string, byp
 	// Split path into segments for multi-level injection
 	var pathSegments []string
 	trimmedPath := strings.TrimPrefix(basePath, "/")
-	if basePath == "/" {
+	switch basePath {
+	case "/":
 		pathSegments = []string{""}
-	} else if basePath == "" {
+	case "":
 		pathSegments = []string{}
-	} else {
+	default:
 		pathSegments = strings.Split(trimmedPath, "/")
 	}
 
