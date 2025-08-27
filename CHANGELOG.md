@@ -11,6 +11,9 @@
 - Updated internal `unicode_char_map.json`.
 - Updated `unicode_path_normalization` module.
 - Updated `char_encode` module.
+- New bypass module `haproxy_bypasses`, two CVEs included:
+  - CVE-2021-40346: HTTP Request Smuggling via Integer Overflow
+  - CVE-2023-45539: URL Fragment ACL Bypass
     
 # 0.8.3-0.8.4
 
