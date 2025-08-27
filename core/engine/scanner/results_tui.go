@@ -774,12 +774,12 @@ func (m *TUIModel) refreshDetailsContent() {
 		currentStatus = r.status
 		currentLength = r.length
 
-		// measure start line for this result
+		// measure start/end lines for clickable row content only
 		start := strings.Count(bb.String(), "\n")
 		m.renderSimpleRow(&bb, r, m.lastWidths, i == m.selDetail)
-		// Add solid bottom border after row
-		m.renderRowBottomBorder(&bb, m.lastWidths)
 		end := strings.Count(bb.String(), "\n")
+		// add non-clickable solid border below row
+		m.renderRowBottomBorder(&bb, m.lastWidths)
 		m.rowStarts = append(m.rowStarts, start)
 		m.rowEnds = append(m.rowEnds, end)
 	}
