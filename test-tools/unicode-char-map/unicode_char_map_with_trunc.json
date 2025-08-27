@@ -1,0 +1,5448 @@
+[
+  {
+    "ascii": 0,
+    "char": "\\0",
+    "mappings": [
+      {
+        "unicode": "Ā",
+        "utf8_bytes": "\\xC4\\x80",
+        "url_encoded": "%C4%80",
+        "normalizes_as": "\\0",
+        "normalizes_as_hex": "\\x00",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "Ȁ",
+        "utf8_bytes": "\\xC8\\x80",
+        "url_encoded": "%C8%80",
+        "normalizes_as": "\\0",
+        "normalizes_as_hex": "\\x00",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "̀",
+        "utf8_bytes": "\\xCC\\x80",
+        "url_encoded": "%CC%80",
+        "normalizes_as": "\\0",
+        "normalizes_as_hex": "\\x00",
+        "form": "TRUNCATION"
+      }
+    ]
+  },
+  {
+    "ascii": 1,
+    "char": "\\x01",
+    "mappings": [
+      {
+        "unicode": "ā",
+        "utf8_bytes": "\\xC4\\x81",
+        "url_encoded": "%C4%81",
+        "normalizes_as": "\\x01",
+        "normalizes_as_hex": "\\x01",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "ȁ",
+        "utf8_bytes": "\\xC8\\x81",
+        "url_encoded": "%C8%81",
+        "normalizes_as": "\\x01",
+        "normalizes_as_hex": "\\x01",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "́",
+        "utf8_bytes": "\\xCC\\x81",
+        "url_encoded": "%CC%81",
+        "normalizes_as": "\\x01",
+        "normalizes_as_hex": "\\x01",
+        "form": "TRUNCATION"
+      }
+    ]
+  },
+  {
+    "ascii": 2,
+    "char": "\\x02",
+    "mappings": [
+      {
+        "unicode": "Ă",
+        "utf8_bytes": "\\xC4\\x82",
+        "url_encoded": "%C4%82",
+        "normalizes_as": "\\x02",
+        "normalizes_as_hex": "\\x02",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "Ȃ",
+        "utf8_bytes": "\\xC8\\x82",
+        "url_encoded": "%C8%82",
+        "normalizes_as": "\\x02",
+        "normalizes_as_hex": "\\x02",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "̂",
+        "utf8_bytes": "\\xCC\\x82",
+        "url_encoded": "%CC%82",
+        "normalizes_as": "\\x02",
+        "normalizes_as_hex": "\\x02",
+        "form": "TRUNCATION"
+      }
+    ]
+  },
+  {
+    "ascii": 3,
+    "char": "\\x03",
+    "mappings": [
+      {
+        "unicode": "ă",
+        "utf8_bytes": "\\xC4\\x83",
+        "url_encoded": "%C4%83",
+        "normalizes_as": "\\x03",
+        "normalizes_as_hex": "\\x03",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "ȃ",
+        "utf8_bytes": "\\xC8\\x83",
+        "url_encoded": "%C8%83",
+        "normalizes_as": "\\x03",
+        "normalizes_as_hex": "\\x03",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "̃",
+        "utf8_bytes": "\\xCC\\x83",
+        "url_encoded": "%CC%83",
+        "normalizes_as": "\\x03",
+        "normalizes_as_hex": "\\x03",
+        "form": "TRUNCATION"
+      }
+    ]
+  },
+  {
+    "ascii": 4,
+    "char": "\\x04",
+    "mappings": [
+      {
+        "unicode": "Ą",
+        "utf8_bytes": "\\xC4\\x84",
+        "url_encoded": "%C4%84",
+        "normalizes_as": "\\x04",
+        "normalizes_as_hex": "\\x04",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "Ȅ",
+        "utf8_bytes": "\\xC8\\x84",
+        "url_encoded": "%C8%84",
+        "normalizes_as": "\\x04",
+        "normalizes_as_hex": "\\x04",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "̄",
+        "utf8_bytes": "\\xCC\\x84",
+        "url_encoded": "%CC%84",
+        "normalizes_as": "\\x04",
+        "normalizes_as_hex": "\\x04",
+        "form": "TRUNCATION"
+      }
+    ]
+  },
+  {
+    "ascii": 5,
+    "char": "\\x05",
+    "mappings": [
+      {
+        "unicode": "ą",
+        "utf8_bytes": "\\xC4\\x85",
+        "url_encoded": "%C4%85",
+        "normalizes_as": "\\x05",
+        "normalizes_as_hex": "\\x05",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "ȅ",
+        "utf8_bytes": "\\xC8\\x85",
+        "url_encoded": "%C8%85",
+        "normalizes_as": "\\x05",
+        "normalizes_as_hex": "\\x05",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "̅",
+        "utf8_bytes": "\\xCC\\x85",
+        "url_encoded": "%CC%85",
+        "normalizes_as": "\\x05",
+        "normalizes_as_hex": "\\x05",
+        "form": "TRUNCATION"
+      }
+    ]
+  },
+  {
+    "ascii": 6,
+    "char": "\\x06",
+    "mappings": [
+      {
+        "unicode": "Ć",
+        "utf8_bytes": "\\xC4\\x86",
+        "url_encoded": "%C4%86",
+        "normalizes_as": "\\x06",
+        "normalizes_as_hex": "\\x06",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "Ȇ",
+        "utf8_bytes": "\\xC8\\x86",
+        "url_encoded": "%C8%86",
+        "normalizes_as": "\\x06",
+        "normalizes_as_hex": "\\x06",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "̆",
+        "utf8_bytes": "\\xCC\\x86",
+        "url_encoded": "%CC%86",
+        "normalizes_as": "\\x06",
+        "normalizes_as_hex": "\\x06",
+        "form": "TRUNCATION"
+      }
+    ]
+  },
+  {
+    "ascii": 7,
+    "char": "\\x07",
+    "mappings": [
+      {
+        "unicode": "ć",
+        "utf8_bytes": "\\xC4\\x87",
+        "url_encoded": "%C4%87",
+        "normalizes_as": "\\x07",
+        "normalizes_as_hex": "\\x07",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "ȇ",
+        "utf8_bytes": "\\xC8\\x87",
+        "url_encoded": "%C8%87",
+        "normalizes_as": "\\x07",
+        "normalizes_as_hex": "\\x07",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "̇",
+        "utf8_bytes": "\\xCC\\x87",
+        "url_encoded": "%CC%87",
+        "normalizes_as": "\\x07",
+        "normalizes_as_hex": "\\x07",
+        "form": "TRUNCATION"
+      }
+    ]
+  },
+  {
+    "ascii": 8,
+    "char": "\\x08",
+    "mappings": [
+      {
+        "unicode": "Ĉ",
+        "utf8_bytes": "\\xC4\\x88",
+        "url_encoded": "%C4%88",
+        "normalizes_as": "\\x08",
+        "normalizes_as_hex": "\\x08",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "Ȉ",
+        "utf8_bytes": "\\xC8\\x88",
+        "url_encoded": "%C8%88",
+        "normalizes_as": "\\x08",
+        "normalizes_as_hex": "\\x08",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "̈",
+        "utf8_bytes": "\\xCC\\x88",
+        "url_encoded": "%CC%88",
+        "normalizes_as": "\\x08",
+        "normalizes_as_hex": "\\x08",
+        "form": "TRUNCATION"
+      }
+    ]
+  },
+  {
+    "ascii": 9,
+    "char": "\\t",
+    "mappings": [
+      {
+        "unicode": "ĉ",
+        "utf8_bytes": "\\xC4\\x89",
+        "url_encoded": "%C4%89",
+        "normalizes_as": "\\t",
+        "normalizes_as_hex": "\\x09",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "ȉ",
+        "utf8_bytes": "\\xC8\\x89",
+        "url_encoded": "%C8%89",
+        "normalizes_as": "\\t",
+        "normalizes_as_hex": "\\x09",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "̉",
+        "utf8_bytes": "\\xCC\\x89",
+        "url_encoded": "%CC%89",
+        "normalizes_as": "\\t",
+        "normalizes_as_hex": "\\x09",
+        "form": "TRUNCATION"
+      }
+    ]
+  },
+  {
+    "ascii": 10,
+    "char": "\\n",
+    "mappings": [
+      {
+        "unicode": "Ċ",
+        "utf8_bytes": "\\xC4\\x8A",
+        "url_encoded": "%C4%8A",
+        "normalizes_as": "\\n",
+        "normalizes_as_hex": "\\x0A",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "Ȋ",
+        "utf8_bytes": "\\xC8\\x8A",
+        "url_encoded": "%C8%8A",
+        "normalizes_as": "\\n",
+        "normalizes_as_hex": "\\x0A",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "̊",
+        "utf8_bytes": "\\xCC\\x8A",
+        "url_encoded": "%CC%8A",
+        "normalizes_as": "\\n",
+        "normalizes_as_hex": "\\x0A",
+        "form": "TRUNCATION"
+      }
+    ]
+  },
+  {
+    "ascii": 11,
+    "char": "\\x0B",
+    "mappings": [
+      {
+        "unicode": "ċ",
+        "utf8_bytes": "\\xC4\\x8B",
+        "url_encoded": "%C4%8B",
+        "normalizes_as": "\\x0B",
+        "normalizes_as_hex": "\\x0B",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "ȋ",
+        "utf8_bytes": "\\xC8\\x8B",
+        "url_encoded": "%C8%8B",
+        "normalizes_as": "\\x0B",
+        "normalizes_as_hex": "\\x0B",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "̋",
+        "utf8_bytes": "\\xCC\\x8B",
+        "url_encoded": "%CC%8B",
+        "normalizes_as": "\\x0B",
+        "normalizes_as_hex": "\\x0B",
+        "form": "TRUNCATION"
+      }
+    ]
+  },
+  {
+    "ascii": 12,
+    "char": "\\x0C",
+    "mappings": [
+      {
+        "unicode": "Č",
+        "utf8_bytes": "\\xC4\\x8C",
+        "url_encoded": "%C4%8C",
+        "normalizes_as": "\\x0C",
+        "normalizes_as_hex": "\\x0C",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "Ȍ",
+        "utf8_bytes": "\\xC8\\x8C",
+        "url_encoded": "%C8%8C",
+        "normalizes_as": "\\x0C",
+        "normalizes_as_hex": "\\x0C",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "̌",
+        "utf8_bytes": "\\xCC\\x8C",
+        "url_encoded": "%CC%8C",
+        "normalizes_as": "\\x0C",
+        "normalizes_as_hex": "\\x0C",
+        "form": "TRUNCATION"
+      }
+    ]
+  },
+  {
+    "ascii": 13,
+    "char": "\\r",
+    "mappings": [
+      {
+        "unicode": "č",
+        "utf8_bytes": "\\xC4\\x8D",
+        "url_encoded": "%C4%8D",
+        "normalizes_as": "\\r",
+        "normalizes_as_hex": "\\x0D",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "ȍ",
+        "utf8_bytes": "\\xC8\\x8D",
+        "url_encoded": "%C8%8D",
+        "normalizes_as": "\\r",
+        "normalizes_as_hex": "\\x0D",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "̍",
+        "utf8_bytes": "\\xCC\\x8D",
+        "url_encoded": "%CC%8D",
+        "normalizes_as": "\\r",
+        "normalizes_as_hex": "\\x0D",
+        "form": "TRUNCATION"
+      }
+    ]
+  },
+  {
+    "ascii": 14,
+    "char": "\\x0E",
+    "mappings": [
+      {
+        "unicode": "Ď",
+        "utf8_bytes": "\\xC4\\x8E",
+        "url_encoded": "%C4%8E",
+        "normalizes_as": "\\x0E",
+        "normalizes_as_hex": "\\x0E",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "Ȏ",
+        "utf8_bytes": "\\xC8\\x8E",
+        "url_encoded": "%C8%8E",
+        "normalizes_as": "\\x0E",
+        "normalizes_as_hex": "\\x0E",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "̎",
+        "utf8_bytes": "\\xCC\\x8E",
+        "url_encoded": "%CC%8E",
+        "normalizes_as": "\\x0E",
+        "normalizes_as_hex": "\\x0E",
+        "form": "TRUNCATION"
+      }
+    ]
+  },
+  {
+    "ascii": 15,
+    "char": "\\x0F",
+    "mappings": [
+      {
+        "unicode": "ď",
+        "utf8_bytes": "\\xC4\\x8F",
+        "url_encoded": "%C4%8F",
+        "normalizes_as": "\\x0F",
+        "normalizes_as_hex": "\\x0F",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "ȏ",
+        "utf8_bytes": "\\xC8\\x8F",
+        "url_encoded": "%C8%8F",
+        "normalizes_as": "\\x0F",
+        "normalizes_as_hex": "\\x0F",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "̏",
+        "utf8_bytes": "\\xCC\\x8F",
+        "url_encoded": "%CC%8F",
+        "normalizes_as": "\\x0F",
+        "normalizes_as_hex": "\\x0F",
+        "form": "TRUNCATION"
+      }
+    ]
+  },
+  {
+    "ascii": 16,
+    "char": "\\x10",
+    "mappings": [
+      {
+        "unicode": "Đ",
+        "utf8_bytes": "\\xC4\\x90",
+        "url_encoded": "%C4%90",
+        "normalizes_as": "\\x10",
+        "normalizes_as_hex": "\\x10",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "Ȑ",
+        "utf8_bytes": "\\xC8\\x90",
+        "url_encoded": "%C8%90",
+        "normalizes_as": "\\x10",
+        "normalizes_as_hex": "\\x10",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "̐",
+        "utf8_bytes": "\\xCC\\x90",
+        "url_encoded": "%CC%90",
+        "normalizes_as": "\\x10",
+        "normalizes_as_hex": "\\x10",
+        "form": "TRUNCATION"
+      }
+    ]
+  },
+  {
+    "ascii": 17,
+    "char": "\\x11",
+    "mappings": [
+      {
+        "unicode": "đ",
+        "utf8_bytes": "\\xC4\\x91",
+        "url_encoded": "%C4%91",
+        "normalizes_as": "\\x11",
+        "normalizes_as_hex": "\\x11",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "ȑ",
+        "utf8_bytes": "\\xC8\\x91",
+        "url_encoded": "%C8%91",
+        "normalizes_as": "\\x11",
+        "normalizes_as_hex": "\\x11",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "̑",
+        "utf8_bytes": "\\xCC\\x91",
+        "url_encoded": "%CC%91",
+        "normalizes_as": "\\x11",
+        "normalizes_as_hex": "\\x11",
+        "form": "TRUNCATION"
+      }
+    ]
+  },
+  {
+    "ascii": 18,
+    "char": "\\x12",
+    "mappings": [
+      {
+        "unicode": "Ē",
+        "utf8_bytes": "\\xC4\\x92",
+        "url_encoded": "%C4%92",
+        "normalizes_as": "\\x12",
+        "normalizes_as_hex": "\\x12",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "Ȓ",
+        "utf8_bytes": "\\xC8\\x92",
+        "url_encoded": "%C8%92",
+        "normalizes_as": "\\x12",
+        "normalizes_as_hex": "\\x12",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "̒",
+        "utf8_bytes": "\\xCC\\x92",
+        "url_encoded": "%CC%92",
+        "normalizes_as": "\\x12",
+        "normalizes_as_hex": "\\x12",
+        "form": "TRUNCATION"
+      }
+    ]
+  },
+  {
+    "ascii": 19,
+    "char": "\\x13",
+    "mappings": [
+      {
+        "unicode": "ē",
+        "utf8_bytes": "\\xC4\\x93",
+        "url_encoded": "%C4%93",
+        "normalizes_as": "\\x13",
+        "normalizes_as_hex": "\\x13",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "ȓ",
+        "utf8_bytes": "\\xC8\\x93",
+        "url_encoded": "%C8%93",
+        "normalizes_as": "\\x13",
+        "normalizes_as_hex": "\\x13",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "̓",
+        "utf8_bytes": "\\xCC\\x93",
+        "url_encoded": "%CC%93",
+        "normalizes_as": "\\x13",
+        "normalizes_as_hex": "\\x13",
+        "form": "TRUNCATION"
+      }
+    ]
+  },
+  {
+    "ascii": 20,
+    "char": "\\x14",
+    "mappings": [
+      {
+        "unicode": "Ĕ",
+        "utf8_bytes": "\\xC4\\x94",
+        "url_encoded": "%C4%94",
+        "normalizes_as": "\\x14",
+        "normalizes_as_hex": "\\x14",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "Ȕ",
+        "utf8_bytes": "\\xC8\\x94",
+        "url_encoded": "%C8%94",
+        "normalizes_as": "\\x14",
+        "normalizes_as_hex": "\\x14",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "̔",
+        "utf8_bytes": "\\xCC\\x94",
+        "url_encoded": "%CC%94",
+        "normalizes_as": "\\x14",
+        "normalizes_as_hex": "\\x14",
+        "form": "TRUNCATION"
+      }
+    ]
+  },
+  {
+    "ascii": 21,
+    "char": "\\x15",
+    "mappings": [
+      {
+        "unicode": "ĕ",
+        "utf8_bytes": "\\xC4\\x95",
+        "url_encoded": "%C4%95",
+        "normalizes_as": "\\x15",
+        "normalizes_as_hex": "\\x15",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "ȕ",
+        "utf8_bytes": "\\xC8\\x95",
+        "url_encoded": "%C8%95",
+        "normalizes_as": "\\x15",
+        "normalizes_as_hex": "\\x15",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "̕",
+        "utf8_bytes": "\\xCC\\x95",
+        "url_encoded": "%CC%95",
+        "normalizes_as": "\\x15",
+        "normalizes_as_hex": "\\x15",
+        "form": "TRUNCATION"
+      }
+    ]
+  },
+  {
+    "ascii": 22,
+    "char": "\\x16",
+    "mappings": [
+      {
+        "unicode": "Ė",
+        "utf8_bytes": "\\xC4\\x96",
+        "url_encoded": "%C4%96",
+        "normalizes_as": "\\x16",
+        "normalizes_as_hex": "\\x16",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "Ȗ",
+        "utf8_bytes": "\\xC8\\x96",
+        "url_encoded": "%C8%96",
+        "normalizes_as": "\\x16",
+        "normalizes_as_hex": "\\x16",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "̖",
+        "utf8_bytes": "\\xCC\\x96",
+        "url_encoded": "%CC%96",
+        "normalizes_as": "\\x16",
+        "normalizes_as_hex": "\\x16",
+        "form": "TRUNCATION"
+      }
+    ]
+  },
+  {
+    "ascii": 23,
+    "char": "\\x17",
+    "mappings": [
+      {
+        "unicode": "ė",
+        "utf8_bytes": "\\xC4\\x97",
+        "url_encoded": "%C4%97",
+        "normalizes_as": "\\x17",
+        "normalizes_as_hex": "\\x17",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "ȗ",
+        "utf8_bytes": "\\xC8\\x97",
+        "url_encoded": "%C8%97",
+        "normalizes_as": "\\x17",
+        "normalizes_as_hex": "\\x17",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "̗",
+        "utf8_bytes": "\\xCC\\x97",
+        "url_encoded": "%CC%97",
+        "normalizes_as": "\\x17",
+        "normalizes_as_hex": "\\x17",
+        "form": "TRUNCATION"
+      }
+    ]
+  },
+  {
+    "ascii": 24,
+    "char": "\\x18",
+    "mappings": [
+      {
+        "unicode": "Ę",
+        "utf8_bytes": "\\xC4\\x98",
+        "url_encoded": "%C4%98",
+        "normalizes_as": "\\x18",
+        "normalizes_as_hex": "\\x18",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "Ș",
+        "utf8_bytes": "\\xC8\\x98",
+        "url_encoded": "%C8%98",
+        "normalizes_as": "\\x18",
+        "normalizes_as_hex": "\\x18",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "̘",
+        "utf8_bytes": "\\xCC\\x98",
+        "url_encoded": "%CC%98",
+        "normalizes_as": "\\x18",
+        "normalizes_as_hex": "\\x18",
+        "form": "TRUNCATION"
+      }
+    ]
+  },
+  {
+    "ascii": 25,
+    "char": "\\x19",
+    "mappings": [
+      {
+        "unicode": "ę",
+        "utf8_bytes": "\\xC4\\x99",
+        "url_encoded": "%C4%99",
+        "normalizes_as": "\\x19",
+        "normalizes_as_hex": "\\x19",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "ș",
+        "utf8_bytes": "\\xC8\\x99",
+        "url_encoded": "%C8%99",
+        "normalizes_as": "\\x19",
+        "normalizes_as_hex": "\\x19",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "̙",
+        "utf8_bytes": "\\xCC\\x99",
+        "url_encoded": "%CC%99",
+        "normalizes_as": "\\x19",
+        "normalizes_as_hex": "\\x19",
+        "form": "TRUNCATION"
+      }
+    ]
+  },
+  {
+    "ascii": 26,
+    "char": "\\x1A",
+    "mappings": [
+      {
+        "unicode": "Ě",
+        "utf8_bytes": "\\xC4\\x9A",
+        "url_encoded": "%C4%9A",
+        "normalizes_as": "\\x1A",
+        "normalizes_as_hex": "\\x1A",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "Ț",
+        "utf8_bytes": "\\xC8\\x9A",
+        "url_encoded": "%C8%9A",
+        "normalizes_as": "\\x1A",
+        "normalizes_as_hex": "\\x1A",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "̚",
+        "utf8_bytes": "\\xCC\\x9A",
+        "url_encoded": "%CC%9A",
+        "normalizes_as": "\\x1A",
+        "normalizes_as_hex": "\\x1A",
+        "form": "TRUNCATION"
+      }
+    ]
+  },
+  {
+    "ascii": 27,
+    "char": "\\x1B",
+    "mappings": [
+      {
+        "unicode": "ě",
+        "utf8_bytes": "\\xC4\\x9B",
+        "url_encoded": "%C4%9B",
+        "normalizes_as": "\\x1B",
+        "normalizes_as_hex": "\\x1B",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "ț",
+        "utf8_bytes": "\\xC8\\x9B",
+        "url_encoded": "%C8%9B",
+        "normalizes_as": "\\x1B",
+        "normalizes_as_hex": "\\x1B",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "̛",
+        "utf8_bytes": "\\xCC\\x9B",
+        "url_encoded": "%CC%9B",
+        "normalizes_as": "\\x1B",
+        "normalizes_as_hex": "\\x1B",
+        "form": "TRUNCATION"
+      }
+    ]
+  },
+  {
+    "ascii": 28,
+    "char": "\\x1C",
+    "mappings": [
+      {
+        "unicode": "Ĝ",
+        "utf8_bytes": "\\xC4\\x9C",
+        "url_encoded": "%C4%9C",
+        "normalizes_as": "\\x1C",
+        "normalizes_as_hex": "\\x1C",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "Ȝ",
+        "utf8_bytes": "\\xC8\\x9C",
+        "url_encoded": "%C8%9C",
+        "normalizes_as": "\\x1C",
+        "normalizes_as_hex": "\\x1C",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "̜",
+        "utf8_bytes": "\\xCC\\x9C",
+        "url_encoded": "%CC%9C",
+        "normalizes_as": "\\x1C",
+        "normalizes_as_hex": "\\x1C",
+        "form": "TRUNCATION"
+      }
+    ]
+  },
+  {
+    "ascii": 29,
+    "char": "\\x1D",
+    "mappings": [
+      {
+        "unicode": "ĝ",
+        "utf8_bytes": "\\xC4\\x9D",
+        "url_encoded": "%C4%9D",
+        "normalizes_as": "\\x1D",
+        "normalizes_as_hex": "\\x1D",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "ȝ",
+        "utf8_bytes": "\\xC8\\x9D",
+        "url_encoded": "%C8%9D",
+        "normalizes_as": "\\x1D",
+        "normalizes_as_hex": "\\x1D",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "̝",
+        "utf8_bytes": "\\xCC\\x9D",
+        "url_encoded": "%CC%9D",
+        "normalizes_as": "\\x1D",
+        "normalizes_as_hex": "\\x1D",
+        "form": "TRUNCATION"
+      }
+    ]
+  },
+  {
+    "ascii": 30,
+    "char": "\\x1E",
+    "mappings": [
+      {
+        "unicode": "Ğ",
+        "utf8_bytes": "\\xC4\\x9E",
+        "url_encoded": "%C4%9E",
+        "normalizes_as": "\\x1E",
+        "normalizes_as_hex": "\\x1E",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "Ȟ",
+        "utf8_bytes": "\\xC8\\x9E",
+        "url_encoded": "%C8%9E",
+        "normalizes_as": "\\x1E",
+        "normalizes_as_hex": "\\x1E",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "̞",
+        "utf8_bytes": "\\xCC\\x9E",
+        "url_encoded": "%CC%9E",
+        "normalizes_as": "\\x1E",
+        "normalizes_as_hex": "\\x1E",
+        "form": "TRUNCATION"
+      }
+    ]
+  },
+  {
+    "ascii": 31,
+    "char": "\\x1F",
+    "mappings": [
+      {
+        "unicode": "ğ",
+        "utf8_bytes": "\\xC4\\x9F",
+        "url_encoded": "%C4%9F",
+        "normalizes_as": "\\x1F",
+        "normalizes_as_hex": "\\x1F",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "ȟ",
+        "utf8_bytes": "\\xC8\\x9F",
+        "url_encoded": "%C8%9F",
+        "normalizes_as": "\\x1F",
+        "normalizes_as_hex": "\\x1F",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "̟",
+        "utf8_bytes": "\\xCC\\x9F",
+        "url_encoded": "%CC%9F",
+        "normalizes_as": "\\x1F",
+        "normalizes_as_hex": "\\x1F",
+        "form": "TRUNCATION"
+      }
+    ]
+  },
+  {
+    "ascii": 32,
+    "char": " ",
+    "mappings": [
+      {
+        "unicode": " ",
+        "utf8_bytes": "\\x20",
+        "url_encoded": "%20",
+        "normalizes_as": " ",
+        "normalizes_as_hex": "\\x20",
+        "form": "NFKC"
+      },
+      {
+        "unicode": " ",
+        "utf8_bytes": "\\xC2\\xA0",
+        "url_encoded": "%C2%A0",
+        "normalizes_as": " ",
+        "normalizes_as_hex": "\\x20",
+        "form": "NFKC"
+      },
+      {
+        "unicode": " ",
+        "utf8_bytes": "\\xE2\\x80\\x80",
+        "url_encoded": "%E2%80%80",
+        "normalizes_as": " ",
+        "normalizes_as_hex": "\\x20",
+        "form": "NFKC"
+      },
+      {
+        "unicode": " ",
+        "utf8_bytes": "\\xE2\\x80\\x81",
+        "url_encoded": "%E2%80%81",
+        "normalizes_as": " ",
+        "normalizes_as_hex": "\\x20",
+        "form": "NFKC"
+      },
+      {
+        "unicode": " ",
+        "utf8_bytes": "\\xE2\\x80\\x82",
+        "url_encoded": "%E2%80%82",
+        "normalizes_as": " ",
+        "normalizes_as_hex": "\\x20",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "Ġ",
+        "utf8_bytes": "\\xC4\\xA0",
+        "url_encoded": "%C4%A0",
+        "normalizes_as": " ",
+        "normalizes_as_hex": "\\x20",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "Ƞ",
+        "utf8_bytes": "\\xC8\\xA0",
+        "url_encoded": "%C8%A0",
+        "normalizes_as": " ",
+        "normalizes_as_hex": "\\x20",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "̠",
+        "utf8_bytes": "\\xCC\\xA0",
+        "url_encoded": "%CC%A0",
+        "normalizes_as": " ",
+        "normalizes_as_hex": "\\x20",
+        "form": "TRUNCATION"
+      }
+    ]
+  },
+  {
+    "ascii": 33,
+    "char": "!",
+    "mappings": [
+      {
+        "unicode": "!",
+        "utf8_bytes": "\\x21",
+        "url_encoded": "%21",
+        "normalizes_as": "!",
+        "normalizes_as_hex": "\\x21",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "︕",
+        "utf8_bytes": "\\xEF\\xB8\\x95",
+        "url_encoded": "%EF%B8%95",
+        "normalizes_as": "!",
+        "normalizes_as_hex": "\\x21",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "﹗",
+        "utf8_bytes": "\\xEF\\xB9\\x97",
+        "url_encoded": "%EF%B9%97",
+        "normalizes_as": "!",
+        "normalizes_as_hex": "\\x21",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "！",
+        "utf8_bytes": "\\xEF\\xBC\\x81",
+        "url_encoded": "%EF%BC%81",
+        "normalizes_as": "!",
+        "normalizes_as_hex": "\\x21",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ġ",
+        "utf8_bytes": "\\xC4\\xA1",
+        "url_encoded": "%C4%A1",
+        "normalizes_as": "!",
+        "normalizes_as_hex": "\\x21",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "ȡ",
+        "utf8_bytes": "\\xC8\\xA1",
+        "url_encoded": "%C8%A1",
+        "normalizes_as": "!",
+        "normalizes_as_hex": "\\x21",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "̡",
+        "utf8_bytes": "\\xCC\\xA1",
+        "url_encoded": "%CC%A1",
+        "normalizes_as": "!",
+        "normalizes_as_hex": "\\x21",
+        "form": "TRUNCATION"
+      }
+    ]
+  },
+  {
+    "ascii": 34,
+    "char": "\"",
+    "mappings": [
+      {
+        "unicode": "\"",
+        "utf8_bytes": "\\x22",
+        "url_encoded": "%22",
+        "normalizes_as": "\"",
+        "normalizes_as_hex": "\\x22",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "＂",
+        "utf8_bytes": "\\xEF\\xBC\\x82",
+        "url_encoded": "%EF%BC%82",
+        "normalizes_as": "\"",
+        "normalizes_as_hex": "\\x22",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "Ģ",
+        "utf8_bytes": "\\xC4\\xA2",
+        "url_encoded": "%C4%A2",
+        "normalizes_as": "\"",
+        "normalizes_as_hex": "\\x22",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "Ȣ",
+        "utf8_bytes": "\\xC8\\xA2",
+        "url_encoded": "%C8%A2",
+        "normalizes_as": "\"",
+        "normalizes_as_hex": "\\x22",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "̢",
+        "utf8_bytes": "\\xCC\\xA2",
+        "url_encoded": "%CC%A2",
+        "normalizes_as": "\"",
+        "normalizes_as_hex": "\\x22",
+        "form": "TRUNCATION"
+      }
+    ]
+  },
+  {
+    "ascii": 35,
+    "char": "#",
+    "mappings": [
+      {
+        "unicode": "#",
+        "utf8_bytes": "\\x23",
+        "url_encoded": "%23",
+        "normalizes_as": "#",
+        "normalizes_as_hex": "\\x23",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "﹟",
+        "utf8_bytes": "\\xEF\\xB9\\x9F",
+        "url_encoded": "%EF%B9%9F",
+        "normalizes_as": "#",
+        "normalizes_as_hex": "\\x23",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "＃",
+        "utf8_bytes": "\\xEF\\xBC\\x83",
+        "url_encoded": "%EF%BC%83",
+        "normalizes_as": "#",
+        "normalizes_as_hex": "\\x23",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ģ",
+        "utf8_bytes": "\\xC4\\xA3",
+        "url_encoded": "%C4%A3",
+        "normalizes_as": "#",
+        "normalizes_as_hex": "\\x23",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "ȣ",
+        "utf8_bytes": "\\xC8\\xA3",
+        "url_encoded": "%C8%A3",
+        "normalizes_as": "#",
+        "normalizes_as_hex": "\\x23",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "̣",
+        "utf8_bytes": "\\xCC\\xA3",
+        "url_encoded": "%CC%A3",
+        "normalizes_as": "#",
+        "normalizes_as_hex": "\\x23",
+        "form": "TRUNCATION"
+      }
+    ]
+  },
+  {
+    "ascii": 36,
+    "char": "$",
+    "mappings": [
+      {
+        "unicode": "$",
+        "utf8_bytes": "\\x24",
+        "url_encoded": "%24",
+        "normalizes_as": "$",
+        "normalizes_as_hex": "\\x24",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "﹩",
+        "utf8_bytes": "\\xEF\\xB9\\xA9",
+        "url_encoded": "%EF%B9%A9",
+        "normalizes_as": "$",
+        "normalizes_as_hex": "\\x24",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "＄",
+        "utf8_bytes": "\\xEF\\xBC\\x84",
+        "url_encoded": "%EF%BC%84",
+        "normalizes_as": "$",
+        "normalizes_as_hex": "\\x24",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "Ĥ",
+        "utf8_bytes": "\\xC4\\xA4",
+        "url_encoded": "%C4%A4",
+        "normalizes_as": "$",
+        "normalizes_as_hex": "\\x24",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "Ȥ",
+        "utf8_bytes": "\\xC8\\xA4",
+        "url_encoded": "%C8%A4",
+        "normalizes_as": "$",
+        "normalizes_as_hex": "\\x24",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "̤",
+        "utf8_bytes": "\\xCC\\xA4",
+        "url_encoded": "%CC%A4",
+        "normalizes_as": "$",
+        "normalizes_as_hex": "\\x24",
+        "form": "TRUNCATION"
+      }
+    ]
+  },
+  {
+    "ascii": 37,
+    "char": "%",
+    "mappings": [
+      {
+        "unicode": "%",
+        "utf8_bytes": "\\x25",
+        "url_encoded": "%25",
+        "normalizes_as": "%",
+        "normalizes_as_hex": "\\x25",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "﹪",
+        "utf8_bytes": "\\xEF\\xB9\\xAA",
+        "url_encoded": "%EF%B9%AA",
+        "normalizes_as": "%",
+        "normalizes_as_hex": "\\x25",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "％",
+        "utf8_bytes": "\\xEF\\xBC\\x85",
+        "url_encoded": "%EF%BC%85",
+        "normalizes_as": "%",
+        "normalizes_as_hex": "\\x25",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ĥ",
+        "utf8_bytes": "\\xC4\\xA5",
+        "url_encoded": "%C4%A5",
+        "normalizes_as": "%",
+        "normalizes_as_hex": "\\x25",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "ȥ",
+        "utf8_bytes": "\\xC8\\xA5",
+        "url_encoded": "%C8%A5",
+        "normalizes_as": "%",
+        "normalizes_as_hex": "\\x25",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "̥",
+        "utf8_bytes": "\\xCC\\xA5",
+        "url_encoded": "%CC%A5",
+        "normalizes_as": "%",
+        "normalizes_as_hex": "\\x25",
+        "form": "TRUNCATION"
+      }
+    ]
+  },
+  {
+    "ascii": 38,
+    "char": "\u0026",
+    "mappings": [
+      {
+        "unicode": "\u0026",
+        "utf8_bytes": "\\x26",
+        "url_encoded": "%26",
+        "normalizes_as": "\u0026",
+        "normalizes_as_hex": "\\x26",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "﹠",
+        "utf8_bytes": "\\xEF\\xB9\\xA0",
+        "url_encoded": "%EF%B9%A0",
+        "normalizes_as": "\u0026",
+        "normalizes_as_hex": "\\x26",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "＆",
+        "utf8_bytes": "\\xEF\\xBC\\x86",
+        "url_encoded": "%EF%BC%86",
+        "normalizes_as": "\u0026",
+        "normalizes_as_hex": "\\x26",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "Ħ",
+        "utf8_bytes": "\\xC4\\xA6",
+        "url_encoded": "%C4%A6",
+        "normalizes_as": "\u0026",
+        "normalizes_as_hex": "\\x26",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "Ȧ",
+        "utf8_bytes": "\\xC8\\xA6",
+        "url_encoded": "%C8%A6",
+        "normalizes_as": "\u0026",
+        "normalizes_as_hex": "\\x26",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "̦",
+        "utf8_bytes": "\\xCC\\xA6",
+        "url_encoded": "%CC%A6",
+        "normalizes_as": "\u0026",
+        "normalizes_as_hex": "\\x26",
+        "form": "TRUNCATION"
+      }
+    ]
+  },
+  {
+    "ascii": 39,
+    "char": "'",
+    "mappings": [
+      {
+        "unicode": "'",
+        "utf8_bytes": "\\x27",
+        "url_encoded": "%27",
+        "normalizes_as": "'",
+        "normalizes_as_hex": "\\x27",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "＇",
+        "utf8_bytes": "\\xEF\\xBC\\x87",
+        "url_encoded": "%EF%BC%87",
+        "normalizes_as": "'",
+        "normalizes_as_hex": "\\x27",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ħ",
+        "utf8_bytes": "\\xC4\\xA7",
+        "url_encoded": "%C4%A7",
+        "normalizes_as": "'",
+        "normalizes_as_hex": "\\x27",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "ȧ",
+        "utf8_bytes": "\\xC8\\xA7",
+        "url_encoded": "%C8%A7",
+        "normalizes_as": "'",
+        "normalizes_as_hex": "\\x27",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "̧",
+        "utf8_bytes": "\\xCC\\xA7",
+        "url_encoded": "%CC%A7",
+        "normalizes_as": "'",
+        "normalizes_as_hex": "\\x27",
+        "form": "TRUNCATION"
+      }
+    ]
+  },
+  {
+    "ascii": 40,
+    "char": "(",
+    "mappings": [
+      {
+        "unicode": "(",
+        "utf8_bytes": "\\x28",
+        "url_encoded": "%28",
+        "normalizes_as": "(",
+        "normalizes_as_hex": "\\x28",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "⁽",
+        "utf8_bytes": "\\xE2\\x81\\xBD",
+        "url_encoded": "%E2%81%BD",
+        "normalizes_as": "(",
+        "normalizes_as_hex": "\\x28",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "₍",
+        "utf8_bytes": "\\xE2\\x82\\x8D",
+        "url_encoded": "%E2%82%8D",
+        "normalizes_as": "(",
+        "normalizes_as_hex": "\\x28",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "︵",
+        "utf8_bytes": "\\xEF\\xB8\\xB5",
+        "url_encoded": "%EF%B8%B5",
+        "normalizes_as": "(",
+        "normalizes_as_hex": "\\x28",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "﹙",
+        "utf8_bytes": "\\xEF\\xB9\\x99",
+        "url_encoded": "%EF%B9%99",
+        "normalizes_as": "(",
+        "normalizes_as_hex": "\\x28",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "Ĩ",
+        "utf8_bytes": "\\xC4\\xA8",
+        "url_encoded": "%C4%A8",
+        "normalizes_as": "(",
+        "normalizes_as_hex": "\\x28",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "Ȩ",
+        "utf8_bytes": "\\xC8\\xA8",
+        "url_encoded": "%C8%A8",
+        "normalizes_as": "(",
+        "normalizes_as_hex": "\\x28",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "̨",
+        "utf8_bytes": "\\xCC\\xA8",
+        "url_encoded": "%CC%A8",
+        "normalizes_as": "(",
+        "normalizes_as_hex": "\\x28",
+        "form": "TRUNCATION"
+      }
+    ]
+  },
+  {
+    "ascii": 41,
+    "char": ")",
+    "mappings": [
+      {
+        "unicode": ")",
+        "utf8_bytes": "\\x29",
+        "url_encoded": "%29",
+        "normalizes_as": ")",
+        "normalizes_as_hex": "\\x29",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "⁾",
+        "utf8_bytes": "\\xE2\\x81\\xBE",
+        "url_encoded": "%E2%81%BE",
+        "normalizes_as": ")",
+        "normalizes_as_hex": "\\x29",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "₎",
+        "utf8_bytes": "\\xE2\\x82\\x8E",
+        "url_encoded": "%E2%82%8E",
+        "normalizes_as": ")",
+        "normalizes_as_hex": "\\x29",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "︶",
+        "utf8_bytes": "\\xEF\\xB8\\xB6",
+        "url_encoded": "%EF%B8%B6",
+        "normalizes_as": ")",
+        "normalizes_as_hex": "\\x29",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "﹚",
+        "utf8_bytes": "\\xEF\\xB9\\x9A",
+        "url_encoded": "%EF%B9%9A",
+        "normalizes_as": ")",
+        "normalizes_as_hex": "\\x29",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ĩ",
+        "utf8_bytes": "\\xC4\\xA9",
+        "url_encoded": "%C4%A9",
+        "normalizes_as": ")",
+        "normalizes_as_hex": "\\x29",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "ȩ",
+        "utf8_bytes": "\\xC8\\xA9",
+        "url_encoded": "%C8%A9",
+        "normalizes_as": ")",
+        "normalizes_as_hex": "\\x29",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "̩",
+        "utf8_bytes": "\\xCC\\xA9",
+        "url_encoded": "%CC%A9",
+        "normalizes_as": ")",
+        "normalizes_as_hex": "\\x29",
+        "form": "TRUNCATION"
+      }
+    ]
+  },
+  {
+    "ascii": 42,
+    "char": "*",
+    "mappings": [
+      {
+        "unicode": "*",
+        "utf8_bytes": "\\x2A",
+        "url_encoded": "%2A",
+        "normalizes_as": "*",
+        "normalizes_as_hex": "\\x2A",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "﹡",
+        "utf8_bytes": "\\xEF\\xB9\\xA1",
+        "url_encoded": "%EF%B9%A1",
+        "normalizes_as": "*",
+        "normalizes_as_hex": "\\x2A",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "＊",
+        "utf8_bytes": "\\xEF\\xBC\\x8A",
+        "url_encoded": "%EF%BC%8A",
+        "normalizes_as": "*",
+        "normalizes_as_hex": "\\x2A",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "Ī",
+        "utf8_bytes": "\\xC4\\xAA",
+        "url_encoded": "%C4%AA",
+        "normalizes_as": "*",
+        "normalizes_as_hex": "\\x2A",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "Ȫ",
+        "utf8_bytes": "\\xC8\\xAA",
+        "url_encoded": "%C8%AA",
+        "normalizes_as": "*",
+        "normalizes_as_hex": "\\x2A",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "̪",
+        "utf8_bytes": "\\xCC\\xAA",
+        "url_encoded": "%CC%AA",
+        "normalizes_as": "*",
+        "normalizes_as_hex": "\\x2A",
+        "form": "TRUNCATION"
+      }
+    ]
+  },
+  {
+    "ascii": 43,
+    "char": "+",
+    "mappings": [
+      {
+        "unicode": "+",
+        "utf8_bytes": "\\x2B",
+        "url_encoded": "%2B",
+        "normalizes_as": "+",
+        "normalizes_as_hex": "\\x2B",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "⁺",
+        "utf8_bytes": "\\xE2\\x81\\xBA",
+        "url_encoded": "%E2%81%BA",
+        "normalizes_as": "+",
+        "normalizes_as_hex": "\\x2B",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "₊",
+        "utf8_bytes": "\\xE2\\x82\\x8A",
+        "url_encoded": "%E2%82%8A",
+        "normalizes_as": "+",
+        "normalizes_as_hex": "\\x2B",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "﬩",
+        "utf8_bytes": "\\xEF\\xAC\\xA9",
+        "url_encoded": "%EF%AC%A9",
+        "normalizes_as": "+",
+        "normalizes_as_hex": "\\x2B",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "﹢",
+        "utf8_bytes": "\\xEF\\xB9\\xA2",
+        "url_encoded": "%EF%B9%A2",
+        "normalizes_as": "+",
+        "normalizes_as_hex": "\\x2B",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ī",
+        "utf8_bytes": "\\xC4\\xAB",
+        "url_encoded": "%C4%AB",
+        "normalizes_as": "+",
+        "normalizes_as_hex": "\\x2B",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "ȫ",
+        "utf8_bytes": "\\xC8\\xAB",
+        "url_encoded": "%C8%AB",
+        "normalizes_as": "+",
+        "normalizes_as_hex": "\\x2B",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "̫",
+        "utf8_bytes": "\\xCC\\xAB",
+        "url_encoded": "%CC%AB",
+        "normalizes_as": "+",
+        "normalizes_as_hex": "\\x2B",
+        "form": "TRUNCATION"
+      }
+    ]
+  },
+  {
+    "ascii": 44,
+    "char": ",",
+    "mappings": [
+      {
+        "unicode": ",",
+        "utf8_bytes": "\\x2C",
+        "url_encoded": "%2C",
+        "normalizes_as": ",",
+        "normalizes_as_hex": "\\x2C",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "︐",
+        "utf8_bytes": "\\xEF\\xB8\\x90",
+        "url_encoded": "%EF%B8%90",
+        "normalizes_as": ",",
+        "normalizes_as_hex": "\\x2C",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "﹐",
+        "utf8_bytes": "\\xEF\\xB9\\x90",
+        "url_encoded": "%EF%B9%90",
+        "normalizes_as": ",",
+        "normalizes_as_hex": "\\x2C",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "，",
+        "utf8_bytes": "\\xEF\\xBC\\x8C",
+        "url_encoded": "%EF%BC%8C",
+        "normalizes_as": ",",
+        "normalizes_as_hex": "\\x2C",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "Ĭ",
+        "utf8_bytes": "\\xC4\\xAC",
+        "url_encoded": "%C4%AC",
+        "normalizes_as": ",",
+        "normalizes_as_hex": "\\x2C",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "Ȭ",
+        "utf8_bytes": "\\xC8\\xAC",
+        "url_encoded": "%C8%AC",
+        "normalizes_as": ",",
+        "normalizes_as_hex": "\\x2C",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "̬",
+        "utf8_bytes": "\\xCC\\xAC",
+        "url_encoded": "%CC%AC",
+        "normalizes_as": ",",
+        "normalizes_as_hex": "\\x2C",
+        "form": "TRUNCATION"
+      }
+    ]
+  },
+  {
+    "ascii": 45,
+    "char": "-",
+    "mappings": [
+      {
+        "unicode": "-",
+        "utf8_bytes": "\\x2D",
+        "url_encoded": "%2D",
+        "normalizes_as": "-",
+        "normalizes_as_hex": "\\x2D",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "﹣",
+        "utf8_bytes": "\\xEF\\xB9\\xA3",
+        "url_encoded": "%EF%B9%A3",
+        "normalizes_as": "-",
+        "normalizes_as_hex": "\\x2D",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "－",
+        "utf8_bytes": "\\xEF\\xBC\\x8D",
+        "url_encoded": "%EF%BC%8D",
+        "normalizes_as": "-",
+        "normalizes_as_hex": "\\x2D",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ĭ",
+        "utf8_bytes": "\\xC4\\xAD",
+        "url_encoded": "%C4%AD",
+        "normalizes_as": "-",
+        "normalizes_as_hex": "\\x2D",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "ȭ",
+        "utf8_bytes": "\\xC8\\xAD",
+        "url_encoded": "%C8%AD",
+        "normalizes_as": "-",
+        "normalizes_as_hex": "\\x2D",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "̭",
+        "utf8_bytes": "\\xCC\\xAD",
+        "url_encoded": "%CC%AD",
+        "normalizes_as": "-",
+        "normalizes_as_hex": "\\x2D",
+        "form": "TRUNCATION"
+      }
+    ]
+  },
+  {
+    "ascii": 46,
+    "char": ".",
+    "mappings": [
+      {
+        "unicode": ".",
+        "utf8_bytes": "\\x2E",
+        "url_encoded": "%2E",
+        "normalizes_as": ".",
+        "normalizes_as_hex": "\\x2E",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "․",
+        "utf8_bytes": "\\xE2\\x80\\xA4",
+        "url_encoded": "%E2%80%A4",
+        "normalizes_as": ".",
+        "normalizes_as_hex": "\\x2E",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "﹒",
+        "utf8_bytes": "\\xEF\\xB9\\x92",
+        "url_encoded": "%EF%B9%92",
+        "normalizes_as": ".",
+        "normalizes_as_hex": "\\x2E",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "．",
+        "utf8_bytes": "\\xEF\\xBC\\x8E",
+        "url_encoded": "%EF%BC%8E",
+        "normalizes_as": ".",
+        "normalizes_as_hex": "\\x2E",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "Į",
+        "utf8_bytes": "\\xC4\\xAE",
+        "url_encoded": "%C4%AE",
+        "normalizes_as": ".",
+        "normalizes_as_hex": "\\x2E",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "Ȯ",
+        "utf8_bytes": "\\xC8\\xAE",
+        "url_encoded": "%C8%AE",
+        "normalizes_as": ".",
+        "normalizes_as_hex": "\\x2E",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "̮",
+        "utf8_bytes": "\\xCC\\xAE",
+        "url_encoded": "%CC%AE",
+        "normalizes_as": ".",
+        "normalizes_as_hex": "\\x2E",
+        "form": "TRUNCATION"
+      }
+    ]
+  },
+  {
+    "ascii": 47,
+    "char": "/",
+    "mappings": [
+      {
+        "unicode": "/",
+        "utf8_bytes": "\\x2F",
+        "url_encoded": "%2F",
+        "normalizes_as": "/",
+        "normalizes_as_hex": "\\x2F",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "／",
+        "utf8_bytes": "\\xEF\\xBC\\x8F",
+        "url_encoded": "%EF%BC%8F",
+        "normalizes_as": "/",
+        "normalizes_as_hex": "\\x2F",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "į",
+        "utf8_bytes": "\\xC4\\xAF",
+        "url_encoded": "%C4%AF",
+        "normalizes_as": "/",
+        "normalizes_as_hex": "\\x2F",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "ȯ",
+        "utf8_bytes": "\\xC8\\xAF",
+        "url_encoded": "%C8%AF",
+        "normalizes_as": "/",
+        "normalizes_as_hex": "\\x2F",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "̯",
+        "utf8_bytes": "\\xCC\\xAF",
+        "url_encoded": "%CC%AF",
+        "normalizes_as": "/",
+        "normalizes_as_hex": "\\x2F",
+        "form": "TRUNCATION"
+      }
+    ]
+  },
+  {
+    "ascii": 48,
+    "char": "0",
+    "mappings": [
+      {
+        "unicode": "0",
+        "utf8_bytes": "\\x30",
+        "url_encoded": "%30",
+        "normalizes_as": "0",
+        "normalizes_as_hex": "\\x30",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "⁰",
+        "utf8_bytes": "\\xE2\\x81\\xB0",
+        "url_encoded": "%E2%81%B0",
+        "normalizes_as": "0",
+        "normalizes_as_hex": "\\x30",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "₀",
+        "utf8_bytes": "\\xE2\\x82\\x80",
+        "url_encoded": "%E2%82%80",
+        "normalizes_as": "0",
+        "normalizes_as_hex": "\\x30",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "⓪",
+        "utf8_bytes": "\\xE2\\x93\\xAA",
+        "url_encoded": "%E2%93%AA",
+        "normalizes_as": "0",
+        "normalizes_as_hex": "\\x30",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "０",
+        "utf8_bytes": "\\xEF\\xBC\\x90",
+        "url_encoded": "%EF%BC%90",
+        "normalizes_as": "0",
+        "normalizes_as_hex": "\\x30",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "İ",
+        "utf8_bytes": "\\xC4\\xB0",
+        "url_encoded": "%C4%B0",
+        "normalizes_as": "0",
+        "normalizes_as_hex": "\\x30",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "Ȱ",
+        "utf8_bytes": "\\xC8\\xB0",
+        "url_encoded": "%C8%B0",
+        "normalizes_as": "0",
+        "normalizes_as_hex": "\\x30",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "̰",
+        "utf8_bytes": "\\xCC\\xB0",
+        "url_encoded": "%CC%B0",
+        "normalizes_as": "0",
+        "normalizes_as_hex": "\\x30",
+        "form": "TRUNCATION"
+      }
+    ]
+  },
+  {
+    "ascii": 49,
+    "char": "1",
+    "mappings": [
+      {
+        "unicode": "1",
+        "utf8_bytes": "\\x31",
+        "url_encoded": "%31",
+        "normalizes_as": "1",
+        "normalizes_as_hex": "\\x31",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "¹",
+        "utf8_bytes": "\\xC2\\xB9",
+        "url_encoded": "%C2%B9",
+        "normalizes_as": "1",
+        "normalizes_as_hex": "\\x31",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "₁",
+        "utf8_bytes": "\\xE2\\x82\\x81",
+        "url_encoded": "%E2%82%81",
+        "normalizes_as": "1",
+        "normalizes_as_hex": "\\x31",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "①",
+        "utf8_bytes": "\\xE2\\x91\\xA0",
+        "url_encoded": "%E2%91%A0",
+        "normalizes_as": "1",
+        "normalizes_as_hex": "\\x31",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "１",
+        "utf8_bytes": "\\xEF\\xBC\\x91",
+        "url_encoded": "%EF%BC%91",
+        "normalizes_as": "1",
+        "normalizes_as_hex": "\\x31",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ı",
+        "utf8_bytes": "\\xC4\\xB1",
+        "url_encoded": "%C4%B1",
+        "normalizes_as": "1",
+        "normalizes_as_hex": "\\x31",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "ȱ",
+        "utf8_bytes": "\\xC8\\xB1",
+        "url_encoded": "%C8%B1",
+        "normalizes_as": "1",
+        "normalizes_as_hex": "\\x31",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "̱",
+        "utf8_bytes": "\\xCC\\xB1",
+        "url_encoded": "%CC%B1",
+        "normalizes_as": "1",
+        "normalizes_as_hex": "\\x31",
+        "form": "TRUNCATION"
+      }
+    ]
+  },
+  {
+    "ascii": 50,
+    "char": "2",
+    "mappings": [
+      {
+        "unicode": "2",
+        "utf8_bytes": "\\x32",
+        "url_encoded": "%32",
+        "normalizes_as": "2",
+        "normalizes_as_hex": "\\x32",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "²",
+        "utf8_bytes": "\\xC2\\xB2",
+        "url_encoded": "%C2%B2",
+        "normalizes_as": "2",
+        "normalizes_as_hex": "\\x32",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "₂",
+        "utf8_bytes": "\\xE2\\x82\\x82",
+        "url_encoded": "%E2%82%82",
+        "normalizes_as": "2",
+        "normalizes_as_hex": "\\x32",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "②",
+        "utf8_bytes": "\\xE2\\x91\\xA1",
+        "url_encoded": "%E2%91%A1",
+        "normalizes_as": "2",
+        "normalizes_as_hex": "\\x32",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "２",
+        "utf8_bytes": "\\xEF\\xBC\\x92",
+        "url_encoded": "%EF%BC%92",
+        "normalizes_as": "2",
+        "normalizes_as_hex": "\\x32",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "Ĳ",
+        "utf8_bytes": "\\xC4\\xB2",
+        "url_encoded": "%C4%B2",
+        "normalizes_as": "2",
+        "normalizes_as_hex": "\\x32",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "Ȳ",
+        "utf8_bytes": "\\xC8\\xB2",
+        "url_encoded": "%C8%B2",
+        "normalizes_as": "2",
+        "normalizes_as_hex": "\\x32",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "̲",
+        "utf8_bytes": "\\xCC\\xB2",
+        "url_encoded": "%CC%B2",
+        "normalizes_as": "2",
+        "normalizes_as_hex": "\\x32",
+        "form": "TRUNCATION"
+      }
+    ]
+  },
+  {
+    "ascii": 51,
+    "char": "3",
+    "mappings": [
+      {
+        "unicode": "3",
+        "utf8_bytes": "\\x33",
+        "url_encoded": "%33",
+        "normalizes_as": "3",
+        "normalizes_as_hex": "\\x33",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "³",
+        "utf8_bytes": "\\xC2\\xB3",
+        "url_encoded": "%C2%B3",
+        "normalizes_as": "3",
+        "normalizes_as_hex": "\\x33",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "₃",
+        "utf8_bytes": "\\xE2\\x82\\x83",
+        "url_encoded": "%E2%82%83",
+        "normalizes_as": "3",
+        "normalizes_as_hex": "\\x33",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "③",
+        "utf8_bytes": "\\xE2\\x91\\xA2",
+        "url_encoded": "%E2%91%A2",
+        "normalizes_as": "3",
+        "normalizes_as_hex": "\\x33",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "３",
+        "utf8_bytes": "\\xEF\\xBC\\x93",
+        "url_encoded": "%EF%BC%93",
+        "normalizes_as": "3",
+        "normalizes_as_hex": "\\x33",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ĳ",
+        "utf8_bytes": "\\xC4\\xB3",
+        "url_encoded": "%C4%B3",
+        "normalizes_as": "3",
+        "normalizes_as_hex": "\\x33",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "ȳ",
+        "utf8_bytes": "\\xC8\\xB3",
+        "url_encoded": "%C8%B3",
+        "normalizes_as": "3",
+        "normalizes_as_hex": "\\x33",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "̳",
+        "utf8_bytes": "\\xCC\\xB3",
+        "url_encoded": "%CC%B3",
+        "normalizes_as": "3",
+        "normalizes_as_hex": "\\x33",
+        "form": "TRUNCATION"
+      }
+    ]
+  },
+  {
+    "ascii": 52,
+    "char": "4",
+    "mappings": [
+      {
+        "unicode": "4",
+        "utf8_bytes": "\\x34",
+        "url_encoded": "%34",
+        "normalizes_as": "4",
+        "normalizes_as_hex": "\\x34",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "⁴",
+        "utf8_bytes": "\\xE2\\x81\\xB4",
+        "url_encoded": "%E2%81%B4",
+        "normalizes_as": "4",
+        "normalizes_as_hex": "\\x34",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "₄",
+        "utf8_bytes": "\\xE2\\x82\\x84",
+        "url_encoded": "%E2%82%84",
+        "normalizes_as": "4",
+        "normalizes_as_hex": "\\x34",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "④",
+        "utf8_bytes": "\\xE2\\x91\\xA3",
+        "url_encoded": "%E2%91%A3",
+        "normalizes_as": "4",
+        "normalizes_as_hex": "\\x34",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "４",
+        "utf8_bytes": "\\xEF\\xBC\\x94",
+        "url_encoded": "%EF%BC%94",
+        "normalizes_as": "4",
+        "normalizes_as_hex": "\\x34",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "Ĵ",
+        "utf8_bytes": "\\xC4\\xB4",
+        "url_encoded": "%C4%B4",
+        "normalizes_as": "4",
+        "normalizes_as_hex": "\\x34",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "ȴ",
+        "utf8_bytes": "\\xC8\\xB4",
+        "url_encoded": "%C8%B4",
+        "normalizes_as": "4",
+        "normalizes_as_hex": "\\x34",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "̴",
+        "utf8_bytes": "\\xCC\\xB4",
+        "url_encoded": "%CC%B4",
+        "normalizes_as": "4",
+        "normalizes_as_hex": "\\x34",
+        "form": "TRUNCATION"
+      }
+    ]
+  },
+  {
+    "ascii": 53,
+    "char": "5",
+    "mappings": [
+      {
+        "unicode": "5",
+        "utf8_bytes": "\\x35",
+        "url_encoded": "%35",
+        "normalizes_as": "5",
+        "normalizes_as_hex": "\\x35",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "⁵",
+        "utf8_bytes": "\\xE2\\x81\\xB5",
+        "url_encoded": "%E2%81%B5",
+        "normalizes_as": "5",
+        "normalizes_as_hex": "\\x35",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "₅",
+        "utf8_bytes": "\\xE2\\x82\\x85",
+        "url_encoded": "%E2%82%85",
+        "normalizes_as": "5",
+        "normalizes_as_hex": "\\x35",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "⑤",
+        "utf8_bytes": "\\xE2\\x91\\xA4",
+        "url_encoded": "%E2%91%A4",
+        "normalizes_as": "5",
+        "normalizes_as_hex": "\\x35",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "５",
+        "utf8_bytes": "\\xEF\\xBC\\x95",
+        "url_encoded": "%EF%BC%95",
+        "normalizes_as": "5",
+        "normalizes_as_hex": "\\x35",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ĵ",
+        "utf8_bytes": "\\xC4\\xB5",
+        "url_encoded": "%C4%B5",
+        "normalizes_as": "5",
+        "normalizes_as_hex": "\\x35",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "ȵ",
+        "utf8_bytes": "\\xC8\\xB5",
+        "url_encoded": "%C8%B5",
+        "normalizes_as": "5",
+        "normalizes_as_hex": "\\x35",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "̵",
+        "utf8_bytes": "\\xCC\\xB5",
+        "url_encoded": "%CC%B5",
+        "normalizes_as": "5",
+        "normalizes_as_hex": "\\x35",
+        "form": "TRUNCATION"
+      }
+    ]
+  },
+  {
+    "ascii": 54,
+    "char": "6",
+    "mappings": [
+      {
+        "unicode": "6",
+        "utf8_bytes": "\\x36",
+        "url_encoded": "%36",
+        "normalizes_as": "6",
+        "normalizes_as_hex": "\\x36",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "⁶",
+        "utf8_bytes": "\\xE2\\x81\\xB6",
+        "url_encoded": "%E2%81%B6",
+        "normalizes_as": "6",
+        "normalizes_as_hex": "\\x36",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "₆",
+        "utf8_bytes": "\\xE2\\x82\\x86",
+        "url_encoded": "%E2%82%86",
+        "normalizes_as": "6",
+        "normalizes_as_hex": "\\x36",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "⑥",
+        "utf8_bytes": "\\xE2\\x91\\xA5",
+        "url_encoded": "%E2%91%A5",
+        "normalizes_as": "6",
+        "normalizes_as_hex": "\\x36",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "６",
+        "utf8_bytes": "\\xEF\\xBC\\x96",
+        "url_encoded": "%EF%BC%96",
+        "normalizes_as": "6",
+        "normalizes_as_hex": "\\x36",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "Ķ",
+        "utf8_bytes": "\\xC4\\xB6",
+        "url_encoded": "%C4%B6",
+        "normalizes_as": "6",
+        "normalizes_as_hex": "\\x36",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "ȶ",
+        "utf8_bytes": "\\xC8\\xB6",
+        "url_encoded": "%C8%B6",
+        "normalizes_as": "6",
+        "normalizes_as_hex": "\\x36",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "̶",
+        "utf8_bytes": "\\xCC\\xB6",
+        "url_encoded": "%CC%B6",
+        "normalizes_as": "6",
+        "normalizes_as_hex": "\\x36",
+        "form": "TRUNCATION"
+      }
+    ]
+  },
+  {
+    "ascii": 55,
+    "char": "7",
+    "mappings": [
+      {
+        "unicode": "7",
+        "utf8_bytes": "\\x37",
+        "url_encoded": "%37",
+        "normalizes_as": "7",
+        "normalizes_as_hex": "\\x37",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "⁷",
+        "utf8_bytes": "\\xE2\\x81\\xB7",
+        "url_encoded": "%E2%81%B7",
+        "normalizes_as": "7",
+        "normalizes_as_hex": "\\x37",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "₇",
+        "utf8_bytes": "\\xE2\\x82\\x87",
+        "url_encoded": "%E2%82%87",
+        "normalizes_as": "7",
+        "normalizes_as_hex": "\\x37",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "⑦",
+        "utf8_bytes": "\\xE2\\x91\\xA6",
+        "url_encoded": "%E2%91%A6",
+        "normalizes_as": "7",
+        "normalizes_as_hex": "\\x37",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "７",
+        "utf8_bytes": "\\xEF\\xBC\\x97",
+        "url_encoded": "%EF%BC%97",
+        "normalizes_as": "7",
+        "normalizes_as_hex": "\\x37",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ķ",
+        "utf8_bytes": "\\xC4\\xB7",
+        "url_encoded": "%C4%B7",
+        "normalizes_as": "7",
+        "normalizes_as_hex": "\\x37",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "ȷ",
+        "utf8_bytes": "\\xC8\\xB7",
+        "url_encoded": "%C8%B7",
+        "normalizes_as": "7",
+        "normalizes_as_hex": "\\x37",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "̷",
+        "utf8_bytes": "\\xCC\\xB7",
+        "url_encoded": "%CC%B7",
+        "normalizes_as": "7",
+        "normalizes_as_hex": "\\x37",
+        "form": "TRUNCATION"
+      }
+    ]
+  },
+  {
+    "ascii": 56,
+    "char": "8",
+    "mappings": [
+      {
+        "unicode": "8",
+        "utf8_bytes": "\\x38",
+        "url_encoded": "%38",
+        "normalizes_as": "8",
+        "normalizes_as_hex": "\\x38",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "⁸",
+        "utf8_bytes": "\\xE2\\x81\\xB8",
+        "url_encoded": "%E2%81%B8",
+        "normalizes_as": "8",
+        "normalizes_as_hex": "\\x38",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "₈",
+        "utf8_bytes": "\\xE2\\x82\\x88",
+        "url_encoded": "%E2%82%88",
+        "normalizes_as": "8",
+        "normalizes_as_hex": "\\x38",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "⑧",
+        "utf8_bytes": "\\xE2\\x91\\xA7",
+        "url_encoded": "%E2%91%A7",
+        "normalizes_as": "8",
+        "normalizes_as_hex": "\\x38",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "８",
+        "utf8_bytes": "\\xEF\\xBC\\x98",
+        "url_encoded": "%EF%BC%98",
+        "normalizes_as": "8",
+        "normalizes_as_hex": "\\x38",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ĸ",
+        "utf8_bytes": "\\xC4\\xB8",
+        "url_encoded": "%C4%B8",
+        "normalizes_as": "8",
+        "normalizes_as_hex": "\\x38",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "ȸ",
+        "utf8_bytes": "\\xC8\\xB8",
+        "url_encoded": "%C8%B8",
+        "normalizes_as": "8",
+        "normalizes_as_hex": "\\x38",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "̸",
+        "utf8_bytes": "\\xCC\\xB8",
+        "url_encoded": "%CC%B8",
+        "normalizes_as": "8",
+        "normalizes_as_hex": "\\x38",
+        "form": "TRUNCATION"
+      }
+    ]
+  },
+  {
+    "ascii": 57,
+    "char": "9",
+    "mappings": [
+      {
+        "unicode": "9",
+        "utf8_bytes": "\\x39",
+        "url_encoded": "%39",
+        "normalizes_as": "9",
+        "normalizes_as_hex": "\\x39",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "⁹",
+        "utf8_bytes": "\\xE2\\x81\\xB9",
+        "url_encoded": "%E2%81%B9",
+        "normalizes_as": "9",
+        "normalizes_as_hex": "\\x39",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "₉",
+        "utf8_bytes": "\\xE2\\x82\\x89",
+        "url_encoded": "%E2%82%89",
+        "normalizes_as": "9",
+        "normalizes_as_hex": "\\x39",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "⑨",
+        "utf8_bytes": "\\xE2\\x91\\xA8",
+        "url_encoded": "%E2%91%A8",
+        "normalizes_as": "9",
+        "normalizes_as_hex": "\\x39",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "９",
+        "utf8_bytes": "\\xEF\\xBC\\x99",
+        "url_encoded": "%EF%BC%99",
+        "normalizes_as": "9",
+        "normalizes_as_hex": "\\x39",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "Ĺ",
+        "utf8_bytes": "\\xC4\\xB9",
+        "url_encoded": "%C4%B9",
+        "normalizes_as": "9",
+        "normalizes_as_hex": "\\x39",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "ȹ",
+        "utf8_bytes": "\\xC8\\xB9",
+        "url_encoded": "%C8%B9",
+        "normalizes_as": "9",
+        "normalizes_as_hex": "\\x39",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "̹",
+        "utf8_bytes": "\\xCC\\xB9",
+        "url_encoded": "%CC%B9",
+        "normalizes_as": "9",
+        "normalizes_as_hex": "\\x39",
+        "form": "TRUNCATION"
+      }
+    ]
+  },
+  {
+    "ascii": 58,
+    "char": ":",
+    "mappings": [
+      {
+        "unicode": ":",
+        "utf8_bytes": "\\x3A",
+        "url_encoded": "%3A",
+        "normalizes_as": ":",
+        "normalizes_as_hex": "\\x3A",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "︓",
+        "utf8_bytes": "\\xEF\\xB8\\x93",
+        "url_encoded": "%EF%B8%93",
+        "normalizes_as": ":",
+        "normalizes_as_hex": "\\x3A",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "﹕",
+        "utf8_bytes": "\\xEF\\xB9\\x95",
+        "url_encoded": "%EF%B9%95",
+        "normalizes_as": ":",
+        "normalizes_as_hex": "\\x3A",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "：",
+        "utf8_bytes": "\\xEF\\xBC\\x9A",
+        "url_encoded": "%EF%BC%9A",
+        "normalizes_as": ":",
+        "normalizes_as_hex": "\\x3A",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ĺ",
+        "utf8_bytes": "\\xC4\\xBA",
+        "url_encoded": "%C4%BA",
+        "normalizes_as": ":",
+        "normalizes_as_hex": "\\x3A",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "Ⱥ",
+        "utf8_bytes": "\\xC8\\xBA",
+        "url_encoded": "%C8%BA",
+        "normalizes_as": ":",
+        "normalizes_as_hex": "\\x3A",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "̺",
+        "utf8_bytes": "\\xCC\\xBA",
+        "url_encoded": "%CC%BA",
+        "normalizes_as": ":",
+        "normalizes_as_hex": "\\x3A",
+        "form": "TRUNCATION"
+      }
+    ]
+  },
+  {
+    "ascii": 59,
+    "char": ";",
+    "mappings": [
+      {
+        "unicode": ";",
+        "utf8_bytes": "\\x3B",
+        "url_encoded": "%3B",
+        "normalizes_as": ";",
+        "normalizes_as_hex": "\\x3B",
+        "form": "NFKC"
+      },
+      {
+        "unicode": ";",
+        "utf8_bytes": "\\xCD\\xBE",
+        "url_encoded": "%CD%BE",
+        "normalizes_as": ";",
+        "normalizes_as_hex": "\\x3B",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "︔",
+        "utf8_bytes": "\\xEF\\xB8\\x94",
+        "url_encoded": "%EF%B8%94",
+        "normalizes_as": ";",
+        "normalizes_as_hex": "\\x3B",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "﹔",
+        "utf8_bytes": "\\xEF\\xB9\\x94",
+        "url_encoded": "%EF%B9%94",
+        "normalizes_as": ";",
+        "normalizes_as_hex": "\\x3B",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "；",
+        "utf8_bytes": "\\xEF\\xBC\\x9B",
+        "url_encoded": "%EF%BC%9B",
+        "normalizes_as": ";",
+        "normalizes_as_hex": "\\x3B",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "Ļ",
+        "utf8_bytes": "\\xC4\\xBB",
+        "url_encoded": "%C4%BB",
+        "normalizes_as": ";",
+        "normalizes_as_hex": "\\x3B",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "Ȼ",
+        "utf8_bytes": "\\xC8\\xBB",
+        "url_encoded": "%C8%BB",
+        "normalizes_as": ";",
+        "normalizes_as_hex": "\\x3B",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "̻",
+        "utf8_bytes": "\\xCC\\xBB",
+        "url_encoded": "%CC%BB",
+        "normalizes_as": ";",
+        "normalizes_as_hex": "\\x3B",
+        "form": "TRUNCATION"
+      }
+    ]
+  },
+  {
+    "ascii": 60,
+    "char": "\u003c",
+    "mappings": [
+      {
+        "unicode": "\u003c",
+        "utf8_bytes": "\\x3C",
+        "url_encoded": "%3C",
+        "normalizes_as": "\u003c",
+        "normalizes_as_hex": "\\x3C",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "﹤",
+        "utf8_bytes": "\\xEF\\xB9\\xA4",
+        "url_encoded": "%EF%B9%A4",
+        "normalizes_as": "\u003c",
+        "normalizes_as_hex": "\\x3C",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "＜",
+        "utf8_bytes": "\\xEF\\xBC\\x9C",
+        "url_encoded": "%EF%BC%9C",
+        "normalizes_as": "\u003c",
+        "normalizes_as_hex": "\\x3C",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ļ",
+        "utf8_bytes": "\\xC4\\xBC",
+        "url_encoded": "%C4%BC",
+        "normalizes_as": "\u003c",
+        "normalizes_as_hex": "\\x3C",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "ȼ",
+        "utf8_bytes": "\\xC8\\xBC",
+        "url_encoded": "%C8%BC",
+        "normalizes_as": "\u003c",
+        "normalizes_as_hex": "\\x3C",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "̼",
+        "utf8_bytes": "\\xCC\\xBC",
+        "url_encoded": "%CC%BC",
+        "normalizes_as": "\u003c",
+        "normalizes_as_hex": "\\x3C",
+        "form": "TRUNCATION"
+      }
+    ]
+  },
+  {
+    "ascii": 61,
+    "char": "=",
+    "mappings": [
+      {
+        "unicode": "=",
+        "utf8_bytes": "\\x3D",
+        "url_encoded": "%3D",
+        "normalizes_as": "=",
+        "normalizes_as_hex": "\\x3D",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "⁼",
+        "utf8_bytes": "\\xE2\\x81\\xBC",
+        "url_encoded": "%E2%81%BC",
+        "normalizes_as": "=",
+        "normalizes_as_hex": "\\x3D",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "₌",
+        "utf8_bytes": "\\xE2\\x82\\x8C",
+        "url_encoded": "%E2%82%8C",
+        "normalizes_as": "=",
+        "normalizes_as_hex": "\\x3D",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "﹦",
+        "utf8_bytes": "\\xEF\\xB9\\xA6",
+        "url_encoded": "%EF%B9%A6",
+        "normalizes_as": "=",
+        "normalizes_as_hex": "\\x3D",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "＝",
+        "utf8_bytes": "\\xEF\\xBC\\x9D",
+        "url_encoded": "%EF%BC%9D",
+        "normalizes_as": "=",
+        "normalizes_as_hex": "\\x3D",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "Ľ",
+        "utf8_bytes": "\\xC4\\xBD",
+        "url_encoded": "%C4%BD",
+        "normalizes_as": "=",
+        "normalizes_as_hex": "\\x3D",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "Ƚ",
+        "utf8_bytes": "\\xC8\\xBD",
+        "url_encoded": "%C8%BD",
+        "normalizes_as": "=",
+        "normalizes_as_hex": "\\x3D",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "̽",
+        "utf8_bytes": "\\xCC\\xBD",
+        "url_encoded": "%CC%BD",
+        "normalizes_as": "=",
+        "normalizes_as_hex": "\\x3D",
+        "form": "TRUNCATION"
+      }
+    ]
+  },
+  {
+    "ascii": 62,
+    "char": "\u003e",
+    "mappings": [
+      {
+        "unicode": "\u003e",
+        "utf8_bytes": "\\x3E",
+        "url_encoded": "%3E",
+        "normalizes_as": "\u003e",
+        "normalizes_as_hex": "\\x3E",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "﹥",
+        "utf8_bytes": "\\xEF\\xB9\\xA5",
+        "url_encoded": "%EF%B9%A5",
+        "normalizes_as": "\u003e",
+        "normalizes_as_hex": "\\x3E",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "＞",
+        "utf8_bytes": "\\xEF\\xBC\\x9E",
+        "url_encoded": "%EF%BC%9E",
+        "normalizes_as": "\u003e",
+        "normalizes_as_hex": "\\x3E",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ľ",
+        "utf8_bytes": "\\xC4\\xBE",
+        "url_encoded": "%C4%BE",
+        "normalizes_as": "\u003e",
+        "normalizes_as_hex": "\\x3E",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "Ⱦ",
+        "utf8_bytes": "\\xC8\\xBE",
+        "url_encoded": "%C8%BE",
+        "normalizes_as": "\u003e",
+        "normalizes_as_hex": "\\x3E",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "̾",
+        "utf8_bytes": "\\xCC\\xBE",
+        "url_encoded": "%CC%BE",
+        "normalizes_as": "\u003e",
+        "normalizes_as_hex": "\\x3E",
+        "form": "TRUNCATION"
+      }
+    ]
+  },
+  {
+    "ascii": 63,
+    "char": "?",
+    "mappings": [
+      {
+        "unicode": "?",
+        "utf8_bytes": "\\x3F",
+        "url_encoded": "%3F",
+        "normalizes_as": "?",
+        "normalizes_as_hex": "\\x3F",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "︖",
+        "utf8_bytes": "\\xEF\\xB8\\x96",
+        "url_encoded": "%EF%B8%96",
+        "normalizes_as": "?",
+        "normalizes_as_hex": "\\x3F",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "﹖",
+        "utf8_bytes": "\\xEF\\xB9\\x96",
+        "url_encoded": "%EF%B9%96",
+        "normalizes_as": "?",
+        "normalizes_as_hex": "\\x3F",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "？",
+        "utf8_bytes": "\\xEF\\xBC\\x9F",
+        "url_encoded": "%EF%BC%9F",
+        "normalizes_as": "?",
+        "normalizes_as_hex": "\\x3F",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "Ŀ",
+        "utf8_bytes": "\\xC4\\xBF",
+        "url_encoded": "%C4%BF",
+        "normalizes_as": "?",
+        "normalizes_as_hex": "\\x3F",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "ȿ",
+        "utf8_bytes": "\\xC8\\xBF",
+        "url_encoded": "%C8%BF",
+        "normalizes_as": "?",
+        "normalizes_as_hex": "\\x3F",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "̿",
+        "utf8_bytes": "\\xCC\\xBF",
+        "url_encoded": "%CC%BF",
+        "normalizes_as": "?",
+        "normalizes_as_hex": "\\x3F",
+        "form": "TRUNCATION"
+      }
+    ]
+  },
+  {
+    "ascii": 64,
+    "char": "@",
+    "mappings": [
+      {
+        "unicode": "@",
+        "utf8_bytes": "\\x40",
+        "url_encoded": "%40",
+        "normalizes_as": "@",
+        "normalizes_as_hex": "\\x40",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "﹫",
+        "utf8_bytes": "\\xEF\\xB9\\xAB",
+        "url_encoded": "%EF%B9%AB",
+        "normalizes_as": "@",
+        "normalizes_as_hex": "\\x40",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "＠",
+        "utf8_bytes": "\\xEF\\xBC\\xA0",
+        "url_encoded": "%EF%BC%A0",
+        "normalizes_as": "@",
+        "normalizes_as_hex": "\\x40",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ŀ",
+        "utf8_bytes": "\\xC5\\x80",
+        "url_encoded": "%C5%80",
+        "normalizes_as": "@",
+        "normalizes_as_hex": "\\x40",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "ɀ",
+        "utf8_bytes": "\\xC9\\x80",
+        "url_encoded": "%C9%80",
+        "normalizes_as": "@",
+        "normalizes_as_hex": "\\x40",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "̀",
+        "utf8_bytes": "\\xCD\\x80",
+        "url_encoded": "%CD%80",
+        "normalizes_as": "@",
+        "normalizes_as_hex": "\\x40",
+        "form": "TRUNCATION"
+      }
+    ]
+  },
+  {
+    "ascii": 65,
+    "char": "A",
+    "mappings": [
+      {
+        "unicode": "A",
+        "utf8_bytes": "\\x41",
+        "url_encoded": "%41",
+        "normalizes_as": "A",
+        "normalizes_as_hex": "\\x41",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ᴬ",
+        "utf8_bytes": "\\xE1\\xB4\\xAC",
+        "url_encoded": "%E1%B4%AC",
+        "normalizes_as": "A",
+        "normalizes_as_hex": "\\x41",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "Ⓐ",
+        "utf8_bytes": "\\xE2\\x92\\xB6",
+        "url_encoded": "%E2%92%B6",
+        "normalizes_as": "A",
+        "normalizes_as_hex": "\\x41",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "Ａ",
+        "utf8_bytes": "\\xEF\\xBC\\xA1",
+        "url_encoded": "%EF%BC%A1",
+        "normalizes_as": "A",
+        "normalizes_as_hex": "\\x41",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "𝐀",
+        "utf8_bytes": "\\xF0\\x9D\\x90\\x80",
+        "url_encoded": "%F0%9D%90%80",
+        "normalizes_as": "A",
+        "normalizes_as_hex": "\\x41",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "Ł",
+        "utf8_bytes": "\\xC5\\x81",
+        "url_encoded": "%C5%81",
+        "normalizes_as": "A",
+        "normalizes_as_hex": "\\x41",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "Ɂ",
+        "utf8_bytes": "\\xC9\\x81",
+        "url_encoded": "%C9%81",
+        "normalizes_as": "A",
+        "normalizes_as_hex": "\\x41",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "́",
+        "utf8_bytes": "\\xCD\\x81",
+        "url_encoded": "%CD%81",
+        "normalizes_as": "A",
+        "normalizes_as_hex": "\\x41",
+        "form": "TRUNCATION"
+      }
+    ]
+  },
+  {
+    "ascii": 66,
+    "char": "B",
+    "mappings": [
+      {
+        "unicode": "B",
+        "utf8_bytes": "\\x42",
+        "url_encoded": "%42",
+        "normalizes_as": "B",
+        "normalizes_as_hex": "\\x42",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ᴮ",
+        "utf8_bytes": "\\xE1\\xB4\\xAE",
+        "url_encoded": "%E1%B4%AE",
+        "normalizes_as": "B",
+        "normalizes_as_hex": "\\x42",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ℬ",
+        "utf8_bytes": "\\xE2\\x84\\xAC",
+        "url_encoded": "%E2%84%AC",
+        "normalizes_as": "B",
+        "normalizes_as_hex": "\\x42",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "Ⓑ",
+        "utf8_bytes": "\\xE2\\x92\\xB7",
+        "url_encoded": "%E2%92%B7",
+        "normalizes_as": "B",
+        "normalizes_as_hex": "\\x42",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "Ｂ",
+        "utf8_bytes": "\\xEF\\xBC\\xA2",
+        "url_encoded": "%EF%BC%A2",
+        "normalizes_as": "B",
+        "normalizes_as_hex": "\\x42",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ł",
+        "utf8_bytes": "\\xC5\\x82",
+        "url_encoded": "%C5%82",
+        "normalizes_as": "B",
+        "normalizes_as_hex": "\\x42",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "ɂ",
+        "utf8_bytes": "\\xC9\\x82",
+        "url_encoded": "%C9%82",
+        "normalizes_as": "B",
+        "normalizes_as_hex": "\\x42",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "͂",
+        "utf8_bytes": "\\xCD\\x82",
+        "url_encoded": "%CD%82",
+        "normalizes_as": "B",
+        "normalizes_as_hex": "\\x42",
+        "form": "TRUNCATION"
+      }
+    ]
+  },
+  {
+    "ascii": 67,
+    "char": "C",
+    "mappings": [
+      {
+        "unicode": "C",
+        "utf8_bytes": "\\x43",
+        "url_encoded": "%43",
+        "normalizes_as": "C",
+        "normalizes_as_hex": "\\x43",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ℂ",
+        "utf8_bytes": "\\xE2\\x84\\x82",
+        "url_encoded": "%E2%84%82",
+        "normalizes_as": "C",
+        "normalizes_as_hex": "\\x43",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ℭ",
+        "utf8_bytes": "\\xE2\\x84\\xAD",
+        "url_encoded": "%E2%84%AD",
+        "normalizes_as": "C",
+        "normalizes_as_hex": "\\x43",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "Ⅽ",
+        "utf8_bytes": "\\xE2\\x85\\xAD",
+        "url_encoded": "%E2%85%AD",
+        "normalizes_as": "C",
+        "normalizes_as_hex": "\\x43",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "Ⓒ",
+        "utf8_bytes": "\\xE2\\x92\\xB8",
+        "url_encoded": "%E2%92%B8",
+        "normalizes_as": "C",
+        "normalizes_as_hex": "\\x43",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "Ń",
+        "utf8_bytes": "\\xC5\\x83",
+        "url_encoded": "%C5%83",
+        "normalizes_as": "C",
+        "normalizes_as_hex": "\\x43",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "Ƀ",
+        "utf8_bytes": "\\xC9\\x83",
+        "url_encoded": "%C9%83",
+        "normalizes_as": "C",
+        "normalizes_as_hex": "\\x43",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "̓",
+        "utf8_bytes": "\\xCD\\x83",
+        "url_encoded": "%CD%83",
+        "normalizes_as": "C",
+        "normalizes_as_hex": "\\x43",
+        "form": "TRUNCATION"
+      }
+    ]
+  },
+  {
+    "ascii": 68,
+    "char": "D",
+    "mappings": [
+      {
+        "unicode": "D",
+        "utf8_bytes": "\\x44",
+        "url_encoded": "%44",
+        "normalizes_as": "D",
+        "normalizes_as_hex": "\\x44",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ᴰ",
+        "utf8_bytes": "\\xE1\\xB4\\xB0",
+        "url_encoded": "%E1%B4%B0",
+        "normalizes_as": "D",
+        "normalizes_as_hex": "\\x44",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ⅅ",
+        "utf8_bytes": "\\xE2\\x85\\x85",
+        "url_encoded": "%E2%85%85",
+        "normalizes_as": "D",
+        "normalizes_as_hex": "\\x44",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "Ⅾ",
+        "utf8_bytes": "\\xE2\\x85\\xAE",
+        "url_encoded": "%E2%85%AE",
+        "normalizes_as": "D",
+        "normalizes_as_hex": "\\x44",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "Ⓓ",
+        "utf8_bytes": "\\xE2\\x92\\xB9",
+        "url_encoded": "%E2%92%B9",
+        "normalizes_as": "D",
+        "normalizes_as_hex": "\\x44",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ń",
+        "utf8_bytes": "\\xC5\\x84",
+        "url_encoded": "%C5%84",
+        "normalizes_as": "D",
+        "normalizes_as_hex": "\\x44",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "Ʉ",
+        "utf8_bytes": "\\xC9\\x84",
+        "url_encoded": "%C9%84",
+        "normalizes_as": "D",
+        "normalizes_as_hex": "\\x44",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "̈́",
+        "utf8_bytes": "\\xCD\\x84",
+        "url_encoded": "%CD%84",
+        "normalizes_as": "D",
+        "normalizes_as_hex": "\\x44",
+        "form": "TRUNCATION"
+      }
+    ]
+  },
+  {
+    "ascii": 69,
+    "char": "E",
+    "mappings": [
+      {
+        "unicode": "E",
+        "utf8_bytes": "\\x45",
+        "url_encoded": "%45",
+        "normalizes_as": "E",
+        "normalizes_as_hex": "\\x45",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ᴱ",
+        "utf8_bytes": "\\xE1\\xB4\\xB1",
+        "url_encoded": "%E1%B4%B1",
+        "normalizes_as": "E",
+        "normalizes_as_hex": "\\x45",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ℰ",
+        "utf8_bytes": "\\xE2\\x84\\xB0",
+        "url_encoded": "%E2%84%B0",
+        "normalizes_as": "E",
+        "normalizes_as_hex": "\\x45",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "Ⓔ",
+        "utf8_bytes": "\\xE2\\x92\\xBA",
+        "url_encoded": "%E2%92%BA",
+        "normalizes_as": "E",
+        "normalizes_as_hex": "\\x45",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "Ｅ",
+        "utf8_bytes": "\\xEF\\xBC\\xA5",
+        "url_encoded": "%EF%BC%A5",
+        "normalizes_as": "E",
+        "normalizes_as_hex": "\\x45",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "Ņ",
+        "utf8_bytes": "\\xC5\\x85",
+        "url_encoded": "%C5%85",
+        "normalizes_as": "E",
+        "normalizes_as_hex": "\\x45",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "Ʌ",
+        "utf8_bytes": "\\xC9\\x85",
+        "url_encoded": "%C9%85",
+        "normalizes_as": "E",
+        "normalizes_as_hex": "\\x45",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "ͅ",
+        "utf8_bytes": "\\xCD\\x85",
+        "url_encoded": "%CD%85",
+        "normalizes_as": "E",
+        "normalizes_as_hex": "\\x45",
+        "form": "TRUNCATION"
+      }
+    ]
+  },
+  {
+    "ascii": 70,
+    "char": "F",
+    "mappings": [
+      {
+        "unicode": "F",
+        "utf8_bytes": "\\x46",
+        "url_encoded": "%46",
+        "normalizes_as": "F",
+        "normalizes_as_hex": "\\x46",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ℱ",
+        "utf8_bytes": "\\xE2\\x84\\xB1",
+        "url_encoded": "%E2%84%B1",
+        "normalizes_as": "F",
+        "normalizes_as_hex": "\\x46",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "Ⓕ",
+        "utf8_bytes": "\\xE2\\x92\\xBB",
+        "url_encoded": "%E2%92%BB",
+        "normalizes_as": "F",
+        "normalizes_as_hex": "\\x46",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ꟳ",
+        "utf8_bytes": "\\xEA\\x9F\\xB3",
+        "url_encoded": "%EA%9F%B3",
+        "normalizes_as": "F",
+        "normalizes_as_hex": "\\x46",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "Ｆ",
+        "utf8_bytes": "\\xEF\\xBC\\xA6",
+        "url_encoded": "%EF%BC%A6",
+        "normalizes_as": "F",
+        "normalizes_as_hex": "\\x46",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ņ",
+        "utf8_bytes": "\\xC5\\x86",
+        "url_encoded": "%C5%86",
+        "normalizes_as": "F",
+        "normalizes_as_hex": "\\x46",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "Ɇ",
+        "utf8_bytes": "\\xC9\\x86",
+        "url_encoded": "%C9%86",
+        "normalizes_as": "F",
+        "normalizes_as_hex": "\\x46",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "͆",
+        "utf8_bytes": "\\xCD\\x86",
+        "url_encoded": "%CD%86",
+        "normalizes_as": "F",
+        "normalizes_as_hex": "\\x46",
+        "form": "TRUNCATION"
+      }
+    ]
+  },
+  {
+    "ascii": 71,
+    "char": "G",
+    "mappings": [
+      {
+        "unicode": "G",
+        "utf8_bytes": "\\x47",
+        "url_encoded": "%47",
+        "normalizes_as": "G",
+        "normalizes_as_hex": "\\x47",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ᴳ",
+        "utf8_bytes": "\\xE1\\xB4\\xB3",
+        "url_encoded": "%E1%B4%B3",
+        "normalizes_as": "G",
+        "normalizes_as_hex": "\\x47",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "Ⓖ",
+        "utf8_bytes": "\\xE2\\x92\\xBC",
+        "url_encoded": "%E2%92%BC",
+        "normalizes_as": "G",
+        "normalizes_as_hex": "\\x47",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "Ｇ",
+        "utf8_bytes": "\\xEF\\xBC\\xA7",
+        "url_encoded": "%EF%BC%A7",
+        "normalizes_as": "G",
+        "normalizes_as_hex": "\\x47",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "𝐆",
+        "utf8_bytes": "\\xF0\\x9D\\x90\\x86",
+        "url_encoded": "%F0%9D%90%86",
+        "normalizes_as": "G",
+        "normalizes_as_hex": "\\x47",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "Ň",
+        "utf8_bytes": "\\xC5\\x87",
+        "url_encoded": "%C5%87",
+        "normalizes_as": "G",
+        "normalizes_as_hex": "\\x47",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "ɇ",
+        "utf8_bytes": "\\xC9\\x87",
+        "url_encoded": "%C9%87",
+        "normalizes_as": "G",
+        "normalizes_as_hex": "\\x47",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "͇",
+        "utf8_bytes": "\\xCD\\x87",
+        "url_encoded": "%CD%87",
+        "normalizes_as": "G",
+        "normalizes_as_hex": "\\x47",
+        "form": "TRUNCATION"
+      }
+    ]
+  },
+  {
+    "ascii": 72,
+    "char": "H",
+    "mappings": [
+      {
+        "unicode": "H",
+        "utf8_bytes": "\\x48",
+        "url_encoded": "%48",
+        "normalizes_as": "H",
+        "normalizes_as_hex": "\\x48",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ᴴ",
+        "utf8_bytes": "\\xE1\\xB4\\xB4",
+        "url_encoded": "%E1%B4%B4",
+        "normalizes_as": "H",
+        "normalizes_as_hex": "\\x48",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ℋ",
+        "utf8_bytes": "\\xE2\\x84\\x8B",
+        "url_encoded": "%E2%84%8B",
+        "normalizes_as": "H",
+        "normalizes_as_hex": "\\x48",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ℌ",
+        "utf8_bytes": "\\xE2\\x84\\x8C",
+        "url_encoded": "%E2%84%8C",
+        "normalizes_as": "H",
+        "normalizes_as_hex": "\\x48",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ℍ",
+        "utf8_bytes": "\\xE2\\x84\\x8D",
+        "url_encoded": "%E2%84%8D",
+        "normalizes_as": "H",
+        "normalizes_as_hex": "\\x48",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ň",
+        "utf8_bytes": "\\xC5\\x88",
+        "url_encoded": "%C5%88",
+        "normalizes_as": "H",
+        "normalizes_as_hex": "\\x48",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "Ɉ",
+        "utf8_bytes": "\\xC9\\x88",
+        "url_encoded": "%C9%88",
+        "normalizes_as": "H",
+        "normalizes_as_hex": "\\x48",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "͈",
+        "utf8_bytes": "\\xCD\\x88",
+        "url_encoded": "%CD%88",
+        "normalizes_as": "H",
+        "normalizes_as_hex": "\\x48",
+        "form": "TRUNCATION"
+      }
+    ]
+  },
+  {
+    "ascii": 73,
+    "char": "I",
+    "mappings": [
+      {
+        "unicode": "I",
+        "utf8_bytes": "\\x49",
+        "url_encoded": "%49",
+        "normalizes_as": "I",
+        "normalizes_as_hex": "\\x49",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ᴵ",
+        "utf8_bytes": "\\xE1\\xB4\\xB5",
+        "url_encoded": "%E1%B4%B5",
+        "normalizes_as": "I",
+        "normalizes_as_hex": "\\x49",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ℐ",
+        "utf8_bytes": "\\xE2\\x84\\x90",
+        "url_encoded": "%E2%84%90",
+        "normalizes_as": "I",
+        "normalizes_as_hex": "\\x49",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ℑ",
+        "utf8_bytes": "\\xE2\\x84\\x91",
+        "url_encoded": "%E2%84%91",
+        "normalizes_as": "I",
+        "normalizes_as_hex": "\\x49",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "Ⅰ",
+        "utf8_bytes": "\\xE2\\x85\\xA0",
+        "url_encoded": "%E2%85%A0",
+        "normalizes_as": "I",
+        "normalizes_as_hex": "\\x49",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ŉ",
+        "utf8_bytes": "\\xC5\\x89",
+        "url_encoded": "%C5%89",
+        "normalizes_as": "I",
+        "normalizes_as_hex": "\\x49",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "ɉ",
+        "utf8_bytes": "\\xC9\\x89",
+        "url_encoded": "%C9%89",
+        "normalizes_as": "I",
+        "normalizes_as_hex": "\\x49",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "͉",
+        "utf8_bytes": "\\xCD\\x89",
+        "url_encoded": "%CD%89",
+        "normalizes_as": "I",
+        "normalizes_as_hex": "\\x49",
+        "form": "TRUNCATION"
+      }
+    ]
+  },
+  {
+    "ascii": 74,
+    "char": "J",
+    "mappings": [
+      {
+        "unicode": "J",
+        "utf8_bytes": "\\x4A",
+        "url_encoded": "%4A",
+        "normalizes_as": "J",
+        "normalizes_as_hex": "\\x4A",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ᴶ",
+        "utf8_bytes": "\\xE1\\xB4\\xB6",
+        "url_encoded": "%E1%B4%B6",
+        "normalizes_as": "J",
+        "normalizes_as_hex": "\\x4A",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "Ⓙ",
+        "utf8_bytes": "\\xE2\\x92\\xBF",
+        "url_encoded": "%E2%92%BF",
+        "normalizes_as": "J",
+        "normalizes_as_hex": "\\x4A",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "Ｊ",
+        "utf8_bytes": "\\xEF\\xBC\\xAA",
+        "url_encoded": "%EF%BC%AA",
+        "normalizes_as": "J",
+        "normalizes_as_hex": "\\x4A",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "𝐉",
+        "utf8_bytes": "\\xF0\\x9D\\x90\\x89",
+        "url_encoded": "%F0%9D%90%89",
+        "normalizes_as": "J",
+        "normalizes_as_hex": "\\x4A",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "Ŋ",
+        "utf8_bytes": "\\xC5\\x8A",
+        "url_encoded": "%C5%8A",
+        "normalizes_as": "J",
+        "normalizes_as_hex": "\\x4A",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "Ɋ",
+        "utf8_bytes": "\\xC9\\x8A",
+        "url_encoded": "%C9%8A",
+        "normalizes_as": "J",
+        "normalizes_as_hex": "\\x4A",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "͊",
+        "utf8_bytes": "\\xCD\\x8A",
+        "url_encoded": "%CD%8A",
+        "normalizes_as": "J",
+        "normalizes_as_hex": "\\x4A",
+        "form": "TRUNCATION"
+      }
+    ]
+  },
+  {
+    "ascii": 75,
+    "char": "K",
+    "mappings": [
+      {
+        "unicode": "K",
+        "utf8_bytes": "\\x4B",
+        "url_encoded": "%4B",
+        "normalizes_as": "K",
+        "normalizes_as_hex": "\\x4B",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ᴷ",
+        "utf8_bytes": "\\xE1\\xB4\\xB7",
+        "url_encoded": "%E1%B4%B7",
+        "normalizes_as": "K",
+        "normalizes_as_hex": "\\x4B",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "K",
+        "utf8_bytes": "\\xE2\\x84\\xAA",
+        "url_encoded": "%E2%84%AA",
+        "normalizes_as": "K",
+        "normalizes_as_hex": "\\x4B",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "Ⓚ",
+        "utf8_bytes": "\\xE2\\x93\\x80",
+        "url_encoded": "%E2%93%80",
+        "normalizes_as": "K",
+        "normalizes_as_hex": "\\x4B",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "Ｋ",
+        "utf8_bytes": "\\xEF\\xBC\\xAB",
+        "url_encoded": "%EF%BC%AB",
+        "normalizes_as": "K",
+        "normalizes_as_hex": "\\x4B",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ŋ",
+        "utf8_bytes": "\\xC5\\x8B",
+        "url_encoded": "%C5%8B",
+        "normalizes_as": "K",
+        "normalizes_as_hex": "\\x4B",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "ɋ",
+        "utf8_bytes": "\\xC9\\x8B",
+        "url_encoded": "%C9%8B",
+        "normalizes_as": "K",
+        "normalizes_as_hex": "\\x4B",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "͋",
+        "utf8_bytes": "\\xCD\\x8B",
+        "url_encoded": "%CD%8B",
+        "normalizes_as": "K",
+        "normalizes_as_hex": "\\x4B",
+        "form": "TRUNCATION"
+      }
+    ]
+  },
+  {
+    "ascii": 76,
+    "char": "L",
+    "mappings": [
+      {
+        "unicode": "L",
+        "utf8_bytes": "\\x4C",
+        "url_encoded": "%4C",
+        "normalizes_as": "L",
+        "normalizes_as_hex": "\\x4C",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ᴸ",
+        "utf8_bytes": "\\xE1\\xB4\\xB8",
+        "url_encoded": "%E1%B4%B8",
+        "normalizes_as": "L",
+        "normalizes_as_hex": "\\x4C",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ℒ",
+        "utf8_bytes": "\\xE2\\x84\\x92",
+        "url_encoded": "%E2%84%92",
+        "normalizes_as": "L",
+        "normalizes_as_hex": "\\x4C",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "Ⅼ",
+        "utf8_bytes": "\\xE2\\x85\\xAC",
+        "url_encoded": "%E2%85%AC",
+        "normalizes_as": "L",
+        "normalizes_as_hex": "\\x4C",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "Ⓛ",
+        "utf8_bytes": "\\xE2\\x93\\x81",
+        "url_encoded": "%E2%93%81",
+        "normalizes_as": "L",
+        "normalizes_as_hex": "\\x4C",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "Ō",
+        "utf8_bytes": "\\xC5\\x8C",
+        "url_encoded": "%C5%8C",
+        "normalizes_as": "L",
+        "normalizes_as_hex": "\\x4C",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "Ɍ",
+        "utf8_bytes": "\\xC9\\x8C",
+        "url_encoded": "%C9%8C",
+        "normalizes_as": "L",
+        "normalizes_as_hex": "\\x4C",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "͌",
+        "utf8_bytes": "\\xCD\\x8C",
+        "url_encoded": "%CD%8C",
+        "normalizes_as": "L",
+        "normalizes_as_hex": "\\x4C",
+        "form": "TRUNCATION"
+      }
+    ]
+  },
+  {
+    "ascii": 77,
+    "char": "M",
+    "mappings": [
+      {
+        "unicode": "M",
+        "utf8_bytes": "\\x4D",
+        "url_encoded": "%4D",
+        "normalizes_as": "M",
+        "normalizes_as_hex": "\\x4D",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ᴹ",
+        "utf8_bytes": "\\xE1\\xB4\\xB9",
+        "url_encoded": "%E1%B4%B9",
+        "normalizes_as": "M",
+        "normalizes_as_hex": "\\x4D",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ℳ",
+        "utf8_bytes": "\\xE2\\x84\\xB3",
+        "url_encoded": "%E2%84%B3",
+        "normalizes_as": "M",
+        "normalizes_as_hex": "\\x4D",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "Ⅿ",
+        "utf8_bytes": "\\xE2\\x85\\xAF",
+        "url_encoded": "%E2%85%AF",
+        "normalizes_as": "M",
+        "normalizes_as_hex": "\\x4D",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "Ⓜ",
+        "utf8_bytes": "\\xE2\\x93\\x82",
+        "url_encoded": "%E2%93%82",
+        "normalizes_as": "M",
+        "normalizes_as_hex": "\\x4D",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ō",
+        "utf8_bytes": "\\xC5\\x8D",
+        "url_encoded": "%C5%8D",
+        "normalizes_as": "M",
+        "normalizes_as_hex": "\\x4D",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "ɍ",
+        "utf8_bytes": "\\xC9\\x8D",
+        "url_encoded": "%C9%8D",
+        "normalizes_as": "M",
+        "normalizes_as_hex": "\\x4D",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "͍",
+        "utf8_bytes": "\\xCD\\x8D",
+        "url_encoded": "%CD%8D",
+        "normalizes_as": "M",
+        "normalizes_as_hex": "\\x4D",
+        "form": "TRUNCATION"
+      }
+    ]
+  },
+  {
+    "ascii": 78,
+    "char": "N",
+    "mappings": [
+      {
+        "unicode": "N",
+        "utf8_bytes": "\\x4E",
+        "url_encoded": "%4E",
+        "normalizes_as": "N",
+        "normalizes_as_hex": "\\x4E",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ᴺ",
+        "utf8_bytes": "\\xE1\\xB4\\xBA",
+        "url_encoded": "%E1%B4%BA",
+        "normalizes_as": "N",
+        "normalizes_as_hex": "\\x4E",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ℕ",
+        "utf8_bytes": "\\xE2\\x84\\x95",
+        "url_encoded": "%E2%84%95",
+        "normalizes_as": "N",
+        "normalizes_as_hex": "\\x4E",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "Ⓝ",
+        "utf8_bytes": "\\xE2\\x93\\x83",
+        "url_encoded": "%E2%93%83",
+        "normalizes_as": "N",
+        "normalizes_as_hex": "\\x4E",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "Ｎ",
+        "utf8_bytes": "\\xEF\\xBC\\xAE",
+        "url_encoded": "%EF%BC%AE",
+        "normalizes_as": "N",
+        "normalizes_as_hex": "\\x4E",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "Ŏ",
+        "utf8_bytes": "\\xC5\\x8E",
+        "url_encoded": "%C5%8E",
+        "normalizes_as": "N",
+        "normalizes_as_hex": "\\x4E",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "Ɏ",
+        "utf8_bytes": "\\xC9\\x8E",
+        "url_encoded": "%C9%8E",
+        "normalizes_as": "N",
+        "normalizes_as_hex": "\\x4E",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "͎",
+        "utf8_bytes": "\\xCD\\x8E",
+        "url_encoded": "%CD%8E",
+        "normalizes_as": "N",
+        "normalizes_as_hex": "\\x4E",
+        "form": "TRUNCATION"
+      }
+    ]
+  },
+  {
+    "ascii": 79,
+    "char": "O",
+    "mappings": [
+      {
+        "unicode": "O",
+        "utf8_bytes": "\\x4F",
+        "url_encoded": "%4F",
+        "normalizes_as": "O",
+        "normalizes_as_hex": "\\x4F",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ᴼ",
+        "utf8_bytes": "\\xE1\\xB4\\xBC",
+        "url_encoded": "%E1%B4%BC",
+        "normalizes_as": "O",
+        "normalizes_as_hex": "\\x4F",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "Ⓞ",
+        "utf8_bytes": "\\xE2\\x93\\x84",
+        "url_encoded": "%E2%93%84",
+        "normalizes_as": "O",
+        "normalizes_as_hex": "\\x4F",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "Ｏ",
+        "utf8_bytes": "\\xEF\\xBC\\xAF",
+        "url_encoded": "%EF%BC%AF",
+        "normalizes_as": "O",
+        "normalizes_as_hex": "\\x4F",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "𝐎",
+        "utf8_bytes": "\\xF0\\x9D\\x90\\x8E",
+        "url_encoded": "%F0%9D%90%8E",
+        "normalizes_as": "O",
+        "normalizes_as_hex": "\\x4F",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ŏ",
+        "utf8_bytes": "\\xC5\\x8F",
+        "url_encoded": "%C5%8F",
+        "normalizes_as": "O",
+        "normalizes_as_hex": "\\x4F",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "ɏ",
+        "utf8_bytes": "\\xC9\\x8F",
+        "url_encoded": "%C9%8F",
+        "normalizes_as": "O",
+        "normalizes_as_hex": "\\x4F",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "͏",
+        "utf8_bytes": "\\xCD\\x8F",
+        "url_encoded": "%CD%8F",
+        "normalizes_as": "O",
+        "normalizes_as_hex": "\\x4F",
+        "form": "TRUNCATION"
+      }
+    ]
+  },
+  {
+    "ascii": 80,
+    "char": "P",
+    "mappings": [
+      {
+        "unicode": "P",
+        "utf8_bytes": "\\x50",
+        "url_encoded": "%50",
+        "normalizes_as": "P",
+        "normalizes_as_hex": "\\x50",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ᴾ",
+        "utf8_bytes": "\\xE1\\xB4\\xBE",
+        "url_encoded": "%E1%B4%BE",
+        "normalizes_as": "P",
+        "normalizes_as_hex": "\\x50",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ℙ",
+        "utf8_bytes": "\\xE2\\x84\\x99",
+        "url_encoded": "%E2%84%99",
+        "normalizes_as": "P",
+        "normalizes_as_hex": "\\x50",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "Ⓟ",
+        "utf8_bytes": "\\xE2\\x93\\x85",
+        "url_encoded": "%E2%93%85",
+        "normalizes_as": "P",
+        "normalizes_as_hex": "\\x50",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "Ｐ",
+        "utf8_bytes": "\\xEF\\xBC\\xB0",
+        "url_encoded": "%EF%BC%B0",
+        "normalizes_as": "P",
+        "normalizes_as_hex": "\\x50",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "Ő",
+        "utf8_bytes": "\\xC5\\x90",
+        "url_encoded": "%C5%90",
+        "normalizes_as": "P",
+        "normalizes_as_hex": "\\x50",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "ɐ",
+        "utf8_bytes": "\\xC9\\x90",
+        "url_encoded": "%C9%90",
+        "normalizes_as": "P",
+        "normalizes_as_hex": "\\x50",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "͐",
+        "utf8_bytes": "\\xCD\\x90",
+        "url_encoded": "%CD%90",
+        "normalizes_as": "P",
+        "normalizes_as_hex": "\\x50",
+        "form": "TRUNCATION"
+      }
+    ]
+  },
+  {
+    "ascii": 81,
+    "char": "Q",
+    "mappings": [
+      {
+        "unicode": "Q",
+        "utf8_bytes": "\\x51",
+        "url_encoded": "%51",
+        "normalizes_as": "Q",
+        "normalizes_as_hex": "\\x51",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ℚ",
+        "utf8_bytes": "\\xE2\\x84\\x9A",
+        "url_encoded": "%E2%84%9A",
+        "normalizes_as": "Q",
+        "normalizes_as_hex": "\\x51",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "Ⓠ",
+        "utf8_bytes": "\\xE2\\x93\\x86",
+        "url_encoded": "%E2%93%86",
+        "normalizes_as": "Q",
+        "normalizes_as_hex": "\\x51",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ꟴ",
+        "utf8_bytes": "\\xEA\\x9F\\xB4",
+        "url_encoded": "%EA%9F%B4",
+        "normalizes_as": "Q",
+        "normalizes_as_hex": "\\x51",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "Ｑ",
+        "utf8_bytes": "\\xEF\\xBC\\xB1",
+        "url_encoded": "%EF%BC%B1",
+        "normalizes_as": "Q",
+        "normalizes_as_hex": "\\x51",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ő",
+        "utf8_bytes": "\\xC5\\x91",
+        "url_encoded": "%C5%91",
+        "normalizes_as": "Q",
+        "normalizes_as_hex": "\\x51",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "ɑ",
+        "utf8_bytes": "\\xC9\\x91",
+        "url_encoded": "%C9%91",
+        "normalizes_as": "Q",
+        "normalizes_as_hex": "\\x51",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "͑",
+        "utf8_bytes": "\\xCD\\x91",
+        "url_encoded": "%CD%91",
+        "normalizes_as": "Q",
+        "normalizes_as_hex": "\\x51",
+        "form": "TRUNCATION"
+      }
+    ]
+  },
+  {
+    "ascii": 82,
+    "char": "R",
+    "mappings": [
+      {
+        "unicode": "R",
+        "utf8_bytes": "\\x52",
+        "url_encoded": "%52",
+        "normalizes_as": "R",
+        "normalizes_as_hex": "\\x52",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ᴿ",
+        "utf8_bytes": "\\xE1\\xB4\\xBF",
+        "url_encoded": "%E1%B4%BF",
+        "normalizes_as": "R",
+        "normalizes_as_hex": "\\x52",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ℛ",
+        "utf8_bytes": "\\xE2\\x84\\x9B",
+        "url_encoded": "%E2%84%9B",
+        "normalizes_as": "R",
+        "normalizes_as_hex": "\\x52",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ℜ",
+        "utf8_bytes": "\\xE2\\x84\\x9C",
+        "url_encoded": "%E2%84%9C",
+        "normalizes_as": "R",
+        "normalizes_as_hex": "\\x52",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ℝ",
+        "utf8_bytes": "\\xE2\\x84\\x9D",
+        "url_encoded": "%E2%84%9D",
+        "normalizes_as": "R",
+        "normalizes_as_hex": "\\x52",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "Œ",
+        "utf8_bytes": "\\xC5\\x92",
+        "url_encoded": "%C5%92",
+        "normalizes_as": "R",
+        "normalizes_as_hex": "\\x52",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "ɒ",
+        "utf8_bytes": "\\xC9\\x92",
+        "url_encoded": "%C9%92",
+        "normalizes_as": "R",
+        "normalizes_as_hex": "\\x52",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "͒",
+        "utf8_bytes": "\\xCD\\x92",
+        "url_encoded": "%CD%92",
+        "normalizes_as": "R",
+        "normalizes_as_hex": "\\x52",
+        "form": "TRUNCATION"
+      }
+    ]
+  },
+  {
+    "ascii": 83,
+    "char": "S",
+    "mappings": [
+      {
+        "unicode": "S",
+        "utf8_bytes": "\\x53",
+        "url_encoded": "%53",
+        "normalizes_as": "S",
+        "normalizes_as_hex": "\\x53",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "Ⓢ",
+        "utf8_bytes": "\\xE2\\x93\\x88",
+        "url_encoded": "%E2%93%88",
+        "normalizes_as": "S",
+        "normalizes_as_hex": "\\x53",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "Ｓ",
+        "utf8_bytes": "\\xEF\\xBC\\xB3",
+        "url_encoded": "%EF%BC%B3",
+        "normalizes_as": "S",
+        "normalizes_as_hex": "\\x53",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "𝐒",
+        "utf8_bytes": "\\xF0\\x9D\\x90\\x92",
+        "url_encoded": "%F0%9D%90%92",
+        "normalizes_as": "S",
+        "normalizes_as_hex": "\\x53",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "𝑆",
+        "utf8_bytes": "\\xF0\\x9D\\x91\\x86",
+        "url_encoded": "%F0%9D%91%86",
+        "normalizes_as": "S",
+        "normalizes_as_hex": "\\x53",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "œ",
+        "utf8_bytes": "\\xC5\\x93",
+        "url_encoded": "%C5%93",
+        "normalizes_as": "S",
+        "normalizes_as_hex": "\\x53",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "ɓ",
+        "utf8_bytes": "\\xC9\\x93",
+        "url_encoded": "%C9%93",
+        "normalizes_as": "S",
+        "normalizes_as_hex": "\\x53",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "͓",
+        "utf8_bytes": "\\xCD\\x93",
+        "url_encoded": "%CD%93",
+        "normalizes_as": "S",
+        "normalizes_as_hex": "\\x53",
+        "form": "TRUNCATION"
+      }
+    ]
+  },
+  {
+    "ascii": 84,
+    "char": "T",
+    "mappings": [
+      {
+        "unicode": "T",
+        "utf8_bytes": "\\x54",
+        "url_encoded": "%54",
+        "normalizes_as": "T",
+        "normalizes_as_hex": "\\x54",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ᵀ",
+        "utf8_bytes": "\\xE1\\xB5\\x80",
+        "url_encoded": "%E1%B5%80",
+        "normalizes_as": "T",
+        "normalizes_as_hex": "\\x54",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "Ⓣ",
+        "utf8_bytes": "\\xE2\\x93\\x89",
+        "url_encoded": "%E2%93%89",
+        "normalizes_as": "T",
+        "normalizes_as_hex": "\\x54",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "Ｔ",
+        "utf8_bytes": "\\xEF\\xBC\\xB4",
+        "url_encoded": "%EF%BC%B4",
+        "normalizes_as": "T",
+        "normalizes_as_hex": "\\x54",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "𝐓",
+        "utf8_bytes": "\\xF0\\x9D\\x90\\x93",
+        "url_encoded": "%F0%9D%90%93",
+        "normalizes_as": "T",
+        "normalizes_as_hex": "\\x54",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "Ŕ",
+        "utf8_bytes": "\\xC5\\x94",
+        "url_encoded": "%C5%94",
+        "normalizes_as": "T",
+        "normalizes_as_hex": "\\x54",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "ɔ",
+        "utf8_bytes": "\\xC9\\x94",
+        "url_encoded": "%C9%94",
+        "normalizes_as": "T",
+        "normalizes_as_hex": "\\x54",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "͔",
+        "utf8_bytes": "\\xCD\\x94",
+        "url_encoded": "%CD%94",
+        "normalizes_as": "T",
+        "normalizes_as_hex": "\\x54",
+        "form": "TRUNCATION"
+      }
+    ]
+  },
+  {
+    "ascii": 85,
+    "char": "U",
+    "mappings": [
+      {
+        "unicode": "U",
+        "utf8_bytes": "\\x55",
+        "url_encoded": "%55",
+        "normalizes_as": "U",
+        "normalizes_as_hex": "\\x55",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ᵁ",
+        "utf8_bytes": "\\xE1\\xB5\\x81",
+        "url_encoded": "%E1%B5%81",
+        "normalizes_as": "U",
+        "normalizes_as_hex": "\\x55",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "Ⓤ",
+        "utf8_bytes": "\\xE2\\x93\\x8A",
+        "url_encoded": "%E2%93%8A",
+        "normalizes_as": "U",
+        "normalizes_as_hex": "\\x55",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "Ｕ",
+        "utf8_bytes": "\\xEF\\xBC\\xB5",
+        "url_encoded": "%EF%BC%B5",
+        "normalizes_as": "U",
+        "normalizes_as_hex": "\\x55",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "𝐔",
+        "utf8_bytes": "\\xF0\\x9D\\x90\\x94",
+        "url_encoded": "%F0%9D%90%94",
+        "normalizes_as": "U",
+        "normalizes_as_hex": "\\x55",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ŕ",
+        "utf8_bytes": "\\xC5\\x95",
+        "url_encoded": "%C5%95",
+        "normalizes_as": "U",
+        "normalizes_as_hex": "\\x55",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "ɕ",
+        "utf8_bytes": "\\xC9\\x95",
+        "url_encoded": "%C9%95",
+        "normalizes_as": "U",
+        "normalizes_as_hex": "\\x55",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "͕",
+        "utf8_bytes": "\\xCD\\x95",
+        "url_encoded": "%CD%95",
+        "normalizes_as": "U",
+        "normalizes_as_hex": "\\x55",
+        "form": "TRUNCATION"
+      }
+    ]
+  },
+  {
+    "ascii": 86,
+    "char": "V",
+    "mappings": [
+      {
+        "unicode": "V",
+        "utf8_bytes": "\\x56",
+        "url_encoded": "%56",
+        "normalizes_as": "V",
+        "normalizes_as_hex": "\\x56",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "Ⅴ",
+        "utf8_bytes": "\\xE2\\x85\\xA4",
+        "url_encoded": "%E2%85%A4",
+        "normalizes_as": "V",
+        "normalizes_as_hex": "\\x56",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "Ⓥ",
+        "utf8_bytes": "\\xE2\\x93\\x8B",
+        "url_encoded": "%E2%93%8B",
+        "normalizes_as": "V",
+        "normalizes_as_hex": "\\x56",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ⱽ",
+        "utf8_bytes": "\\xE2\\xB1\\xBD",
+        "url_encoded": "%E2%B1%BD",
+        "normalizes_as": "V",
+        "normalizes_as_hex": "\\x56",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "Ｖ",
+        "utf8_bytes": "\\xEF\\xBC\\xB6",
+        "url_encoded": "%EF%BC%B6",
+        "normalizes_as": "V",
+        "normalizes_as_hex": "\\x56",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "Ŗ",
+        "utf8_bytes": "\\xC5\\x96",
+        "url_encoded": "%C5%96",
+        "normalizes_as": "V",
+        "normalizes_as_hex": "\\x56",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "ɖ",
+        "utf8_bytes": "\\xC9\\x96",
+        "url_encoded": "%C9%96",
+        "normalizes_as": "V",
+        "normalizes_as_hex": "\\x56",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "͖",
+        "utf8_bytes": "\\xCD\\x96",
+        "url_encoded": "%CD%96",
+        "normalizes_as": "V",
+        "normalizes_as_hex": "\\x56",
+        "form": "TRUNCATION"
+      }
+    ]
+  },
+  {
+    "ascii": 87,
+    "char": "W",
+    "mappings": [
+      {
+        "unicode": "W",
+        "utf8_bytes": "\\x57",
+        "url_encoded": "%57",
+        "normalizes_as": "W",
+        "normalizes_as_hex": "\\x57",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ᵂ",
+        "utf8_bytes": "\\xE1\\xB5\\x82",
+        "url_encoded": "%E1%B5%82",
+        "normalizes_as": "W",
+        "normalizes_as_hex": "\\x57",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "Ⓦ",
+        "utf8_bytes": "\\xE2\\x93\\x8C",
+        "url_encoded": "%E2%93%8C",
+        "normalizes_as": "W",
+        "normalizes_as_hex": "\\x57",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "Ｗ",
+        "utf8_bytes": "\\xEF\\xBC\\xB7",
+        "url_encoded": "%EF%BC%B7",
+        "normalizes_as": "W",
+        "normalizes_as_hex": "\\x57",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "𝐖",
+        "utf8_bytes": "\\xF0\\x9D\\x90\\x96",
+        "url_encoded": "%F0%9D%90%96",
+        "normalizes_as": "W",
+        "normalizes_as_hex": "\\x57",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ŗ",
+        "utf8_bytes": "\\xC5\\x97",
+        "url_encoded": "%C5%97",
+        "normalizes_as": "W",
+        "normalizes_as_hex": "\\x57",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "ɗ",
+        "utf8_bytes": "\\xC9\\x97",
+        "url_encoded": "%C9%97",
+        "normalizes_as": "W",
+        "normalizes_as_hex": "\\x57",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "͗",
+        "utf8_bytes": "\\xCD\\x97",
+        "url_encoded": "%CD%97",
+        "normalizes_as": "W",
+        "normalizes_as_hex": "\\x57",
+        "form": "TRUNCATION"
+      }
+    ]
+  },
+  {
+    "ascii": 88,
+    "char": "X",
+    "mappings": [
+      {
+        "unicode": "X",
+        "utf8_bytes": "\\x58",
+        "url_encoded": "%58",
+        "normalizes_as": "X",
+        "normalizes_as_hex": "\\x58",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "Ⅹ",
+        "utf8_bytes": "\\xE2\\x85\\xA9",
+        "url_encoded": "%E2%85%A9",
+        "normalizes_as": "X",
+        "normalizes_as_hex": "\\x58",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "Ⓧ",
+        "utf8_bytes": "\\xE2\\x93\\x8D",
+        "url_encoded": "%E2%93%8D",
+        "normalizes_as": "X",
+        "normalizes_as_hex": "\\x58",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "Ｘ",
+        "utf8_bytes": "\\xEF\\xBC\\xB8",
+        "url_encoded": "%EF%BC%B8",
+        "normalizes_as": "X",
+        "normalizes_as_hex": "\\x58",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "𝐗",
+        "utf8_bytes": "\\xF0\\x9D\\x90\\x97",
+        "url_encoded": "%F0%9D%90%97",
+        "normalizes_as": "X",
+        "normalizes_as_hex": "\\x58",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "Ř",
+        "utf8_bytes": "\\xC5\\x98",
+        "url_encoded": "%C5%98",
+        "normalizes_as": "X",
+        "normalizes_as_hex": "\\x58",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "ɘ",
+        "utf8_bytes": "\\xC9\\x98",
+        "url_encoded": "%C9%98",
+        "normalizes_as": "X",
+        "normalizes_as_hex": "\\x58",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "͘",
+        "utf8_bytes": "\\xCD\\x98",
+        "url_encoded": "%CD%98",
+        "normalizes_as": "X",
+        "normalizes_as_hex": "\\x58",
+        "form": "TRUNCATION"
+      }
+    ]
+  },
+  {
+    "ascii": 89,
+    "char": "Y",
+    "mappings": [
+      {
+        "unicode": "Y",
+        "utf8_bytes": "\\x59",
+        "url_encoded": "%59",
+        "normalizes_as": "Y",
+        "normalizes_as_hex": "\\x59",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "Ⓨ",
+        "utf8_bytes": "\\xE2\\x93\\x8E",
+        "url_encoded": "%E2%93%8E",
+        "normalizes_as": "Y",
+        "normalizes_as_hex": "\\x59",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "Ｙ",
+        "utf8_bytes": "\\xEF\\xBC\\xB9",
+        "url_encoded": "%EF%BC%B9",
+        "normalizes_as": "Y",
+        "normalizes_as_hex": "\\x59",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "𝐘",
+        "utf8_bytes": "\\xF0\\x9D\\x90\\x98",
+        "url_encoded": "%F0%9D%90%98",
+        "normalizes_as": "Y",
+        "normalizes_as_hex": "\\x59",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "𝑌",
+        "utf8_bytes": "\\xF0\\x9D\\x91\\x8C",
+        "url_encoded": "%F0%9D%91%8C",
+        "normalizes_as": "Y",
+        "normalizes_as_hex": "\\x59",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ř",
+        "utf8_bytes": "\\xC5\\x99",
+        "url_encoded": "%C5%99",
+        "normalizes_as": "Y",
+        "normalizes_as_hex": "\\x59",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "ə",
+        "utf8_bytes": "\\xC9\\x99",
+        "url_encoded": "%C9%99",
+        "normalizes_as": "Y",
+        "normalizes_as_hex": "\\x59",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "͙",
+        "utf8_bytes": "\\xCD\\x99",
+        "url_encoded": "%CD%99",
+        "normalizes_as": "Y",
+        "normalizes_as_hex": "\\x59",
+        "form": "TRUNCATION"
+      }
+    ]
+  },
+  {
+    "ascii": 90,
+    "char": "Z",
+    "mappings": [
+      {
+        "unicode": "Z",
+        "utf8_bytes": "\\x5A",
+        "url_encoded": "%5A",
+        "normalizes_as": "Z",
+        "normalizes_as_hex": "\\x5A",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ℤ",
+        "utf8_bytes": "\\xE2\\x84\\xA4",
+        "url_encoded": "%E2%84%A4",
+        "normalizes_as": "Z",
+        "normalizes_as_hex": "\\x5A",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ℨ",
+        "utf8_bytes": "\\xE2\\x84\\xA8",
+        "url_encoded": "%E2%84%A8",
+        "normalizes_as": "Z",
+        "normalizes_as_hex": "\\x5A",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "Ⓩ",
+        "utf8_bytes": "\\xE2\\x93\\x8F",
+        "url_encoded": "%E2%93%8F",
+        "normalizes_as": "Z",
+        "normalizes_as_hex": "\\x5A",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "Ｚ",
+        "utf8_bytes": "\\xEF\\xBC\\xBA",
+        "url_encoded": "%EF%BC%BA",
+        "normalizes_as": "Z",
+        "normalizes_as_hex": "\\x5A",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "Ś",
+        "utf8_bytes": "\\xC5\\x9A",
+        "url_encoded": "%C5%9A",
+        "normalizes_as": "Z",
+        "normalizes_as_hex": "\\x5A",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "ɚ",
+        "utf8_bytes": "\\xC9\\x9A",
+        "url_encoded": "%C9%9A",
+        "normalizes_as": "Z",
+        "normalizes_as_hex": "\\x5A",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "͚",
+        "utf8_bytes": "\\xCD\\x9A",
+        "url_encoded": "%CD%9A",
+        "normalizes_as": "Z",
+        "normalizes_as_hex": "\\x5A",
+        "form": "TRUNCATION"
+      }
+    ]
+  },
+  {
+    "ascii": 91,
+    "char": "[",
+    "mappings": [
+      {
+        "unicode": "[",
+        "utf8_bytes": "\\x5B",
+        "url_encoded": "%5B",
+        "normalizes_as": "[",
+        "normalizes_as_hex": "\\x5B",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "﹇",
+        "utf8_bytes": "\\xEF\\xB9\\x87",
+        "url_encoded": "%EF%B9%87",
+        "normalizes_as": "[",
+        "normalizes_as_hex": "\\x5B",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "［",
+        "utf8_bytes": "\\xEF\\xBC\\xBB",
+        "url_encoded": "%EF%BC%BB",
+        "normalizes_as": "[",
+        "normalizes_as_hex": "\\x5B",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ś",
+        "utf8_bytes": "\\xC5\\x9B",
+        "url_encoded": "%C5%9B",
+        "normalizes_as": "[",
+        "normalizes_as_hex": "\\x5B",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "ɛ",
+        "utf8_bytes": "\\xC9\\x9B",
+        "url_encoded": "%C9%9B",
+        "normalizes_as": "[",
+        "normalizes_as_hex": "\\x5B",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "͛",
+        "utf8_bytes": "\\xCD\\x9B",
+        "url_encoded": "%CD%9B",
+        "normalizes_as": "[",
+        "normalizes_as_hex": "\\x5B",
+        "form": "TRUNCATION"
+      }
+    ]
+  },
+  {
+    "ascii": 92,
+    "char": "\\",
+    "mappings": [
+      {
+        "unicode": "\\",
+        "utf8_bytes": "\\x5C",
+        "url_encoded": "%5C",
+        "normalizes_as": "\\",
+        "normalizes_as_hex": "\\x5C",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "﹨",
+        "utf8_bytes": "\\xEF\\xB9\\xA8",
+        "url_encoded": "%EF%B9%A8",
+        "normalizes_as": "\\",
+        "normalizes_as_hex": "\\x5C",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "＼",
+        "utf8_bytes": "\\xEF\\xBC\\xBC",
+        "url_encoded": "%EF%BC%BC",
+        "normalizes_as": "\\",
+        "normalizes_as_hex": "\\x5C",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "Ŝ",
+        "utf8_bytes": "\\xC5\\x9C",
+        "url_encoded": "%C5%9C",
+        "normalizes_as": "\\",
+        "normalizes_as_hex": "\\x5C",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "ɜ",
+        "utf8_bytes": "\\xC9\\x9C",
+        "url_encoded": "%C9%9C",
+        "normalizes_as": "\\",
+        "normalizes_as_hex": "\\x5C",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "͜",
+        "utf8_bytes": "\\xCD\\x9C",
+        "url_encoded": "%CD%9C",
+        "normalizes_as": "\\",
+        "normalizes_as_hex": "\\x5C",
+        "form": "TRUNCATION"
+      }
+    ]
+  },
+  {
+    "ascii": 93,
+    "char": "]",
+    "mappings": [
+      {
+        "unicode": "]",
+        "utf8_bytes": "\\x5D",
+        "url_encoded": "%5D",
+        "normalizes_as": "]",
+        "normalizes_as_hex": "\\x5D",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "﹈",
+        "utf8_bytes": "\\xEF\\xB9\\x88",
+        "url_encoded": "%EF%B9%88",
+        "normalizes_as": "]",
+        "normalizes_as_hex": "\\x5D",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "］",
+        "utf8_bytes": "\\xEF\\xBC\\xBD",
+        "url_encoded": "%EF%BC%BD",
+        "normalizes_as": "]",
+        "normalizes_as_hex": "\\x5D",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ŝ",
+        "utf8_bytes": "\\xC5\\x9D",
+        "url_encoded": "%C5%9D",
+        "normalizes_as": "]",
+        "normalizes_as_hex": "\\x5D",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "ɝ",
+        "utf8_bytes": "\\xC9\\x9D",
+        "url_encoded": "%C9%9D",
+        "normalizes_as": "]",
+        "normalizes_as_hex": "\\x5D",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "͝",
+        "utf8_bytes": "\\xCD\\x9D",
+        "url_encoded": "%CD%9D",
+        "normalizes_as": "]",
+        "normalizes_as_hex": "\\x5D",
+        "form": "TRUNCATION"
+      }
+    ]
+  },
+  {
+    "ascii": 94,
+    "char": "^",
+    "mappings": [
+      {
+        "unicode": "^",
+        "utf8_bytes": "\\x5E",
+        "url_encoded": "%5E",
+        "normalizes_as": "^",
+        "normalizes_as_hex": "\\x5E",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "＾",
+        "utf8_bytes": "\\xEF\\xBC\\xBE",
+        "url_encoded": "%EF%BC%BE",
+        "normalizes_as": "^",
+        "normalizes_as_hex": "\\x5E",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "Ş",
+        "utf8_bytes": "\\xC5\\x9E",
+        "url_encoded": "%C5%9E",
+        "normalizes_as": "^",
+        "normalizes_as_hex": "\\x5E",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "ɞ",
+        "utf8_bytes": "\\xC9\\x9E",
+        "url_encoded": "%C9%9E",
+        "normalizes_as": "^",
+        "normalizes_as_hex": "\\x5E",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "͞",
+        "utf8_bytes": "\\xCD\\x9E",
+        "url_encoded": "%CD%9E",
+        "normalizes_as": "^",
+        "normalizes_as_hex": "\\x5E",
+        "form": "TRUNCATION"
+      }
+    ]
+  },
+  {
+    "ascii": 95,
+    "char": "_",
+    "mappings": [
+      {
+        "unicode": "_",
+        "utf8_bytes": "\\x5F",
+        "url_encoded": "%5F",
+        "normalizes_as": "_",
+        "normalizes_as_hex": "\\x5F",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "︳",
+        "utf8_bytes": "\\xEF\\xB8\\xB3",
+        "url_encoded": "%EF%B8%B3",
+        "normalizes_as": "_",
+        "normalizes_as_hex": "\\x5F",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "︴",
+        "utf8_bytes": "\\xEF\\xB8\\xB4",
+        "url_encoded": "%EF%B8%B4",
+        "normalizes_as": "_",
+        "normalizes_as_hex": "\\x5F",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "﹍",
+        "utf8_bytes": "\\xEF\\xB9\\x8D",
+        "url_encoded": "%EF%B9%8D",
+        "normalizes_as": "_",
+        "normalizes_as_hex": "\\x5F",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "﹎",
+        "utf8_bytes": "\\xEF\\xB9\\x8E",
+        "url_encoded": "%EF%B9%8E",
+        "normalizes_as": "_",
+        "normalizes_as_hex": "\\x5F",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ş",
+        "utf8_bytes": "\\xC5\\x9F",
+        "url_encoded": "%C5%9F",
+        "normalizes_as": "_",
+        "normalizes_as_hex": "\\x5F",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "ɟ",
+        "utf8_bytes": "\\xC9\\x9F",
+        "url_encoded": "%C9%9F",
+        "normalizes_as": "_",
+        "normalizes_as_hex": "\\x5F",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "͟",
+        "utf8_bytes": "\\xCD\\x9F",
+        "url_encoded": "%CD%9F",
+        "normalizes_as": "_",
+        "normalizes_as_hex": "\\x5F",
+        "form": "TRUNCATION"
+      }
+    ]
+  },
+  {
+    "ascii": 96,
+    "char": "`",
+    "mappings": [
+      {
+        "unicode": "`",
+        "utf8_bytes": "\\x60",
+        "url_encoded": "%60",
+        "normalizes_as": "`",
+        "normalizes_as_hex": "\\x60",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "`",
+        "utf8_bytes": "\\xE1\\xBF\\xAF",
+        "url_encoded": "%E1%BF%AF",
+        "normalizes_as": "`",
+        "normalizes_as_hex": "\\x60",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "｀",
+        "utf8_bytes": "\\xEF\\xBD\\x80",
+        "url_encoded": "%EF%BD%80",
+        "normalizes_as": "`",
+        "normalizes_as_hex": "\\x60",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "Š",
+        "utf8_bytes": "\\xC5\\xA0",
+        "url_encoded": "%C5%A0",
+        "normalizes_as": "`",
+        "normalizes_as_hex": "\\x60",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "ɠ",
+        "utf8_bytes": "\\xC9\\xA0",
+        "url_encoded": "%C9%A0",
+        "normalizes_as": "`",
+        "normalizes_as_hex": "\\x60",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "͠",
+        "utf8_bytes": "\\xCD\\xA0",
+        "url_encoded": "%CD%A0",
+        "normalizes_as": "`",
+        "normalizes_as_hex": "\\x60",
+        "form": "TRUNCATION"
+      }
+    ]
+  },
+  {
+    "ascii": 97,
+    "char": "a",
+    "mappings": [
+      {
+        "unicode": "a",
+        "utf8_bytes": "\\x61",
+        "url_encoded": "%61",
+        "normalizes_as": "a",
+        "normalizes_as_hex": "\\x61",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ª",
+        "utf8_bytes": "\\xC2\\xAA",
+        "url_encoded": "%C2%AA",
+        "normalizes_as": "a",
+        "normalizes_as_hex": "\\x61",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ᵃ",
+        "utf8_bytes": "\\xE1\\xB5\\x83",
+        "url_encoded": "%E1%B5%83",
+        "normalizes_as": "a",
+        "normalizes_as_hex": "\\x61",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ₐ",
+        "utf8_bytes": "\\xE2\\x82\\x90",
+        "url_encoded": "%E2%82%90",
+        "normalizes_as": "a",
+        "normalizes_as_hex": "\\x61",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ⓐ",
+        "utf8_bytes": "\\xE2\\x93\\x90",
+        "url_encoded": "%E2%93%90",
+        "normalizes_as": "a",
+        "normalizes_as_hex": "\\x61",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "š",
+        "utf8_bytes": "\\xC5\\xA1",
+        "url_encoded": "%C5%A1",
+        "normalizes_as": "a",
+        "normalizes_as_hex": "\\x61",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "ɡ",
+        "utf8_bytes": "\\xC9\\xA1",
+        "url_encoded": "%C9%A1",
+        "normalizes_as": "a",
+        "normalizes_as_hex": "\\x61",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "͡",
+        "utf8_bytes": "\\xCD\\xA1",
+        "url_encoded": "%CD%A1",
+        "normalizes_as": "a",
+        "normalizes_as_hex": "\\x61",
+        "form": "TRUNCATION"
+      }
+    ]
+  },
+  {
+    "ascii": 98,
+    "char": "b",
+    "mappings": [
+      {
+        "unicode": "b",
+        "utf8_bytes": "\\x62",
+        "url_encoded": "%62",
+        "normalizes_as": "b",
+        "normalizes_as_hex": "\\x62",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ᵇ",
+        "utf8_bytes": "\\xE1\\xB5\\x87",
+        "url_encoded": "%E1%B5%87",
+        "normalizes_as": "b",
+        "normalizes_as_hex": "\\x62",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ⓑ",
+        "utf8_bytes": "\\xE2\\x93\\x91",
+        "url_encoded": "%E2%93%91",
+        "normalizes_as": "b",
+        "normalizes_as_hex": "\\x62",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ｂ",
+        "utf8_bytes": "\\xEF\\xBD\\x82",
+        "url_encoded": "%EF%BD%82",
+        "normalizes_as": "b",
+        "normalizes_as_hex": "\\x62",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "𝐛",
+        "utf8_bytes": "\\xF0\\x9D\\x90\\x9B",
+        "url_encoded": "%F0%9D%90%9B",
+        "normalizes_as": "b",
+        "normalizes_as_hex": "\\x62",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "Ţ",
+        "utf8_bytes": "\\xC5\\xA2",
+        "url_encoded": "%C5%A2",
+        "normalizes_as": "b",
+        "normalizes_as_hex": "\\x62",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "ɢ",
+        "utf8_bytes": "\\xC9\\xA2",
+        "url_encoded": "%C9%A2",
+        "normalizes_as": "b",
+        "normalizes_as_hex": "\\x62",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "͢",
+        "utf8_bytes": "\\xCD\\xA2",
+        "url_encoded": "%CD%A2",
+        "normalizes_as": "b",
+        "normalizes_as_hex": "\\x62",
+        "form": "TRUNCATION"
+      }
+    ]
+  },
+  {
+    "ascii": 99,
+    "char": "c",
+    "mappings": [
+      {
+        "unicode": "c",
+        "utf8_bytes": "\\x63",
+        "url_encoded": "%63",
+        "normalizes_as": "c",
+        "normalizes_as_hex": "\\x63",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ᶜ",
+        "utf8_bytes": "\\xE1\\xB6\\x9C",
+        "url_encoded": "%E1%B6%9C",
+        "normalizes_as": "c",
+        "normalizes_as_hex": "\\x63",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ⅽ",
+        "utf8_bytes": "\\xE2\\x85\\xBD",
+        "url_encoded": "%E2%85%BD",
+        "normalizes_as": "c",
+        "normalizes_as_hex": "\\x63",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ⓒ",
+        "utf8_bytes": "\\xE2\\x93\\x92",
+        "url_encoded": "%E2%93%92",
+        "normalizes_as": "c",
+        "normalizes_as_hex": "\\x63",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ｃ",
+        "utf8_bytes": "\\xEF\\xBD\\x83",
+        "url_encoded": "%EF%BD%83",
+        "normalizes_as": "c",
+        "normalizes_as_hex": "\\x63",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ţ",
+        "utf8_bytes": "\\xC5\\xA3",
+        "url_encoded": "%C5%A3",
+        "normalizes_as": "c",
+        "normalizes_as_hex": "\\x63",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "ɣ",
+        "utf8_bytes": "\\xC9\\xA3",
+        "url_encoded": "%C9%A3",
+        "normalizes_as": "c",
+        "normalizes_as_hex": "\\x63",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "ͣ",
+        "utf8_bytes": "\\xCD\\xA3",
+        "url_encoded": "%CD%A3",
+        "normalizes_as": "c",
+        "normalizes_as_hex": "\\x63",
+        "form": "TRUNCATION"
+      }
+    ]
+  },
+  {
+    "ascii": 100,
+    "char": "d",
+    "mappings": [
+      {
+        "unicode": "d",
+        "utf8_bytes": "\\x64",
+        "url_encoded": "%64",
+        "normalizes_as": "d",
+        "normalizes_as_hex": "\\x64",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ᵈ",
+        "utf8_bytes": "\\xE1\\xB5\\x88",
+        "url_encoded": "%E1%B5%88",
+        "normalizes_as": "d",
+        "normalizes_as_hex": "\\x64",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ⅆ",
+        "utf8_bytes": "\\xE2\\x85\\x86",
+        "url_encoded": "%E2%85%86",
+        "normalizes_as": "d",
+        "normalizes_as_hex": "\\x64",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ⅾ",
+        "utf8_bytes": "\\xE2\\x85\\xBE",
+        "url_encoded": "%E2%85%BE",
+        "normalizes_as": "d",
+        "normalizes_as_hex": "\\x64",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "ⓓ",
+        "utf8_bytes": "\\xE2\\x93\\x93",
+        "url_encoded": "%E2%93%93",
+        "normalizes_as": "d",
+        "normalizes_as_hex": "\\x64",
+        "form": "NFKC"
+      },
+      {
+        "unicode": "Ť",
+        "utf8_bytes": "\\xC5\\xA4",
+        "url_encoded": "%C5%A4",
+        "normalizes_as": "d",
+        "normalizes_as_hex": "\\x64",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "ɤ",
+        "utf8_bytes": "\\xC9\\xA4",
+        "url_encoded": "%C9%A4",
+        "normalizes_as": "d",
+        "normalizes_as_hex": "\\x64",
+        "form": "TRUNCATION"
+      },
+      {
+        "unicode": "ͤ",
+        "utf8_bytes": "\\xCD\\xA4",
+        "url_encoded": "%CD%A4",
+        "normalizes_as": "d",
+        "normalizes_as_hex": "\\x64",
+        "form": "TRUNCATION"
+      }
+    ]
+  }
+]

@@ -9,20 +9,39 @@ import (
 )
 
 /*
-GenerateCharEncodePayloads generates payloads by encoding single characters
-in the URL path using single, double, and triple URL encoding.
+GenerateCharEncodePayloads generates payloads by encoding characters in the URL path
+using single, double, and triple URL encoding techniques.
 
-It handles four cases for character encoding:
-1. The last character of the path.
-2. The first character of the path (after any leading '/').
-3. Each character in the last path segment.
-4. Each character in the entire path.
+The function implements five core encoding techniques:
 
-If the original path contains literal '?' or '#' characters, which are
-preserved during the letter-encoding process, this function also generates
-additional payloads where these specific '?' and '#' characters are
-percent-encoded (%3F and %23 respectively). This ensures that the original
-query string can always be appended correctly.
+ 1. **Last Character Encoding:** Encodes the last character of the entire path.
+    Example: `/admin/test` → `/admin/tes%74`
+
+ 2. **First Character Encoding:** Encodes the first character of the path (after any leading '/').
+    Example: `/admin/test` → `/%61dmin/test`
+
+ 3. **Last Segment Character Encoding:** Encodes each character in the last path segment individually.
+    Example: `/admin/test` → `/admin/%74est`, `/admin/t%65st`, etc.
+
+ 4. **Full Path Character Encoding:** Encodes each character in the entire path individually.
+    Example: `/admin/test` → `/%61dmin/test`, `/a%64min/test`, etc.
+
+ 5. **Full Segment Encoding Variations:** Encodes all characters within complete path segments.
+    Creates fully URL-encoded versions of each segment and generates payloads by:
+    - Replacing individual segments: `/%61%64%6d%69%6e/test`, `/admin/%74%65%73%74`
+    - Replacing all segments at once: `/%61%64%6d%69%6e/%74%65%73%74`
+
+Each technique generates three encoding variants:
+- Single encoding: `%61` (standard percent encoding)
+- Double encoding: `%2561` (encoding the percent sign itself)
+- Triple encoding: `%25%3561` (encoding the percent sign twice)
+
+If the original path contains literal '?' or '#' characters, which are preserved
+during the encoding process, the function also generates additional payloads where
+these specific characters are percent-encoded (%3F and %23 respectively). This
+ensures that the original query string can always be appended correctly.
+
+All variations preserve the original query string if present.
 */
 func (pg *PayloadGenerator) GenerateCharEncodePayloads(targetURL string, bypassModule string) []BypassPayload {
 	var allJobs []BypassPayload
@@ -276,6 +295,107 @@ func (pg *PayloadGenerator) GenerateCharEncodePayloads(targetURL string, bypassM
 		}
 	}
 
+	// 5. Full segment URL encoding variations
+	if strings.Contains(basePath, "/") {
+		segments := strings.Split(basePath, "/")
+		if len(segments) > 1 {
+			singleEncodedSegments := make([]string, len(segments))
+			doubleEncodedSegments := make([]string, len(segments))
+			tripleEncodedSegments := make([]string, len(segments))
+			canBeEncoded := make([]bool, len(segments))
+			anyCanBeEncoded := false
+
+			// Generate encoded versions of each segment
+			for i, segment := range segments {
+				if segment == "" {
+					continue
+				}
+				single, double, triple := urlEncodeSegment(segment)
+				if single != segment {
+					singleEncodedSegments[i] = single
+					doubleEncodedSegments[i] = double
+					tripleEncodedSegments[i] = triple
+					canBeEncoded[i] = true
+					anyCanBeEncoded = true
+				}
+			}
+
+			if anyCanBeEncoded {
+				// 5.1 Replace one segment at a time
+				for i := 1; i < len(segments); i++ {
+					if canBeEncoded[i] {
+						singlePath := createPathWithReplacedSegment(segments, i, singleEncodedSegments[i])
+						singlePaths[singlePath+query] = struct{}{}
+						if strings.ContainsAny(singlePath, "?#") {
+							encodedSpecialPath := encodeQueryAndFragmentChars(singlePath)
+							singlePaths[encodedSpecialPath+query] = struct{}{}
+						}
+
+						doublePath := createPathWithReplacedSegment(segments, i, doubleEncodedSegments[i])
+						doublePaths[doublePath+query] = struct{}{}
+						if strings.ContainsAny(doublePath, "?#") {
+							encodedSpecialPath := encodeQueryAndFragmentChars(doublePath)
+							doublePaths[encodedSpecialPath+query] = struct{}{}
+						}
+
+						triplePath := createPathWithReplacedSegment(segments, i, tripleEncodedSegments[i])
+						triplePaths[triplePath+query] = struct{}{}
+						if strings.ContainsAny(triplePath, "?#") {
+							encodedSpecialPath := encodeQueryAndFragmentChars(triplePath)
+							triplePaths[encodedSpecialPath+query] = struct{}{}
+						}
+					}
+				}
+
+				// 5.2 Replace all possible segments at once
+				numReplacable := 0
+				for _, can := range canBeEncoded {
+					if can {
+						numReplacable++
+					}
+				}
+
+				if numReplacable > 1 {
+					tempSegmentsSingle := make([]string, len(segments))
+					copy(tempSegmentsSingle, segments)
+					tempSegmentsDouble := make([]string, len(segments))
+					copy(tempSegmentsDouble, segments)
+					tempSegmentsTriple := make([]string, len(segments))
+					copy(tempSegmentsTriple, segments)
+
+					for i := 1; i < len(segments); i++ {
+						if canBeEncoded[i] {
+							tempSegmentsSingle[i] = singleEncodedSegments[i]
+							tempSegmentsDouble[i] = doubleEncodedSegments[i]
+							tempSegmentsTriple[i] = tripleEncodedSegments[i]
+						}
+					}
+
+					allSinglePath := "/" + strings.Join(tempSegmentsSingle[1:], "/")
+					singlePaths[allSinglePath+query] = struct{}{}
+					if strings.ContainsAny(allSinglePath, "?#") {
+						encodedSpecialPath := encodeQueryAndFragmentChars(allSinglePath)
+						singlePaths[encodedSpecialPath+query] = struct{}{}
+					}
+
+					allDoublePath := "/" + strings.Join(tempSegmentsDouble[1:], "/")
+					doublePaths[allDoublePath+query] = struct{}{}
+					if strings.ContainsAny(allDoublePath, "?#") {
+						encodedSpecialPath := encodeQueryAndFragmentChars(allDoublePath)
+						doublePaths[encodedSpecialPath+query] = struct{}{}
+					}
+
+					allTriplePath := "/" + strings.Join(tempSegmentsTriple[1:], "/")
+					triplePaths[allTriplePath+query] = struct{}{}
+					if strings.ContainsAny(allTriplePath, "?#") {
+						encodedSpecialPath := encodeQueryAndFragmentChars(allTriplePath)
+						triplePaths[encodedSpecialPath+query] = struct{}{}
+					}
+				}
+			}
+		}
+	}
+
 	// Create final jobs from the deduplicated maps
 	createJobs := func(paths map[string]struct{}, moduleType string) {
 		for rawURI := range paths {
@@ -294,4 +414,37 @@ func (pg *PayloadGenerator) GenerateCharEncodePayloads(targetURL string, bypassM
 	// Log the total number of unique jobs created for this module group
 	GB403Logger.Debug().BypassModule("char_encode").Msgf("Generated %d payloads for %s", len(allJobs), targetURL)
 	return allJobs
+}
+
+// urlEncodeSegment converts a string segment into its single, double, and triple URL-encoded equivalents.
+// Only encodes if the segment contains ASCII letters.
+func urlEncodeSegment(segment string) (string, string, string) {
+	var singleBuilder strings.Builder
+	var doubleBuilder strings.Builder
+	var tripleBuilder strings.Builder
+	hasLetters := false
+
+	for _, r := range segment {
+		if isLetterASCII(byte(r)) {
+			hasLetters = true
+			// Single encoding
+			singleBuilder.WriteString(fmt.Sprintf("%%%02x", r))
+			// Double encoding
+			doubleBuilder.WriteString(fmt.Sprintf("%%25%02x", r))
+			// Triple encoding
+			tripleBuilder.WriteString(fmt.Sprintf("%%2525%02x", r))
+		} else {
+			// Not a letter, keep as-is
+			singleBuilder.WriteRune(r)
+			doubleBuilder.WriteRune(r)
+			tripleBuilder.WriteRune(r)
+		}
+	}
+
+	if !hasLetters {
+		// If no letters to encode, return original segment
+		return segment, segment, segment
+	}
+
+	return singleBuilder.String(), doubleBuilder.String(), tripleBuilder.String()
 }

@@ -19,6 +19,7 @@ import (
 )
 
 // RequestWorkerPool manages concurrent HTTP request/response processing
+// Compatible with pond v2 - uses group pattern which works with both
 type RequestWorkerPool struct {
 	httpClient *HTTPClient
 	ctx        context.Context

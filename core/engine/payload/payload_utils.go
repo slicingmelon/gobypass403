@@ -514,3 +514,24 @@ func NormalizeHeaderKey(key string) string {
 	}
 	return strings.Join(parts, "-")
 }
+
+// createPathWithReplacedSegment creates a path with a replaced segment
+// This is shared by unicode_path_normalization and char_encode modules
+func createPathWithReplacedSegment(segments []string, index int, newSegment string) string {
+	var newPath strings.Builder
+	newPath.WriteString("/")
+
+	for i := 1; i < len(segments); i++ {
+		if i == index {
+			newPath.WriteString(newSegment)
+		} else {
+			newPath.WriteString(segments[i])
+		}
+
+		if i < len(segments)-1 && segments[i] != "" {
+			newPath.WriteString("/")
+		}
+	}
+
+	return newPath.String()
+}

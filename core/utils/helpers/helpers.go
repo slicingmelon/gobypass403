@@ -150,3 +150,259 @@ func SanitizeNonPrintableBytes(input []byte) string {
 	}
 	return sb.String()
 }
+
+// SanitizeNonPrintableBytesForCurl sanitizes non-printable bytes in a byte slice
+// by URL-encoding them, making the curl command actually executable
+func SanitizeNonPrintableBytesForCurl(input []byte) string {
+	var sb strings.Builder
+	sb.Grow(len(input))
+
+	for _, b := range input {
+		// Keep printable ASCII (32-126), LF (10), CR (13)
+		if (b >= 32 && b <= 126) || b == 10 || b == 13 {
+			sb.WriteByte(b)
+		} else {
+			// URL-encode non-printable bytes for curl compatibility
+			sb.WriteString(fmt.Sprintf("%%%02X", b))
+		}
+	}
+	return sb.String()
+}
+
+// SplitCurlCommandMultiline splits long curl commands into multiple lines
+// with proper OS-specific line continuation characters and formatting
+func SplitCurlCommandMultiline(curlCmd string, maxLineLength int) string {
+	if len(curlCmd) <= maxLineLength {
+		return curlCmd
+	}
+
+	// Detect OS for line continuation
+	var lineContinuation string
+	var indent string
+	if runtime.GOOS == "windows" {
+		lineContinuation = " `"
+		indent = "  "
+	} else {
+		lineContinuation = " \\"
+		indent = "  "
+	}
+
+	var result strings.Builder
+	words := strings.Fields(curlCmd)
+	if len(words) == 0 {
+		return curlCmd
+	}
+
+	currentLine := words[0] // Start with first word (curl/curl.exe)
+	isFirstLine := true
+
+	for i := 1; i < len(words); i++ {
+		word := words[i]
+
+		// If a single word is longer than maxLineLength, put it on its own line
+		if len(word) > maxLineLength {
+			// Finish current line if it has content
+			if len(currentLine) > 0 {
+				if isFirstLine {
+					result.WriteString(currentLine)
+					isFirstLine = false
+				} else {
+					result.WriteString(indent + currentLine)
+				}
+				result.WriteString(lineContinuation)
+				result.WriteString("\n")
+			}
+
+			// Put the oversized word on its own line
+			if isFirstLine {
+				result.WriteString(word)
+				isFirstLine = false
+			} else {
+				result.WriteString(indent + word)
+			}
+			result.WriteString(lineContinuation)
+			result.WriteString("\n")
+
+			// Reset for next words
+			currentLine = ""
+			continue
+		}
+
+		// Check if adding this word would exceed max length
+		testLine := currentLine + " " + word
+		if len(testLine) > maxLineLength && len(currentLine) > 0 {
+			// Write current line with continuation
+			if isFirstLine {
+				result.WriteString(currentLine)
+				isFirstLine = false
+			} else {
+				result.WriteString(indent + currentLine)
+			}
+			result.WriteString(lineContinuation)
+			result.WriteString("\n")
+
+			// Start new line with current word
+			currentLine = word
+		} else {
+			// Add word to current line
+			if currentLine == "" {
+				currentLine = word
+			} else if currentLine == words[0] {
+				currentLine = testLine // First line
+			} else {
+				currentLine = currentLine + " " + word
+			}
+		}
+	}
+
+	// Add the final line if it has content
+	if len(currentLine) > 0 {
+		if isFirstLine {
+			result.WriteString(currentLine)
+		} else {
+			result.WriteString(indent + currentLine)
+		}
+	}
+
+	return result.String()
+}
+
+// IsIPv4 works the same way as net.ParseIP,
+// but without check for IPv6 case and without returning net.IP slice, whereby IsIPv4 makes no allocations.
+// from gofiber/utils
+func IsIPv4(s string) bool {
+	for i := range net.IPv4len {
+		if len(s) == 0 {
+			return false
+		}
+
+		if i > 0 {
+			if s[0] != '.' {
+				return false
+			}
+			s = s[1:]
+		}
+
+		n, ci := 0, 0
+
+		for ci = 0; ci < len(s) && '0' <= s[ci] && s[ci] <= '9'; ci++ {
+			n = n*10 + int(s[ci]-'0')
+			if n > 0xFF {
+				return false
+			}
+		}
+
+		if ci == 0 || (ci > 1 && s[0] == '0') {
+			return false
+		}
+
+		s = s[ci:]
+	}
+
+	return len(s) == 0
+}
+
+// IsIPv6 works the same way as net.ParseIP,
+// but without check for IPv4 case and without returning net.IP slice, whereby IsIPv6 makes no allocations.
+// from gofiber/utils
+func IsIPv6(s string) bool {
+	ellipsis := -1 // position of ellipsis in ip
+
+	// Might have leading ellipsis
+	if len(s) >= 2 && s[0] == ':' && s[1] == ':' {
+		ellipsis = 0
+		s = s[2:]
+		// Might be only ellipsis
+		if len(s) == 0 {
+			return true
+		}
+	}
+
+	// Loop, parsing hex numbers followed by colon.
+	i := 0
+	for i < net.IPv6len {
+		// Hex number.
+		n, ci := 0, 0
+
+		for ci = 0; ci < len(s); ci++ {
+			if '0' <= s[ci] && s[ci] <= '9' {
+				n *= 16
+				n += int(s[ci] - '0')
+			} else if 'a' <= s[ci] && s[ci] <= 'f' {
+				n *= 16
+				n += int(s[ci]-'a') + 10
+			} else if 'A' <= s[ci] && s[ci] <= 'F' {
+				n *= 16
+				n += int(s[ci]-'A') + 10
+			} else {
+				break
+			}
+			if n > 0xFFFF {
+				return false
+			}
+		}
+		if ci == 0 || n > 0xFFFF {
+			return false
+		}
+
+		if ci < len(s) && s[ci] == '.' {
+			if ellipsis < 0 && i != net.IPv6len-net.IPv4len {
+				return false
+			}
+			if i+net.IPv4len > net.IPv6len {
+				return false
+			}
+
+			if !IsIPv4(s) {
+				return false
+			}
+
+			s = ""
+			i += net.IPv4len
+			break
+		}
+
+		// Save this 16-bit chunk.
+		i += 2
+
+		// Stop at end of string.
+		s = s[ci:]
+		if len(s) == 0 {
+			break
+		}
+
+		// Otherwise must be followed by colon and more.
+		if s[0] != ':' || len(s) == 1 {
+			return false
+		}
+		s = s[1:]
+
+		// Look for ellipsis.
+		if s[0] == ':' {
+			if ellipsis >= 0 { // already have one
+				return false
+			}
+			ellipsis = i
+			s = s[1:]
+			if len(s) == 0 { // can be at end
+				break
+			}
+		}
+	}
+
+	// Must have used entire string.
+	if len(s) != 0 {
+		return false
+	}
+
+	// If didn't parse enough, expand ellipsis.
+	if i < net.IPv6len {
+		if ellipsis < 0 {
+			return false
+		}
+	} else if ellipsis >= 0 {
+		// Ellipsis must represent at least one 0 group.
+		return false
+	}
+	return true
+}

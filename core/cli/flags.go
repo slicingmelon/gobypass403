@@ -72,7 +72,8 @@ func parseFlags() (*CliOptions, error) {
 		{name: "u,url", usage: "Target URL (example: https://cms.facebook.com/login)", value: &opts.URL},
 		{name: "l,urls-file", usage: "File containing list of target URLs (one per line)", value: &opts.URLsFile},
 		{name: "shf,substitute-hosts-file", usage: "File containing a list of hosts to substitute target URL's hostname (mostly used in CDN bypasses by providing a list of CDNs)", value: &opts.SubstituteHostsFile},
-		{name: "m,module", usage: "Bypass module (all,path_prefix,mid_paths,end_paths,http_methods,case_substitution,char_encode,nginx_bypasses,unicode_path_normalization,headers_scheme,headers_ip,headers_port,headers_url,headers_host)", value: &opts.Module, defVal: "all"},
+		{name: "m,module", usage: "Bypass module (all,path_prefix,mid_paths,end_paths,http_methods,case_substitution,char_encode,nginx_bypasses,haproxy_bypasses,unicode_path_normalization,unicode_path_truncation,headers_scheme,headers_ip,headers_port,headers_url,headers_host). Supports glob patterns with * (e.g., headers*,*bypass*)", value: &opts.Module, defVal: "all"},
+		{name: "em,exclude-module", usage: "Exclude specific bypass modules. Supports glob patterns with * (e.g., -em unicode*,*experimental). Takes precedence over -m", value: &opts.ExcludeModule},
 		{name: "o,outdir", usage: "Output directory", value: &opts.OutDir},
 		{name: "cr,concurrent-requests", usage: "Number of max concurrent requests", value: &opts.ConcurrentRequests, defVal: 15},
 		{name: "T,timeout", usage: "Total timeout (in milliseconds)", value: &opts.Timeout, defVal: 20000},
@@ -89,6 +90,7 @@ func parseFlags() (*CliOptions, error) {
 		{name: "min-cl,min-content-length", usage: "Filter results by minimum Content-Length (example: -min-cl 100)", value: &opts.MinContentLengthStr},
 		{name: "max-cl,max-content-length", usage: "Filter results by maximum Content-Length (example: -max-cl 5000)", value: &opts.MaxContentLengthStr},
 		{name: "H,header", usage: "Custom HTTP header (example: -H \"X-My-Header: value\"), can be used multiple times", value: &stringSliceFlag{values: &opts.CustomHTTPHeaders}},
+		{name: "sc,strict-scheme", usage: "Only test URLs with the original scheme from input (prevents auto-expansion to http/https)", value: &opts.StrictScheme, defVal: false},
 		{name: "http2", usage: "Enable HTTP2 client", value: &opts.EnableHTTP2, defVal: false},
 		{name: "x,proxy", usage: "Proxy URL (format: http://proxy:port) (Example: -x http://127.0.0.1:8080)", value: &opts.Proxy},
 		{name: "spoof-header", usage: "Add more headers used to spoof IPs (example: X-SecretIP-Header,X-GO-IP)", value: &opts.SpoofHeader},
@@ -101,6 +103,7 @@ func parseFlags() (*CliOptions, error) {
 		{name: "rn,resend-num,resend-request-num", usage: "Number of times to resend the debugged request", value: &opts.ResendNum, defVal: 1},
 		{name: "profile", usage: "Enable pprof profiler", value: &opts.Profile, defVal: false},
 		{name: "update-payloads", usage: "Update payload files to latest version", value: &opts.UpdatePayloads, defVal: false},
+		{name: "tui", usage: "Enable experimental TUI (Terminal User Interface)", value: &opts.EnableTUI, defVal: false},
 	}
 
 	// Set up custom usage

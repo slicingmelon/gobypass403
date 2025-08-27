@@ -38,6 +38,8 @@ func FilterUniqueBypassPayloads(payloads []payload.BypassPayload, bypassModule s
 		"nginx_bypasses":             true,
 		"path_prefix":                true,
 		"unicode_path_normalization": true,
+		"unicode_path_truncation":    true,
+		"unicode_path_experimental":  true,
 	}
 
 	if !modulesToFilter[bypassModule] {
@@ -46,9 +48,9 @@ func FilterUniqueBypassPayloads(payloads []payload.BypassPayload, bypassModule s
 
 	filtered := make([]payload.BypassPayload, 0, len(payloads))
 
-	seenRawURIsMutex.RLock()
-	initialSize := len(seenRawURIs)
-	seenRawURIsMutex.RUnlock()
+	// seenRawURIsMutex.RLock()
+	// initialSize := len(seenRawURIs) // Commented out - not used when logger disabled
+	// seenRawURIsMutex.RUnlock()
 
 	for _, p := range payloads {
 		seenRawURIsMutex.RLock()
@@ -69,15 +71,16 @@ func FilterUniqueBypassPayloads(payloads []payload.BypassPayload, bypassModule s
 		}
 	}
 
-	seenRawURIsMutex.RLock()
-	newSize := len(seenRawURIs)
-	seenRawURIsMutex.RUnlock()
+	// seenRawURIsMutex.RLock()
+	// newSize := len(seenRawURIs) // Commented out - not used when logger disabled
+	// seenRawURIsMutex.RUnlock()
 
 	// Calculate new unique RawURIs added
-	addedURIs := newSize - initialSize
+	// addedURIs := newSize - initialSize // Commented out - not used when logger disabled
 
-	GB403Logger.Verbose().Msgf("[%s] Filtered payloads: %d -> %d | Global RawURIs: %d -> %d (%d new unique)",
-		bypassModule, len(payloads), len(filtered), initialSize, newSize, addedURIs)
+	// Comment out verbose logger call - interferes with TUI display
+	// GB403Logger.Verbose().Msgf("[%s] Filtered payloads: %d -> %d | Global RawURIs: %d -> %d (%d new unique)",
+	//	bypassModule, len(payloads), len(filtered), initialSize, newSize, addedURIs)
 
 	return filtered
 }
@@ -162,10 +165,33 @@ func ResetSeenRawURIs() {
 	// Create a new map rather than clearing the existing one
 	// This is more efficient for large maps
 	seenRawURIs = make(map[string]string)
-	GB403Logger.Verbose().Msgf("Reset global RawURI tracking map\n")
+	// Comment out verbose logger call - interferes with TUI display
+	// GB403Logger.Verbose().Msgf("Reset global RawURI tracking map\n")
 }
 
-// Core Function
+// Core Function for TUI mode
+func (s *Scanner) RunAllBypassesWithTUI(targetURL string, tuiController *TUIController) int {
+	totalFindings := 0
+
+	// Reset the global seen RawURIs map for this new target URL
+	ResetSeenRawURIs()
+
+	modules := strings.Split(s.scannerOpts.BypassModule, ",")
+	for _, module := range modules {
+		module = strings.TrimSpace(module)
+		if module == "" {
+			continue
+		}
+
+		// TUI mode - use TUI controller
+		findings := s.RunBypassModuleWithTUI(module, targetURL, tuiController)
+		totalFindings += findings
+	}
+
+	return totalFindings
+}
+
+// Core Function for Standard mode (with progress bars)
 func (s *Scanner) RunAllBypasses(targetURL string) int {
 	totalFindings := 0
 
@@ -179,7 +205,7 @@ func (s *Scanner) RunAllBypasses(targetURL string) int {
 			continue
 		}
 
-		// Now RunBypassModule returns count instead of using channels
+		// Standard mode - no TUI controller
 		findings := s.RunBypassModule(module, targetURL)
 		totalFindings += findings
 	}
@@ -188,6 +214,181 @@ func (s *Scanner) RunAllBypasses(targetURL string) int {
 }
 
 // Run a specific Bypass Module and return the number of findings
+func (s *Scanner) RunBypassModuleWithTUI(bypassModule string, targetURL string, tuiController *TUIController) int {
+	if !IsValidBypassModule(bypassModule) {
+		// Comment out logger call - interferes with TUI display
+		// GB403Logger.Error().Msgf("Invalid bypass module: %s\n", bypassModule)
+		tuiController.SendProgress(targetURL, bypassModule, 0, 0, true, "Invalid bypass module")
+		return 0
+	}
+
+	pg := payload.NewPayloadGenerator(payload.PayloadGeneratorOptions{
+		TargetURL:    targetURL,
+		BypassModule: bypassModule,
+		ReconCache:   s.scannerOpts.ReconCache,
+		SpoofHeader:  s.scannerOpts.SpoofHeader,
+		SpoofIP:      s.scannerOpts.SpoofIP,
+	})
+
+	allJobs := pg.Generate()
+
+	// Filter unique payloads based on RawURI
+	allJobs = FilterUniqueBypassPayloads(allJobs, bypassModule)
+
+	totalJobs := len(allJobs)
+	if totalJobs == 0 {
+		// Comment out logger call - interferes with TUI display
+		// GB403Logger.Warning().Msgf("No jobs generated for bypass module: %s\n", bypassModule)
+		tuiController.SendProgress(targetURL, bypassModule, 0, 0, true, "No jobs generated")
+		return 0
+	}
+
+	// Comment out logger call - interferes with TUI display
+	// GB403Logger.PrintBypassModuleInfo(bypassModule, totalJobs, targetURL)
+
+	// Send initial progress to TUI
+	tuiController.SendProgress(targetURL, bypassModule, 0, totalJobs, false, "")
+
+	maxModuleNameLength := 0
+	for _, module := range payload.BypassModulesRegistry {
+		if len(module) > maxModuleNameLength {
+			maxModuleNameLength = len(module)
+		}
+	}
+
+	worker := NewBypassEngagement(bypassModule, targetURL, s.scannerOpts, totalJobs)
+	defer worker.Stop()
+
+	// maxConcurrentReqs := s.scannerOpts.ConcurrentRequests // Commented out - not used with TUI
+
+	// Comment out progress bar - TUI will handle display
+	// Create formatted prefix with padding
+	// prefix := bypassModule + strings.Repeat(" ", maxModuleNameLength-len(bypassModule)+1)
+	// Create new progress bar
+	// bar := NewProgressBar(prefix, progressbar.RedBar, 1, &s.progressBarEnabled)
+
+	responses := worker.requestPool.ProcessRequests(allJobs)
+	var dbWg sync.WaitGroup
+	resultCount := atomic.Int32{}
+
+	for response := range responses {
+		if response == nil {
+			continue
+		}
+
+		// Update TUI progress
+		completed := worker.requestPool.GetReqWPCompletedTasks()
+		tuiController.SendProgress(targetURL, bypassModule, int(completed), totalJobs, false, "")
+
+		// Comment out progress bar updates - TUI handles display
+		// currentRate := worker.requestPool.GetRequestRate()
+		// avgRate := worker.requestPool.GetAverageRequestRate()
+		// msg := fmt.Sprintf(
+		//	"Max Concurrent [%d req] | Rate [%d req/s] Avg [%d req/s] | Completed %d/%d    ",
+		//	maxConcurrentReqs, currentRate, avgRate, completed, uint64(totalJobs),
+		// )
+		// bar.WriteAbove(msg)
+
+		// Check status code - if no match, skip
+		if !matchStatusCodes(response.StatusCode, s.scannerOpts.MatchStatusCodes) {
+			rawhttp.ReleaseResponseDetails(response)
+			// bar.Progress((float64(completed) / float64(totalJobs)) * 100.0)
+			continue
+		}
+
+		// Check content type if required
+		if len(s.scannerOpts.MatchContentTypeBytes) > 0 {
+			contentTypeMatched := false
+			for _, matchType := range s.scannerOpts.MatchContentTypeBytes {
+				if bytes.Contains(response.ContentType, matchType) {
+					contentTypeMatched = true
+					break
+				}
+			}
+			if !contentTypeMatched {
+				rawhttp.ReleaseResponseDetails(response)
+				// bar.Progress((float64(completed) / float64(totalJobs)) * 100.0)
+				continue
+			}
+		}
+
+		// Check min content length
+		if s.scannerOpts.MinContentLength > 0 {
+			if response.ContentLength < 0 || response.ContentLength < int64(s.scannerOpts.MinContentLength) {
+				rawhttp.ReleaseResponseDetails(response)
+				// bar.Progress((float64(completed) / float64(totalJobs)) * 100.0)
+				continue
+			}
+		}
+
+		// Check max content length
+		if s.scannerOpts.MaxContentLength > 0 && response.ContentLength >= 0 {
+			if response.ContentLength > int64(s.scannerOpts.MaxContentLength) {
+				rawhttp.ReleaseResponseDetails(response)
+				// bar.Progress((float64(completed) / float64(totalJobs)) * 100.0)
+				continue
+			}
+		}
+
+		// Process valid result
+		sanitizedCurlCmd := helpers.SanitizeNonPrintableBytesForCurl(response.CurlCommand)
+
+		result := &Result{
+			TargetURL:           string(response.URL),
+			BypassModule:        string(response.BypassModule),
+			StatusCode:          response.StatusCode,
+			ResponseHeaders:     helpers.SanitizeNonPrintableBytes(response.ResponseHeaders),
+			CurlCMD:             sanitizedCurlCmd,
+			ResponseBodyPreview: string(response.ResponsePreview),
+			ContentType:         string(response.ContentType),
+			ContentLength:       response.ContentLength,
+			ResponseBodyBytes:   response.ResponseBytes,
+			Title:               string(response.Title),
+			ServerInfo:          string(response.ServerInfo),
+			RedirectURL:         helpers.SanitizeNonPrintableBytes(response.RedirectURL),
+			ResponseTime:        response.ResponseTime,
+			DebugToken:          string(response.DebugToken),
+		}
+
+		rawhttp.ReleaseResponseDetails(response)
+		// progressPercent := (float64(completed) / float64(totalJobs)) * 100.0
+		// progressPercent = min(progressPercent, 100.0)
+		// bar.Progress(progressPercent)
+
+		// Result is already stored in DB via AppendResultsToDB - TUI will query DB when needed
+
+		dbWg.Add(1)
+		go func(res *Result) {
+			defer dbWg.Done()
+			if err := AppendResultsToDB([]*Result{res}); err != nil {
+				// Comment out error logger call - interferes with TUI display
+				// GB403Logger.Error().Msgf("Failed to write result to DB: %v\n\n", err)
+			} else {
+				resultCount.Add(1)
+			}
+		}(result)
+
+	}
+
+	// Comment out progress bar end - TUI handles display
+	// bar.End()
+	// fmt.Println()
+
+	// Do this:
+	// bar.End()
+	// fmt.Print("\033[1A\r\033[K") // Move up one line, then clear it
+	// fmt.Printf("✓ %-20s - %d results found\n", bypassModule, int(resultCount.Load()))
+
+	dbWg.Wait()
+
+	// Send final completion status to TUI
+	finalCompleted := worker.requestPool.GetReqWPCompletedTasks()
+	tuiController.SendProgress(targetURL, bypassModule, int(finalCompleted), totalJobs, true, "")
+
+	return int(resultCount.Load())
+}
+
+// Run a specific Bypass Module in Standard mode (with progress bars)
 func (s *Scanner) RunBypassModule(bypassModule string, targetURL string) int {
 	if !IsValidBypassModule(bypassModule) {
 		GB403Logger.Error().Msgf("Invalid bypass module: %s\n", bypassModule)
@@ -213,6 +414,7 @@ func (s *Scanner) RunBypassModule(bypassModule string, targetURL string) int {
 		return 0
 	}
 
+	// Print bypass module info
 	GB403Logger.PrintBypassModuleInfo(bypassModule, totalJobs, targetURL)
 
 	maxModuleNameLength := 0
@@ -227,7 +429,7 @@ func (s *Scanner) RunBypassModule(bypassModule string, targetURL string) int {
 
 	maxConcurrentReqs := s.scannerOpts.ConcurrentRequests
 
-	// Create formatted prefix with padding
+	// Create formatted prefix with padding for progress bar
 	prefix := bypassModule + strings.Repeat(" ", maxModuleNameLength-len(bypassModule)+1)
 	// Create new progress bar
 	bar := NewProgressBar(prefix, progressbar.RedBar, 1, &s.progressBarEnabled)
@@ -241,11 +443,10 @@ func (s *Scanner) RunBypassModule(bypassModule string, targetURL string) int {
 			continue
 		}
 
-		// Update progress bar stats here
+		// Update progress bar
 		completed := worker.requestPool.GetReqWPCompletedTasks()
 		currentRate := worker.requestPool.GetRequestRate()
 		avgRate := worker.requestPool.GetAverageRequestRate()
-
 		msg := fmt.Sprintf(
 			"Max Concurrent [%d req] | Rate [%d req/s] Avg [%d req/s] | Completed %d/%d    ",
 			maxConcurrentReqs, currentRate, avgRate, completed, uint64(totalJobs),
@@ -294,12 +495,14 @@ func (s *Scanner) RunBypassModule(bypassModule string, targetURL string) int {
 		}
 
 		// Process valid result
+		sanitizedCurlCmd := helpers.SanitizeNonPrintableBytesForCurl(response.CurlCommand)
+
 		result := &Result{
 			TargetURL:           string(response.URL),
 			BypassModule:        string(response.BypassModule),
 			StatusCode:          response.StatusCode,
 			ResponseHeaders:     helpers.SanitizeNonPrintableBytes(response.ResponseHeaders),
-			CurlCMD:             helpers.SanitizeNonPrintableBytes(response.CurlCommand),
+			CurlCMD:             sanitizedCurlCmd,
 			ResponseBodyPreview: string(response.ResponsePreview),
 			ContentType:         string(response.ContentType),
 			ContentLength:       response.ContentLength,
@@ -325,7 +528,6 @@ func (s *Scanner) RunBypassModule(bypassModule string, targetURL string) int {
 				resultCount.Add(1)
 			}
 		}(result)
-
 	}
 
 	bar.End()
@@ -372,9 +574,9 @@ func (s *Scanner) ResendRequestFromToken(debugToken string, resendCount int) ([]
 		jobs = append(jobs, jobCopy)
 	}
 
-	// Create formatted prefix
+	// Create formatted prefix for progress bar
 	prefix := fmt.Sprintf("[Resend] %s", bypassPayload.BypassModule)
-	// Create new progress bar with wrapper - simplified
+	// Create new progress bar
 	bar := NewProgressBar(prefix, progressbar.BlueBar, 1, &s.progressBarEnabled)
 	bar.Progress(0)
 
@@ -393,12 +595,14 @@ func (s *Scanner) ResendRequestFromToken(debugToken string, resendCount int) ([]
 
 		// Process Valid Response
 		if matchStatusCodes(response.StatusCode, s.scannerOpts.MatchStatusCodes) {
+			sanitizedCurlCmd := helpers.SanitizeNonPrintableBytesForCurl(response.CurlCommand)
+
 			result := &Result{
 				TargetURL:           targetURL,
 				BypassModule:        string(response.BypassModule),
 				StatusCode:          response.StatusCode,
 				ResponseHeaders:     helpers.SanitizeNonPrintableBytes(response.ResponseHeaders),
-				CurlCMD:             helpers.SanitizeNonPrintableBytes(response.CurlCommand),
+				CurlCMD:             sanitizedCurlCmd,
 				ResponseBodyPreview: string(response.ResponsePreview),
 				ContentType:         string(response.ContentType),
 				ContentLength:       response.ContentLength,
@@ -414,6 +618,7 @@ func (s *Scanner) ResendRequestFromToken(debugToken string, resendCount int) ([]
 
 		rawhttp.ReleaseResponseDetails(response)
 
+		// Update progress bar
 		currentRate := worker.requestPool.GetRequestRate()
 		avgRate := worker.requestPool.GetAverageRequestRate()
 		maxConcurrentReqs := s.scannerOpts.ConcurrentRequests
