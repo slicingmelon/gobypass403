@@ -146,6 +146,9 @@ Attack vectors:
 References:
 - https://www.haproxy.com/blog/december-2023-cve-2023-45539-haproxy-accepts-as-part-of-the-uri-component-fixed
 - https://www.mail-archive.com/haproxy%40formilux.org/msg43861.html
+
+Playground:
+- https://github.com/slicingmelon/HAProxy-CVE-2023-45539-PoC
 */
 func (pg *PayloadGenerator) generateHAProxy_CVE_2023_45539(targetURL string, bypassModule string) []BypassPayload {
 	var allJobs []BypassPayload
