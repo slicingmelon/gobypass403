@@ -137,10 +137,10 @@ func (s *Scanner) runStandard() error {
 func (s *Scanner) scanURL(url string) error {
 	if s.scannerOpts.EnableTUI {
 		// TUI mode - pass TUI controller
-		_ = s.RunAllBypasses(url, s.tuiController)
+		_ = s.RunAllBypassesWithTUI(url, s.tuiController)
 	} else {
 		// Standard mode - no TUI controller
-		totalFindings := s.RunAllBypassesStandard(url)
+		totalFindings := s.RunAllBypasses(url)
 
 		// Print results table immediately after scanning this URL
 		if err := PrintResultsTableFromDB(url, s.scannerOpts.BypassModule); err != nil {

@@ -14,6 +14,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"fortio.org/progressbar"
 	"github.com/slicingmelon/gobypass403/core/engine/payload"
 	"github.com/slicingmelon/gobypass403/core/engine/rawhttp"
 	"github.com/slicingmelon/gobypass403/core/utils/helpers"
@@ -169,7 +170,7 @@ func ResetSeenRawURIs() {
 }
 
 // Core Function for TUI mode
-func (s *Scanner) RunAllBypasses(targetURL string, tuiController *TUIController) int {
+func (s *Scanner) RunAllBypassesWithTUI(targetURL string, tuiController *TUIController) int {
 	totalFindings := 0
 
 	// Reset the global seen RawURIs map for this new target URL
@@ -183,7 +184,7 @@ func (s *Scanner) RunAllBypasses(targetURL string, tuiController *TUIController)
 		}
 
 		// TUI mode - use TUI controller
-		findings := s.RunBypassModule(module, targetURL, tuiController)
+		findings := s.RunBypassModuleWithTUI(module, targetURL, tuiController)
 		totalFindings += findings
 	}
 
@@ -191,7 +192,7 @@ func (s *Scanner) RunAllBypasses(targetURL string, tuiController *TUIController)
 }
 
 // Core Function for Standard mode (with progress bars)
-func (s *Scanner) RunAllBypassesStandard(targetURL string) int {
+func (s *Scanner) RunAllBypasses(targetURL string) int {
 	totalFindings := 0
 
 	// Reset the global seen RawURIs map for this new target URL
@@ -205,7 +206,7 @@ func (s *Scanner) RunAllBypassesStandard(targetURL string) int {
 		}
 
 		// Standard mode - no TUI controller
-		findings := s.RunBypassModuleStandard(module, targetURL)
+		findings := s.RunBypassModule(module, targetURL)
 		totalFindings += findings
 	}
 
@@ -213,7 +214,7 @@ func (s *Scanner) RunAllBypassesStandard(targetURL string) int {
 }
 
 // Run a specific Bypass Module and return the number of findings
-func (s *Scanner) RunBypassModule(bypassModule string, targetURL string, tuiController *TUIController) int {
+func (s *Scanner) RunBypassModuleWithTUI(bypassModule string, targetURL string, tuiController *TUIController) int {
 	if !IsValidBypassModule(bypassModule) {
 		// Comment out logger call - interferes with TUI display
 		// GB403Logger.Error().Msgf("Invalid bypass module: %s\n", bypassModule)
@@ -388,7 +389,7 @@ func (s *Scanner) RunBypassModule(bypassModule string, targetURL string, tuiCont
 }
 
 // Run a specific Bypass Module in Standard mode (with progress bars)
-func (s *Scanner) RunBypassModuleStandard(bypassModule string, targetURL string) int {
+func (s *Scanner) RunBypassModule(bypassModule string, targetURL string) int {
 	if !IsValidBypassModule(bypassModule) {
 		GB403Logger.Error().Msgf("Invalid bypass module: %s\n", bypassModule)
 		return 0
@@ -431,7 +432,7 @@ func (s *Scanner) RunBypassModuleStandard(bypassModule string, targetURL string)
 	// Create formatted prefix with padding for progress bar
 	prefix := bypassModule + strings.Repeat(" ", maxModuleNameLength-len(bypassModule)+1)
 	// Create new progress bar
-	bar := NewProgressBar(prefix, "red", 1, &s.progressBarEnabled)
+	bar := NewProgressBar(prefix, progressbar.RedBar, 1, &s.progressBarEnabled)
 
 	responses := worker.requestPool.ProcessRequests(allJobs)
 	var dbWg sync.WaitGroup
@@ -576,7 +577,7 @@ func (s *Scanner) ResendRequestFromToken(debugToken string, resendCount int) ([]
 	// Create formatted prefix for progress bar
 	prefix := fmt.Sprintf("[Resend] %s", bypassPayload.BypassModule)
 	// Create new progress bar
-	bar := NewProgressBar(prefix, "blue", 1, &s.progressBarEnabled)
+	bar := NewProgressBar(prefix, progressbar.BlueBar, 1, &s.progressBarEnabled)
 	bar.Progress(0)
 
 	responses := worker.requestPool.ProcessRequests(jobs)
