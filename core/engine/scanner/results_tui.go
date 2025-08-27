@@ -697,8 +697,14 @@ func (m *TUIModel) renderSimpleTable(b *strings.Builder, widths ColumnWidths, ro
 	m.renderSimpleHeader(b, widths)
 
 	// Calculate copy button hitbox: start of curl column plus the right-aligned [Copy]
-	m.copyStart = widths.module + 3 + (widths.curl - len(copyLblStyle) - 1) // space before [Copy]
-	m.copyEnd = m.copyStart + len(copyLblStyle)
+	copyButton := " " + okStyle.Render(copyLblStyle)
+	copyButtonWidth := runewidth.StringWidth(copyButton)
+	spaceForCurl := widths.curl - copyButtonWidth
+	if spaceForCurl < 0 {
+		spaceForCurl = 0
+	}
+	m.copyStart = widths.module + 3 + spaceForCurl
+	m.copyEnd = m.copyStart + copyButtonWidth
 
 	// Track current group for separators (same logic as original results.go)
 	var currentModule, currentStatus, currentLength string
@@ -774,15 +780,17 @@ func (m *TUIModel) refreshDetailsContent() {
 	m.cachedHeader = hb.String()
 
 	// recompute copy hitbox for current widths (ANSI-safe width)
-	copyLabelWidth := lipgloss.Width(copyLblStyle)
-	if copyLabelWidth == 0 {
-		copyLabelWidth = len(copyLblStyle)
+	copyButton := " " + okStyle.Render(copyLblStyle)
+	copyButtonWidth := runewidth.StringWidth(copyButton)
+	spaceForCurl := m.lastWidths.curl - copyButtonWidth
+	if spaceForCurl < 0 {
+		spaceForCurl = 0
 	}
-	m.copyStart = m.lastWidths.module + 3 + (m.lastWidths.curl - copyLabelWidth)
+	m.copyStart = m.lastWidths.module + 3 + spaceForCurl
 	if m.copyStart < 0 {
 		m.copyStart = 0
 	}
-	m.copyEnd = m.copyStart + copyLabelWidth
+	m.copyEnd = m.copyStart + copyButtonWidth
 
 	// rebuild body
 	var bb strings.Builder
@@ -808,12 +816,16 @@ func (m *TUIModel) refreshDetailsContent() {
 		// compute copy range for this specific row
 		moduleWidth := m.lastWidths.module
 		curlWidth := m.lastWidths.curl
-		copyLabelWidth := lipgloss.Width(copyLblStyle)
-		if copyLabelWidth == 0 {
-			copyLabelWidth = len(copyLblStyle)
+		// Use runewidth to match the actual rendering logic
+		copyButton := " " + okStyle.Render(copyLblStyle)
+		copyButtonWidth := runewidth.StringWidth(copyButton)
+		spaceForCurl := curlWidth - copyButtonWidth
+		if spaceForCurl < 0 {
+			spaceForCurl = 0
 		}
-		rowCopyStart := moduleWidth + 3 + (curlWidth - copyLabelWidth)
-		rowCopyEnd := rowCopyStart + copyLabelWidth
+		// Copy button starts after: module + " | " + curlDisplay padding + actual copy button position
+		rowCopyStart := moduleWidth + 3 + spaceForCurl
+		rowCopyEnd := rowCopyStart + copyButtonWidth
 		m.rowCopyStart = append(m.rowCopyStart, rowCopyStart)
 		m.rowCopyEnd = append(m.rowCopyEnd, rowCopyEnd)
 		bb.WriteString(first + "\n")
