@@ -11,6 +11,7 @@ import (
 	"github.com/slicingmelon/go-rawurlparser"
 	"github.com/slicingmelon/gobypass403/core/engine/recon"
 	GB403ErrorHandler "github.com/slicingmelon/gobypass403/core/utils/error"
+	GB403Logger "github.com/slicingmelon/gobypass403/core/utils/logger"
 )
 
 type ScannerOpts struct {
@@ -40,6 +41,7 @@ type ScannerOpts struct {
 	DisableStreamResponseBody bool
 	DisableProgressBar        bool
 	ResendRequest             string
+	EnableTUI                 bool
 	ReconCache                *recon.ReconCache
 }
 
@@ -59,8 +61,10 @@ func NewScanner(opts *ScannerOpts, urls []string) *Scanner {
 	}
 	s.progressBarEnabled.Store(!opts.DisableProgressBar)
 
-	// Initialize TUI controller with target URLs
-	s.tuiController = NewTUIController(urls)
+	// Initialize TUI controller only if TUI is enabled
+	if opts.EnableTUI {
+		s.tuiController = NewTUIController(urls)
+	}
 
 	return s
 }
@@ -69,21 +73,25 @@ func NewScanner(opts *ScannerOpts, urls []string) *Scanner {
 func (s *Scanner) Run() error {
 	defer s.Close()
 
-	// Comment out logger call - interferes with TUI display
-	// GB403Logger.Info().Msgf("Initializing scanner with %d URLs", len(s.urls))
+	if s.scannerOpts.EnableTUI {
+		// TUI mode
+		return s.runWithTUI()
+	} else {
+		// Standard mode with progress bars
+		return s.runStandard()
+	}
+}
 
+// runWithTUI runs the scanner with TUI interface
+func (s *Scanner) runWithTUI() error {
 	// Start scanning in background
 	go func() {
-		// Don't auto-shutdown TUI - let user decide when to quit
-		// defer s.tuiController.Shutdown()
-
 		for _, url := range s.urls {
 			parsedURL, err := rawurlparser.RawURLParse(url)
 			if err != nil {
 				// Send error to TUI
 				s.tuiController.SendProgress(url, "error", 0, 0, true, err.Error())
 
-				// Keep one error handling as reference example
 				GB403ErrorHandler.GetErrorHandler().HandleErrorAndContinue(err, GB403ErrorHandler.ErrorContext{
 					Host:         parsedURL.BaseURL(),
 					ErrorSource:  "Scanner.Run.URLParse",
@@ -92,25 +100,48 @@ func (s *Scanner) Run() error {
 				continue
 			}
 
-			// Just scan and continue on error - no need for nested error handling
 			_ = s.scanURL(url)
 		}
-
-		// All scanning complete - don't print to stdout as it interferes with TUI
-		// GB403Logger.Success().Msgf("Findings saved to %s\n", s.scannerOpts.ResultsDBFile)
-		// GB403ErrorHandler.GetErrorHandler().PrintErrorStats()
-
-		// Could send a completion message to TUI instead if needed
-		// tuiController.SendProgress("SCAN_COMPLETE", "All targets completed", 0, 0, true, "")
 	}()
 
 	// Start TUI (blocks until user quits)
 	return s.tuiController.Start()
 }
 
+// runStandard runs the scanner with standard output and progress bars
+func (s *Scanner) runStandard() error {
+	GB403Logger.Info().Msgf("Initializing scanner with %d URLs", len(s.urls))
+
+	for _, url := range s.urls {
+		parsedURL, err := rawurlparser.RawURLParse(url)
+		if err != nil {
+			GB403ErrorHandler.GetErrorHandler().HandleErrorAndContinue(err, GB403ErrorHandler.ErrorContext{
+				Host:         parsedURL.BaseURL(),
+				ErrorSource:  "Scanner.Run.URLParse",
+				BypassModule: s.scannerOpts.BypassModule,
+			})
+			continue
+		}
+
+		_ = s.scanURL(url)
+	}
+
+	// Print completion summary
+	GB403Logger.Success().Msgf("Findings saved to %s\n", s.scannerOpts.ResultsDBFile)
+	GB403ErrorHandler.GetErrorHandler().PrintErrorStats()
+
+	return nil
+}
+
 func (s *Scanner) scanURL(url string) error {
-	// TUI will handle all display - just run the bypass modules
-	_ = s.RunAllBypasses(url, s.tuiController)
+	if s.scannerOpts.EnableTUI {
+		// TUI mode - pass TUI controller
+		_ = s.RunAllBypasses(url, s.tuiController)
+	} else {
+		// Standard mode - no TUI controller
+		totalFindings := s.RunAllBypassesStandard(url)
+		GB403Logger.Success().Msgf("Found %d results for %s", totalFindings, url)
+	}
 	return nil
 }
 
