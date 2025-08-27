@@ -14,6 +14,8 @@
 - New bypass module `haproxy_bypasses`, two CVEs included:
   - CVE-2021-40346: HTTP Request Smuggling via Integer Overflow
   - CVE-2023-45539: URL Fragment ACL Bypass
+- New bypass module `unicode_path_truncation`.
+  - Comes with an embedded unicode truncation charmap prebuilt like unicode_path_normalization module with its unicode normalization charmap file.
     
 # 0.8.3-0.8.4
 
