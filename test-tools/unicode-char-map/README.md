@@ -35,7 +35,6 @@ Located in `unicode-truncation-map/`
 | **Target Range** | ASCII printable (0x20-0x7F) | ALL bytes (0x00-0xFF) |
 | **Technique** | Unicode normalization | Byte truncation |
 | **Vulnerability** | Apps that normalize Unicode | Apps that truncate to low byte |
-| **Your Go Code** | ✅ Does this | ❌ Doesn't do this |
 
 ## Command-Line Flags
 
