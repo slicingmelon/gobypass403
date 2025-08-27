@@ -323,10 +323,12 @@ func (m *TUIModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.selDetail = clamp(m.selDetail-1, 0, len(m.detailRows)-1)
 				m.refreshDetailsContent()
 				m.ensureSelectionVisible()
+				return m, nil
 			case "down", "j":
 				m.selDetail = clamp(m.selDetail+1, 0, len(m.detailRows)-1)
 				m.refreshDetailsContent()
 				m.ensureSelectionVisible()
+				return m, nil
 			case "c":
 				m.copyOneWithMsg(m.selDetail, false)
 			case "A":
@@ -400,10 +402,10 @@ func padRight(s string, w int) string {
 	if w <= 0 {
 		return ""
 	}
-	// width-aware padding using runewidth
-	sw := runewidth.StringWidth(s)
+	// width-aware padding that ignores ANSI sequences
+	sw := lipgloss.Width(s)
 	if sw >= w {
-		return runewidth.Truncate(s, w, "")
+		return s
 	}
 	return s + strings.Repeat(" ", w-sw)
 }
