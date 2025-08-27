@@ -6,6 +6,7 @@ X: x.com/pedro_infosec
 package scanner
 
 import (
+	"fmt"
 	"sync/atomic"
 
 	"github.com/slicingmelon/go-rawurlparser"
@@ -140,7 +141,16 @@ func (s *Scanner) scanURL(url string) error {
 	} else {
 		// Standard mode - no TUI controller
 		totalFindings := s.RunAllBypassesStandard(url)
+
+		// Print results table immediately after scanning this URL
+		if err := PrintResultsTableFromDB(url, s.scannerOpts.BypassModule); err != nil {
+			GB403Logger.Error().Msgf("Failed to display results: %v\n", err)
+		}
+		fmt.Println()
+
+		// Print summary for this URL
 		GB403Logger.Success().Msgf("Found %d results for %s", totalFindings, url)
+		fmt.Println()
 	}
 	return nil
 }

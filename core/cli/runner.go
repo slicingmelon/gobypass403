@@ -121,19 +121,7 @@ func (r *Runner) Run() error {
 	}
 
 	// Normal scanning mode
-	err := r.Scanner.Run()
-
-	// Print results table if not using TUI
-	if !r.RunnerOptions.EnableTUI {
-		for _, url := range r.Urls {
-			if err := scanner.PrintResultsTableFromDB(url, r.RunnerOptions.Module); err != nil {
-				GB403Logger.Error().Msgf("Failed to display results: %v\n", err)
-			}
-			fmt.Println()
-		}
-	}
-
-	return err
+	return r.Scanner.Run()
 }
 
 func (r *Runner) handleResendRequest() error {
