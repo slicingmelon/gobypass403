@@ -333,17 +333,20 @@ func (m *TUIModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				if msg.Action == tea.MouseActionPress {
 					// Handle wheel scrolling
 					if msg.Button == tea.MouseButtonWheelUp {
-						m.selDetail = clamp(m.selDetail-3, 0, len(m.detailRows)-1)
+						m.selDetail = clamp(m.selDetail-1, 0, len(m.detailRows)-1)
 					} else if msg.Button == tea.MouseButtonWheelDown {
-						m.selDetail = clamp(m.selDetail+3, 0, len(m.detailRows)-1)
+						m.selDetail = clamp(m.selDetail+1, 0, len(m.detailRows)-1)
 					} else if msg.Button == tea.MouseButtonLeft {
-						// Handle left click
-						rowIdx := msg.Y - headerLinesDet - 2
-						if rowIdx >= 0 && rowIdx < len(m.detailRows) {
-							m.selDetail = rowIdx
-							onCopy := msg.X >= m.copyStart && msg.X < m.copyEnd
-							if onCopy || copyOnRowClick {
-								m.copyOneWithMsg(rowIdx, onCopy)
+						// Handle left click - find which result was clicked (accounting for multiline)
+						clickY := msg.Y - headerLinesDet - 2
+						if clickY >= 0 {
+							resultIdx := m.findResultFromLineClick(clickY)
+							if resultIdx >= 0 && resultIdx < len(m.detailRows) {
+								m.selDetail = resultIdx
+								onCopy := msg.X >= m.copyStart && msg.X < m.copyEnd
+								if onCopy || copyOnRowClick {
+									m.copyOneWithMsg(resultIdx, onCopy)
+								}
 							}
 						}
 					}
@@ -486,30 +489,73 @@ func (m *TUIModel) viewDetails() string {
 	m.copyEnd = m.copyStart + len(copyLblStyle)
 
 	for i, r := range m.detailRows {
-		// Format curl command - show preview for display, keep full for copying
-		curlPreview := oneLine(r.curlCmd) // Convert multiline to single line for display
-		if len(curlPreview) > curlAvail {
-			curlPreview = curlPreview[:curlAvail-1] + "…"
-		}
+		// Display curl command as multiline (like original table)
+		curlLines := strings.Split(r.curlCmd, "\n")
 
-		line := padRight(r.module, dColModule) + "  " +
-			padRight(curlPreview, curlAvail) + " " + okStyle.Render(copyLblStyle) + "  " +
-			padRight(r.status, dColStatus) + "  " +
-			padRight(r.length, dColLength) + "  " +
-			padRight(r.contentType, dColType) + "  " +
-			padRight(r.title, dColTitle) + "  " +
-			padRight(r.server, dColServer)
+		// Build the row with multiline support
+		for lineIdx, curlLine := range curlLines {
+			var rowLine string
 
-		if i == m.selDetail {
-			line = selRowStyle.Render(line)
+			if lineIdx == 0 {
+				// First line: show all columns
+				// Truncate curl line if too long
+				curlDisplay := curlLine
+				if len(curlDisplay) > curlAvail {
+					curlDisplay = curlDisplay[:curlAvail-1] + "…"
+				}
+
+				rowLine = padRight(r.module, dColModule) + "  " +
+					padRight(curlDisplay, curlAvail) + " " + okStyle.Render(copyLblStyle) + "  " +
+					padRight(r.status, dColStatus) + "  " +
+					padRight(r.length, dColLength) + "  " +
+					padRight(r.contentType, dColType) + "  " +
+					padRight(r.title, dColTitle) + "  " +
+					padRight(r.server, dColServer)
+			} else {
+				// Continuation lines: only show curl command
+				curlDisplay := curlLine
+				if len(curlDisplay) > curlAvail {
+					curlDisplay = curlDisplay[:curlAvail-1] + "…"
+				}
+
+				rowLine = padRight("", dColModule) + "  " +
+					padRight(curlDisplay, curlAvail) + "  " +
+					padRight("", dColStatus+len(copyLblStyle)+2) + "  " +
+					padRight("", dColLength) + "  " +
+					padRight("", dColType) + "  " +
+					padRight("", dColTitle) + "  " +
+					padRight("", dColServer)
+			}
+
+			if i == m.selDetail {
+				rowLine = selRowStyle.Render(rowLine)
+			}
+			b.WriteString(rowLine + "\n")
 		}
-		b.WriteString(line + "\n")
 	}
 
 	if m.statusMsg != "" {
 		b.WriteString("\n" + mutedStyle.Render(m.statusMsg) + "\n")
 	}
 	return b.String()
+}
+
+/* ---------- helper functions ---------- */
+
+func (m *TUIModel) findResultFromLineClick(clickY int) int {
+	// Calculate which result was clicked based on line position
+	// Each result can span multiple lines due to multiline curl commands
+	currentLine := 0
+	for i, r := range m.detailRows {
+		curlLines := strings.Split(r.curlCmd, "\n")
+		resultLines := len(curlLines)
+
+		if clickY >= currentLine && clickY < currentLine+resultLines {
+			return i
+		}
+		currentLine += resultLines
+	}
+	return -1 // Not found
 }
 
 /* ---------- actions ---------- */
