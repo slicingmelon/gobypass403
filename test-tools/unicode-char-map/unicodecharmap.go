@@ -51,6 +51,70 @@ func getReadableChar(r rune) string {
 	}
 }
 
+// GenerateTruncationMap generates mappings for characters that truncate to target range
+// by taking the low byte (char & 0xFF) and checking if it falls within the target range.
+func GenerateTruncationMap(min, max, maxTrunc int) ([]OrderedCharMap, error) {
+	// Initialize a temporary map
+	tempMap := make(map[int][]UnicodeMapping)
+
+	// Initialize with all characters in the target range
+	for r := min; r <= max; r++ {
+		tempMap[r] = []UnicodeMapping{}
+	}
+
+	// Check all Unicode characters up to 0x10FFFF
+	for r := rune(0); r <= 0x10FFFF; r++ {
+		// Skip surrogate pairs as they are not valid standalone characters.
+		if r >= 0xD800 && r <= 0xDFFF {
+			continue
+		}
+
+		lowByte := int(r & 0xFF) // Get low byte
+		if lowByte >= min && lowByte <= max && r != rune(lowByte) {
+			// Check if we've reached the max truncation limit for this character.
+			if maxTrunc > 0 && len(tempMap[lowByte]) >= maxTrunc {
+				continue // Skip if we already have enough mappings.
+			}
+
+			char := string(r)
+
+			// Create UTF-8 bytes representation
+			var bytesRepr strings.Builder
+			for _, b := range []byte(char) {
+				bytesRepr.WriteString(fmt.Sprintf("\\x%02X", b))
+			}
+
+			// Create URL-encoded representation
+			var urlEncoded strings.Builder
+			for _, b := range []byte(char) {
+				urlEncoded.WriteString(fmt.Sprintf("%%%02X", b))
+			}
+
+			// Add to map
+			tempMap[lowByte] = append(tempMap[lowByte], UnicodeMapping{
+				Unicode:         char,
+				UTF8Bytes:       bytesRepr.String(),
+				URLEncoded:      urlEncoded.String(),
+				NormalizeAs:     getReadableChar(rune(lowByte)),
+				NormalizesAsHex: fmt.Sprintf("\\x%02X", lowByte),
+				Form:            "TRUNCATION",
+			})
+		}
+	}
+
+	// Convert to ordered slice, including entries without mappings
+	result := make([]OrderedCharMap, 0, max-min+1)
+	for i := min; i <= max; i++ {
+		result = append(result, OrderedCharMap{
+			ASCII:    i,
+			Char:     getReadableChar(rune(i)),
+			Mappings: tempMap[i],
+		})
+	}
+
+	return result, nil
+}
+
 // GenerateCharMap generates a mapping for a given character range
 // and checks Unicode characters that normalize to them.
 func GenerateCharMap(min, max, maxNorms int) ([]OrderedCharMap, error) {
@@ -140,12 +204,71 @@ func GenerateCharMap(min, max, maxNorms int) ([]OrderedCharMap, error) {
 	return result, nil
 }
 
+// mergeCharMaps merges two character maps, combining mappings for each ASCII character
+func mergeCharMaps(map1, map2 []OrderedCharMap) []OrderedCharMap {
+	// Create a lookup map for efficient merging
+	mergedMap := make(map[int]*OrderedCharMap)
+
+	// Add first map
+	for _, entry := range map1 {
+		mergedMap[entry.ASCII] = &OrderedCharMap{
+			ASCII:    entry.ASCII,
+			Char:     entry.Char,
+			Mappings: make([]UnicodeMapping, len(entry.Mappings)),
+		}
+		copy(mergedMap[entry.ASCII].Mappings, entry.Mappings)
+	}
+
+	// Merge second map
+	for _, entry := range map2 {
+		if existing, exists := mergedMap[entry.ASCII]; exists {
+			existing.Mappings = append(existing.Mappings, entry.Mappings...)
+		} else {
+			mergedMap[entry.ASCII] = &OrderedCharMap{
+				ASCII:    entry.ASCII,
+				Char:     entry.Char,
+				Mappings: make([]UnicodeMapping, len(entry.Mappings)),
+			}
+			copy(mergedMap[entry.ASCII].Mappings, entry.Mappings)
+		}
+	}
+
+	// Convert back to ordered slice and find min/max bounds
+	minKey, maxKey := 0, 0
+	first := true
+	for key := range mergedMap {
+		if first || key < minKey {
+			minKey = key
+		}
+		if first || key > maxKey {
+			maxKey = key
+		}
+		first = false
+	}
+
+	result := make([]OrderedCharMap, 0, len(mergedMap))
+	for i := minKey; i <= maxKey; i++ {
+		if entry, exists := mergedMap[i]; exists {
+			result = append(result, *entry)
+		}
+	}
+
+	return result
+}
+
 func main() {
 	// Define flags
 	rangeStr := flag.String("range", "0-127", "The target character range to generate mappings for (e.g., '0-255').")
 	maxNorms := flag.Int("max-norms", 0, "Maximum number of normalization mappings per character (0 for unlimited).")
+	includeTruncation := flag.Bool("include-truncation", false, "Include truncation mappings in addition to normalization mappings.")
+	maxTrunc := flag.Int("max-trunc", 0, "Maximum number of truncation mappings per character (0 for unlimited).")
 	outputFile := flag.String("output", "unicode_char_map.json", "Output file name for the JSON map.")
 	flag.Parse()
+
+	// Declare variables
+	var charMap []OrderedCharMap
+	var err error
+	var min, max int
 
 	// Parse range string
 	parts := strings.Split(*rangeStr, "-")
@@ -154,13 +277,13 @@ func main() {
 		os.Exit(1)
 	}
 
-	min, err := strconv.Atoi(parts[0])
+	min, err = strconv.Atoi(parts[0])
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error parsing min value from range: %v\n", err)
 		os.Exit(1)
 	}
 
-	max, err := strconv.Atoi(parts[1])
+	max, err = strconv.Atoi(parts[1])
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error parsing max value from range: %v\n", err)
 		os.Exit(1)
@@ -173,13 +296,35 @@ func main() {
 
 	fmt.Printf("Generating Unicode mappings for character range %d-%d...\n", min, max)
 	if *maxNorms > 0 {
-		fmt.Printf("Limiting to a maximum of %d mappings per character.\n", *maxNorms)
+		fmt.Printf("Limiting to a maximum of %d normalization mappings per character.\n", *maxNorms)
+	}
+	if *includeTruncation && *maxTrunc > 0 {
+		fmt.Printf("Limiting to a maximum of %d truncation mappings per character.\n", *maxTrunc)
 	}
 
-	charMap, err := GenerateCharMap(min, max, *maxNorms)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error generating character map: %v\n", err)
-		os.Exit(1)
+	if *includeTruncation {
+		fmt.Println("Generating normalization mappings...")
+		normMap, err2 := GenerateCharMap(min, max, *maxNorms)
+		if err2 != nil {
+			fmt.Fprintf(os.Stderr, "Error generating normalization character map: %v\n", err2)
+			os.Exit(1)
+		}
+
+		fmt.Println("Generating truncation mappings...")
+		truncMap, err3 := GenerateTruncationMap(min, max, *maxTrunc)
+		if err3 != nil {
+			fmt.Fprintf(os.Stderr, "Error generating truncation character map: %v\n", err3)
+			os.Exit(1)
+		}
+
+		fmt.Println("Merging mappings...")
+		charMap = mergeCharMaps(normMap, truncMap)
+	} else {
+		charMap, err = GenerateCharMap(min, max, *maxNorms)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error generating character map: %v\n", err)
+			os.Exit(1)
+		}
 	}
 
 	data, err := json.MarshalIndent(charMap, "", "  ")
@@ -195,10 +340,26 @@ func main() {
 
 	// Print some stats
 	totalMappings := 0
+	normalizationMappings := 0
+	truncationMappings := 0
+
 	for _, entry := range charMap {
-		totalMappings += len(entry.Mappings)
+		for _, mapping := range entry.Mappings {
+			totalMappings++
+			if mapping.Form == "TRUNCATION" {
+				truncationMappings++
+			} else {
+				normalizationMappings++
+			}
+		}
 	}
 
-	fmt.Printf("Completed successfully! Found %d Unicode characters that normalize to the target range.\n", totalMappings)
+	fmt.Printf("Completed successfully! Found %d total Unicode character mappings:\n", totalMappings)
+	if normalizationMappings > 0 {
+		fmt.Printf("  - %d normalization mappings\n", normalizationMappings)
+	}
+	if truncationMappings > 0 {
+		fmt.Printf("  - %d truncation mappings\n", truncationMappings)
+	}
 	fmt.Printf("Results saved to %s\n", *outputFile)
 }
