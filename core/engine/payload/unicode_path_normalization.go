@@ -9,6 +9,12 @@ import (
 	GB403Logger "github.com/slicingmelon/gobypass403/core/utils/logger"
 )
 
+const (
+	// maxNormalizations limits the number of Unicode normalization mappings used per character
+	// to control payload explosion. Can be made into a CLI parameter in the future.
+	maxNormalizations = 10
+)
+
 /*
 GenerateUnicodePathNormalizationsPayloads generates payloads based on Unicode
 normalization bypass techniques, targeting path characters with unicode variants.
@@ -188,8 +194,14 @@ func (pg *PayloadGenerator) GenerateUnicodePathNormalizationsPayloads(targetURL 
 		mappings := asciiToMappings[charCode]
 		charStr := string(rune(charCode))
 
+		// Limit mappings to control payload explosion
+		limitedMappings := mappings
+		if len(mappings) > maxNormalizations {
+			limitedMappings = mappings[:maxNormalizations]
+		}
+
 		// For each Unicode mapping of this character
-		for _, mapping := range mappings {
+		for _, mapping := range limitedMappings {
 			// Single replacement - Replace one occurrence at a time
 			pathRunes := []rune(path)
 			for i, r := range pathRunes {
@@ -234,7 +246,13 @@ func (pg *PayloadGenerator) GenerateUnicodePathNormalizationsPayloads(targetURL 
 			if len(segmentRunes) > 0 {
 				firstChar := segmentRunes[0]
 				if mappings, exists := asciiToMappings[int(firstChar)]; exists {
-					for _, mapping := range mappings {
+					// Limit mappings to control payload explosion
+					limitedMappings := mappings
+					if len(mappings) > maxNormalizations {
+						limitedMappings = mappings[:maxNormalizations]
+					}
+
+					for _, mapping := range limitedMappings {
 						// Create a new path with this segment's first char replaced
 						newSegment := mapping.Unicode + string(segmentRunes[1:])
 						newPath := createPathWithReplacedSegment(segments, i, newSegment)
@@ -257,7 +275,13 @@ func (pg *PayloadGenerator) GenerateUnicodePathNormalizationsPayloads(targetURL 
 			if len(segmentRunes) > 1 {
 				lastChar := segmentRunes[len(segmentRunes)-1]
 				if mappings, exists := asciiToMappings[int(lastChar)]; exists {
-					for _, mapping := range mappings {
+					// Limit mappings to control payload explosion
+					limitedMappings := mappings
+					if len(mappings) > maxNormalizations {
+						limitedMappings = mappings[:maxNormalizations]
+					}
+
+					for _, mapping := range limitedMappings {
 						// Create a new path with this segment's last char replaced
 						newSegment := string(segmentRunes[:len(segmentRunes)-1]) + mapping.Unicode
 						newPath := createPathWithReplacedSegment(segments, i, newSegment)
@@ -279,14 +303,14 @@ func (pg *PayloadGenerator) GenerateUnicodePathNormalizationsPayloads(targetURL 
 			// 3.3 Every character in the segment
 			for j, char := range segmentRunes {
 				if mappings, exists := asciiToMappings[int(char)]; exists {
-					// Take just a few mappings to avoid explosion
-					maxMappings := 3
-					if len(mappings) < maxMappings {
-						maxMappings = len(mappings)
+					// Limit mappings to control payload explosion
+					limitedMappings := mappings
+					if len(mappings) > maxNormalizations {
+						limitedMappings = mappings[:maxNormalizations]
 					}
 
-					for k := 0; k < maxMappings; k++ {
-						mapping := mappings[k]
+					for k := 0; k < len(limitedMappings); k++ {
+						mapping := limitedMappings[k]
 
 						// Create segment with this character replaced
 						newRunes := make([]rune, len(segmentRunes))
@@ -306,14 +330,14 @@ func (pg *PayloadGenerator) GenerateUnicodePathNormalizationsPayloads(targetURL 
 	// Get slash mappings specifically
 	slashMappings, exists := asciiToMappings[47] // '/'
 	if exists && len(slashMappings) > 0 {
-		// Limit to a few mappings to prevent explosion
-		maxMappings := 3
-		if len(slashMappings) < maxMappings {
-			maxMappings = len(slashMappings)
+		// Limit mappings to control payload explosion
+		limitedSlashMappings := slashMappings
+		if len(slashMappings) > maxNormalizations {
+			limitedSlashMappings = slashMappings[:maxNormalizations]
 		}
 
-		for i := 0; i < maxMappings; i++ {
-			mapping := slashMappings[i]
+		for i := 0; i < len(limitedSlashMappings); i++ {
+			mapping := limitedSlashMappings[i]
 
 			// Insert Unicode slash after each real slash
 			pathRunes := []rune(path)
