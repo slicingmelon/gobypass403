@@ -33,11 +33,12 @@ A powerful WAF (HTTP 403/401) and URL parser bypass tool developed in Go, design
     - [CVE-2021-40346: HTTP Request Smuggling via Integer Overflow](#cve-2021-40346-http-request-smuggling-via-integer-overflow)
     - [CVE-2023-45539: URL Fragment ACL Bypass](#cve-2023-45539-url-fragment-acl-bypass)
   - [9. unicode\_path\_normalization](#9-unicode_path_normalization)
-  - [10. headers\_scheme](#10-headers_scheme)
-  - [11. headers\_ip](#11-headers_ip)
-  - [12. headers\_port](#12-headers_port)
-  - [13. headers\_url](#13-headers_url)
-  - [14. headers\_host](#14-headers_host)
+  - [10. unicode\_path\_truncation](#10-unicode_path_truncation)
+  - [11. headers\_scheme](#11-headers_scheme)
+  - [12. headers\_ip](#12-headers_ip)
+  - [13. headers\_port](#13-headers_port)
+  - [14. headers\_url](#14-headers_url)
+  - [15. headers\_host](#15-headers_host)
 - [Findings](#findings)
   - [Findings Summary](#findings-summary)
   - [Full Findings Database](#full-findings-database)
@@ -498,7 +499,71 @@ The module implements five core bypass techniques:
 
 All variations preserve the original query string if present. This module is effective against systems where Unicode normalization occurs after initial WAF validation, allowing Unicode variants to bypass pattern matching before being normalized to their ASCII equivalents during processing.
 
-## 10. headers_scheme 
+## 10. unicode_path_truncation
+
+The `unicode_path_truncation` module generates payloads using Unicode character variants that truncate to standard ASCII characters via byte truncation (`char & 0xFF`), targeting systems that perform byte-level truncation during request processing. The module uses `unicode_truncation_map.json` which contains mappings from ASCII to Unicode characters that truncate to the original ASCII character when their low byte is extracted.
+
+**Key Differences from Normalization:**
+- **Technique**: Byte truncation (`char & 0xFF`) instead of Unicode normalization
+- **Target Range**: ALL bytes (0x00-0xFF) instead of ASCII printable only (0x20-0x7F)  
+- **Vulnerability**: Applications that truncate Unicode characters to their low byte value
+- **JSON Structure**: Uses `"form": "TRUNCATION"` instead of normalization forms like "NFKC"
+
+The module implements the same five core bypass techniques as normalization:
+
+1. **Double Slash Variations:**
+   - Inserts extra slashes at path separator positions (e.g., `/admin//login`)
+   - Creates variants where all slashes are doubled (e.g., `//admin//login`)
+
+2. **Full Path Character Variations:**
+   - Replaces path characters with Unicode equivalents that truncate to the original
+   - Tests single occurrence and all occurrence replacements
+   - Generates three forms for each replacement:
+     - Raw Unicode: `/admin/logĀn` (where Ā truncates to 'a')
+     - URL-encoded: `/admin/log%C4%80n`
+     - UTF-8 bytes: `/admin/log\\xC4\\x80n`
+
+3. **Path Segment Character Variations:**
+   - Targets individual path segments (e.g., `admin`, `login`)
+   - Systematically replaces first and last characters in segments
+   - Replaces each character in segments one by one (limited to prevent explosion)
+
+4. **Unicode Slash Insertion:**
+   - Uses Unicode equivalents of slash character (`/`) that truncate to 0x2F
+   - Inserts them next to existing slashes: `/admin/（unicode_slash）login`
+   - Tests raw Unicode, URL-encoded, and UTF-8 byte forms
+
+5. **Full Segment Unicode Variations:**
+   - Creates completely Unicode-fied versions of path segments using truncation mappings
+   - Example: `/admin` → `/Āďṁīṅ` (raw) or `/%C4%80%C4%8F%E1%B9%81%C4%AB%E1%B9%85` (encoded)
+   - Generates payloads replacing individual segments and all segments at once
+
+**Example Truncation Mappings:**
+```json
+{
+  "ascii": 97,
+  "char": "a", 
+  "mappings": [
+    {
+      "unicode": "ā",        // U+0101 → 0x01 (truncates to 'a')
+      "utf8_bytes": "\\xC4\\x81",
+      "url_encoded": "%C4%81",
+      "form": "TRUNCATION"
+    }
+  ]
+}
+```
+
+**Target Systems:**
+This technique is particularly effective against:
+- Applications using legacy character handling that truncate Unicode to single bytes
+- Systems with improper UTF-8 to ASCII conversion routines
+- Web servers or frameworks that process Unicode characters through truncation
+- Security controls that perform byte-level character validation after truncation
+
+All variations preserve the original query string if present. This module targets a different class of vulnerabilities than normalization, focusing on byte-level truncation rather than Unicode standardization, making it complementary to the normalization module for comprehensive Unicode-based bypass testing.
+
+## 11. headers_scheme 
 
 The `headers_scheme` module tests protocol-based bypasses using custom HTTP headers that indicate the original protocol or request scheme. Many applications rely on these headers for internal routing decisions and security policies.
 
@@ -518,7 +583,7 @@ These headers exploit common misconfigurations in:
 - Load balancers that trust scheme headers for SSL/TLS decisions
 - Web applications that use scheme headers for conditional logic or URL construction
 
-## 11. headers_ip
+## 12. headers_ip
 
 The `headers_ip` module is a powerful IP spoofing toolkit that exploits how servers trust client-reported IP addresses for access control decisions. This often-overlooked bypass technique can circumvent WAF restrictions by manipulating IP-based trust relationships.
 
@@ -551,7 +616,7 @@ This technique exploits fundamental architectural weaknesses in:
 - WAFs that exempt traffic from certain source addresses
 - Load balancers that make routing decisions based on client IP
 
-## 12. headers_port
+## 13. headers_port
 
 The `headers_port` module manipulates port-related HTTP headers to bypass security controls that make routing or access decisions based on the originating port.
 
@@ -584,7 +649,7 @@ This technique is particularly effective against:
 - Microservice architectures with port-based service routing
 - Security controls that exempt traffic from specific trusted ports
 
-## 13. headers_url
+## 14. headers_url
 
 The `headers_url` module implements URL path injection techniques through custom headers, targeting web applications and proxies that use header values for internal routing decisions.
 
@@ -633,7 +698,7 @@ This technique is especially effective against:
 - Cloud-based WAF solutions that process headers before routing requests
 - Next.js applications vulnerable to middleware bypasses
 
-## 14. headers_host
+## 15. headers_host
 
 The `headers_host` module exploits discrepancies between URL hostname and Host header processing, leveraging real-time reconnaissance data to generate targeted bypass attempts.
 
