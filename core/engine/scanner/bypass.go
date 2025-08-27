@@ -334,6 +334,11 @@ func (s *Scanner) RunBypassModule(bypassModule string, targetURL string) int {
 	bar.End()
 	fmt.Println()
 
+	// Do this:
+	// bar.End()
+	// fmt.Print("\033[1A\r\033[K") // Move up one line, then clear it
+	// fmt.Printf("✓ %-20s - %d results found\n", bypassModule, int(resultCount.Load()))
+
 	dbWg.Wait()
 
 	return int(resultCount.Load())
