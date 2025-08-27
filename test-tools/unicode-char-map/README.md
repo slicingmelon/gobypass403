@@ -1,139 +1,222 @@
-# unicodecharmap.go
+# Unicode Character Mapping Tools
 
-This tool generates a comprehensive JSON map of Unicode characters that normalize to a specified range of target characters (e.g., ASCII). This map is invaluable for security testing, particularly for discovering WAF/firewall bypasses that rely on Unicode normalization vulnerabilities.
+This directory contains two specialized tools for generating comprehensive JSON maps of Unicode characters that can be used for WAF/firewall bypass testing. Each tool targets different Unicode vulnerabilities and bypass techniques.
 
-The tool scans the entire Unicode range (up to `0x10FFFF`) and uses four different normalization forms (`NFKC`, `NFKD`, `NFC`, `NFD`) to find equivalent characters.
+## Tools Overview
 
-## Features
+### 1. Unicode Normalization Tool (`unicode_normalizatio_nmap.go`)
+Located in `unicode-normalization-map/`
 
--   **Custom Character Ranges**: Generate mappings for any character range, not just standard ASCII.
--   **Normalization Limit**: Control the size of the output by limiting the number of mappings per character.
--   **Custom Output File**: Specify the name for the generated JSON file.
--   **Full Unicode Scan**: Scans all 1,114,112 Unicode code points for maximum coverage.
+**Purpose**: Finds Unicode characters that normalize to target characters using Unicode normalization forms.
+
+**How it works**: Scans the entire Unicode range (up to `0x10FFFF`) and uses four different normalization forms (`NFKC`, `NFKD`, `NFC`, `NFD`) to identify characters that normalize to your target range.
+
+**Use cases**: 
+- Applications that normalize Unicode input before processing
+- WAFs that apply Unicode normalization before filtering
+- Systems vulnerable to Unicode normalization attacks
+
+### 2. Unicode Truncation Tool (`unicode_truncation_map.go`) 
+Located in `unicode-truncation-map/`
+
+**Purpose**: Finds Unicode characters that truncate to target characters via byte truncation.
+
+**How it works**: Identifies characters where the low byte (`char & 0xFF`) matches your target range, effectively finding characters that "truncate" to target bytes.
+
+**Use cases**:
+- Applications that truncate Unicode to single bytes
+- Systems that only check the low byte of characters
+- WAFs vulnerable to byte truncation attacks
+
+## Key Differences
+
+| Aspect | Normalization Tool | Truncation Tool |
+|--------|-------------------|-----------------|
+| **Target Range** | ASCII printable (0x20-0x7F) | ALL bytes (0x00-0xFF) |
+| **Technique** | Unicode normalization | Byte truncation |
+| **Vulnerability** | Apps that normalize Unicode | Apps that truncate to low byte |
+| **Your Go Code** | ✅ Does this | ❌ Doesn't do this |
 
 ## Command-Line Flags
 
-| Flag          | Description                                                              | Default                  |
-|---------------|--------------------------------------------------------------------------|--------------------------|
-| `--range`     | The target character range to generate mappings for (e.g., `0-255`).     | `0-127`                  |
-| `--max-norms` | Maximum number of normalization mappings per character (0 for unlimited). | `0`                      |
-| `--output`    | Output file name for the JSON map.                                       | `unicode_char_map.json`  |
+### Unicode Normalization Tool
+| Flag          | Description                                                              | Default                           |
+|---------------|--------------------------------------------------------------------------|-----------------------------------|
+| `--range`     | The target character range to generate mappings for (e.g., `0-255`).     | `0-127`                          |
+| `--max-norms` | Maximum number of normalization mappings per character (0 for unlimited). | `0`                              |
+| `--output`    | Output file name for the JSON map.                                       | `unicode_normalization_map.json` |
+
+### Unicode Truncation Tool  
+| Flag          | Description                                                              | Default                        |
+|---------------|--------------------------------------------------------------------------|--------------------------------|
+| `--range`     | The target character range to generate mappings for (e.g., `0-255`).     | `0-127`                       |
+| `--max-trunc` | Maximum number of truncation mappings per character (0 for unlimited).   | `0`                           |
+| `--output`    | Output file name for the JSON map.                                       | `unicode_truncation_map.json` |
 
 ## Usage Examples
 
-1.  **Generate a default map for ASCII characters (0-127) with unlimited mappings:**
+### Unicode Normalization Tool
+
+1.  **Generate normalization mappings for ASCII characters (0-127):**
     ```sh
-    go run unicodecharmap.go
+    cd unicode-normalization-map/
+    go run unicode_normalizatio_nmap.go --range "0-127" --max-norms 5 --output ascii_norm.json
     ```
 
-2.  **Generate a map for the extended ASCII range (0-255) and save it to a different file:**
+2.  **Generate normalization mappings for printable ASCII (32-126):**
     ```sh
-    go run unicodecharmap.go --range 0-255 --output extended_ascii_map.json
+    cd unicode-normalization-map/
+    go run unicode_normalizatio_nmap.go --range "32-126" --output printable_norm.json
     ```
 
-3.  **Generate a map for uppercase letters (A-Z, values 65-90), limiting the results to the first 5 mappings found for each letter:**
+3.  **Generate mappings for uppercase letters (A-Z, values 65-90):**
     ```sh
-    go run unicodecharmap.go --range 65-90 --max-norms 5 --output uppercase_top5.json
+    cd unicode-normalization-map/
+    go run unicode_normalizatio_nmap.go --range "65-90" --max-norms 3 --output uppercase_norm.json
+    ```
+
+### Unicode Truncation Tool
+
+1.  **Generate truncation mappings for ASCII characters (0-127):**
+    ```sh
+    cd unicode-truncation-map/
+    go run unicode_truncation_map.go --range "0-127" --max-trunc 4 --output ascii_trunc.json
+    ```
+
+2.  **Generate truncation mappings for extended ASCII (0-255):**
+    ```sh
+    cd unicode-truncation-map/
+    go run unicode_truncation_map.go --range "0-255" --output extended_trunc.json
+    ```
+
+3.  **Generate truncation mappings for path characters only:**
+    ```sh
+    cd unicode-truncation-map/
+    go run unicode_truncation_map.go --range "46-47" --max-trunc 5 --output path_chars_trunc.json
     ```
 
 ## Sample JSON Output
 
-The output is a JSON array where each object represents a target character from your specified range that has at least one Unicode normalization mapping.
+Both tools produce JSON arrays where each object represents a target character from your specified range. The structure is identical, but the `form` field distinguishes between the two types:
 
-Here is a sample entry for the characters `a` (ascii 97) and `b` (ascii 98):
+- **Normalization mappings**: `"NFKC"`, `"NFKD"`, `"NFC"`, `"NFD"`
+- **Truncation mappings**: `"TRUNCATION"`
+
+### Unicode Normalization Tool Example
+
+Sample entry for character `2` (ASCII 50) showing various Unicode characters that normalize to `2`:
 
 ```json
- {
-    "ascii": 97,
-    "char": "a",
-    "mappings": [
-      {
-        "unicode": "a",
-        "utf8_bytes": "\\x61",
-        "url_encoded": "%61",
-        "normalizes_as": "a",
-        "normalizes_as_hex": "\\x61",
-        "form": "NFKC"
-      },
-      {
-        "unicode": "ª",
-        "utf8_bytes": "\\xC2\\xAA",
-        "url_encoded": "%C2%AA",
-        "normalizes_as": "a",
-        "normalizes_as_hex": "\\x61",
-        "form": "NFKC"
-      },
-      {
-        "unicode": "ᵃ",
-        "utf8_bytes": "\\xE1\\xB5\\x83",
-        "url_encoded": "%E1%B5%83",
-        "normalizes_as": "a",
-        "normalizes_as_hex": "\\x61",
-        "form": "NFKC"
-      },
-      {
-        "unicode": "ₐ",
-        "utf8_bytes": "\\xE2\\x82\\x90",
-        "url_encoded": "%E2%82%90",
-        "normalizes_as": "a",
-        "normalizes_as_hex": "\\x61",
-        "form": "NFKC"
-      },
-      {
-        "unicode": "ⓐ",
-        "utf8_bytes": "\\xE2\\x93\\x90",
-        "url_encoded": "%E2%93%90",
-        "normalizes_as": "a",
-        "normalizes_as_hex": "\\x61",
-        "form": "NFKC"
-      }
-    ]
-  },
-  {
-    "ascii": 98,
-    "char": "b",
-    "mappings": [
-      {
-        "unicode": "b",
-        "utf8_bytes": "\\x62",
-        "url_encoded": "%62",
-        "normalizes_as": "b",
-        "normalizes_as_hex": "\\x62",
-        "form": "NFKC"
-      },
-      {
-        "unicode": "ᵇ",
-        "utf8_bytes": "\\xE1\\xB5\\x87",
-        "url_encoded": "%E1%B5%87",
-        "normalizes_as": "b",
-        "normalizes_as_hex": "\\x62",
-        "form": "NFKC"
-      },
-      {
-        "unicode": "ⓑ",
-        "utf8_bytes": "\\xE2\\x93\\x91",
-        "url_encoded": "%E2%93%91",
-        "normalizes_as": "b",
-        "normalizes_as_hex": "\\x62",
-        "form": "NFKC"
-      },
-      {
-        "unicode": "ｂ",
-        "utf8_bytes": "\\xEF\\xBD\\x82",
-        "url_encoded": "%EF%BD%82",
-        "normalizes_as": "b",
-        "normalizes_as_hex": "\\x62",
-        "form": "NFKC"
-      },
-      {
-        "unicode": "𝐛",
-        "utf8_bytes": "\\xF0\\x9D\\x90\\x9B",
-        "url_encoded": "%F0%9D%90%9B",
-        "normalizes_as": "b",
-        "normalizes_as_hex": "\\x62",
-        "form": "NFKC"
-      }
-    ]
-  },
+{
+  "ascii": 50,
+  "char": "2",
+  "mappings": [
+    {
+      "unicode": "2",
+      "utf8_bytes": "\\x32",
+      "url_encoded": "%32",
+      "normalizes_as": "2",
+      "normalizes_as_hex": "\\x32",
+      "form": "NFKC"
+    },
+    {
+      "unicode": "²",
+      "utf8_bytes": "\\xC2\\xB2",
+      "url_encoded": "%C2%B2",
+      "normalizes_as": "2",
+      "normalizes_as_hex": "\\x32",
+      "form": "NFKC"
+    },
+    {
+      "unicode": "₂",
+      "utf8_bytes": "\\xE2\\x82\\x82",
+      "url_encoded": "%E2%82%82",
+      "normalizes_as": "2",
+      "normalizes_as_hex": "\\x32",
+      "form": "NFKC"
+    },
+    {
+      "unicode": "②",
+      "utf8_bytes": "\\xE2\\x91\\xA1",
+      "url_encoded": "%E2%91%A1",
+      "normalizes_as": "2",
+      "normalizes_as_hex": "\\x32",
+      "form": "NFKC"
+    },
+    {
+      "unicode": "２",
+      "utf8_bytes": "\\xEF\\xBC\\x92",
+      "url_encoded": "%EF%BC%92",
+      "normalizes_as": "2",
+      "normalizes_as_hex": "\\x32",
+      "form": "NFKC"
+    }
+  ]
+}
+```
+
+### Unicode Truncation Tool Example
+
+Sample entry for character byte `0x00` showing Unicode characters whose low byte truncates to `0x00`:
+
+```json
+{
+  "ascii": 0,
+  "char": "\\0",
+  "mappings": [
+    {
+      "unicode": "Ā",
+      "utf8_bytes": "\\xC4\\x80",
+      "url_encoded": "%C4%80",
+      "normalizes_as": "\\0",
+      "normalizes_as_hex": "\\x00",
+      "form": "TRUNCATION"
+    },
+    {
+      "unicode": "Ȁ",
+      "utf8_bytes": "\\xC8\\x80",
+      "url_encoded": "%C8%80",
+      "normalizes_as": "\\0",
+      "normalizes_as_hex": "\\x00",
+      "form": "TRUNCATION"
+    },
+    {
+      "unicode": "̀",
+      "utf8_bytes": "\\xCC\\x80",
+      "url_encoded": "%CC%80",
+      "normalizes_as": "\\0",
+      "normalizes_as_hex": "\\x00",
+      "form": "TRUNCATION"
+    },
+    {
+      "unicode": "Ѐ",
+      "utf8_bytes": "\\xD0\\x80",
+      "url_encoded": "%D0%80",
+      "normalizes_as": "\\0",
+      "normalizes_as_hex": "\\x00",
+      "form": "TRUNCATION"
+    }
+  ]
+}
+```
+
+## Integration with Bypass Modules
+
+These JSON files can be used directly in your bypass modules. Filter by the `form` field to use specific mapping types:
+
+```go
+// Use only normalization mappings  
+for _, mapping := range mappings {
+    if mapping.Form != "TRUNCATION" {
+        // Handle normalization mappings (NFKC, NFKD, etc.)
+    }
+}
+
+// Use only truncation mappings
+for _, mapping := range mappings {
+    if mapping.Form == "TRUNCATION" {
+        // Handle truncation mappings
+    }
+}
 ```
 
