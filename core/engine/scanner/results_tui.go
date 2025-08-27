@@ -692,6 +692,13 @@ func (m *TUIModel) renderSimpleTable(b *strings.Builder, widths ColumnWidths, ro
 
 		// Render the result row with multiline curl
 		m.renderSimpleRow(b, r, widths, i == m.selDetail)
+		// Add a solid border after each row
+		m.renderRowBottomBorder(b, widths)
+	}
+
+	// At the end, make sure we have a final bottom border even with no rows
+	if len(rows) == 0 {
+		m.renderRowBottomBorder(b, widths)
 	}
 }
 
@@ -714,10 +721,16 @@ func (m *TUIModel) renderSimpleHeader(b *strings.Builder, widths ColumnWidths) {
 }
 
 func (m *TUIModel) renderSimpleSeparator(b *strings.Builder, widths ColumnWidths) {
-	// Group border: dotted line + solid line (top/bottom)
+	// Group dotted separator only (between groups)
 	totalWidth := widths.module + 3 + widths.curl + 3 + widths.status + 3 +
 		widths.length + 3 + widths.colType + 3 + widths.title + 3 + widths.server + 2
 	b.WriteString(strings.Repeat(".", totalWidth) + "\n")
+}
+
+func (m *TUIModel) renderRowBottomBorder(b *strings.Builder, widths ColumnWidths) {
+	// Solid bottom border after each row and at end of table
+	totalWidth := widths.module + 3 + widths.curl + 3 + widths.status + 3 +
+		widths.length + 3 + widths.colType + 3 + widths.title + 3 + widths.server + 2
 	b.WriteString(strings.Repeat("-", totalWidth) + "\n")
 }
 
@@ -753,6 +766,8 @@ func (m *TUIModel) refreshDetailsContent() {
 		// measure start line for this result
 		start := strings.Count(bb.String(), "\n")
 		m.renderSimpleRow(&bb, r, m.lastWidths, i == m.selDetail)
+		// Add solid bottom border after row
+		m.renderRowBottomBorder(&bb, m.lastWidths)
 		end := strings.Count(bb.String(), "\n")
 		m.rowStarts = append(m.rowStarts, start)
 		m.rowEnds = append(m.rowEnds, end)
