@@ -42,6 +42,17 @@ func oneLine(s string) string {
 	return re.ReplaceAllString(b.String(), " ")
 }
 
+// Helper function to format length from content length and response bytes
+func formatLengthTUI(contentLength int64, responseBodyBytes int) string {
+	if contentLength > 0 {
+		return fmt.Sprintf("%d", contentLength)
+	}
+	if responseBodyBytes > 0 {
+		return fmt.Sprintf("%d", responseBodyBytes)
+	}
+	return "[-]"
+}
+
 func copyToClipboard(s string) error {
 	if err := clipboard.Init(); err == nil {
 		clipboard.Write(clipboard.FmtText, []byte(s))
@@ -100,10 +111,13 @@ func percent(done, total int) int {
 /* ---------- data types ---------- */
 
 type TUIResultRow struct {
-	module  string
-	status  string
-	rawCurl string
-	oneCurl string
+	module      string
+	curlCmd     string
+	status      string
+	length      string
+	contentType string
+	title       string
+	server      string
 }
 
 type TUITarget struct {
@@ -186,9 +200,14 @@ var (
 	colProg   = 20
 	colState  = 12
 
-	// details column widths
+	// details column widths (matching original table)
 	dColModule = 14
+	dColCurl   = 40 // Will be calculated dynamically
 	dColStatus = 7
+	dColLength = 8
+	dColType   = 12
+	dColTitle  = 14
+	dColServer = 14
 
 	headerLinesDash = 3
 	headerLinesDet  = 3
@@ -249,9 +268,6 @@ func (m *TUIModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case TUIResultMsg:
 		r := msg.Row
-		if r.oneCurl == "" {
-			r.oneCurl = oneLine(r.rawCurl)
-		}
 		m.rowsByTarget[msg.Target] = append(m.rowsByTarget[msg.Target], r)
 
 	case TUIShutdownMsg:
@@ -313,13 +329,25 @@ func (m *TUIModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 			}
 		case viewDetails:
-			if msg.Button == tea.MouseButtonLeft && msg.Action == tea.MouseActionPress {
-				rowIdx := msg.Y - headerLinesDet - 2
-				if rows := m.rowsByTarget[m.activeTarget]; rowIdx >= 0 && rowIdx < len(rows) {
-					m.selDetail = rowIdx
-					onCopy := msg.X >= m.copyStart && msg.X < m.copyEnd
-					if onCopy || copyOnRowClick {
-						m.copyOneWithMsg(rowIdx, onCopy)
+			rows := m.rowsByTarget[m.activeTarget]
+			if len(rows) > 0 {
+				// Handle mouse actions
+				if msg.Action == tea.MouseActionPress {
+					// Handle wheel scrolling
+					if msg.Button == tea.MouseButtonWheelUp {
+						m.selDetail = clamp(m.selDetail-3, 0, len(rows)-1)
+					} else if msg.Button == tea.MouseButtonWheelDown {
+						m.selDetail = clamp(m.selDetail+3, 0, len(rows)-1)
+					} else if msg.Button == tea.MouseButtonLeft {
+						// Handle left click
+						rowIdx := msg.Y - headerLinesDet - 2
+						if rowIdx >= 0 && rowIdx < len(rows) {
+							m.selDetail = rowIdx
+							onCopy := msg.X >= m.copyStart && msg.X < m.copyEnd
+							if onCopy || copyOnRowClick {
+								m.copyOneWithMsg(rowIdx, onCopy)
+							}
+						}
 					}
 				}
 			}
@@ -413,50 +441,62 @@ func (m *TUIModel) viewDetails() string {
 	b.WriteString(mutedStyle.Render("↑/↓ move   c copy row   A copy all   b/backspace back   q quit") + "\n\n")
 
 	rows := m.rowsByTarget[m.activeTarget]
+	if len(rows) == 0 {
+		b.WriteString(mutedStyle.Render("No results found for this target.") + "\n")
+		return b.String()
+	}
+
+	// Calculate column widths based on available space
 	avail := m.width
-	if avail < 40 {
-		avail = 40
+	if avail < 80 {
+		avail = 80
 	}
 
-	totalPad := 2 + 2 + 2 // spaces between columns
+	// Reserve space for separators (6 * 2 = 12)
+	totalPadding := 12
 	copyW := len(copyLblStyle)
-	curlAvail := avail - dColModule - dColStatus - totalPad - copyW
-	if curlAvail < 10 {
-		curlAvail = 10
+
+	// Calculate curl column width (remaining space after fixed columns)
+	fixedCols := dColModule + dColStatus + dColLength + dColType + dColTitle + dColServer + copyW
+	curlAvail := avail - fixedCols - totalPadding
+	if curlAvail < 30 {
+		curlAvail = 30
 	}
 
-	// header - using same format as original results table
+	// Header - matching original table format: Module, Curl CMD, Status, Length, Type, Title, Server
 	b.WriteString(
 		thStyle.Render(padRight("Module", dColModule)) + "  " +
 			thStyle.Render(padRight("Curl CMD", curlAvail)) + "  " +
-			thStyle.Render(padRight("Status", dColStatus)) + "\n")
+			thStyle.Render(padRight("Status", dColStatus)) + "  " +
+			thStyle.Render(padRight("Length", dColLength)) + "  " +
+			thStyle.Render(padRight("Type", dColType)) + "  " +
+			thStyle.Render(padRight("Title", dColTitle)) + "  " +
+			thStyle.Render(padRight("Server", dColServer)) + "\n")
 	b.WriteString(strings.Repeat(borderRune, clamp(m.width, 0, 200)) + "\n")
 
-	// compute copy hitbox (relative to full line)
+	// Compute copy hitbox - position after curl column
 	m.copyStart = dColModule + 2 + curlAvail + 1 // space before [Copy]
 	m.copyEnd = m.copyStart + len(copyLblStyle)
 
 	for i, r := range rows {
-		// Use the same multiline curl formatting as the original
-		// formattedCurl := SplitCurlPocIntoMultiLines(r.rawCurl, curlAvail) // Available if needed later
-
-		// For display, show first line only with ellipsis if multiline
-		curlPreview := r.oneCurl
+		// Format curl command - use multiline formatting like original but show preview
+		curlPreview := r.curlCmd
 		if len(curlPreview) > curlAvail {
 			curlPreview = curlPreview[:curlAvail-1] + "…"
 		}
 
 		line := padRight(r.module, dColModule) + "  " +
 			padRight(curlPreview, curlAvail) + " " + okStyle.Render(copyLblStyle) + "  " +
-			padRight(r.status, dColStatus)
+			padRight(r.status, dColStatus) + "  " +
+			padRight(r.length, dColLength) + "  " +
+			padRight(r.contentType, dColType) + "  " +
+			padRight(r.title, dColTitle) + "  " +
+			padRight(r.server, dColServer)
+
 		if i == m.selDetail {
 			line = selRowStyle.Render(line)
 		}
 		b.WriteString(line + "\n")
-	}
-
-	if len(rows) == 0 {
-		b.WriteString(mutedStyle.Render("No results found for this target.") + "\n")
 	}
 
 	if m.statusMsg != "" {
@@ -472,7 +512,7 @@ func (m *TUIModel) copyOneWithMsg(i int, viaCopyButton bool) {
 	if i < 0 || i >= len(rows) {
 		return
 	}
-	if err := copyToClipboard(rows[i].oneCurl); err != nil {
+	if err := copyToClipboard(rows[i].curlCmd); err != nil {
 		m.statusMsg = "copy failed: " + err.Error()
 	} else {
 		if viaCopyButton {
@@ -491,7 +531,7 @@ func (m *TUIModel) copyAllCurrent() {
 	}
 	var out []string
 	for _, r := range rows {
-		out = append(out, r.oneCurl)
+		out = append(out, r.curlCmd)
 	}
 	if err := copyToClipboard(strings.Join(out, "\n")); err != nil {
 		m.statusMsg = "copy-all failed: " + err.Error()
@@ -560,14 +600,23 @@ func (c *TUIController) SendProgress(target, module string, done, total int, com
 }
 
 func (c *TUIController) SendResult(target string, result *Result) {
+	// Format data like the original table
+	lengthStr := formatLengthTUI(result.ContentLength, result.ResponseBodyBytes)
+	contentTypeStr := formatContentType(result.ContentType)
+	titleStr := LimitStringWithSuffix(formatValue(result.Title), 14)
+	serverStr := LimitStringWithSuffix(formatValue(result.ServerInfo), 14)
+
 	select {
 	case c.resultCh <- TUIResultMsg{
 		Target: target,
 		Row: TUIResultRow{
-			module:  result.BypassModule,
-			status:  fmt.Sprintf("%d", result.StatusCode),
-			rawCurl: result.CurlCMD,
-			oneCurl: oneLine(result.CurlCMD),
+			module:      result.BypassModule,
+			curlCmd:     result.CurlCMD, // Keep full multiline curl
+			status:      fmt.Sprintf("%d", result.StatusCode),
+			length:      lengthStr,
+			contentType: contentTypeStr,
+			title:       titleStr,
+			server:      serverStr,
 		},
 	}:
 	default:
