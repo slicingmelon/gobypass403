@@ -17,6 +17,7 @@ import (
 
 	"golang.design/x/clipboard"
 
+	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/slicingmelon/go-bytesutil/bytesutil"
@@ -167,7 +168,8 @@ type TUIModel struct {
 	detailsLoaded bool
 
 	// layout
-	width int
+	width  int
+	height int
 
 	// details copy hitbox
 	copyStart int
@@ -179,6 +181,13 @@ type TUIModel struct {
 
 	// program control
 	program *tea.Program
+
+	// viewport and cached layout for details
+	vp           viewport.Model
+	cachedHeader string
+	lastWidths   ColumnWidths
+	rowStarts    []int
+	rowEnds      []int
 }
 
 /* ---------- styles ---------- */
@@ -245,6 +254,14 @@ func (m *TUIModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
+		m.height = msg.Height
+		if m.height > 6 {
+			m.vp.Width = m.width
+			m.vp.Height = m.height - 6
+		}
+		if m.view == viewDetails && m.detailsLoaded {
+			m.refreshDetailsContent()
+		}
 
 	case TUIProgressMsg:
 		// upsert target progress
@@ -330,25 +347,32 @@ func (m *TUIModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		case viewDetails:
 			if len(m.detailRows) > 0 {
-				// Handle mouse actions
-				if msg.Action == tea.MouseActionPress {
-					// Handle wheel scrolling
-					if msg.Button == tea.MouseButtonWheelUp {
-						m.selDetail = clamp(m.selDetail-1, 0, len(m.detailRows)-1)
-					} else if msg.Button == tea.MouseButtonWheelDown {
-						m.selDetail = clamp(m.selDetail+1, 0, len(m.detailRows)-1)
-					} else if msg.Button == tea.MouseButtonLeft {
-						// Handle left click - find which result was clicked (accounting for multiline)
-						clickY := msg.Y - 3 // Skip title (1) + help (1) + blank line (1)
-						if clickY >= 0 {
-							resultIdx := m.findResultFromLineClick(clickY)
-							if resultIdx >= 0 && resultIdx < len(m.detailRows) {
-								m.selDetail = resultIdx
-								onCopy := msg.X >= m.copyStart && msg.X < m.copyEnd
-								if onCopy || copyOnRowClick {
-									m.copyOneWithMsg(resultIdx, onCopy)
-								}
+				// Handle wheel scrolling using press + wheel buttons
+				if msg.Action == tea.MouseActionPress && msg.Button == tea.MouseButtonWheelUp {
+					m.selDetail = clamp(m.selDetail-1, 0, len(m.detailRows)-1)
+					m.refreshDetailsContent()
+					m.ensureSelectionVisible()
+					return m, nil
+				}
+				if msg.Action == tea.MouseActionPress && msg.Button == tea.MouseButtonWheelDown {
+					m.selDetail = clamp(m.selDetail+1, 0, len(m.detailRows)-1)
+					m.refreshDetailsContent()
+					m.ensureSelectionVisible()
+					return m, nil
+				}
+				if msg.Action == tea.MouseActionPress && msg.Button == tea.MouseButtonLeft {
+					// Determine clicked row within viewport body
+					clickY := msg.Y - 5 // title + help + blank + header + sep
+					if clickY >= 0 {
+						resultIdx := m.findResultFromBodyLineClick(clickY + m.vp.YOffset)
+						if resultIdx >= 0 && resultIdx < len(m.detailRows) {
+							m.selDetail = resultIdx
+							onCopy := msg.X >= m.copyStart && msg.X < m.copyEnd
+							if onCopy || copyOnRowClick {
+								m.copyOneWithMsg(resultIdx, onCopy)
 							}
+							m.refreshDetailsContent()
+							m.ensureSelectionVisible()
 						}
 					}
 				}
@@ -464,11 +488,13 @@ func (m *TUIModel) viewDetails() string {
 		b.WriteString(mutedStyle.Render(fmt.Sprintf("Showing first 100 of %d results", len(m.detailRows))) + "\n")
 	}
 
-	// Calculate dynamic column widths based on content (like pterm does)
-	colWidths := m.calculateColumnWidthsForRows(displayRows)
+	// Calculate dynamic column widths and refresh viewport content
+	m.lastWidths = m.calculateColumnWidthsForRows(displayRows)
+	m.refreshDetailsContent()
 
-	// Render simple table like original (without complex borders)
-	m.renderSimpleTable(&b, colWidths, displayRows)
+	// Fixed header + scrollable body
+	b.WriteString(m.cachedHeader)
+	b.WriteString(m.vp.View())
 
 	if m.statusMsg != "" {
 		b.WriteString("\n" + mutedStyle.Render(m.statusMsg) + "\n")
@@ -507,6 +533,20 @@ func (m *TUIModel) findResultFromLineClick(clickY int) int {
 		currentLine += resultLines
 	}
 	return -1 // Not found
+}
+
+// findResultFromBodyLineClick works on the scrollable body (excludes header lines)
+func (m *TUIModel) findResultFromBodyLineClick(clickY int) int {
+	// We built rowStarts with refreshDetailsContent; use it if present
+	if len(m.rowStarts) == len(m.detailRows) {
+		for i := range m.rowStarts {
+			if clickY >= m.rowStarts[i] && clickY < m.rowEnds[i] {
+				return i
+			}
+		}
+	}
+	// Fallback to legacy calculation if not populated
+	return m.findResultFromLineClick(clickY)
 }
 
 type ColumnWidths struct {
@@ -571,7 +611,7 @@ func (m *TUIModel) calculateColumnWidthsForRows(rows []TUIResultRow) ColumnWidth
 		avail = 120
 	}
 	// There are 6 separators between 7 columns, each rendered as " | " (3 chars)
-	const sepCount = 6
+	const sepCount = 7 // include right border between 8 vertical bars
 	const sepWidth = 3 * sepCount
 
 	// Ensure minimum widths for non-curl columns (keep table usable)
@@ -647,8 +687,8 @@ func (m *TUIModel) renderSimpleTable(b *strings.Builder, widths ColumnWidths, ro
 }
 
 func (m *TUIModel) renderSimpleHeader(b *strings.Builder, widths ColumnWidths) {
-	// Simple table header (like original)
-	header := fmt.Sprintf("%-*s | %-*s | %-*s | %-*s | %-*s | %-*s | %-*s",
+	// Simple table header (like original) with right border
+	header := fmt.Sprintf("%-*s | %-*s | %-*s | %-*s | %-*s | %-*s | %-*s |",
 		widths.module, "Module",
 		widths.curl, "Curl CMD",
 		widths.status, "Status",
@@ -665,11 +705,70 @@ func (m *TUIModel) renderSimpleHeader(b *strings.Builder, widths ColumnWidths) {
 }
 
 func (m *TUIModel) renderSimpleSeparator(b *strings.Builder, widths ColumnWidths) {
-	// Simple dotted separator line (like original results.go)
+	// Simple dotted separator line (like original results.go) including right border
 	totalWidth := widths.module + 3 + widths.curl + 3 + widths.status + 3 +
-		widths.length + 3 + widths.colType + 3 + widths.title + 3 + widths.server
+		widths.length + 3 + widths.colType + 3 + widths.title + 3 + widths.server + 2
 	separator := strings.Repeat(".", totalWidth)
 	b.WriteString(separator + "\n")
+}
+
+// --- viewport helpers ---
+
+// refreshDetailsContent rebuilds the details body (without the fixed header)
+// and updates the viewport content. It also rebuilds cachedHeader and rowStarts.
+func (m *TUIModel) refreshDetailsContent() {
+	if !m.detailsLoaded {
+		return
+	}
+
+	// rebuild header into cache
+	var hb strings.Builder
+	m.renderSimpleHeader(&hb, m.lastWidths)
+	m.cachedHeader = hb.String()
+
+	// rebuild body
+	var bb strings.Builder
+	m.rowStarts = m.rowStarts[:0]
+	m.rowEnds = m.rowEnds[:0]
+
+	// mirror renderSimpleTable but output to body only (no header)
+	var currentModule, currentStatus, currentLength string
+	for i, r := range m.detailRows {
+		if i > 0 && (r.module != currentModule || r.status != currentStatus || r.length != currentLength) {
+			m.renderSimpleSeparator(&bb, m.lastWidths)
+		}
+		currentModule = r.module
+		currentStatus = r.status
+		currentLength = r.length
+
+		// measure start line for this result
+		start := strings.Count(bb.String(), "\n")
+		m.renderSimpleRow(&bb, r, m.lastWidths, i == m.selDetail)
+		end := strings.Count(bb.String(), "\n")
+		m.rowStarts = append(m.rowStarts, start)
+		m.rowEnds = append(m.rowEnds, end)
+	}
+
+	m.vp.SetContent(bb.String())
+}
+
+// ensureSelectionVisible scrolls the viewport to keep the selected row visible
+func (m *TUIModel) ensureSelectionVisible() {
+	if m.selDetail < 0 || m.selDetail >= len(m.rowStarts) {
+		return
+	}
+	start := m.rowStarts[m.selDetail]
+	end := m.rowEnds[m.selDetail]
+	visTop := m.vp.YOffset
+	visBot := m.vp.YOffset + m.vp.Height - 1
+	if start < visTop {
+		m.vp.YOffset = start
+	} else if end > visBot {
+		m.vp.YOffset = end - m.vp.Height + 1
+		if m.vp.YOffset < 0 {
+			m.vp.YOffset = 0
+		}
+	}
 }
 
 func (m *TUIModel) renderSimpleRow(b *strings.Builder, r TUIResultRow, widths ColumnWidths, isSelected bool) {
@@ -680,7 +779,7 @@ func (m *TUIModel) renderSimpleRow(b *strings.Builder, r TUIResultRow, widths Co
 
 		if lineIdx == 0 {
 			// First line: show all columns with [Copy] right-aligned inside curl column
-			copyButton := " " + copyLblStyle
+			copyButton := " " + okStyle.Render(copyLblStyle)
 
 			// Space available for curl text keeping room for copy label
 			spaceForCurl := widths.curl - len(copyButton)
@@ -701,7 +800,7 @@ func (m *TUIModel) renderSimpleRow(b *strings.Builder, r TUIResultRow, widths Co
 			// Pad the curl text to fill the column, then append right-aligned copy
 			curlCell := fmt.Sprintf("%-*s%s", spaceForCurl, curlDisplay, copyButton)
 
-			line = fmt.Sprintf("%-*s | %-*s | %-*s | %-*s | %-*s | %-*s | %-*s",
+			line = fmt.Sprintf("%-*s | %-*s | %-*s | %-*s | %-*s | %-*s | %-*s |",
 				widths.module, r.module,
 				widths.curl, curlCell,
 				widths.status, r.status,
@@ -711,7 +810,7 @@ func (m *TUIModel) renderSimpleRow(b *strings.Builder, r TUIResultRow, widths Co
 				widths.server, r.server)
 		} else {
 			// Continuation lines: only show curl command (no other columns)
-			line = fmt.Sprintf("%-*s | %-*s | %-*s | %-*s | %-*s | %-*s | %-*s",
+			line = fmt.Sprintf("%-*s | %-*s | %-*s | %-*s | %-*s | %-*s | %-*s |",
 				widths.module, "",
 				widths.curl, curlLine,
 				widths.status, "",
