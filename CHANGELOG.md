@@ -1,3 +1,7 @@
+# 0.8.6
+
+- Fixed critical deduplication bug in `nginx_bypasses` module where payloads with identical URIs but different headers were being dropped. Deduplication now uses composite key (RawURI + Headers) to preserve header variations, resulting in ~74% more test cases for comprehensive bypass testing.
+  
 # 0.8.5
 
 - Added new CLI parameter `-strict-scheme` to perform testing only on the original scheme.
