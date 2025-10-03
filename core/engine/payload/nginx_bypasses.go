@@ -396,10 +396,21 @@ func (pg *PayloadGenerator) GenerateNginxACLsBypassPayloads(targetURL string, by
 	// Final log message (unchanged as requested)
 	GB403Logger.Debug().BypassModule(bypassModule).Msgf("Generated %d Nginx bypass payloads for %s\n", len(allJobs), targetURL)
 
-	// Deduplicate payloads based on RawURI to ensure unique payloads
+	// Deduplicate payloads based on RawURI + Headers to ensure unique payloads
+	// Headers are important because the same URI with/without headers tests different bypass scenarios
 	uniqueJobs := make(map[string]BypassPayload)
 	for _, job := range allJobs {
-		uniqueJobs[job.RawURI] = job
+		// Create composite key: RawURI + headers
+		key := job.RawURI
+		if len(job.Headers) > 0 {
+			// Append header info to make the key unique
+			// Use a separator that won't appear in normal URIs
+			key += "\x00HEADERS\x00"
+			for _, h := range job.Headers {
+				key += h.Header + ":" + h.Value + "\x00"
+			}
+		}
+		uniqueJobs[key] = job
 	}
 
 	// Convert back to slice
