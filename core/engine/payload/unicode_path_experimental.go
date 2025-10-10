@@ -7,6 +7,11 @@ import (
 	GB403Logger "github.com/slicingmelon/gobypass403/core/utils/logger"
 )
 
+// isHexDigit checks if a rune is a valid hexadecimal digit
+func isHexDigit(r rune) bool {
+	return (r >= '0' && r <= '9') || (r >= 'a' && r <= 'f') || (r >= 'A' && r <= 'F')
+}
+
 // SubstituteWithUnicodeLookalikes replaces standard characters in a payload string
 // with their primary Unicode lookalikes, based on the provided character map.
 // It avoids replacing characters that are part of a percent-encoded sequence.
@@ -17,20 +22,20 @@ func SubstituteWithUnicodeLookalikes(payload string, charMap map[rune]string) st
 	i := 0
 	for i < len(runes) {
 		// Check for percent-encoding pattern (e.g., %2f)
+		// Need at least 3 characters remaining: %, hex, hex
+		// i+2 < len(runes) ensures we can safely access runes[i+1] and runes[i+2]
+		// Edge case: if % is at position len-2 or len-1, this check prevents panic
 		if runes[i] == '%' && i+2 < len(runes) {
-			// Check if the next two characters are valid hex digits.
-			// This is a simplified check; a more robust one might be needed
-			// if payloads can contain malformed percent-encodings.
-			if (runes[i+1] >= '0' && runes[i+1] <= '9') || (runes[i+1] >= 'a' && runes[i+1] <= 'f') || (runes[i+1] >= 'A' && runes[i+1] <= 'F') {
-				if (runes[i+2] >= '0' && runes[i+2] <= '9') || (runes[i+2] >= 'a' && runes[i+2] <= 'f') || (runes[i+2] >= 'A' && runes[i+2] <= 'F') {
-					// It's a percent-encoded sequence, keep it as is.
-					builder.WriteRune(runes[i])
-					builder.WriteRune(runes[i+1])
-					builder.WriteRune(runes[i+2])
-					i += 3
-					continue
-				}
+			// Check if the next two characters are valid hex digits
+			if isHexDigit(runes[i+1]) && isHexDigit(runes[i+2]) {
+				// It's a valid percent-encoded sequence, keep it as is
+				builder.WriteRune(runes[i])
+				builder.WriteRune(runes[i+1])
+				builder.WriteRune(runes[i+2])
+				i += 3
+				continue
 			}
+			// If not valid hex, fall through to normal substitution
 		}
 
 		// Not a percent-encoded sequence, check for substitution
@@ -60,9 +65,14 @@ func (pg *PayloadGenerator) GenerateUnicodePathExperimentalPayloads(targetURL st
 	// Create an efficient lookup map (rune -> primary unicode lookalike)
 	charToUnicode := make(map[rune]string)
 	for _, entry := range unicodeMap {
-		if len(entry.Mappings) > 0 {
-			// Use the first mapping as the primary lookalike
-			charToUnicode[[]rune(entry.Char)[0]] = entry.Mappings[0].Unicode
+		// Validate that entry has both a non-empty character and at least one mapping
+		if len(entry.Char) > 0 && len(entry.Mappings) > 0 {
+			// Convert the character string to runes and use the first rune as the key
+			charRunes := []rune(entry.Char)
+			if len(charRunes) > 0 {
+				// Use the first mapping as the primary lookalike
+				charToUnicode[charRunes[0]] = entry.Mappings[0].Unicode
+			}
 		}
 	}
 
