@@ -7,11 +7,6 @@ import (
 	GB403Logger "github.com/slicingmelon/gobypass403/core/utils/logger"
 )
 
-// isHexDigit checks if a rune is a valid hexadecimal digit
-func isHexDigit(r rune) bool {
-	return (r >= '0' && r <= '9') || (r >= 'a' && r <= 'f') || (r >= 'A' && r <= 'F')
-}
-
 // SubstituteWithUnicodeLookalikes replaces standard characters in a payload string
 // with their primary Unicode lookalikes, based on the provided character map.
 // It avoids replacing characters that are part of a percent-encoded sequence.
