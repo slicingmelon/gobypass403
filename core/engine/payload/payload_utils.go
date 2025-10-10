@@ -383,7 +383,7 @@ func isLetterASCII(c byte) bool {
 }
 
 // isHexDigit checks if a rune is a valid hexadecimal digit
-func isHexDigit(r rune) bool {
+func isHexDigitASCII(r rune) bool {
 	return (r >= '0' && r <= '9') || (r >= 'a' && r <= 'f') || (r >= 'A' && r <= 'F')
 }
 
