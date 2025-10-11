@@ -69,13 +69,14 @@ func (pg *PayloadGenerator) GenerateUnicodePathExperimentalPayloads(targetURL st
 	// Create an efficient lookup map (rune -> primary unicode lookalike)
 	charToUnicode := make(map[rune]string)
 	for _, entry := range unicodeMap {
-		// Validate that entry has both a non-empty character and at least one mapping
-		if len(entry.Char) > 0 && len(entry.Mappings) > 0 {
+		// Validate that entry has at least 2 mappings (first is ASCII, second is Unicode lookalike)
+		if len(entry.Char) > 0 && len(entry.Mappings) >= 2 {
 			// Convert the character string to runes and use the first rune as the key
 			charRunes := []rune(entry.Char)
 			if len(charRunes) > 0 {
-				// Use the first mapping as the primary lookalike
-				charToUnicode[charRunes[0]] = entry.Mappings[0].Unicode
+				// Use the SECOND mapping (index 1) as the primary lookalike
+				// The first mapping (index 0) is always the ASCII character itself
+				charToUnicode[charRunes[0]] = entry.Mappings[1].Unicode
 			}
 		}
 	}
