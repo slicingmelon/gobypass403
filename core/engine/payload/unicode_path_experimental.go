@@ -49,6 +49,14 @@ func SubstituteWithUnicodeLookalikes(payload string, charMap map[rune]string) st
 GenerateUnicodePathExperimentalPayloads generates payloads by first substituting characters in the
 mid_paths list with their Unicode lookalikes and then applying the same generation logic
 as the standard `mid_paths` module.
+
+This module ONLY generates payloads where Unicode substitution actually changed the original payload,
+ensuring no duplication with the standard `mid_paths` module. If no characters are substituted,
+an empty payload list is returned.
+
+Example:
+  - If `..;` contains `.` in the Unicode map → generates `․․;` (modified)
+  - If `//` has no matching characters in map → skipped (not modified)
 */
 func (pg *PayloadGenerator) GenerateUnicodePathExperimentalPayloads(targetURL string, bypassModule string) []BypassPayload {
 	// 1. Load the Unicode character map for substitutions.
@@ -80,13 +88,37 @@ func (pg *PayloadGenerator) GenerateUnicodePathExperimentalPayloads(targetURL st
 	}
 
 	// 3. Create a new list of payloads with Unicode substitutions.
-	unicodePayloads := make([]string, len(rawPayloads))
-	for i, payload := range rawPayloads {
-		unicodePayloads[i] = SubstituteWithUnicodeLookalikes(payload, charToUnicode)
+	// ONLY include payloads where Unicode substitution actually changed something.
+	// This ensures we don't duplicate mid_paths payloads.
+	unicodePayloads := make([]string, 0, len(rawPayloads))
+	substitutionCount := 0
+
+	for _, payload := range rawPayloads {
+		substituted := SubstituteWithUnicodeLookalikes(payload, charToUnicode)
+
+		// Only include if substitution changed the payload
+		if substituted != payload {
+			unicodePayloads = append(unicodePayloads, substituted)
+			substitutionCount++
+		}
 	}
 
-	// 4. Use the existing mid_paths generation logic but with the new Unicode payloads.
-	// This is a temporary modification of the payload generator for this specific run.
+	// If no payloads were modified, return empty
+	if len(unicodePayloads) == 0 {
+		GB403Logger.Debug().BypassModule(bypassModule).Msgf(
+			"No Unicode substitutions applied (checked %d payloads, 0 modified)",
+			len(rawPayloads),
+		)
+		return []BypassPayload{}
+	}
+
+	GB403Logger.Debug().BypassModule(bypassModule).Msgf(
+		"Unicode substitution: %d/%d payloads modified (%.1f%%)",
+		substitutionCount, len(rawPayloads), float64(substitutionCount)/float64(len(rawPayloads))*100,
+	)
+
+	// 4. Use the existing mid_paths generation logic but with ONLY the modified Unicode payloads.
+	// This ensures unicode_path_experimental only generates truly unique variants.
 	return pg.generateMidPathsWithCustomPayloads(targetURL, bypassModule, unicodePayloads)
 }
 
