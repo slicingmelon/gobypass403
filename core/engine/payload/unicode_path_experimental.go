@@ -22,7 +22,8 @@ func SubstituteWithUnicodeLookalikes(payload string, charMap map[rune]string) st
 		// Edge case: if % is at position len-2 or len-1, this check prevents panic
 		if runes[i] == '%' && i+2 < len(runes) {
 			// Check if the next two characters are valid hex digits
-			if isHexDigitASCII(runes[i+1]) && isHexDigitASCII(runes[i+2]) {
+			// Safe to convert to byte since hex digits are always ASCII
+			if isHexDigitASCII(byte(runes[i+1])) && isHexDigitASCII(byte(runes[i+2])) {
 				// It's a valid percent-encoded sequence, keep it as is
 				builder.WriteRune(runes[i])
 				builder.WriteRune(runes[i+1])

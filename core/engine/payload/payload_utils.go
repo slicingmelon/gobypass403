@@ -382,9 +382,9 @@ func isLetterASCII(c byte) bool {
 	return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')
 }
 
-// isHexDigit checks if a rune is a valid hexadecimal digit
-func isHexDigitASCII(r rune) bool {
-	return (r >= '0' && r <= '9') || (r >= 'a' && r <= 'f') || (r >= 'A' && r <= 'F')
+// isHexDigitASCII checks if a byte is a valid hexadecimal digit
+func isHexDigitASCII(b byte) bool {
+	return (b >= '0' && b <= '9') || (b >= 'a' && b <= 'f') || (b >= 'A' && b <= 'F')
 }
 
 func isSpaceASCII(b byte) bool {
