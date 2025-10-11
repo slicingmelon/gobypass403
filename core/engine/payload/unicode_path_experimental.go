@@ -11,7 +11,7 @@ import (
 const (
 	// maxNormalizationsExperimental limits the number of Unicode lookalike variants
 	// generated per character position to control payload explosion
-	maxNormalizationsExperimental = 5
+	maxNormalizationsExperimental = 2
 )
 
 // substituteAtPosition replaces the character at a specific position with a Unicode lookalike.
