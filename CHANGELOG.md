@@ -1,3 +1,24 @@
+# 0.8.7 (Unreleased)
+
+- **Updated `unicode_path_experimental`** module - Advanced Unicode confusable-based WAF bypass
+  - Exploits Unicode normalization vulnerabilities by systematically substituting ASCII characters with visually similar Unicode lookalikes (confusables).
+  - Attack vector: WAF sees Unicode characters (e.g., `/admin․․/` using U+2024), backend normalizes to ASCII (e.g., `/admin../`), allowing bypass.
+  - Generates ~75K payloads with `maxNormalizationsExperimental=2`, ~150K+ with `maxNormalizationsExperimental=5`.
+  - One-character-at-a-time substitution strategy maximizes test coverage.
+  - Doubles each variant: generates both raw Unicode and fully URL-encoded versions (`․.;` → raw + `%E2%80%A4.%3B`).
+  - Byte-based UTF-8 processing using `utf8.DecodeRune`/`EncodeRune` for efficiency and correctness.
+  - Preserves percent-encoded sequences (%XX) during substitution to avoid breaking existing encoding.
+  - Integrates with `mid_paths` generation logic for comprehensive path manipulation techniques.
+  - Uses `unicode_normalization_map.json` for ASCII→Unicode lookalike mappings.
+  - Global deduplication prevents payload overlap with standard `mid_paths` module.
+  
+- **Performance optimization: `URLEncodeAll` function**
+  - Refactored to use zero-copy string indexing instead of intermediate `[]byte` allocation.
+  - Direct byte access via `s[i]` eliminates full string-to-byte-slice conversion overhead.
+  - Pre-allocated exact buffer size (3 bytes per input byte) for optimal memory usage.
+  - Removed repeated `append()` calls in favor of direct indexing (eliminates bounds checking overhead).
+  - Properly handles UTF-8 characters by encoding each byte of their UTF-8 representation.
+
 # 0.8.6
 
 - Fixed critical deduplication bug in `nginx_bypasses` module where payloads with identical URIs but different headers were being dropped. Deduplication now uses composite key (RawURI + Headers) to preserve header variations, resulting in ~74% more test cases for comprehensive bypass testing.

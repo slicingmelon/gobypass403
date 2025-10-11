@@ -1,3 +1,34 @@
+/*
+Package payload provides the unicode_path_experimental bypass module.
+
+This module exploits Unicode normalization and character confusability vulnerabilities
+in WAFs by substituting ASCII characters with visually similar Unicode lookalikes.
+Many WAFs fail to properly normalize or decode Unicode characters, allowing bypasses
+when the backend application normalizes them back to ASCII.
+
+Attack Vector:
+
+	WAF sees:     /admin․․%E2%80%A4/test  (Unicode one-dot leader U+2024)
+	Backend sees: /admin.../test           (normalized to ASCII dots)
+
+Key Features:
+  - Systematic one-character-at-a-time substitution (maximizes test coverage)
+  - Byte-based UTF-8 processing (efficient and correct)
+  - Preserves percent-encoded sequences (doesn't break existing encoding)
+  - Doubles payloads with URL-encoded variants (tests both raw and encoded)
+  - Integrates with mid_paths logic (comprehensive path manipulation)
+
+Module Integration:
+  - Complements standard mid_paths module (no payload duplication)
+  - Uses unicode_normalization_map.json for lookalike mappings
+  - Controlled by maxNormalizationsExperimental constant
+  - Can run alongside other modules in parallel
+
+Performance:
+  - Generates ~75K payloads with maxNormalizationsExperimental=2
+  - Generates ~150K+ payloads with maxNormalizationsExperimental=5
+  - Adjust based on testing requirements and target response time
+*/
 package payload
 
 import (
@@ -15,7 +46,22 @@ const (
 )
 
 // substituteAtPosition replaces the character at a specific position with a Unicode lookalike.
-// Returns the modified payload and whether a substitution was made.
+//
+// Parameters:
+//   - payload: The input string to process (e.g., "..;")
+//   - charMap: Lookup map of rune → []string (available Unicode lookalikes)
+//   - targetPos: The substitutable position to modify (0-indexed, excludes percent-encoded sequences)
+//   - mappingIndex: Which lookalike variant to use (0 = first lookalike, 1 = second, etc.)
+//
+// Returns:
+//   - Modified payload string
+//   - Boolean indicating whether substitution occurred
+//
+// Implementation Notes:
+//   - Uses byte-based UTF-8 processing for efficiency
+//   - Preserves percent-encoded sequences (%XX) without modification
+//   - Uses utf8.DecodeRune/EncodeRune for proper Unicode handling
+//   - Position counter ignores percent-encoded sequences
 func substituteAtPosition(payload string, charMap map[rune][]string, targetPos int, mappingIndex int) (string, bool) {
 	input := []byte(payload)
 	var builder strings.Builder
@@ -61,20 +107,56 @@ func substituteAtPosition(payload string, charMap map[rune][]string, targetPos i
 }
 
 /*
-GenerateUnicodePathExperimentalPayloads generates payloads by systematically substituting characters
-in the mid_paths list with their Unicode lookalikes, one position at a time.
+GenerateUnicodePathExperimentalPayloads generates WAF bypass payloads by systematically substituting
+ASCII characters in the internal_midpaths.lst with their Unicode lookalike characters (confusables).
 
-This module generates multiple variants per payload by:
- 1. Finding all substitutable character positions (excluding percent-encoded sequences)
- 2. For each position, generating up to maxNormalizationsExperimental variants
- 3. Each variant substitutes ONE character at ONE position with a Unicode lookalike
+Algorithm:
+ 1. Load unicode_normalization_map.json containing ASCII→Unicode lookalike mappings
+ 2. Read base payloads from internal_midpaths.lst (~520 payloads)
+ 3. For each base payload:
+    a. Identify substitutable character positions (excludes percent-encoded sequences like %2F)
+    b. Generate up to maxNormalizationsExperimental variants per position
+    c. Each variant substitutes ONE character at ONE position with a Unicode lookalike
+ 4. Deduplicate all generated Unicode variants
+ 5. Double the variants: create both raw Unicode AND fully URL-encoded versions
+ 6. Apply mid_paths generation logic to each variant (path manipulation techniques)
 
-This approach maximizes bypass discovery chances by testing different combinations.
+Substitution Strategy:
+  - Uses byte-based UTF-8 processing (utf8.DecodeRune/EncodeRune)
+  - Preserves percent-encoded sequences (%XX) without substitution
+  - Generates multiple variants per character position (controlled by maxNormalizationsExperimental)
+  - Only ONE character is substituted per variant to maximize test coverage
 
-Example for payload "..;":
-  - Position 0: "․.;" (first dot → U+2024), "﹒.;" (first dot → U+FE52)
-  - Position 1: ".․;" (second dot → U+2024), ".﹒;" (second dot → U+FE52)
-  - Position 2: "..︔" (semicolon → U+FE54), "..﹔" (semicolon → U+FE54)
+Example Flow for base payload "..;":
+
+	Step 1: Generate Unicode substitution variants
+	  Position 0: "․.;" (first dot → U+2024), "﹒.;" (first dot → U+FE52)
+	  Position 1: ".․;" (second dot → U+2024), ".﹒;" (second dot → U+FE52)
+	  Position 2: "..;" (semicolon → U+037E), "..︔" (semicolon → U+FE54)
+	  Result: ~6 unique Unicode variants
+
+	Step 2: Double with URL-encoded versions
+	  Raw:     "․.;"
+	  Encoded: "%E2%80%A4.%3B"
+	  Result: ~12 variants (6 raw + 6 encoded)
+
+	Step 3: Apply mid_paths generation logic to each variant
+	  For each variant, generate all mid_paths positions:
+	    - Before path: /․.;/admin/test
+	    - Fused with segments: /admin․.;/test
+	    - Between segments: /admin/․.;/test
+	    - etc.
+	  Result: Each variant generates multiple path manipulation attempts
+
+Performance Notes:
+  - With maxNormalizationsExperimental = 5: ~150K+ final payloads
+  - With maxNormalizationsExperimental = 2: ~75K final payloads
+  - Adjust maxNormalizationsExperimental based on target testing requirements
+
+Integration:
+  - Works alongside standard mid_paths module (no duplication due to global deduplication)
+  - Only generates payloads where Unicode substitution actually occurred
+  - Both modules can run in parallel for comprehensive testing
 */
 func (pg *PayloadGenerator) GenerateUnicodePathExperimentalPayloads(targetURL string, bypassModule string) []BypassPayload {
 	// 1. Load the Unicode character map for substitutions
@@ -186,7 +268,18 @@ func (pg *PayloadGenerator) GenerateUnicodePathExperimentalPayloads(targetURL st
 }
 
 // countSubstitutablePositions counts how many character positions can be substituted
-// (excludes percent-encoded sequences)
+// with Unicode lookalikes in the given payload.
+//
+// Parameters:
+//   - payload: The input string to analyze (e.g., "..;%2F")
+//   - charMap: Lookup map of rune → []string (to check if character has lookalikes)
+//
+// Returns:
+//   - Number of substitutable positions (percent-encoded sequences are excluded)
+//
+// Example:
+//   - Input: "..;%2F" → Output: 3 (two dots + semicolon; %2F is skipped)
+//   - Input: "admin" → Output: 5 (if all chars have lookalikes in map)
 func countSubstitutablePositions(payload string, charMap map[rune][]string) int {
 	input := []byte(payload)
 	count := 0
@@ -211,7 +304,25 @@ func countSubstitutablePositions(payload string, charMap map[rune][]string) int 
 	return count
 }
 
-// generateMidPathsWithCustomPayloads is a modified version of GenerateMidPathsPayloads that accepts a custom payload list.
+// generateMidPathsWithCustomPayloads applies mid_paths generation logic to a custom payload list.
+//
+// This is a modified version of GenerateMidPathsPayloads that accepts a pre-generated list
+// of payloads instead of reading from internal_midpaths.lst. It applies the same path
+// manipulation techniques (before path, fused with segments, between segments, etc.) to
+// each payload in the list.
+//
+// Parameters:
+//   - targetURL: The target URL to test (e.g., "https://example.com/admin/test")
+//   - bypassModule: The bypass module name for logging/tracking
+//   - payloads: Custom list of payloads to use (e.g., Unicode variants)
+//
+// Returns:
+//   - Slice of BypassPayload ready for testing
+//
+// Usage:
+//   - Called by unicode_path_experimental with Unicode-substituted variants
+//   - Generates all possible path injection positions for each variant
+//   - Handles query strings, special characters, and path segment manipulation
 func (pg *PayloadGenerator) generateMidPathsWithCustomPayloads(targetURL string, bypassModule string, payloads []string) []BypassPayload {
 	var jobs []BypassPayload
 	parsedURL, err := rawurlparser.RawURLParse(targetURL)
