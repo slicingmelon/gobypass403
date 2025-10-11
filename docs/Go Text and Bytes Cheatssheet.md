@@ -211,3 +211,9 @@ n := utf8.EncodeRune(tmp[:], r) // use tmp[:n]
 - `[]byte`: I/O, wire formats, hashing, exact control (security tools).
 - `string`: general text APIs; convert to bytes when sending/receiving.
 - `rune` / `[]rune`: when you must operate on code points (case mapping, classification, Unicode-aware iteration).
+
+
+## Resources
+
+- https://pkg.go.dev/unicode/utf8
+- https://go.dev/src/unicode/utf8/utf8.go

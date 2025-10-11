@@ -338,6 +338,27 @@ func URLEncodeAll(s string) string {
 	return string(buf)
 }
 
+/* faster variant
+Best-performing zero-copy variant (on input) ?
+
+func URLEncodeAll(s string) string {
+    if len(s) == 0 {
+        return ""
+    }
+    // exact capacity: 3 output bytes for each input byte
+    dst := make([]byte, len(s)*3)
+    j := 0
+    for i := 0; i < len(s); i++ {
+        b := s[i]           // access string byte without copying whole string
+        dst[j] = '%'
+        dst[j+1] = hexChars[b>>4]
+        dst[j+2] = hexChars[b&0x0F]
+        j += 3
+    }
+    return string(dst)
+}
+*/
+
 // encodePathSpecialChars replaces literal '?' and '#' within a path string
 // with their percent-encoded equivalents (%3F and %23).
 func encodeQueryAndFragmentChars(path string) string {
