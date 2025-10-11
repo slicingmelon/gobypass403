@@ -324,40 +324,23 @@ func HeadersToMap(headers []Headers) map[string]string {
 
 // URLEncodeAll encodes each character in the input string to its percent-encoded representation
 // It handles UTF-8 characters by encoding each byte of their UTF-8 representation
+// Uses zero-copy string indexing for optimal performance
 func URLEncodeAll(s string) string {
-	// Pre-allocate buffer (3 bytes per character: %XX)
-	buf := make([]byte, 0, len(s)*3)
-
-	// Convert to bytes to properly handle UTF-8
-	for _, b := range []byte(s) {
-		buf = append(buf, '%')
-		buf = append(buf, hexChars[b>>4])
-		buf = append(buf, hexChars[b&15])
+	if len(s) == 0 {
+		return ""
 	}
 
-	return string(buf)
+	dst := make([]byte, len(s)*3)
+	j := 0
+	for i := 0; i < len(s); i++ {
+		b := s[i]
+		dst[j] = '%'
+		dst[j+1] = hexChars[b>>4]
+		dst[j+2] = hexChars[b&0x0F]
+		j += 3
+	}
+	return string(dst)
 }
-
-/* faster variant
-Best-performing zero-copy variant (on input) ?
-
-func URLEncodeAll(s string) string {
-    if len(s) == 0 {
-        return ""
-    }
-    // exact capacity: 3 output bytes for each input byte
-    dst := make([]byte, len(s)*3)
-    j := 0
-    for i := 0; i < len(s); i++ {
-        b := s[i]           // access string byte without copying whole string
-        dst[j] = '%'
-        dst[j+1] = hexChars[b>>4]
-        dst[j+2] = hexChars[b&0x0F]
-        j += 3
-    }
-    return string(dst)
-}
-*/
 
 // encodePathSpecialChars replaces literal '?' and '#' within a path string
 // with their percent-encoded equivalents (%3F and %23).

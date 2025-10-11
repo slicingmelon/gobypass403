@@ -2,129 +2,213 @@ package payload
 
 import (
 	"strings"
+	"unicode/utf8"
 
 	"github.com/slicingmelon/go-rawurlparser"
 	GB403Logger "github.com/slicingmelon/gobypass403/core/utils/logger"
 )
 
 const (
+	// maxNormalizationsExperimental limits the number of Unicode lookalike variants
+	// generated per character position to control payload explosion
 	maxNormalizationsExperimental = 5
 )
 
-// SubstituteWithUnicodeLookalikes replaces standard characters in a payload string
-// with their primary Unicode lookalikes, based on the provided character map.
-// It avoids replacing characters that are part of a percent-encoded sequence.
-func SubstituteWithUnicodeLookalikes(payload string, charMap map[rune]string) string {
+// substituteAtPosition replaces the character at a specific position with a Unicode lookalike.
+// Returns the modified payload and whether a substitution was made.
+func substituteAtPosition(payload string, charMap map[rune][]string, targetPos int, mappingIndex int) (string, bool) {
+	input := []byte(payload)
 	var builder strings.Builder
-	builder.Grow(len(payload) * 2) // Pre-allocate, assuming some chars will expand
-	runes := []rune(payload)
-	i := 0
-	for i < len(runes) {
-		// Check for percent-encoding pattern (e.g., %2f)
-		// Need at least 3 characters remaining: %, hex, hex
-		// i+2 < len(runes) ensures we can safely access runes[i+1] and runes[i+2]
-		// Edge case: if % is at position len-2 or len-1, this check prevents panic
-		if runes[i] == '%' && i+2 < len(runes) {
-			// Check if the next two characters are valid hex digits
-			// Safe to convert to byte since hex digits are always ASCII
-			if isHexDigitASCII(byte(runes[i+1])) && isHexDigitASCII(byte(runes[i+2])) {
-				// It's a valid percent-encoded sequence, keep it as is
-				builder.WriteRune(runes[i])
-				builder.WriteRune(runes[i+1])
-				builder.WriteRune(runes[i+2])
-				i += 3
-				continue
-			}
-			// If not valid hex, fall through to normal substitution
+	builder.Grow(len(input) * 3) // Pre-allocate for potential UTF-8 expansion
+
+	modified := false
+	currentPos := 0 // Tracks substitutable position (ignores percent-encoded sequences)
+
+	for i := 0; i < len(input); {
+		// Check for percent-encoding (byte-based, more efficient)
+		if input[i] == '%' && i+2 < len(input) &&
+			isHexDigitASCII(input[i+1]) && isHexDigitASCII(input[i+2]) {
+			// Keep percent-encoded sequences as-is (don't count as substitutable position)
+			builder.Write(input[i : i+3])
+			i += 3
+			continue
 		}
 
-		// Not a percent-encoded sequence, check for substitution
-		if replacement, ok := charMap[runes[i]]; ok {
-			builder.WriteString(replacement)
-		} else {
-			builder.WriteRune(runes[i])
+		// Decode UTF-8 rune properly
+		r, size := utf8.DecodeRune(input[i:])
+
+		// Check if this is the target position for substitution
+		if currentPos == targetPos {
+			if lookalikes, ok := charMap[r]; ok && mappingIndex < len(lookalikes) {
+				builder.WriteString(lookalikes[mappingIndex])
+				modified = true
+				i += size
+				currentPos++
+				continue
+			}
 		}
-		i++
+
+		// No substitution - encode the rune back using utf8.EncodeRune
+		var buf [4]byte
+		n := utf8.EncodeRune(buf[:], r)
+		builder.Write(buf[:n])
+
+		i += size
+		currentPos++
 	}
-	return builder.String()
+
+	return builder.String(), modified
 }
 
 /*
-GenerateUnicodePathExperimentalPayloads generates payloads by first substituting characters in the
-mid_paths list with their Unicode lookalikes and then applying the same generation logic
-as the standard `mid_paths` module.
+GenerateUnicodePathExperimentalPayloads generates payloads by systematically substituting characters
+in the mid_paths list with their Unicode lookalikes, one position at a time.
 
-This module ONLY generates payloads where Unicode substitution actually changed the original payload,
-ensuring no duplication with the standard `mid_paths` module. If no characters are substituted,
-an empty payload list is returned.
+This module generates multiple variants per payload by:
+ 1. Finding all substitutable character positions (excluding percent-encoded sequences)
+ 2. For each position, generating up to maxNormalizationsExperimental variants
+ 3. Each variant substitutes ONE character at ONE position with a Unicode lookalike
 
-Example:
-  - If `..;` contains `.` in the Unicode map → generates `․․;` (modified)
-  - If `//` has no matching characters in map → skipped (not modified)
+This approach maximizes bypass discovery chances by testing different combinations.
+
+Example for payload "..;":
+  - Position 0: "․.;" (first dot → U+2024), "﹒.;" (first dot → U+FE52)
+  - Position 1: ".․;" (second dot → U+2024), ".﹒;" (second dot → U+FE52)
+  - Position 2: "..︔" (semicolon → U+FE54), "..﹔" (semicolon → U+FE54)
 */
 func (pg *PayloadGenerator) GenerateUnicodePathExperimentalPayloads(targetURL string, bypassModule string) []BypassPayload {
-	// 1. Load the Unicode character map for substitutions.
+	// 1. Load the Unicode character map for substitutions
 	unicodeMap, err := ReadUnicodeCharMap()
 	if err != nil {
 		GB403Logger.Error().Msgf("Failed to read unicode_char_map.json for experimental module: %v", err)
 		return []BypassPayload{}
 	}
 
-	// Create an efficient lookup map (rune -> primary unicode lookalike)
-	charToUnicode := make(map[rune]string)
+	// 2. Build lookup map: rune -> []string (all available lookalikes, excluding the ASCII itself)
+	charToLookalikes := make(map[rune][]string)
 	for _, entry := range unicodeMap {
-		// Validate that entry has at least 2 mappings (first is ASCII, second is Unicode lookalike)
 		if len(entry.Char) > 0 && len(entry.Mappings) >= 2 {
-			// Convert the character string to runes and use the first rune as the key
 			charRunes := []rune(entry.Char)
 			if len(charRunes) > 0 {
-				// Use the SECOND mapping (index 1) as the primary lookalike
-				// The first mapping (index 0) is always the ASCII character itself
-				charToUnicode[charRunes[0]] = entry.Mappings[1].Unicode
+				// Store all mappings EXCEPT the first one (which is the ASCII character itself)
+				lookalikes := make([]string, 0, len(entry.Mappings)-1)
+				for i := 1; i < len(entry.Mappings); i++ {
+					lookalikes = append(lookalikes, entry.Mappings[i].Unicode)
+				}
+				if len(lookalikes) > 0 {
+					charToLookalikes[charRunes[0]] = lookalikes
+				}
 			}
 		}
 	}
 
-	// 2. Read the raw midpath payloads from the file.
+	// 3. Read the raw midpath payloads from the file
 	rawPayloads, err := ReadPayloadsFromFile("internal_midpaths.lst")
 	if err != nil {
 		GB403Logger.Error().Msgf("Failed to read midpaths payloads for experimental module: %v", err)
 		return []BypassPayload{}
 	}
 
-	// 3. Create a new list of payloads with Unicode substitutions.
-	// ONLY include payloads where Unicode substitution actually changed something.
-	// This ensures we don't duplicate mid_paths payloads.
-	unicodePayloads := make([]string, 0, len(rawPayloads))
-	substitutionCount := 0
+	// 4. Generate Unicode variants by systematic substitution
+	unicodePayloadsSet := make(map[string]struct{}) // Use map for deduplication
+	totalVariantsGenerated := 0
 
 	for _, payload := range rawPayloads {
-		substituted := SubstituteWithUnicodeLookalikes(payload, charToUnicode)
+		// Count substitutable positions (excluding percent-encoded sequences)
+		substitutablePositions := countSubstitutablePositions(payload, charToLookalikes)
 
-		// Only include if substitution changed the payload
-		if substituted != payload {
-			unicodePayloads = append(unicodePayloads, substituted)
-			substitutionCount++
+		if substitutablePositions == 0 {
+			continue // Skip payloads with no substitutable characters
+		}
+
+		// Generate variants by substituting ONE position at a time
+		for pos := 0; pos < substitutablePositions; pos++ {
+			// Generate up to maxNormalizationsExperimental variants for this position
+			variantsAtPosition := 0
+			for mappingIdx := 0; mappingIdx < maxNormalizationsExperimental; mappingIdx++ {
+				variant, modified := substituteAtPosition(payload, charToLookalikes, pos, mappingIdx)
+
+				if modified && variant != payload {
+					// Only add if it's different from original and actually modified
+					if _, exists := unicodePayloadsSet[variant]; !exists {
+						unicodePayloadsSet[variant] = struct{}{}
+						totalVariantsGenerated++
+						variantsAtPosition++
+					}
+				} else {
+					// No more valid mappings for this position
+					break
+				}
+			}
 		}
 	}
 
-	// If no payloads were modified, return empty
+	// Convert set to slice
+	unicodePayloads := make([]string, 0, len(unicodePayloadsSet))
+	for payload := range unicodePayloadsSet {
+		unicodePayloads = append(unicodePayloads, payload)
+	}
+
+	// If no payloads were generated, return empty
 	if len(unicodePayloads) == 0 {
 		GB403Logger.Debug().BypassModule(bypassModule).Msgf(
-			"No Unicode substitutions applied (checked %d payloads, 0 modified)",
+			"No Unicode variants generated (checked %d payloads, 0 modified)",
 			len(rawPayloads),
 		)
 		return []BypassPayload{}
 	}
 
 	GB403Logger.Debug().BypassModule(bypassModule).Msgf(
-		"Unicode substitution: %d/%d payloads modified (%.1f%%)",
-		substitutionCount, len(rawPayloads), float64(substitutionCount)/float64(len(rawPayloads))*100,
+		"Generated %d unique Unicode variants from %d base payloads (before URL encoding)",
+		len(unicodePayloads), len(rawPayloads),
 	)
 
-	// 4. Use the existing mid_paths generation logic but with ONLY the modified Unicode payloads.
-	// This ensures unicode_path_experimental only generates truly unique variants.
-	return pg.generateMidPathsWithCustomPayloads(targetURL, bypassModule, unicodePayloads)
+	// 5. Double the payloads: add URL-encoded versions of each Unicode variant
+	finalPayloads := make([]string, 0, len(unicodePayloads)*2)
+	for _, payload := range unicodePayloads {
+		// Add raw Unicode version
+		finalPayloads = append(finalPayloads, payload)
+
+		// Add fully URL-encoded version (encodes all UTF-8 bytes)
+		encodedPayload := URLEncodeAll(payload)
+		if encodedPayload != payload {
+			finalPayloads = append(finalPayloads, encodedPayload)
+		}
+	}
+
+	GB403Logger.Debug().BypassModule(bypassModule).Msgf(
+		"Total variants (with URL-encoded): %d payloads",
+		len(finalPayloads),
+	)
+
+	// 6. Use the existing mid_paths generation logic with both raw and encoded variants
+	return pg.generateMidPathsWithCustomPayloads(targetURL, bypassModule, finalPayloads)
+}
+
+// countSubstitutablePositions counts how many character positions can be substituted
+// (excludes percent-encoded sequences)
+func countSubstitutablePositions(payload string, charMap map[rune][]string) int {
+	input := []byte(payload)
+	count := 0
+
+	for i := 0; i < len(input); {
+		// Skip percent-encoded sequences
+		if input[i] == '%' && i+2 < len(input) &&
+			isHexDigitASCII(input[i+1]) && isHexDigitASCII(input[i+2]) {
+			i += 3
+			continue
+		}
+
+		// Decode rune and check if it's substitutable
+		r, size := utf8.DecodeRune(input[i:])
+		if _, ok := charMap[r]; ok {
+			count++
+		}
+
+		i += size
+	}
+
+	return count
 }
 
 // generateMidPathsWithCustomPayloads is a modified version of GenerateMidPathsPayloads that accepts a custom payload list.
