@@ -7,6 +7,10 @@ import (
 	GB403Logger "github.com/slicingmelon/gobypass403/core/utils/logger"
 )
 
+const (
+	maxNormalizations = 5
+)
+
 // SubstituteWithUnicodeLookalikes replaces standard characters in a payload string
 // with their primary Unicode lookalikes, based on the provided character map.
 // It avoids replacing characters that are part of a percent-encoded sequence.

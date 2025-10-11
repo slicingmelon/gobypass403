@@ -415,8 +415,8 @@ func isSpecialCharASCII(b byte) bool {
 */
 
 // Helper function to check if a byte is a letter
-func isLetterASCII(c byte) bool {
-	return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')
+func isLetterASCII(b byte) bool {
+	return (b >= 'a' && b <= 'z') || (b >= 'A' && b <= 'Z')
 }
 
 // isHexDigitASCII checks if a byte is a valid hexadecimal digit
