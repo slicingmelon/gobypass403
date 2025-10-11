@@ -4,9 +4,9 @@ A compact, practical reference for working with bytes, strings, and runes in Go,
 
 ## TL;DR
 
-- byte = uint8 (0–255). A []byte is raw bytes; it doesn’t “know” text.
-- string = immutable sequence of bytes (by convention UTF-8).
-- rune = int32 Unicode code point (not “UTF-8 char”).
+- `byte` = `uint8` (0–255). A []byte is raw bytes; it doesn't "know" text.
+- `string` = immutable sequence of bytes (by convention UTF-8).
+- `rune` = `int32` Unicode code point (not "UTF-8 char").
 
 ```go
 len("a")   == 1                 // 0x61
@@ -90,7 +90,7 @@ b := byte(r)        // truncates to low 8 bits; safe only for ASCII runes
 Use `utf8.EncodeRune` or `string(r)` → `[]byte`.
 
 
-## Length & counting
+## Length & Counting
 
 ```go
 len(s)                     // bytes in UTF-8
@@ -158,13 +158,13 @@ func URLEncodeAll(s string) string {
 ```
 
 
-## Normalization vs “confusables”
+## Normalization vs "Confusables"
 
 - Normalization (NFC/NFD/NFKC/NFKD) changes Unicode composition/compatibility; use only if you want canonical forms.
 - Confusables (homoglyphs) are look-alike characters from different scripts.
 - Replacing ASCII with confusables is not normalization; it’s homoglyph substitution. ???
 
-## Pitfalls & gotchas
+## Pitfalls & Gotchas
 
 - `len(s)` is bytes, not characters.
 - Casting `rune→byte` loses data unless ASCII.
@@ -173,7 +173,7 @@ func URLEncodeAll(s string) string {
 - Don’t mix up hex strings `("41")` with byte values `(0x41)`.
 
 
-## Handy snippets
+## Handy Snippets
 
 ### Count runes:
 
