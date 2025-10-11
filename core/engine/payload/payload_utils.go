@@ -377,6 +377,22 @@ func isSpecialCharASCII(b byte) bool {
 	return unicode.IsPunct(r) || unicode.IsSymbol(r)
 }
 
+/*
+// ASCII punctuation/symbols: !"#$%&'()*+,-./:;<=>?@[\]^_`{|}~
+func isSpecialCharASCII(b byte) bool {
+    if b > 0x7F {
+        return false
+    }
+    switch {
+    case b >= '0' && b <= '9': return false
+    case b >= 'A' && b <= 'Z': return false
+    case b >= 'a' && b <= 'z': return false
+    default: return b >= 0x21 && b <= 0x7E // visible ASCII, not alnum
+    }
+}
+
+*/
+
 // Helper function to check if a byte is a letter
 func isLetterASCII(c byte) bool {
 	return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')
