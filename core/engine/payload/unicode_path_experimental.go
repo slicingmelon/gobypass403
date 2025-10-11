@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	maxNormalizations = 5
+	maxNormalizationsExperimental = 5
 )
 
 // SubstituteWithUnicodeLookalikes replaces standard characters in a payload string
