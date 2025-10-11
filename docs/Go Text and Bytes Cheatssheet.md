@@ -4,10 +4,11 @@ A compact, practical reference for working with bytes, strings, and runes in Go,
 
 ## TL;DR
 
-- `byte` = `uint8` (0–255). A []byte is raw bytes; it doesn't "know" text.
+- `byte` = `uint8` (0–255). A `[]byte` is raw bytes; it doesn't "know" text.
 - `string` = immutable sequence of bytes (by convention UTF-8).
 - `rune` = `int32` Unicode code point (not "UTF-8 char").
-
+- Rune operations are character-based, not byte-based.
+  
 ```go
 len("a")   == 1                 // 0x61
 len("€")   == 3                 // E2 82 AC (UTF-8)
@@ -31,8 +32,8 @@ rune	alias of int32 (Unicode codepoint)	Logical “character”; not UTF-8 lengt
 
 ## Bytes vs Hex string (common confusion)
 
-- "41" (string) is two ASCII bytes: 0x34 0x31.
-- 0x41 (byte value) is 'A' (decimal 65).
+- `"41"` (string) is two ASCII bytes: `0x34 0x31`.
+- `0x41` (byte value) is `A` (decimal `65)`.
   
 ```go
 []byte("41")   // [0x34 0x31]
@@ -76,18 +77,18 @@ rs := []rune("€")                    // [0x20AC]
 ```
 
 
-## Conversions (what not to do)
+## Conversions (**WHAT NOT TO DO**)
 
-- Wrong: Treating cast as decode/encode:
+- **Wrong**: Treating cast as decode/encode:
 
 ```go
 r := rune(b)        // only numeric widen; OK for ASCII, NOT UTF-8 decode
 b := byte(r)        // truncates to low 8 bits; safe only for ASCII runes
 ```
 
-- Wrong: []byte([]rune("…")) (nonsense; encodes runes as 4-byte int32 values, not UTF-8).
+- **Wrong**: `[]byte([]rune("…"))` (nonsense; encodes runes as 4-byte int32 values, not UTF-8).
 
-Use `utf8.EncodeRune` or `string(r)` → `[]byte`.
+Use `utf8.EncodeRune` or `string(r)` -> `[]byte`.
 
 
 ## Length & Counting
@@ -217,3 +218,4 @@ n := utf8.EncodeRune(tmp[:], r) // use tmp[:n]
 
 - https://pkg.go.dev/unicode/utf8
 - https://go.dev/src/unicode/utf8/utf8.go
+- https://reintech.io/blog/a-guide-to-gos-unicode-utf8-package-utf-8-encoding-and-decoding -- to check if good
