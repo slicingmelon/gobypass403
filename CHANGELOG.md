@@ -19,6 +19,7 @@
   - Prevents `/admin/login` + `debug` → `/admin/logindebug` (nonsense).
   - Still allows `/admin/login` + `.css` → `/admin/login.css` (file extension bypass).
   - Ensures digits (`0`, `1`) are treated the same as words when appending to paths.
+  - Added 20 new payloads to `internal_endpaths.lst`: encoded dots (`.%2e`, `%2e%2e%2f`), whitespace+slash combinations (`%09/`, `%20/`), and complex traversal patterns (`;%2f..%2f..%2f`, `..%3B/`).
 
 - **Refactored `char_encode`** module - Consistent byte-wise iteration for URL encoding
   - Replaced mixed byte/rune iteration patterns with uniform byte-wise iteration throughout.
