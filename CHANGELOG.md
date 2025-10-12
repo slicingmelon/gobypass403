@@ -12,6 +12,14 @@
   - Uses `unicode_normalization_map.json` for ASCII→Unicode lookalike mappings.
   - Global deduplication prevents payload overlap with standard `mid_paths` module.
 
+- **Fixed `end_paths`** module - Corrected alphanumeric detection for direct concatenation
+  - Changed condition from `!isLetterASCII(payload[0])` to `!isAlphanumericASCII(payload[0])`.
+  - Now properly prevents nonsensical concatenations for both words AND digits.
+  - Prevents `/admin/login` + `0` → `/admin/login0` (nonsense).
+  - Prevents `/admin/login` + `debug` → `/admin/logindebug` (nonsense).
+  - Still allows `/admin/login` + `.css` → `/admin/login.css` (file extension bypass).
+  - Ensures digits (`0`, `1`) are treated the same as words when appending to paths.
+
 - **Refactored `char_encode`** module - Consistent byte-wise iteration for URL encoding
   - Replaced mixed byte/rune iteration patterns with uniform byte-wise iteration throughout.
   - All encoding operations now use byte-level processing (`for i := 0; i < len(s); i++`) for ASCII letter detection.
