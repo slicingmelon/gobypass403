@@ -14,6 +14,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"unicode"
 
 	"github.com/slicingmelon/go-rawurlparser"
 	GB403Logger "github.com/slicingmelon/gobypass403/core/utils/logger"
@@ -366,36 +367,16 @@ func isControlByteASCII(b byte) bool {
 	return (b <= 0x1F) || b == 0x7F
 }
 
-// isSpecialCharASCII checks if a byte is an ASCII special character (punctuation or symbol within 0-127)
-// !\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~
-// deprecated
-// func isSpecialCharASCII(b byte) bool {
-// 	// Ensure it's within ASCII range first
-// 	if b > 127 {
-// 		return false
-// 	}
-// 	// Use standard Go functions for ASCII range checks which are efficient
-// 	// or check against a predefined string/map for ASCII punctuation/symbols if preferred.
-// 	// Using unicode functions is fine as they handle ASCII correctly and efficiently.
-// 	r := rune(b)
-// 	return unicode.IsPunct(r) || unicode.IsSymbol(r)
-// }
+func isControlByteExtendedASCII(b byte) bool {
+	return unicode.IsControl(rune(b))
+}
 
-// ASCII punctuation + symbols: !"#$%&'()*+,-./:;<=>?@[\]^_`{|}~
+// ASCII all special characters: punctuation + symbols: !"#$%&'()*+,-./:;<=>?@[\]^_`{|}~
 func isSpecialCharASCII(b byte) bool {
-	if b > 0x7F {
-		return false
-	}
-	switch {
-	case b >= '0' && b <= '9':
-		return false
-	case b >= 'A' && b <= 'Z':
-		return false
-	case b >= 'a' && b <= 'z':
-		return false
-	default:
-		return b >= 0x21 && b <= 0x7E // visible ASCII, not alnum
-	}
+	return (b >= 0x21 && b <= 0x2F) || // !"#$%&'()*+,-./
+		(b >= 0x3A && b <= 0x40) || // :;<=>?@
+		(b >= 0x5B && b <= 0x60) || // [\]^_`
+		(b >= 0x7B && b <= 0x7E) // {|}~
 }
 
 // Helper function to check if a byte is a letter
@@ -412,10 +393,33 @@ func isSpaceASCII(b byte) bool {
 	return b == 0x20
 }
 
+func isWhitespaceASCII(b byte) bool {
+	return b == 0x20 || b == 0x09 || b == 0x0A || b == 0x0D
+}
+
+func isWhiteSpaceExtendedASCII(b byte) bool {
+	return unicode.IsSpace(rune(b))
+}
+
 // isAlphanumeric checks if a byte is a standard ASCII letter or digit.
 func isAlphanumericASCII(b byte) bool {
 	return (b >= 'a' && b <= 'z') || (b >= 'A' && b <= 'Z') || (b >= '0' && b <= '9')
 }
+
+// isSpecialCharASCII checks if a byte is an ASCII special character (punctuation or symbol within 0-127)
+// !\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~
+// deprecated
+// func isSpecialCharASCII(b byte) bool {
+// 	// Ensure it's within ASCII range first
+// 	if b > 127 {
+// 		return false
+// 	}
+// 	// Use standard Go functions for ASCII range checks which are efficient
+// 	// or check against a predefined string/map for ASCII punctuation/symbols if preferred.
+// 	// Using unicode functions is fine as they handle ASCII correctly and efficiently.
+// 	r := rune(b)
+// 	return unicode.IsPunct(r) || unicode.IsSymbol(r)
+// }
 
 // BypassPayloadToBaseURL converts a bypass payload to base URL (scheme://host)
 // ex BypassPayloadToBaseURLwithMake winner
