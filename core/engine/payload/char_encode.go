@@ -33,8 +33,8 @@ The function implements five core encoding techniques:
 
 Each technique generates three encoding variants:
 - Single encoding: `%61` (standard percent encoding)
-- Double encoding: `%2561` (encoding the percent sign itself)
-- Triple encoding: `%25%3561` (encoding the percent sign twice)
+- Double encoding: `%2561` (encoding the percent sign once)
+- Triple encoding: `%252561` (encoding the percent sign twice)
 
 If the original path contains literal '?' or '#' characters, which are preserved
 during the encoding process, the function also generates additional payloads where
