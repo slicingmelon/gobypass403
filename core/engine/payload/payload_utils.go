@@ -394,7 +394,12 @@ func isSpaceASCII(b byte) bool {
 }
 
 func isWhitespaceASCII(b byte) bool {
-	return b == 0x20 || b == 0x09 || b == 0x0A || b == 0x0D
+	return b == 0x20 || // space
+		b == 0x09 || // tab
+		b == 0x0A || // LF
+		b == 0x0B || // VT (vertical tab) ← MISSING
+		b == 0x0C || // FF (form feed) ← MISSING
+		b == 0x0D // CR
 }
 
 func isWhiteSpaceExtendedASCII(b byte) bool {
