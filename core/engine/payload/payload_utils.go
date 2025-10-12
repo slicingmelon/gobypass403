@@ -14,7 +14,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"unicode"
 
 	"github.com/slicingmelon/go-rawurlparser"
 	GB403Logger "github.com/slicingmelon/gobypass403/core/utils/logger"
@@ -369,33 +368,35 @@ func isControlByteASCII(b byte) bool {
 
 // isSpecialCharASCII checks if a byte is an ASCII special character (punctuation or symbol within 0-127)
 // !\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~
+// deprecated
+// func isSpecialCharASCII(b byte) bool {
+// 	// Ensure it's within ASCII range first
+// 	if b > 127 {
+// 		return false
+// 	}
+// 	// Use standard Go functions for ASCII range checks which are efficient
+// 	// or check against a predefined string/map for ASCII punctuation/symbols if preferred.
+// 	// Using unicode functions is fine as they handle ASCII correctly and efficiently.
+// 	r := rune(b)
+// 	return unicode.IsPunct(r) || unicode.IsSymbol(r)
+// }
+
+// ASCII punctuation + symbols: !"#$%&'()*+,-./:;<=>?@[\]^_`{|}~
 func isSpecialCharASCII(b byte) bool {
-	// Ensure it's within ASCII range first
-	if b > 127 {
+	if b > 0x7F {
 		return false
 	}
-	// Use standard Go functions for ASCII range checks which are efficient
-	// or check against a predefined string/map for ASCII punctuation/symbols if preferred.
-	// Using unicode functions is fine as they handle ASCII correctly and efficiently.
-	r := rune(b)
-	return unicode.IsPunct(r) || unicode.IsSymbol(r)
+	switch {
+	case b >= '0' && b <= '9':
+		return false
+	case b >= 'A' && b <= 'Z':
+		return false
+	case b >= 'a' && b <= 'z':
+		return false
+	default:
+		return b >= 0x21 && b <= 0x7E // visible ASCII, not alnum
+	}
 }
-
-/*
-// ASCII punctuation/symbols: !"#$%&'()*+,-./:;<=>?@[\]^_`{|}~
-func isSpecialCharASCII(b byte) bool {
-    if b > 0x7F {
-        return false
-    }
-    switch {
-    case b >= '0' && b <= '9': return false
-    case b >= 'A' && b <= 'Z': return false
-    case b >= 'a' && b <= 'z': return false
-    default: return b >= 0x21 && b <= 0x7E // visible ASCII, not alnum
-    }
-}
-
-*/
 
 // Helper function to check if a byte is a letter
 func isLetterASCII(b byte) bool {
