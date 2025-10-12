@@ -379,6 +379,10 @@ func isSpecialCharASCII(b byte) bool {
 		(b >= 0x7B && b <= 0x7E) // {|}~
 }
 
+func isSpecialCharASCIIExtended(b byte) bool {
+	return unicode.IsPunct(rune(b)) || unicode.IsSymbol(rune(b))
+}
+
 // Helper function to check if a byte is a letter
 func isLetterASCII(b byte) bool {
 	return (b >= 'a' && b <= 'z') || (b >= 'A' && b <= 'Z')
