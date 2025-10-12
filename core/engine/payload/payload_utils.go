@@ -379,6 +379,13 @@ func isSpecialCharASCII(b byte) bool {
 		(b >= 0x7B && b <= 0x7E) // {|}~
 }
 
+/*
+Punctuation runes (0-255):
+'!' '"' '#' '%' '&' '\” '(' ')' '*' ',' '-' '.' '/' ':' ';' '?' '@' '[' '\\' ']' '_' '{' '}' '¡' '§' '«' '¶' '·' '»' '¿'
+
+Symbol runes (0-255):
+'$' '+' '<' '=' '>' '^' '`' '|' '~' '¢' '£' '¤' '¥' '¦' '¨' '©' '¬' '®' '¯' '°' '±' '´' '¸' '×' '÷'
+*/
 func isSpecialCharASCIIExtended(b byte) bool {
 	return unicode.IsPunct(rune(b)) || unicode.IsSymbol(rune(b))
 }
