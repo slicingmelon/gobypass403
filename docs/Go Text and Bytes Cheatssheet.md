@@ -16,18 +16,19 @@ len("你")  == 3                 // UTF-8 length, not “characters”
 utf8.RuneCountInString("€") == 1
 ```
 
-**Casting isn’t encoding/decoding.**
+**Casting isn't encoding/decoding.**
 
 `byte(x)` / `rune(x)` only change numeric types. To go between runes and UTF-8 bytes, encode/decode.
 
 ## Types at a glance
 
-Type	Meaning	Notes
-byte	alias of uint8	One raw byte
-[]byte	byte slice	Raw buffer; I/O, hashing, sockets
-string	sequence of bytes (UTF-8 by conv.)	Immutable; may contain invalid UTF-8
-rune	alias of int32 (Unicode codepoint)	Logical “character”; not UTF-8 length
-[]rune	slice of runes	One element per code point
+| Type     | Meaning                              | Notes                                    |
+|----------|--------------------------------------|------------------------------------------|
+| `byte`   | alias of `uint8`                     | One raw byte (0-255)                     |
+| `[]byte` | byte slice                           | Raw buffer; I/O, hashing, sockets        |
+| `string` | sequence of bytes (UTF-8 by conv.)   | Immutable; may contain invalid UTF-8     |
+| `rune`   | alias of `int32` (Unicode codepoint) | Logical "character"; not UTF-8 length    |
+| `[]rune` | slice of runes                       | One element per code point               |
 
 
 ## Bytes vs Hex string (common confusion)
@@ -134,8 +135,16 @@ func isLetterASCII(b byte) bool {
     return ('a' <= b && b <= 'z') || ('A' <= b && b <= 'Z')
 }
 
-func isAlnumASCII(b byte) bool {
+func isAlphanumASCII(b byte) bool {
     return isLetterASCII(b) || ('0' <= b && b <= '9')
+}
+
+// All ASCII special characters (punctuation + symbols)
+func isSpecialCharASCII(b byte) bool {
+    return (b >= 0x21 && b <= 0x2F) || // !"#$%&'()*+,-./
+           (b >= 0x3A && b <= 0x40) || // :;<=>?@
+           (b >= 0x5B && b <= 0x60) || // [\]^_`
+           (b >= 0x7B && b <= 0x7E)    // {|}~
 }
 ```
 
@@ -148,13 +157,24 @@ Encode each byte to %XX:
 ```go
 var hex = []byte("0123456789ABCDEF")
 
+// URLEncodeAll encodes each character in the input string to its percent-encoded representation
+// It handles UTF-8 characters by encoding each byte of their UTF-8 representation
+// Uses zero-copy string indexing for optimal performance
 func URLEncodeAll(s string) string {
-    in := []byte(s)            // UTF-8 bytes of s
-    out := make([]byte, 0, len(in)*3)
-    for _, b := range in {
-        out = append(out, '%', hex[b>>4], hex[b&0x0F])
-    }
-    return string(out)
+	if len(s) == 0 {
+		return ""
+	}
+
+	dst := make([]byte, len(s)*3)
+	j := 0
+	for i := 0; i < len(s); i++ {
+		b := s[i]
+		dst[j] = '%'
+		dst[j+1] = hexChars[b>>4]
+		dst[j+2] = hexChars[b&0x0F]
+		j += 3
+	}
+	return string(dst)
 }
 ```
 
