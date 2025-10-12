@@ -400,19 +400,30 @@ func isHexDigitASCII(b byte) bool {
 	return (b >= '0' && b <= '9') || (b >= 'a' && b <= 'f') || (b >= 'A' && b <= 'F')
 }
 
+// literal space: 0x20
 func isSpaceASCII(b byte) bool {
 	return b == 0x20
 }
 
+/*
+space: 0x20
+tab: 0x09
+LF: 0x0A
+VT: 0x0B
+FF: 0x0C
+CR: 0x0D
+*/
 func isWhitespaceASCII(b byte) bool {
 	return b == 0x20 || // space
 		b == 0x09 || // tab
 		b == 0x0A || // LF
-		b == 0x0B || // VT (vertical tab) ← MISSING
-		b == 0x0C || // FF (form feed) ← MISSING
+		b == 0x0B || // VT (vertical tab)
+		b == 0x0C || // FF (form feed)
 		b == 0x0D // CR
 }
 
+// isWhiteSpaceExtendedASCII checks if a byte is a whitespace character
+// White space runes (extended ASCII range): '\t' '\n' '\v' '\f' '\r' ' ' '\u0085' '\u00a0'
 func isWhiteSpaceExtendedASCII(b byte) bool {
 	return unicode.IsSpace(rune(b))
 }

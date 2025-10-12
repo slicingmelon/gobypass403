@@ -244,46 +244,64 @@ import (
 	"unicode"
 )
 
+func printRuneWithHex(r rune) {
+	fmt.Printf("%q(\\x%02X) ", r, r)
+}
+
 func main() {
 	fmt.Println("Punctuation runes (basic ASCII range):")
 	for r := rune(0); r <= 127; r++ {
 		if unicode.IsPunct(r) {
-			fmt.Printf("%q ", r)
+			printRuneWithHex(r)
 		}
 	}
 
 	fmt.Println("\n\nPunctuation runes (extended sample up to 0xFF):")
-	for r := rune(128); r <= 255; r++ {
+	for r := rune(0); r <= 255; r++ {
 		if unicode.IsPunct(r) {
-			fmt.Printf("%q ", r)
+			printRuneWithHex(r)
 		}
 	}
 
 	fmt.Println("\n\nLetter runes (basic ASCII range):")
 	for r := rune(0); r <= 127; r++ {
 		if unicode.IsLetter(r) {
-			fmt.Printf("%q ", r)
+			printRuneWithHex(r)
 		}
 	}
 
 	fmt.Println("\n\nLetter runes (extended ASCII range):")
 	for r := rune(128); r <= 255; r++ {
 		if unicode.IsLetter(r) {
-			fmt.Printf("%q ", r)
+			printRuneWithHex(r)
 		}
 	}
 
 	fmt.Println("\n\nControl runes (basic ASCII range):")
 	for r := rune(0); r <= 127; r++ {
 		if unicode.IsControl(r) {
-			fmt.Printf("%q ", r)
+			printRuneWithHex(r)
 		}
 	}
 
 	fmt.Println("\n\nControl runes (extended ASCII range):")
 	for r := rune(128); r <= 255; r++ {
 		if unicode.IsControl(r) {
-			fmt.Printf("%q ", r)
+			printRuneWithHex(r)
+		}
+	}
+
+	fmt.Println("\n\nSymbol runes (extended ASCII range):")
+	for r := rune(0); r <= 255; r++ {
+		if unicode.IsSymbol(r) {
+			printRuneWithHex(r)
+		}
+	}
+
+	fmt.Println("\n\nWhite space runes (extended ASCII range):")
+	for r := rune(0); r <= 255; r++ {
+		if unicode.IsSpace(r) {
+			printRuneWithHex(r)
 		}
 	}
 }
@@ -293,22 +311,22 @@ Sample output:
 
 ```go
 Punctuation runes (basic ASCII range):
-'!' '"' '#' '%' '&' '\'' '(' ')' '*' ',' '-' '.' '/' ':' ';' '?' '@' '[' '\\' ']' '_' '{' '}' 
+'!'(\x21) '"'(\x22) '#'(\x23) '%'(\x25) '&'(\x26) '\''(\x27) '('(\x28) ')'(\x29) '*'(\x2A) ','(\x2C) '-'(\x2D) '.'(\x2E) '/'(\x2F) ':'(\x3A) ';'(\x3B) '?'(\x3F) '@'(\x40) '['(\x5B) '\\'(\x5C) ']'(\x5D) '_'(\x5F) '{'(\x7B) '}'(\x7D) 
 
 Punctuation runes (extended sample up to 0xFF):
-'¡' '§' '«' '¶' '·' '»' '¿' 
-
-Letter runes (basic ASCII range):
-'A' 'B' 'C' 'D' 'E' 'F' 'G' 'H' 'I' 'J' 'K' 'L' 'M' 'N' 'O' 'P' 'Q' 'R' 'S' 'T' 'U' 'V' 'W' 'X' 'Y' 'Z' 'a' 'b' 'c' 'd' 'e' 'f' 'g' 'h' 'i' 'j' 'k' 'l' 'm' 'n' 'o' 'p' 'q' 'r' 's' 't' 'u' 'v' 'w' 'x' 'y' 'z' 
-
-Letter runes (extended ASCII range):
-'ª' 'µ' 'º' 'À' 'Á' 'Â' 'Ã' 'Ä' 'Å' 'Æ' 'Ç' 'È' 'É' 'Ê' 'Ë' 'Ì' 'Í' 'Î' 'Ï' 'Ð' 'Ñ' 'Ò' 'Ó' 'Ô' 'Õ' 'Ö' 'Ø' 'Ù' 'Ú' 'Û' 'Ü' 'Ý' 'Þ' 'ß' 'à' 'á' 'â' 'ã' 'ä' 'å' 'æ' 'ç' 'è' 'é' 'ê' 'ë' 'ì' 'í' 'î' 'ï' 'ð' 'ñ' 'ò' 'ó' 'ô' 'õ' 'ö' 'ø' 'ù' 'ú' 'û' 'ü' 'ý' 'þ' 'ÿ' 
+'!'(\x21) '"'(\x22) '#'(\x23) '%'(\x25) '&'(\x26) '\''(\x27) '('(\x28) ')'(\x29) '*'(\x2A) ','(\x2C) '-'(\x2D) '.'(\x2E) '/'(\x2F) ':'(\x3A) ';'(\x3B) '?'(\x3F) '@'(\x40) '['(\x5B) '\\'(\x5C) ']'(\x5D) '_'(\x5F) '{'(\x7B) '}'(\x7D) '¡'(\xA1) '§'(\xA7) '«'(\xAB) '¶'(\xB6) '·'(\xB7) '»'(\xBB) '¿'(\xBF) 
 
 Control runes (basic ASCII range):
-'\x00' '\x01' '\x02' '\x03' '\x04' '\x05' '\x06' '\a' '\b' '\t' '\n' '\v' '\f' '\r' '\x0e' '\x0f' '\x10' '\x11' '\x12' '\x13' '\x14' '\x15' '\x16' '\x17' '\x18' '\x19' '\x1a' '\x1b' '\x1c' '\x1d' '\x1e' '\x1f' '\x7f' 
+'\x00'(\x00) '\x01'(\x01) '\x02'(\x02) '\x03'(\x03) '\x04'(\x04) '\x05'(\x05) '\x06'(\x06) '\a'(\x07) '\b'(\x08) '\t'(\x09) '\n'(\x0A) '\v'(\x0B) '\f'(\x0C) '\r'(\x0D) '\x0e'(\x0E) '\x0f'(\x0F) '\x10'(\x10) '\x11'(\x11) '\x12'(\x12) '\x13'(\x13) '\x14'(\x14) '\x15'(\x15) '\x16'(\x16) '\x17'(\x17) '\x18'(\x18) '\x19'(\x19) '\x1a'(\x1A) '\x1b'(\x1B) '\x1c'(\x1C) '\x1d'(\x1D) '\x1e'(\x1E) '\x1f'(\x1F) '\x7f'(\x7F) 
 
 Control runes (extended ASCII range):
-'\u0080' '\u0081' '\u0082' '\u0083' '\u0084' '\u0085' '\u0086' '\u0087' '\u0088' '\u0089' '\u008a' '\u008b' '\u008c' '\u008d' '\u008e' '\u008f' '\u0090' '\u0091' '\u0092' '\u0093' '\u0094' '\u0095' '\u0096' '\u0097' '\u0098' '\u0099' '\u009a' '\u009b' '\u009c' '\u009d' '\u009e' '\u009f' 
+'\u0080'(\x80) '\u0081'(\x81) '\u0082'(\x82) '\u0083'(\x83) '\u0084'(\x84) '\u0085'(\x85) '\u0086'(\x86) '\u0087'(\x87) '\u0088'(\x88) '\u0089'(\x89) '\u008a'(\x8A) '\u008b'(\x8B) '\u008c'(\x8C) '\u008d'(\x8D) '\u008e'(\x8E) '\u008f'(\x8F) '\u0090'(\x90) '\u0091'(\x91) '\u0092'(\x92) '\u0093'(\x93) '\u0094'(\x94) '\u0095'(\x95) '\u0096'(\x96) '\u0097'(\x97) '\u0098'(\x98) '\u0099'(\x99) '\u009a'(\x9A) '\u009b'(\x9B) '\u009c'(\x9C) '\u009d'(\x9D) '\u009e'(\x9E) '\u009f'(\x9F) 
+
+Symbol runes (extended ASCII range):
+'$'(\x24) '+'(\x2B) '<'(\x3C) '='(\x3D) '>'(\x3E) '^'(\x5E) '`'(\x60) '|'(\x7C) '~'(\x7E) '¢'(\xA2) '£'(\xA3) '¤'(\xA4) '¥'(\xA5) '¦'(\xA6) '¨'(\xA8) '©'(\xA9) '¬'(\xAC) '®'(\xAE) '¯'(\xAF) '°'(\xB0) '±'(\xB1) '´'(\xB4) '¸'(\xB8) '×'(\xD7) '÷'(\xF7) 
+
+White space runes (extended ASCII range):
+'\t'(\x09) '\n'(\x0A) '\v'(\x0B) '\f'(\x0C) '\r'(\x0D) ' '(\x20) '\u0085'(\x85) '\u00a0'(\xA0) 
 ```
 
 ## Snippet two ...
@@ -560,4 +578,3 @@ LETTER 'ÿ' (U+00FF)
 
 - https://pkg.go.dev/unicode/utf8
 - https://go.dev/src/unicode/utf8/utf8.go
-- https://reintech.io/blog/a-guide-to-gos-unicode-utf8-package-utf-8-encoding-and-decoding -- to check if good
