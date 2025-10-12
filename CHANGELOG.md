@@ -11,6 +11,14 @@
   - Integrates with `mid_paths` generation logic for comprehensive path manipulation techniques.
   - Uses `unicode_normalization_map.json` for ASCII→Unicode lookalike mappings.
   - Global deduplication prevents payload overlap with standard `mid_paths` module.
+
+- **Refactored `char_encode`** module - Consistent byte-wise iteration for URL encoding
+  - Replaced mixed byte/rune iteration patterns with uniform byte-wise iteration throughout.
+  - All encoding operations now use byte-level processing (`for i := 0; i < len(s); i++`) for ASCII letter detection.
+  - Removed fragile rune-based range loops that could break with multi-byte UTF-8 (though current logic prevented this).
+  - Changed `strings.Builder.WriteRune()` to `WriteByte()` for ASCII-only character handling.
+  - Maintains identical functionality while improving code consistency and clarity.
+  - Aligns with the tool's byte-oriented raw HTTP request architecture.
   
 - **Performance optimization: `URLEncodeAll` function**
   - Refactored to use zero-copy string indexing instead of intermediate `[]byte` allocation.
