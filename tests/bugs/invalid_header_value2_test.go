@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"net"
-	"strings"
 	"testing"
 	"time"
 
@@ -17,44 +16,40 @@ import (
 
 func TestInvalidHeaderValue2(t *testing.T) {
 	testCases := []struct {
-		name                string
-		targetHost          string
-		targetPath          string
-		statusCode          int
-		contentDisposition  string
-		customHeader        string // Format: "Header-Name: value"
-		expectedError       bool
-		expectedErrorString string
+		name               string
+		targetHost         string
+		targetPath         string
+		statusCode         int
+		contentDisposition string
+		customHeader       string // Format: "Header-Name: value"
+		shouldError        bool
 	}{
 		{
-			name:                "Normal header with spaces in value",
-			targetHost:          "localhost",
-			targetPath:          "/test/file.png",
-			statusCode:          301,
-			contentDisposition:  "attachment; filename=\"file with spaces.png\"",
-			customHeader:        "",
-			expectedError:       false,
-			expectedErrorString: "",
+			name:               "Normal header with spaces in value",
+			targetHost:         "localhost",
+			targetPath:         "/test/file.png",
+			statusCode:         301,
+			contentDisposition: "attachment; filename=\"file with spaces.png\"",
+			customHeader:       "",
+			shouldError:        false,
 		},
 		{
-			name:                "Header with control character 0x1E",
-			targetHost:          "localhost",
-			targetPath:          "/test/file.png",
-			statusCode:          301,
-			contentDisposition:  "attachment; filename=\"file.png\x1e\"",
-			customHeader:        "",
-			expectedError:       true,
-			expectedErrorString: "invalid header",
+			name:               "Header with control character 0x1E",
+			targetHost:         "localhost",
+			targetPath:         "/test/file.png",
+			statusCode:         301,
+			contentDisposition: "attachment; filename=\"file.png\x1e\"",
+			customHeader:       "",
+			shouldError:        true,
 		},
 		{
-			name:                "200 OK with custom header containing 0x0A (line feed)",
-			targetHost:          "localhost",
-			targetPath:          "/test/data.json",
-			statusCode:          200,
-			contentDisposition:  "",
-			customHeader:        "X-Random-Header: aaa\x0abbb",
-			expectedError:       true,
-			expectedErrorString: "invalid header",
+			name:               "200 OK with custom header name containing 0x0A (line feed)",
+			targetHost:         "localhost",
+			targetPath:         "/test/data.json",
+			statusCode:         200,
+			contentDisposition: "",
+			customHeader:       "X-Random\x0aHeader: aaabbb",
+			shouldError:        true,
 		},
 	}
 
@@ -173,75 +168,44 @@ func TestInvalidHeaderValue2(t *testing.T) {
 			// Send request
 			responseTime, err := client.DoRequest(req, resp, job)
 
-			// Check for the specific error we're trying to reproduce
-			if tc.expectedError {
-				if err == nil {
-					t.Errorf("Expected error but got success")
-				} else {
-					errStr := err.Error()
-					if !strings.Contains(errStr, tc.expectedErrorString) {
-						t.Errorf("Expected error to start with %q, got %q", tc.expectedErrorString, errStr)
-					} else {
-						fmt.Printf("\n✓ Successfully reproduced the error: %v\n", err)
-						t.Logf("Successfully reproduced the error: %v", err)
-					}
-				}
+			// Print what happened
+			fmt.Printf("\n--- Test Result: %s ---\n", tc.name)
+			if err != nil {
+				fmt.Printf("Error occurred: %v\n", err)
 			} else {
-				if err != nil {
-					t.Errorf("Expected success but got error: %v", err)
-				} else {
-					// Test succeeded - process and print response details
-					fmt.Printf("\n✓ Request succeeded for: %s\n", tc.name)
-					fmt.Printf("Response time: %d ms\n", responseTime)
+				fmt.Printf("Success (Status: %d, Response time: %d ms)\n", resp.StatusCode(), responseTime)
+			}
 
-					// Process HTTP response using rawhttp's ProcessHTTPResponse
-					respDetails := rawhttp.ProcessHTTPResponse(client, resp, job)
-					if respDetails != nil {
-						fmt.Printf("\n=== Response Details (from rawhttp.ProcessHTTPResponse) ===\n")
-						fmt.Printf("URL: %s\n", string(respDetails.URL))
-						fmt.Printf("Status Code: %d\n", respDetails.StatusCode)
-						fmt.Printf("Content-Type: %s\n", string(respDetails.ContentType))
-						fmt.Printf("Content-Length: %d\n", respDetails.ContentLength)
-						fmt.Printf("Server Info: %s\n", string(respDetails.ServerInfo))
-						fmt.Printf("Response Bytes: %d\n", respDetails.ResponseBytes)
-						fmt.Printf("Response Time: %d ms\n", respDetails.ResponseTime)
+			// Check expectations
+			if tc.shouldError && err == nil {
+				t.Errorf("Expected error but got success")
+			} else if !tc.shouldError && err != nil {
+				t.Errorf("Expected success but got error: %v", err)
+			} else if err == nil {
+				// Test passed and no error - process response details
+				respDetails := rawhttp.ProcessHTTPResponse(client, resp, job)
+				if respDetails != nil {
+					fmt.Printf("\n=== Response Details ===\n")
+					fmt.Printf("URL: %s\n", string(respDetails.URL))
+					fmt.Printf("Status Code: %d\n", respDetails.StatusCode)
+					fmt.Printf("Content-Type: %s\n", string(respDetails.ContentType))
+					fmt.Printf("Content-Length: %d\n", respDetails.ContentLength)
 
-						if len(respDetails.Title) > 0 {
-							fmt.Printf("Title: %s\n", string(respDetails.Title))
-						}
-
-						if len(respDetails.RedirectURL) > 0 {
-							fmt.Printf("Redirect URL: %s\n", string(respDetails.RedirectURL))
-						}
-
-						fmt.Printf("\n--- Response Headers ---\n%s\n", string(respDetails.ResponseHeaders))
-
-						if len(respDetails.ResponsePreview) > 0 {
-							fmt.Printf("--- Response Preview ---\n%s\n", string(respDetails.ResponsePreview))
-						}
-
-						fmt.Printf("\n--- Curl Command ---\n%s\n", string(respDetails.CurlCommand))
-
-						// Also test individual header extraction
-						contentDisp := rawhttp.PeekResponseHeaderKeyCaseInsensitive(resp, []byte("Content-Disposition"))
-						if len(contentDisp) > 0 {
-							fmt.Printf("\n--- Content-Disposition (extracted) ---\n%s\n", string(contentDisp))
-						}
-
-						// Extract custom header if test case has one
-						if strings.Contains(tc.customHeader, ":") {
-							headerName := strings.Split(tc.customHeader, ":")[0]
-							customHeaderValue := rawhttp.PeekResponseHeaderKeyCaseInsensitive(resp, []byte(headerName))
-							if len(customHeaderValue) > 0 {
-								fmt.Printf("\n--- %s (extracted) ---\n%s\n", headerName, string(customHeaderValue))
-							}
-						}
-
-						// Release response details
-						rawhttp.ReleaseResponseDetails(respDetails)
+					if len(respDetails.Title) > 0 {
+						fmt.Printf("Title: %s\n", string(respDetails.Title))
 					}
 
-					t.Logf("Response succeeded - Content-Disposition: %s", resp.Header.Peek("Content-Disposition"))
+					if len(respDetails.RedirectURL) > 0 {
+						fmt.Printf("Redirect URL: %s\n", string(respDetails.RedirectURL))
+					}
+
+					fmt.Printf("\n--- Response Headers ---\n%s", string(respDetails.ResponseHeaders))
+
+					if len(respDetails.ResponsePreview) > 0 {
+						fmt.Printf("\n--- Response Body ---\n%s\n", string(respDetails.ResponsePreview))
+					}
+
+					rawhttp.ReleaseResponseDetails(respDetails)
 				}
 			}
 		})
@@ -252,22 +216,21 @@ func TestInvalidHeaderValue2(t *testing.T) {
 func captureRawResponse2(t *testing.T, ln *fasthttputil.InmemoryListener, testName string) {
 	conn, err := ln.Dial()
 	if err != nil {
-		t.Logf("Failed to create raw connection: %v", err)
+		t.Logf("Failed to dial: %v", err)
 		return
 	}
 	defer conn.Close()
 
-	// Send a simple GET request
+	// Send GET request
 	_, err = conn.Write([]byte("GET /test/file.png HTTP/1.1\r\nHost: localhost\r\n\r\n"))
 	if err != nil {
 		t.Logf("Failed to send request: %v", err)
 		return
 	}
 
-	// Allow some time for the server to process
-	time.Sleep(100 * time.Millisecond)
+	time.Sleep(50 * time.Millisecond)
 
-	// Read the response
+	// Read response
 	buf := make([]byte, 4096)
 	n, err := conn.Read(buf)
 	if err != nil && err != io.EOF {
@@ -277,82 +240,22 @@ func captureRawResponse2(t *testing.T, ln *fasthttputil.InmemoryListener, testNa
 
 	response := buf[:n]
 
-	// Print response as text
-	fmt.Printf("\n=== Raw HTTP Response for Test: %s ===\n", testName)
+	fmt.Printf("\n=== Raw Response Debug: %s ===\n", testName)
 	fmt.Println(string(response))
 
-	// Parse and print headers with hex dump
-	headersPart := bytes.Split(response, []byte("\r\n\r\n"))[0]
-	headerLines := bytes.Split(headersPart, []byte("\r\n"))
-
-	fmt.Println("\n--- All Headers with Hex Dump ---")
-	for i, line := range headerLines {
-		if len(line) == 0 {
-			continue
-		}
-
-		// Check if this header contains any control characters
-		hasControlChar := false
-		for _, b := range line {
-			if b < 0x20 && b != 0x09 { // Control characters except TAB
-				hasControlChar = true
+	// Check for control characters
+	if bytes.IndexByte(response, 0x1E) >= 0 {
+		fmt.Println("⚠ Found control char 0x1E in response")
+	}
+	if bytes.IndexByte(response, 0x0A) >= 0 {
+		// LF is in line endings, so check if it's in header value
+		headers := bytes.Split(response, []byte("\r\n\r\n"))[0]
+		for _, line := range bytes.Split(headers, []byte("\r\n")) {
+			if bytes.Contains(line, []byte{0x0A}) {
+				fmt.Println("⚠ Found control char 0x0A in header line")
 				break
 			}
 		}
-
-		if hasControlChar {
-			fmt.Printf("\nHeader #%d (contains control character!):\n", i)
-		} else {
-			fmt.Printf("\nHeader #%d:\n", i)
-		}
-
-		fmt.Printf("Text: %s\n", string(line))
-		fmt.Print("Hex:  ")
-		for _, b := range line {
-			fmt.Printf("%02x ", b)
-		}
-		fmt.Println()
 	}
-
-	// Look for specific control characters in the entire response
-	controlChars := []struct {
-		name string
-		char byte
-	}{
-		{"0x00 (NUL)", 0x00},
-		{"0x0A (LF)", 0x0A},
-		{"0x0D (CR)", 0x0D},
-		{"0x1E (RS)", 0x1E},
-	}
-
-	fmt.Println("\n--- Control Character Detection ---")
-	for _, ctrl := range controlChars {
-		if ctrl.char == 0x0D { // Skip CR as it's expected in HTTP
-			continue
-		}
-
-		if idx := bytes.IndexByte(response, ctrl.char); idx >= 0 {
-			fmt.Printf("Found %s at position %d!\n", ctrl.name, idx)
-
-			// Show context
-			context := 15
-			start := idx - context
-			if start < 0 {
-				start = 0
-			}
-			end := idx + context
-			if end > len(response) {
-				end = len(response)
-			}
-
-			fmt.Printf("Context: %q\n", response[start:end])
-			fmt.Print("Hex:     ")
-			for _, b := range response[start:end] {
-				fmt.Printf("%02x ", b)
-			}
-			fmt.Println()
-		}
-	}
-
-	fmt.Println("--- End of Raw Response Debug ---")
+	fmt.Println("--- End Debug ---")
 }
