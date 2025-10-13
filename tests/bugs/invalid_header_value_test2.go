@@ -15,21 +15,27 @@ import (
 	"github.com/valyala/fasthttp/fasthttputil"
 )
 
-func TestInvalidHeaderValue(t *testing.T) {
+func TestInvalidHeaderValue2(t *testing.T) {
 	testCases := []struct {
 		name                string
+		targetHost          string
+		targetPath          string
 		contentDisposition  string
 		expectedError       bool
 		expectedErrorPrefix string
 	}{
 		{
-			name:                "With literal %1E characters",
-			contentDisposition:  "attachment; filename=\"file.png%1E\"",
+			name:                "Normal header with spaces in value",
+			targetHost:          "localhost",
+			targetPath:          "/test/file.png",
+			contentDisposition:  "attachment; filename=\"file with spaces.png\"",
 			expectedError:       false,
 			expectedErrorPrefix: "",
 		},
 		{
-			name:                "With actual control character 0x1E",
+			name:                "Header with control character 0x1E",
+			targetHost:          "localhost",
+			targetPath:          "/test/file.png",
 			contentDisposition:  "attachment; filename=\"file.png\x1e\"",
 			expectedError:       true,
 			expectedErrorPrefix: "error when reading response headers: invalid header value",
@@ -87,8 +93,9 @@ func TestInvalidHeaderValue(t *testing.T) {
 			}()
 
 			// First capture raw response to see exactly what's being sent
-			captureRawResponse(t, ln, tc.contentDisposition)
+			captureRawResponse2(t, ln, tc.contentDisposition)
 
+			// Setup rawhttp client with custom dialer
 			opts := rawhttp.DefaultHTTPClientOptions()
 			opts.Dialer = func(addr string) (net.Conn, error) {
 				return ln.Dial()
@@ -101,17 +108,23 @@ func TestInvalidHeaderValue(t *testing.T) {
 			defer fasthttp.ReleaseResponse(resp)
 
 			// Setup payload job
+			originalURL := "http://" + tc.targetHost + tc.targetPath
 			job := payload.BypassPayload{
-				Scheme: "https",
-				Host:   tc.targetURL,
-				RawURI: "/test",
-				Method: "GET",
+				Scheme:      "http",
+				Host:        tc.targetHost,
+				RawURI:      tc.targetPath,
+				Method:      "GET",
+				OriginalURL: originalURL,
 			}
 
-			// Build and send request
+			// Build raw HTTP request
 			err := rawhttp.BuildRawHTTPRequest(client, req, job)
+			if err != nil {
+				t.Fatalf("Failed to build request: %v", err)
+			}
 
-			_, err = client.DoRequest(req, resp, payload.BypassPayload{})
+			// Send request
+			responseTime, err := client.DoRequest(req, resp, job)
 
 			// Check for the specific error we're trying to reproduce
 			if tc.expectedError {
@@ -122,7 +135,7 @@ func TestInvalidHeaderValue(t *testing.T) {
 					if !strings.HasPrefix(errStr, tc.expectedErrorPrefix) {
 						t.Errorf("Expected error to start with %q, got %q", tc.expectedErrorPrefix, errStr)
 					} else {
-						fmt.Printf("Successfully reproduced the error: %v\n", err)
+						fmt.Printf("\n✓ Successfully reproduced the error: %v\n", err)
 						t.Logf("Successfully reproduced the error: %v", err)
 					}
 				}
@@ -130,9 +143,46 @@ func TestInvalidHeaderValue(t *testing.T) {
 				if err != nil {
 					t.Errorf("Expected success but got error: %v", err)
 				} else {
-					fmt.Printf("Status: %d\n", resp.StatusCode())
-					fmt.Printf("Content-Type: %s\n", resp.Header.Peek("Content-Type"))
-					fmt.Printf("Content-Disposition: %s\n", resp.Header.Peek("Content-Disposition"))
+					// Test succeeded - process and print response details
+					fmt.Printf("\n✓ Request succeeded for: %s\n", tc.name)
+					fmt.Printf("Response time: %d ms\n", responseTime)
+
+					// Process HTTP response using rawhttp's ProcessHTTPResponse
+					respDetails := rawhttp.ProcessHTTPResponse(client, resp, job)
+					if respDetails != nil {
+						fmt.Printf("\n=== Response Details (from rawhttp.ProcessHTTPResponse) ===\n")
+						fmt.Printf("URL: %s\n", string(respDetails.URL))
+						fmt.Printf("Status Code: %d\n", respDetails.StatusCode)
+						fmt.Printf("Content-Type: %s\n", string(respDetails.ContentType))
+						fmt.Printf("Content-Length: %d\n", respDetails.ContentLength)
+						fmt.Printf("Server Info: %s\n", string(respDetails.ServerInfo))
+						fmt.Printf("Response Bytes: %d\n", respDetails.ResponseBytes)
+						fmt.Printf("Response Time: %d ms\n", respDetails.ResponseTime)
+
+						if len(respDetails.Title) > 0 {
+							fmt.Printf("Title: %s\n", string(respDetails.Title))
+						}
+
+						if len(respDetails.RedirectURL) > 0 {
+							fmt.Printf("Redirect URL: %s\n", string(respDetails.RedirectURL))
+						}
+
+						fmt.Printf("\n--- Response Headers ---\n%s\n", string(respDetails.ResponseHeaders))
+
+						if len(respDetails.ResponsePreview) > 0 {
+							fmt.Printf("--- Response Preview ---\n%s\n", string(respDetails.ResponsePreview))
+						}
+
+						fmt.Printf("\n--- Curl Command ---\n%s\n", string(respDetails.CurlCommand))
+
+						// Also test individual header extraction
+						contentDisp := rawhttp.PeekResponseHeaderKeyCaseInsensitive(resp, []byte("Content-Disposition"))
+						fmt.Printf("\n--- Content-Disposition (extracted) ---\n%s\n", string(contentDisp))
+
+						// Release response details
+						rawhttp.ReleaseResponseDetails(respDetails)
+					}
+
 					t.Logf("Response succeeded - Content-Disposition: %s", resp.Header.Peek("Content-Disposition"))
 				}
 			}
@@ -140,8 +190,8 @@ func TestInvalidHeaderValue(t *testing.T) {
 	}
 }
 
-// captureRawResponse connects to the server and captures the raw HTTP response
-func captureRawResponse(t *testing.T, ln *fasthttputil.InmemoryListener, contentDisposition string) {
+// captureRawResponse2 connects to the server and captures the raw HTTP response for debugging
+func captureRawResponse2(t *testing.T, ln *fasthttputil.InmemoryListener, contentDisposition string) {
 	conn, err := ln.Dial()
 	if err != nil {
 		t.Logf("Failed to create raw connection: %v", err)
@@ -150,7 +200,7 @@ func captureRawResponse(t *testing.T, ln *fasthttputil.InmemoryListener, content
 	defer conn.Close()
 
 	// Send a simple GET request
-	_, err = conn.Write([]byte("GET /test/file.png%1E HTTP/1.1\r\nHost: localhost\r\n\r\n"))
+	_, err = conn.Write([]byte("GET /test/file.png HTTP/1.1\r\nHost: localhost\r\n\r\n"))
 	if err != nil {
 		t.Logf("Failed to send request: %v", err)
 		return
@@ -193,7 +243,7 @@ func captureRawResponse(t *testing.T, ln *fasthttputil.InmemoryListener, content
 		fmt.Println()
 	}
 
-	// Look specifically for the 0x1E byte if present
+	// Look specifically for the 0x1E byte or other control characters if present
 	if bytes.IndexByte(response, 0x1E) >= 0 {
 		fmt.Println("Found 0x1E byte in the response!")
 		pos := bytes.IndexByte(response, 0x1E)
@@ -210,19 +260,4 @@ func captureRawResponse(t *testing.T, ln *fasthttputil.InmemoryListener, content
 	} else {
 		fmt.Println("No 0x1E byte found in the response.")
 	}
-}
-
-// Helper function to print bytes in a readable format
-func printBytes(t *testing.T, prefix string, data []byte) {
-	var buf strings.Builder
-	buf.WriteString(prefix + " ")
-
-	for i, b := range data {
-		if i > 0 && i%16 == 0 {
-			buf.WriteString("\n" + prefix + " ")
-		}
-		buf.WriteString(fmt.Sprintf("%02x ", b))
-	}
-
-	t.Log(buf.String())
 }
