@@ -34,7 +34,7 @@ func TestInvalidHeaderValue2(t *testing.T) {
 			shouldError:        false,
 		},
 		{
-			name:               "Header with control character 0x1E",
+			name:               "Header with control character 0x1E in value (allowed by patch)",
 			targetHost:         "localhost",
 			targetPath:         "/test/file.png",
 			statusCode:         301,
@@ -59,9 +59,9 @@ func TestInvalidHeaderValue2(t *testing.T) {
 			defer ln.Close()
 
 			// Raw HTTP server - writes response bytes directly
-			// Handles multiple connections (for captureRawResponse and actual client test)
+			// Handles multiple connections (debug + test + potential retries)
 			go func() {
-				for i := 0; i < 2; i++ {
+				for i := 0; i < 5; i++ {
 					conn, err := ln.Accept()
 					if err != nil {
 						t.Logf("Accept error: %v", err)
@@ -137,8 +137,10 @@ func TestInvalidHeaderValue2(t *testing.T) {
 			// First capture raw response to see exactly what's being sent
 			captureRawResponse2(t, ln, tc.name)
 
-			// Setup rawhttp client with custom dialer
+			// Setup rawhttp client with custom dialer and shorter timeout
 			opts := rawhttp.DefaultHTTPClientOptions()
+			opts.Timeout = 2 * time.Second // Shorter timeout for tests
+			opts.DialTimeout = 1 * time.Second
 			opts.Dialer = func(addr string) (net.Conn, error) {
 				return ln.Dial()
 			}
