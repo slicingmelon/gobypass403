@@ -38,9 +38,10 @@ var (
 	respPreviewBufPool bytesutil.ByteBufferPool
 
 	// Pre-computed byte slices for static strings
-	curlFlags   = []byte("-skgi --path-as-is")
-	curlMethodX = []byte("-X")
-	curlHeaderH = []byte("-H")
+	curlFlags         = []byte("-skgi --path-as-is")
+	curlRequestTarget = []byte("--request-target")
+	curlMethodX       = []byte("-X")
+	curlHeaderH       = []byte("-H")
 	//strColon          = []byte(":")
 	strSingleQuote = []byte("'")
 	strSpace       = []byte(" ")
@@ -211,10 +212,23 @@ func BuildCurlCommandWithOpts(bypassPayload payload.BypassPayload, clientOpts *H
 	cmdBuf := curlCmdBuffPool.Get()
 	defer curlCmdBuffPool.Put(cmdBuf)
 
+	// Check if we need --request-target (when RawURI doesn't start with /)
+	needsRequestTarget := len(bypassPayload.RawURI) > 0 && bypassPayload.RawURI[0] != '/'
+
 	// Build command into buffer
 	cmdBuf.Write(curlCmd)
 	cmdBuf.Write(strSpace)
 	cmdBuf.Write(curlFlags)
+
+	// Add --request-target if RawURI doesn't start with /
+	if needsRequestTarget {
+		cmdBuf.Write(strSpace)
+		cmdBuf.Write(curlRequestTarget)
+		cmdBuf.Write(strSpace)
+		cmdBuf.Write(strSingleQuote)
+		cmdBuf.WriteString(bypassPayload.RawURI)
+		cmdBuf.Write(strSingleQuote)
+	}
 
 	if bypassPayload.Method != "GET" {
 		cmdBuf.Write(strSpace)
@@ -266,8 +280,10 @@ func BuildCurlCommandWithOpts(bypassPayload payload.BypassPayload, clientOpts *H
 	// Host
 	cmdBuf.WriteString(bypassPayload.Host)
 
-	// RawURI
-	cmdBuf.WriteString(bypassPayload.RawURI)
+	// RawURI - only append if NOT using --request-target
+	if !needsRequestTarget {
+		cmdBuf.WriteString(bypassPayload.RawURI)
+	}
 
 	cmdBuf.Write(strSingleQuote)
 
