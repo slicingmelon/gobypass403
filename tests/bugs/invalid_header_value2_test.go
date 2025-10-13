@@ -20,25 +20,41 @@ func TestInvalidHeaderValue2(t *testing.T) {
 		name                string
 		targetHost          string
 		targetPath          string
+		statusCode          int
 		contentDisposition  string
+		customHeader        string // Format: "Header-Name: value"
 		expectedError       bool
-		expectedErrorPrefix string
+		expectedErrorString string
 	}{
 		{
 			name:                "Normal header with spaces in value",
 			targetHost:          "localhost",
 			targetPath:          "/test/file.png",
+			statusCode:          301,
 			contentDisposition:  "attachment; filename=\"file with spaces.png\"",
+			customHeader:        "",
 			expectedError:       false,
-			expectedErrorPrefix: "",
+			expectedErrorString: "",
 		},
 		{
 			name:                "Header with control character 0x1E",
 			targetHost:          "localhost",
 			targetPath:          "/test/file.png",
+			statusCode:          301,
 			contentDisposition:  "attachment; filename=\"file.png\x1e\"",
+			customHeader:        "",
 			expectedError:       true,
-			expectedErrorPrefix: "error when reading response headers: invalid header value",
+			expectedErrorString: "invalid header",
+		},
+		{
+			name:                "200 OK with custom header containing 0x0A (line feed)",
+			targetHost:          "localhost",
+			targetPath:          "/test/data.json",
+			statusCode:          200,
+			contentDisposition:  "",
+			customHeader:        "X-Random-Header: aaa\x0abbb",
+			expectedError:       true,
+			expectedErrorString: "invalid header",
 		},
 	}
 
@@ -68,21 +84,52 @@ func TestInvalidHeaderValue2(t *testing.T) {
 							return
 						}
 
-						// Build raw HTTP response with the specific Content-Disposition header
-						rawResponse := "HTTP/1.1 301 Moved Permanently\r\n" +
-							"Content-Type: application/octet-stream\r\n" +
-							"Location: https://localhost/test/file.png%1E\r\n" +
-							"Content-Disposition: " + tc.contentDisposition + "\r\n" +
-							"Access-Control-Allow-Origin: *\r\n" +
-							"Access-Control-Allow-Methods: GET,HEAD,OPTIONS\r\n" +
-							"\r\n" +
-							`<html>
+						// Build status line based on status code
+						var statusLine, responseBody string
+						switch tc.statusCode {
+						case 200:
+							statusLine = "HTTP/1.1 200 OK\r\n"
+							responseBody = `{"status":"success","data":"test"}`
+						case 301:
+							statusLine = "HTTP/1.1 301 Moved Permanently\r\n"
+							responseBody = `<html>
 <head><title>301 Moved Permanently</title></head>
 <body>
 <center><h1>301 Moved Permanently</h1></center>
 <hr><center>nginx</center>
 </body>
 </html>`
+						default:
+							statusLine = "HTTP/1.1 200 OK\r\n"
+							responseBody = `{"status":"ok"}`
+						}
+
+						// Build raw HTTP response
+						rawResponse := statusLine
+
+						// Add standard headers
+						if tc.statusCode == 200 {
+							rawResponse += "Content-Type: application/json\r\n"
+						} else {
+							rawResponse += "Content-Type: application/octet-stream\r\n"
+							rawResponse += "Location: https://localhost/test/file.png%1E\r\n"
+						}
+
+						// Add Content-Disposition if present
+						if tc.contentDisposition != "" {
+							rawResponse += "Content-Disposition: " + tc.contentDisposition + "\r\n"
+						}
+
+						// Add custom header if present (may contain control characters)
+						if tc.customHeader != "" {
+							rawResponse += tc.customHeader + "\r\n"
+						}
+
+						// Add remaining headers and body
+						rawResponse += "Access-Control-Allow-Origin: *\r\n"
+						rawResponse += "Access-Control-Allow-Methods: GET,HEAD,OPTIONS\r\n"
+						rawResponse += "\r\n"
+						rawResponse += responseBody
 
 						_, err = c.Write([]byte(rawResponse))
 						if err != nil {
@@ -93,7 +140,7 @@ func TestInvalidHeaderValue2(t *testing.T) {
 			}()
 
 			// First capture raw response to see exactly what's being sent
-			captureRawResponse2(t, ln, tc.contentDisposition)
+			captureRawResponse2(t, ln, tc.name)
 
 			// Setup rawhttp client with custom dialer
 			opts := rawhttp.DefaultHTTPClientOptions()
@@ -132,8 +179,8 @@ func TestInvalidHeaderValue2(t *testing.T) {
 					t.Errorf("Expected error but got success")
 				} else {
 					errStr := err.Error()
-					if !strings.HasPrefix(errStr, tc.expectedErrorPrefix) {
-						t.Errorf("Expected error to start with %q, got %q", tc.expectedErrorPrefix, errStr)
+					if !strings.Contains(errStr, tc.expectedErrorString) {
+						t.Errorf("Expected error to start with %q, got %q", tc.expectedErrorString, errStr)
 					} else {
 						fmt.Printf("\n✓ Successfully reproduced the error: %v\n", err)
 						t.Logf("Successfully reproduced the error: %v", err)
@@ -177,7 +224,18 @@ func TestInvalidHeaderValue2(t *testing.T) {
 
 						// Also test individual header extraction
 						contentDisp := rawhttp.PeekResponseHeaderKeyCaseInsensitive(resp, []byte("Content-Disposition"))
-						fmt.Printf("\n--- Content-Disposition (extracted) ---\n%s\n", string(contentDisp))
+						if len(contentDisp) > 0 {
+							fmt.Printf("\n--- Content-Disposition (extracted) ---\n%s\n", string(contentDisp))
+						}
+
+						// Extract custom header if test case has one
+						if strings.Contains(tc.customHeader, ":") {
+							headerName := strings.Split(tc.customHeader, ":")[0]
+							customHeaderValue := rawhttp.PeekResponseHeaderKeyCaseInsensitive(resp, []byte(headerName))
+							if len(customHeaderValue) > 0 {
+								fmt.Printf("\n--- %s (extracted) ---\n%s\n", headerName, string(customHeaderValue))
+							}
+						}
 
 						// Release response details
 						rawhttp.ReleaseResponseDetails(respDetails)
@@ -191,7 +249,7 @@ func TestInvalidHeaderValue2(t *testing.T) {
 }
 
 // captureRawResponse2 connects to the server and captures the raw HTTP response for debugging
-func captureRawResponse2(t *testing.T, ln *fasthttputil.InmemoryListener, contentDisposition string) {
+func captureRawResponse2(t *testing.T, ln *fasthttputil.InmemoryListener, testName string) {
 	conn, err := ln.Dial()
 	if err != nil {
 		t.Logf("Failed to create raw connection: %v", err)
@@ -220,44 +278,81 @@ func captureRawResponse2(t *testing.T, ln *fasthttputil.InmemoryListener, conten
 	response := buf[:n]
 
 	// Print response as text
-	fmt.Printf("\n--- Raw HTTP Response with Content-Disposition: %s ---\n", contentDisposition)
+	fmt.Printf("\n=== Raw HTTP Response for Test: %s ===\n", testName)
 	fmt.Println(string(response))
 
-	// Print relevant bytes in header value as hex
-	headers := bytes.Split(response, []byte("\r\n\r\n"))[0]
-	dispositionLine := ""
-	for _, line := range bytes.Split(headers, []byte("\r\n")) {
-		if bytes.HasPrefix(bytes.ToLower(line), []byte("content-disposition:")) {
-			dispositionLine = string(line)
-			break
-		}
-	}
+	// Parse and print headers with hex dump
+	headersPart := bytes.Split(response, []byte("\r\n\r\n"))[0]
+	headerLines := bytes.Split(headersPart, []byte("\r\n"))
 
-	if dispositionLine != "" {
-		fmt.Println("\n--- Content-Disposition Header Bytes ---")
-		fmt.Printf("%s\n", dispositionLine)
-		fmt.Print("Hex: ")
-		for _, b := range []byte(dispositionLine) {
+	fmt.Println("\n--- All Headers with Hex Dump ---")
+	for i, line := range headerLines {
+		if len(line) == 0 {
+			continue
+		}
+
+		// Check if this header contains any control characters
+		hasControlChar := false
+		for _, b := range line {
+			if b < 0x20 && b != 0x09 { // Control characters except TAB
+				hasControlChar = true
+				break
+			}
+		}
+
+		if hasControlChar {
+			fmt.Printf("\nHeader #%d (contains control character!):\n", i)
+		} else {
+			fmt.Printf("\nHeader #%d:\n", i)
+		}
+
+		fmt.Printf("Text: %s\n", string(line))
+		fmt.Print("Hex:  ")
+		for _, b := range line {
 			fmt.Printf("%02x ", b)
 		}
 		fmt.Println()
 	}
 
-	// Look specifically for the 0x1E byte or other control characters if present
-	if bytes.IndexByte(response, 0x1E) >= 0 {
-		fmt.Println("Found 0x1E byte in the response!")
-		pos := bytes.IndexByte(response, 0x1E)
-		context := 10 // Show bytes around the position
-		start := pos - context
-		if start < 0 {
-			start = 0
-		}
-		end := pos + context
-		if end > len(response) {
-			end = len(response)
-		}
-		fmt.Printf("Context around 0x1E: %v\n", response[start:end])
-	} else {
-		fmt.Println("No 0x1E byte found in the response.")
+	// Look for specific control characters in the entire response
+	controlChars := []struct {
+		name string
+		char byte
+	}{
+		{"0x00 (NUL)", 0x00},
+		{"0x0A (LF)", 0x0A},
+		{"0x0D (CR)", 0x0D},
+		{"0x1E (RS)", 0x1E},
 	}
+
+	fmt.Println("\n--- Control Character Detection ---")
+	for _, ctrl := range controlChars {
+		if ctrl.char == 0x0D { // Skip CR as it's expected in HTTP
+			continue
+		}
+
+		if idx := bytes.IndexByte(response, ctrl.char); idx >= 0 {
+			fmt.Printf("Found %s at position %d!\n", ctrl.name, idx)
+
+			// Show context
+			context := 15
+			start := idx - context
+			if start < 0 {
+				start = 0
+			}
+			end := idx + context
+			if end > len(response) {
+				end = len(response)
+			}
+
+			fmt.Printf("Context: %q\n", response[start:end])
+			fmt.Print("Hex:     ")
+			for _, b := range response[start:end] {
+				fmt.Printf("%02x ", b)
+			}
+			fmt.Println()
+		}
+	}
+
+	fmt.Println("--- End of Raw Response Debug ---")
 }
