@@ -1,5 +1,12 @@
 # 0.8.7 (Unreleased)
 
+- **Enhanced curl POC command generation** - Added `--request-target` flag support
+  - Automatically detects when bypass payloads are placed before the leading `/` in the URI.
+  - Uses curl's `--request-target` flag for non-standard request lines (e.g., `%e2%8a%a1/admin`).
+  - Format: `curl -skgi --path-as-is --request-target 'payload' 'https://host'` when RawURI doesn't start with `/`.
+  - Preserves standard format `curl -skgi --path-as-is 'https://host/path'` for normal requests.
+  - Enables accurate reproduction of successful bypasses for manual verification and reporting.
+
 - **Updated `unicode_path_experimental`** module - Advanced Unicode confusable-based WAF bypass
   - Exploits Unicode normalization vulnerabilities by systematically substituting ASCII characters with visually similar Unicode lookalikes (confusables).
   - Attack vector: WAF sees Unicode characters (e.g., `/admin․․/` using U+2024), backend normalizes to ASCII (e.g., `/admin../`), allowing bypass.
