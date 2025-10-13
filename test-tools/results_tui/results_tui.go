@@ -1,3 +1,6 @@
+//go:build ignore
+// +build ignore
+
 /*
 GoByPASS403
 Author: slicingmelon <github.com/slicingmelon>
