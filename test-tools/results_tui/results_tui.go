@@ -1087,7 +1087,7 @@ func (m *TUIModel) queryAndProcessResults(targetURL string, queryModules []strin
 
 		statusStr := bytesutil.Itoa(statusCode)
 		//lengthStr := helpers.FormatBytes(lengthToDisplay)
-		lengthStr := lengthToDisplay
+		lengthStr := fmt.Sprintf("%d", lengthToDisplay)
 
 		// Check if we need to start a new group (EXACT same logic as original)
 		if module != currentModule || statusStr != currentStatus || lengthToDisplay != currentLength {
