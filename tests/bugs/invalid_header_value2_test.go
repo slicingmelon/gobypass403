@@ -61,7 +61,7 @@ func TestInvalidHeaderValue2(t *testing.T) {
 			// Raw HTTP server - writes response bytes directly
 			// Handles multiple connections (debug + test + potential retries)
 			go func() {
-				for i := 0; i < 5; i++ {
+				for {
 					conn, err := ln.Accept()
 					if err != nil {
 						t.Logf("Accept error: %v", err)
