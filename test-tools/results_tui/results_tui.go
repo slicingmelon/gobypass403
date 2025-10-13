@@ -6,7 +6,7 @@ GoByPASS403
 Author: slicingmelon <github.com/slicingmelon>
 X: x.com/pedro_infosec
 */
-package scanner
+package main
 
 import (
 	"database/sql"
@@ -1006,6 +1006,8 @@ func (m *TUIModel) loadResultsFromDB() error {
 	return nil
 }
 
+const dbPath = "results.db"
+
 func (m *TUIModel) queryAndProcessResults(targetURL string, queryModules []string) error {
 	// Open read-only database connection (same as original)
 	roDb, err := sql.Open("sqlite3", "file:"+dbPath+"?_journal_mode=WAL&_synchronous=NORMAL&_busy_timeout=10000&cache=shared&mode=ro")
@@ -1084,7 +1086,8 @@ func (m *TUIModel) queryAndProcessResults(targetURL string, queryModules []strin
 		}
 
 		statusStr := bytesutil.Itoa(statusCode)
-		lengthStr := formatBytes(lengthToDisplay)
+		//lengthStr := helpers.FormatBytes(lengthToDisplay)
+		lengthStr := lengthToDisplay
 
 		// Check if we need to start a new group (EXACT same logic as original)
 		if module != currentModule || statusStr != currentStatus || lengthToDisplay != currentLength {
@@ -1112,15 +1115,15 @@ func (m *TUIModel) queryAndProcessResults(targetURL string, queryModules []strin
 			continue
 		}
 
-		formattedCurl := SplitCurlPocIntoMultiLines(curlCmd, 60)
+		formattedCurl := curlCmd
 		currentGroup.rows = append(currentGroup.rows, TUIResultRow{
 			module:      module,
 			curlCmd:     formattedCurl,
 			status:      statusStr,
-			length:      lengthStr,
-			contentType: formatContentType(contentType),
-			title:       LimitStringWithSuffix(formatValue(title), 14),
-			server:      LimitStringWithSuffix(formatValue(serverInfo), 14),
+			length:      string(lengthStr),
+			contentType: contentType,
+			title:       title,
+			server:      serverInfo,
 		})
 		currentGroup.size++
 	}
