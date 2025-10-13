@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/slicingmelon/gobypass403/core/engine/payload"
+	"github.com/slicingmelon/gobypass403/core/engine/rawhttp"
 	"github.com/valyala/fasthttp"
 	"github.com/valyala/fasthttp/fasthttputil"
 )
@@ -87,27 +89,29 @@ func TestInvalidHeaderValue(t *testing.T) {
 			// First capture raw response to see exactly what's being sent
 			captureRawResponse(t, ln, tc.contentDisposition)
 
-			// Configure client
-			client := &fasthttp.Client{
-				StreamResponseBody:            true,
-				DisablePathNormalizing:        true,
-				DisableHeaderNamesNormalizing: true,
-				Dial: func(addr string) (net.Conn, error) {
-					return ln.Dial()
-				},
+			opts := rawhttp.DefaultHTTPClientOptions()
+			opts.Dialer = func(addr string) (net.Conn, error) {
+				return ln.Dial()
 			}
+			client := rawhttp.NewHTTPClient(opts)
 
 			req := fasthttp.AcquireRequest()
 			defer fasthttp.ReleaseRequest(req)
-
-			req.SetRequestURI("http://localhost/test/file.png%1E")
-			req.Header.SetMethod("GET")
-
 			resp := fasthttp.AcquireResponse()
 			defer fasthttp.ReleaseResponse(resp)
 
-			// Send request
-			err := client.Do(req, resp)
+			// Setup payload job
+			job := payload.BypassPayload{
+				Scheme: "https",
+				Host:   tc.targetURL,
+				RawURI: "/test",
+				Method: "GET",
+			}
+
+			// Build and send request
+			err := rawhttp.BuildRawHTTPRequest(client, req, job)
+
+			_, err = client.DoRequest(req, resp, payload.BypassPayload{})
 
 			// Check for the specific error we're trying to reproduce
 			if tc.expectedError {
