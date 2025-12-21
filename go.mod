@@ -3,7 +3,7 @@ module github.com/slicingmelon/gobypass403
 go 1.24.1
 
 require (
-	fortio.org/progressbar v1.1.0
+	fortio.org/progressbar v1.2.0
 	github.com/VictoriaMetrics/fastcache v1.13.0
 	github.com/alitto/pond/v2 v2.5.0
 	github.com/andybalholm/brotli v1.2.0
