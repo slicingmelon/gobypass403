@@ -84,9 +84,6 @@ type CliOptions struct {
 
 	// StrictScheme preserves original URL scheme
 	StrictScheme bool
-
-	// EnableTUI enables experimental Terminal User Interface
-	EnableTUI bool
 }
 
 // AvailableModes defines all bypass modes and their status, true if enabled, false if disabled

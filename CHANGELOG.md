@@ -1,3 +1,52 @@
+# 0.8.7 (Unreleased)
+
+- **Enhanced curl POC command generation** - Added `--request-target` flag support
+  - Automatically detects when bypass payloads are placed before the leading `/` in the URI.
+  - Uses curl's `--request-target` flag for non-standard request lines (e.g., `%e2%8a%a1/admin`).
+  - Format: `curl -skgi --path-as-is --request-target 'payload' 'https://host'` when RawURI doesn't start with `/`.
+  - Preserves standard format `curl -skgi --path-as-is 'https://host/path'` for normal requests.
+  - Enables accurate reproduction of successful bypasses for manual verification and reporting.
+
+- **Updated `unicode_path_experimental`** module - Advanced Unicode confusable-based WAF bypass
+  - Exploits Unicode normalization vulnerabilities by systematically substituting ASCII characters with visually similar Unicode lookalikes (confusables).
+  - Attack vector: WAF sees Unicode characters (e.g., `/admin․․/` using U+2024), backend normalizes to ASCII (e.g., `/admin../`), allowing bypass.
+  - Generates ~75K payloads with `maxNormalizationsExperimental=2`, ~150K+ with `maxNormalizationsExperimental=5`.
+  - One-character-at-a-time substitution strategy maximizes test coverage.
+  - Doubles each variant: generates both raw Unicode and fully URL-encoded versions (`․.;` → raw + `%E2%80%A4.%3B`).
+  - Byte-based UTF-8 processing using `utf8.DecodeRune`/`EncodeRune` for efficiency and correctness.
+  - Preserves percent-encoded sequences (%XX) during substitution to avoid breaking existing encoding.
+  - Integrates with `mid_paths` generation logic for comprehensive path manipulation techniques.
+  - Uses `unicode_normalization_map.json` for ASCII→Unicode lookalike mappings.
+  - Global deduplication prevents payload overlap with standard `mid_paths` module.
+
+- **Fixed `end_paths`** module - Corrected alphanumeric detection for direct concatenation
+  - Changed condition from `!isLetterASCII(payload[0])` to `!isAlphanumericASCII(payload[0])`.
+  - Now properly prevents nonsensical concatenations for both words AND digits.
+  - Prevents `/admin/login` + `0` → `/admin/login0` (nonsense).
+  - Prevents `/admin/login` + `debug` → `/admin/logindebug` (nonsense).
+  - Still allows `/admin/login` + `.css` → `/admin/login.css` (file extension bypass).
+  - Ensures digits (`0`, `1`) are treated the same as words when appending to paths.
+  - Added 20 new payloads to `internal_endpaths.lst`: encoded dots (`.%2e`, `%2e%2e%2f`), whitespace+slash combinations (`%09/`, `%20/`), and complex traversal patterns (`;%2f..%2f..%2f`, `..%3B/`).
+
+- **Refactored `char_encode`** module - Consistent byte-wise iteration for URL encoding
+  - Replaced mixed byte/rune iteration patterns with uniform byte-wise iteration throughout.
+  - All encoding operations now use byte-level processing (`for i := 0; i < len(s); i++`) for ASCII letter detection.
+  - Removed fragile rune-based range loops that could break with multi-byte UTF-8 (though current logic prevented this).
+  - Changed `strings.Builder.WriteRune()` to `WriteByte()` for ASCII-only character handling.
+  - Maintains identical functionality while improving code consistency and clarity.
+  - Aligns with the tool's byte-oriented raw HTTP request architecture.
+  
+- **Performance optimization: `URLEncodeAll` function**
+  - Refactored to use zero-copy string indexing instead of intermediate `[]byte` allocation.
+  - Direct byte access via `s[i]` eliminates full string-to-byte-slice conversion overhead.
+  - Pre-allocated exact buffer size (3 bytes per input byte) for optimal memory usage.
+  - Removed repeated `append()` calls in favor of direct indexing (eliminates bounds checking overhead).
+  - Properly handles UTF-8 characters by encoding each byte of their UTF-8 representation.
+
+# 0.8.6
+
+- Fixed critical deduplication bug in `nginx_bypasses` module where payloads with identical URIs but different headers were being dropped. Deduplication now uses composite key (RawURI + Headers) to preserve header variations, resulting in ~74% more test cases for comprehensive bypass testing.
+  
 # 0.8.5
 
 - Added new CLI parameter `-strict-scheme` to perform testing only on the original scheme.

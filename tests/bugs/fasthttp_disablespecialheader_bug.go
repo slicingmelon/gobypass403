@@ -1,3 +1,4 @@
+// package tests
 package tests
 
 import (

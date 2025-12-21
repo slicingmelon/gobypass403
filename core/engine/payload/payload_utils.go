@@ -324,18 +324,22 @@ func HeadersToMap(headers []Headers) map[string]string {
 
 // URLEncodeAll encodes each character in the input string to its percent-encoded representation
 // It handles UTF-8 characters by encoding each byte of their UTF-8 representation
+// Uses zero-copy string indexing for optimal performance
 func URLEncodeAll(s string) string {
-	// Pre-allocate buffer (3 bytes per character: %XX)
-	buf := make([]byte, 0, len(s)*3)
-
-	// Convert to bytes to properly handle UTF-8
-	for _, b := range []byte(s) {
-		buf = append(buf, '%')
-		buf = append(buf, hexChars[b>>4])
-		buf = append(buf, hexChars[b&15])
+	if len(s) == 0 {
+		return ""
 	}
 
-	return string(buf)
+	dst := make([]byte, len(s)*3)
+	j := 0
+	for i := 0; i < len(s); i++ {
+		b := s[i]
+		dst[j] = '%'
+		dst[j+1] = hexChars[b>>4]
+		dst[j+2] = hexChars[b&0x0F]
+		j += 3
+	}
+	return string(dst)
 }
 
 // encodePathSpecialChars replaces literal '?' and '#' within a path string
@@ -363,33 +367,86 @@ func isControlByteASCII(b byte) bool {
 	return (b <= 0x1F) || b == 0x7F
 }
 
-// isSpecialCharASCII checks if a byte is an ASCII special character (punctuation or symbol within 0-127)
-// !\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~
+func isControlByteExtendedASCII(b byte) bool {
+	return unicode.IsControl(rune(b))
+}
+
+// ASCII all special characters: punctuation + symbols: !"#$%&'()*+,-./:;<=>?@[\]^_`{|}~
 func isSpecialCharASCII(b byte) bool {
-	// Ensure it's within ASCII range first
-	if b > 127 {
-		return false
-	}
-	// Use standard Go functions for ASCII range checks which are efficient
-	// or check against a predefined string/map for ASCII punctuation/symbols if preferred.
-	// Using unicode functions is fine as they handle ASCII correctly and efficiently.
-	r := rune(b)
-	return unicode.IsPunct(r) || unicode.IsSymbol(r)
+	return (b >= 0x21 && b <= 0x2F) || // !"#$%&'()*+,-./
+		(b >= 0x3A && b <= 0x40) || // :;<=>?@
+		(b >= 0x5B && b <= 0x60) || // [\]^_`
+		(b >= 0x7B && b <= 0x7E) // {|}~
+}
+
+/*
+Punctuation runes (0-255):
+'!' '"' '#' '%' '&' '\” '(' ')' '*' ',' '-' '.' '/' ':' ';' '?' '@' '[' '\\' ']' '_' '{' '}' '¡' '§' '«' '¶' '·' '»' '¿'
+
+Symbol runes (0-255):
+'$' '+' '<' '=' '>' '^' '`' '|' '~' '¢' '£' '¤' '¥' '¦' '¨' '©' '¬' '®' '¯' '°' '±' '´' '¸' '×' '÷'
+*/
+func isSpecialCharASCIIExtended(b byte) bool {
+	return unicode.IsPunct(rune(b)) || unicode.IsSymbol(rune(b))
 }
 
 // Helper function to check if a byte is a letter
-func isLetterASCII(c byte) bool {
-	return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')
+func isLetterASCII(b byte) bool {
+	return (b >= 'a' && b <= 'z') || (b >= 'A' && b <= 'Z')
 }
 
+// isHexDigitASCII checks if a byte is a valid hexadecimal digit
+func isHexDigitASCII(b byte) bool {
+	return (b >= '0' && b <= '9') || (b >= 'a' && b <= 'f') || (b >= 'A' && b <= 'F')
+}
+
+// literal space: 0x20
 func isSpaceASCII(b byte) bool {
 	return b == 0x20
+}
+
+/*
+space: 0x20
+tab: 0x09
+LF: 0x0A
+VT: 0x0B
+FF: 0x0C
+CR: 0x0D
+*/
+func isWhitespaceASCII(b byte) bool {
+	return b == 0x20 || // space
+		b == 0x09 || // tab
+		b == 0x0A || // LF
+		b == 0x0B || // VT (vertical tab)
+		b == 0x0C || // FF (form feed)
+		b == 0x0D // CR
+}
+
+// isWhiteSpaceExtendedASCII checks if a byte is a whitespace character
+// White space runes (extended ASCII range): '\t' '\n' '\v' '\f' '\r' ' ' '\u0085' '\u00a0'
+func isWhiteSpaceExtendedASCII(b byte) bool {
+	return unicode.IsSpace(rune(b))
 }
 
 // isAlphanumeric checks if a byte is a standard ASCII letter or digit.
 func isAlphanumericASCII(b byte) bool {
 	return (b >= 'a' && b <= 'z') || (b >= 'A' && b <= 'Z') || (b >= '0' && b <= '9')
 }
+
+// isSpecialCharASCII checks if a byte is an ASCII special character (punctuation or symbol within 0-127)
+// !\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~
+// deprecated
+// func isSpecialCharASCII(b byte) bool {
+// 	// Ensure it's within ASCII range first
+// 	if b > 127 {
+// 		return false
+// 	}
+// 	// Use standard Go functions for ASCII range checks which are efficient
+// 	// or check against a predefined string/map for ASCII punctuation/symbols if preferred.
+// 	// Using unicode functions is fine as they handle ASCII correctly and efficiently.
+// 	r := rune(b)
+// 	return unicode.IsPunct(r) || unicode.IsSymbol(r)
+// }
 
 // BypassPayloadToBaseURL converts a bypass payload to base URL (scheme://host)
 // ex BypassPayloadToBaseURLwithMake winner

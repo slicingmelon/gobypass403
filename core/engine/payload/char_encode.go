@@ -33,8 +33,8 @@ The function implements five core encoding techniques:
 
 Each technique generates three encoding variants:
 - Single encoding: `%61` (standard percent encoding)
-- Double encoding: `%2561` (encoding the percent sign itself)
-- Triple encoding: `%25%3561` (encoding the percent sign twice)
+- Double encoding: `%2561` (encoding the percent sign once)
+- Triple encoding: `%252561` (encoding the percent sign twice)
 
 If the original path contains literal '?' or '#' characters, which are preserved
 during the encoding process, the function also generates additional payloads where
@@ -188,10 +188,11 @@ func (pg *PayloadGenerator) GenerateCharEncodePayloads(targetURL string, bypassM
 				}
 			}
 
-			// Iterate through the characters of the identified last segment
-			for i, char := range lastSegment {
-				if isLetterASCII(byte(char)) {
-					encodedHex := fmt.Sprintf("%%%02x", char)
+			// Iterate through the bytes of the identified last segment
+			for i := 0; i < len(lastSegment); i++ {
+				b := lastSegment[i]
+				if isLetterASCII(b) {
+					encodedHex := fmt.Sprintf("%%%02x", b)
 					segmentPrefix := lastSegment[:i]
 					segmentSuffix := lastSegment[i+1:]
 
@@ -227,9 +228,10 @@ func (pg *PayloadGenerator) GenerateCharEncodePayloads(targetURL string, bypassM
 		// it acts as the "last segment".
 		lastSegment := basePath
 		prefix := "" // No prefix
-		for i, char := range lastSegment {
-			if isLetterASCII(byte(char)) {
-				encodedHex := fmt.Sprintf("%%%02x", char)
+		for i := 0; i < len(lastSegment); i++ {
+			b := lastSegment[i]
+			if isLetterASCII(b) {
+				encodedHex := fmt.Sprintf("%%%02x", b)
 				segmentPrefix := lastSegment[:i]
 				segmentSuffix := lastSegment[i+1:]
 
@@ -263,9 +265,9 @@ func (pg *PayloadGenerator) GenerateCharEncodePayloads(targetURL string, bypassM
 	// 4. Process all letters in the entire path
 	// This might overlap with cases 1, 2, 3 but maps handle deduplication.
 	for i := 0; i < len(basePath); i++ {
-		char := basePath[i]
-		if isLetterASCII(byte(char)) {
-			encodedHex := fmt.Sprintf("%%%02x", char)
+		b := basePath[i]
+		if isLetterASCII(b) {
+			encodedHex := fmt.Sprintf("%%%02x", b)
 			pathPrefix := basePath[:i]
 			pathSuffix := basePath[i+1:]
 
@@ -424,20 +426,22 @@ func urlEncodeSegment(segment string) (string, string, string) {
 	var tripleBuilder strings.Builder
 	hasLetters := false
 
-	for _, r := range segment {
-		if isLetterASCII(byte(r)) {
+	// Iterate by bytes for ASCII letter encoding
+	for i := 0; i < len(segment); i++ {
+		b := segment[i]
+		if isLetterASCII(b) {
 			hasLetters = true
 			// Single encoding
-			singleBuilder.WriteString(fmt.Sprintf("%%%02x", r))
+			singleBuilder.WriteString(fmt.Sprintf("%%%02x", b))
 			// Double encoding
-			doubleBuilder.WriteString(fmt.Sprintf("%%25%02x", r))
+			doubleBuilder.WriteString(fmt.Sprintf("%%25%02x", b))
 			// Triple encoding
-			tripleBuilder.WriteString(fmt.Sprintf("%%2525%02x", r))
+			tripleBuilder.WriteString(fmt.Sprintf("%%2525%02x", b))
 		} else {
 			// Not a letter, keep as-is
-			singleBuilder.WriteRune(r)
-			doubleBuilder.WriteRune(r)
-			tripleBuilder.WriteRune(r)
+			singleBuilder.WriteByte(b)
+			doubleBuilder.WriteByte(b)
+			tripleBuilder.WriteByte(b)
 		}
 	}
 

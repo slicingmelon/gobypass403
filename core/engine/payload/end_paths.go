@@ -73,9 +73,9 @@ func (pg *PayloadGenerator) GenerateEndPathsPayloads(targetURL string, bypassMod
 		pathVariant2 := basePath + separator + payload + "/"
 		addPathVariants(pathVariant2)
 
-		// Variants 3 & 4 only if basePath is not "/" AND payload doesn't start with a letter
-		// (avoids things like /admin/login -> /adminlogin if payload is "login")
-		if basePath != "/" && len(payload) > 0 && !isLetterASCII(payload[0]) {
+		// Variants 3 & 4 only if basePath is not "/" AND payload doesn't start with alphanumeric
+		// (avoids things like /admin/login -> /adminlogin or /admin0 if payload is a word/number)
+		if basePath != "/" && len(payload) > 0 && !isAlphanumericASCII(payload[0]) {
 			// Variant 3: url suffix (no separator)
 			pathVariant3 := basePath + payload
 			addPathVariants(pathVariant3)

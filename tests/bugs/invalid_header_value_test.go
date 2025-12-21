@@ -39,25 +39,48 @@ func TestInvalidHeaderValue(t *testing.T) {
 			ln := fasthttputil.NewInmemoryListener()
 			defer ln.Close()
 
+			// Raw HTTP server - writes response bytes directly
+			// Handles multiple connections (for captureRawResponse and actual client test)
 			go func() {
-				err := fasthttp.Serve(ln, func(ctx *fasthttp.RequestCtx) {
-					ctx.Response.SetStatusCode(301)
-					ctx.Response.Header.Set("Content-Type", "application/octet-stream")
-					ctx.Response.Header.Set("Location", "https://localhost/test/file.png%1E")
-					ctx.Response.Header.Set("Content-Disposition", tc.contentDisposition)
-					ctx.Response.Header.Set("Access-Control-Allow-Origin", "*")
-					ctx.Response.Header.Set("Access-Control-Allow-Methods", "GET,HEAD,OPTIONS")
+				for i := 0; i < 2; i++ {
+					conn, err := ln.Accept()
+					if err != nil {
+						t.Logf("Accept error: %v", err)
+						return
+					}
 
-					ctx.Write([]byte(`<html>
+					go func(c net.Conn) {
+						defer c.Close()
+
+						// Read and discard the request
+						buf := make([]byte, 4096)
+						_, err := c.Read(buf)
+						if err != nil {
+							t.Logf("Read request error: %v", err)
+							return
+						}
+
+						// Build raw HTTP response with the specific Content-Disposition header
+						rawResponse := "HTTP/1.1 301 Moved Permanently\r\n" +
+							"Content-Type: application/octet-stream\r\n" +
+							"Location: https://localhost/test/file.png%1E\r\n" +
+							"Content-Disposition: " + tc.contentDisposition + "\r\n" +
+							"Access-Control-Allow-Origin: *\r\n" +
+							"Access-Control-Allow-Methods: GET,HEAD,OPTIONS\r\n" +
+							"\r\n" +
+							`<html>
 <head><title>301 Moved Permanently</title></head>
 <body>
 <center><h1>301 Moved Permanently</h1></center>
 <hr><center>nginx</center>
 </body>
-</html>`))
-				})
-				if err != nil {
-					t.Logf("fasthttp server error: %v", err)
+</html>`
+
+						_, err = c.Write([]byte(rawResponse))
+						if err != nil {
+							t.Logf("Write response error: %v", err)
+						}
+					}(conn)
 				}
 			}()
 

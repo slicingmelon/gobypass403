@@ -1,9 +1,12 @@
+//go:build ignore
+// +build ignore
+
 /*
 GoByPASS403
 Author: slicingmelon <github.com/slicingmelon>
 X: x.com/pedro_infosec
 */
-package scanner
+package main
 
 import (
 	"database/sql"
@@ -23,8 +26,6 @@ import (
 )
 
 const copyOnRowClick = false
-
-/* ---------- clipboard & helpers ---------- */
 
 func oneLine(s string) string {
 	s = strings.ReplaceAll(s, "\r\n", "\n")
@@ -106,8 +107,6 @@ func percent(done, total int) int {
 	return p
 }
 
-/* ---------- data types ---------- */
-
 type TUIResultRow struct {
 	module      string
 	curlCmd     string
@@ -127,8 +126,6 @@ type TUITarget struct {
 	err      string
 }
 
-/* ---------- messages from scanner ---------- */
-
 type TUIProgressMsg struct {
 	Target   string
 	Module   string
@@ -139,8 +136,6 @@ type TUIProgressMsg struct {
 }
 
 type TUIShutdownMsg struct{}
-
-/* ---------- TUI model ---------- */
 
 type viewKind int
 
@@ -186,8 +181,6 @@ type TUIModel struct {
 	rowCopyStart []int
 	rowCopyEnd   []int
 }
-
-/* ---------- styles ---------- */
 
 var (
 	titleStyle  = lipgloss.NewStyle().Bold(true)
@@ -963,8 +956,6 @@ func simplePad(s string, width int) string {
 	return s + strings.Repeat(" ", width-len(s))
 }
 
-/* ---------- actions ---------- */
-
 func (m *TUIModel) copyOneWithMsg(i int, viaCopyButton bool) {
 	if i < 0 || i >= len(m.detailRows) {
 		return
@@ -997,8 +988,6 @@ func (m *TUIModel) copyAllCurrent() {
 	m.statusUntil = time.Now().Add(2 * time.Second)
 }
 
-/* ---------- Database Query (matching original algorithm) ---------- */
-
 func (m *TUIModel) loadResultsFromDB() error {
 	// Clear existing results
 	m.detailRows = m.detailRows[:0]
@@ -1017,6 +1006,8 @@ func (m *TUIModel) loadResultsFromDB() error {
 	return nil
 }
 
+const dbPath = "results.db"
+
 func (m *TUIModel) queryAndProcessResults(targetURL string, queryModules []string) error {
 	// Open read-only database connection (same as original)
 	roDb, err := sql.Open("sqlite3", "file:"+dbPath+"?_journal_mode=WAL&_synchronous=NORMAL&_busy_timeout=10000&cache=shared&mode=ro")
@@ -1031,7 +1022,7 @@ func (m *TUIModel) queryAndProcessResults(targetURL string, queryModules []strin
 
 	// Build query with placeholders (EXACT same as original)
 	placeholders := strings.Repeat("?,", len(queryModules))
-	placeholders = placeholders[:len(placeholders)-1] // Remove trailing comma
+	placeholders = placeholders[:len(placeholders)-1]
 
 	query := fmt.Sprintf(`
         SELECT 
@@ -1044,7 +1035,6 @@ func (m *TUIModel) queryAndProcessResults(targetURL string, queryModules []strin
                  CASE WHEN content_length > 0 THEN content_length ELSE response_body_bytes END ASC
     `, placeholders)
 
-	// Prepare query arguments (EXACT same as original)
 	args := make([]any, len(queryModules)+1)
 	args[0] = targetURL
 	for i, module := range queryModules {
@@ -1096,7 +1086,8 @@ func (m *TUIModel) queryAndProcessResults(targetURL string, queryModules []strin
 		}
 
 		statusStr := bytesutil.Itoa(statusCode)
-		lengthStr := formatBytes(lengthToDisplay)
+		//lengthStr := helpers.FormatBytes(lengthToDisplay)
+		lengthStr := fmt.Sprintf("%d", lengthToDisplay)
 
 		// Check if we need to start a new group (EXACT same logic as original)
 		if module != currentModule || statusStr != currentStatus || lengthToDisplay != currentLength {
@@ -1115,31 +1106,28 @@ func (m *TUIModel) queryAndProcessResults(targetURL string, queryModules []strin
 			currentStatus = statusStr
 			currentLength = lengthToDisplay
 			currentGroup = ResultGroup{
-				rows: make([]TUIResultRow, 0, 5), // Max 5 items per sub-group
+				rows: make([]TUIResultRow, 0, 5),
 				size: 0,
 			}
 		}
 
-		// Skip if we already have 5 results for this (module, status, length) - EXACT same as original
 		if currentGroup.size >= 5 {
 			continue
 		}
 
-		// Add to current group - use multiline formatting for curl commands (EXACT same as original)
-		formattedCurl := SplitCurlPocIntoMultiLines(curlCmd, 60)
+		formattedCurl := curlCmd
 		currentGroup.rows = append(currentGroup.rows, TUIResultRow{
 			module:      module,
-			curlCmd:     formattedCurl, // Store full multiline curl for copying
+			curlCmd:     formattedCurl,
 			status:      statusStr,
-			length:      lengthStr,
-			contentType: formatContentType(contentType),
-			title:       LimitStringWithSuffix(formatValue(title), 14),
-			server:      LimitStringWithSuffix(formatValue(serverInfo), 14),
+			length:      string(lengthStr),
+			contentType: contentType,
+			title:       title,
+			server:      serverInfo,
 		})
 		currentGroup.size++
 	}
 
-	// Don't forget to add the last group (EXACT same as original)
 	if currentGroup.size > 0 {
 		m.detailRows = append(m.detailRows, currentGroup.rows...)
 	}
@@ -1150,8 +1138,6 @@ func (m *TUIModel) queryAndProcessResults(targetURL string, queryModules []strin
 
 	return nil
 }
-
-/* ---------- TUI Interface ---------- */
 
 type TUIController struct {
 	model      *TUIModel
@@ -1205,8 +1191,6 @@ func (c *TUIController) SendProgress(target, module string, done, total int, com
 	}
 }
 
-// SendResult method removed - results now queried from database when needed
-
 func (c *TUIController) Start() error {
 	return c.program.Start()
 }
@@ -1221,5 +1205,3 @@ func (c *TUIController) Shutdown() {
 func (c *TUIController) GetProgressChannel() chan<- TUIProgressMsg {
 	return c.progressCh
 }
-
-// GetResultChannel method removed - results now queried from database when needed
