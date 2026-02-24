@@ -1,4 +1,12 @@
-# 0.8.7 (Unreleased)
+# 0.8.8
+
+- **Improved curl command display in results table** — Rewrote multi-line formatting logic for the "Curl CMD" column in the findings summary table. Removed shell continuation characters (`` ` `` on Windows, `\` on Linux) and indentation from wrapped lines. Each line now starts at column 0 and is directly copyable. Flags that take arguments (`-H`, `--request-target`, etc.) are grouped with their values so they never split across lines. URLs always appear on a single line.
+
+- **Fixed false "no results" error on multi-host scans** — When scanning multiple hosts, targets with no findings no longer return an error. Previously, `PrintResultsTableFromDB` would emit `"no results found for <url>"` as an error, causing noise in batch scans. Now returns `nil` silently so scanning continues cleanly.
+
+- **Increased default response body preview size** — Changed the default for `-rbps` / `--response-body-preview-size` from 1024 to 3096 bytes, capturing more response body context by default.
+
+# 0.8.7
 
 - **Enhanced curl POC command generation** - Added `--request-target` flag support
   - Automatically detects when bypass payloads are placed before the leading `/` in the URI.
