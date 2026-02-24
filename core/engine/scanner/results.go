@@ -249,11 +249,9 @@ func PrintResultsTableFromDB(targetURL, bypassModule string) error {
 			continue
 		}
 
-		// Add to current group - use multiline formatting for curl commands
-		formattedCurl := SplitCurlPocIntoMultiLines(curlCmd, 60)
 		currentGroup.rows = append(currentGroup.rows, []string{
 			module,
-			formattedCurl,
+			curlCmd,
 			statusStr,
 			lengthStr, // Reverted: Use the original length string for display
 			formatContentType(contentType),
@@ -274,7 +272,7 @@ func PrintResultsTableFromDB(targetURL, bypassModule string) error {
 	}
 
 	if rowCount == 0 {
-		return fmt.Errorf("no results found for %s (modules: %s)", targetURL, bypassModule)
+		return nil
 	}
 
 	// Display header directly to avoid an allocation
