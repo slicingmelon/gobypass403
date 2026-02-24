@@ -249,9 +249,10 @@ func PrintResultsTableFromDB(targetURL, bypassModule string) error {
 			continue
 		}
 
+		formattedCurl := SplitCurlPocIntoMultiLines(curlCmd, 60)
 		currentGroup.rows = append(currentGroup.rows, []string{
 			module,
-			curlCmd,
+			formattedCurl,
 			statusStr,
 			lengthStr, // Reverted: Use the original length string for display
 			formatContentType(contentType),
@@ -420,94 +421,75 @@ func LimitStringwithPreffixAndSuffix(s string, maxLen int) string {
 	return s[:n] + "[..]" + s[len(s)-n:]
 }
 
-// SplitCurlPocIntoMultiLines intelligently splits curl commands into multiple lines
-// based on OS conventions and smart URL breaking points
+// SplitCurlPocIntoMultiLines splits curl commands into multiple lines
+// by grouping flags with their arguments. No continuation characters,
+// no indentation — each line is directly copyable.
 func SplitCurlPocIntoMultiLines(curlCmd string, maxLen int) string {
 	if len(curlCmd) <= maxLen {
 		return curlCmd
 	}
 
-	// Detect OS for line continuation
-	isWindows := strings.Contains(curlCmd, "curl.exe")
-	var lineContinuation string
-	if isWindows {
-		lineContinuation = " `"
-	} else {
-		lineContinuation = " \\"
-	}
-
-	// Parse curl command into tokens
 	tokens := parseCurlTokens(curlCmd)
 	if len(tokens) == 0 {
 		return curlCmd
 	}
 
-	// Pre-process tokens: split any long tokens (except the last one which is likely the URL)
-	processedTokens := make([]string, 0, len(tokens)*2) // Pre-allocate with some extra space
-
-	for i, token := range tokens {
-		isLastToken := i == len(tokens)-1
-
-		if len(token) > maxLen && !isLastToken {
-			// Split long non-URL tokens into chunks
-			chunks := splitLongToken(token, maxLen)
-			processedTokens = append(processedTokens, chunks...)
-		} else {
-			processedTokens = append(processedTokens, token)
-		}
-	}
+	groups := groupCurlTokens(tokens)
 
 	var lines []string
 	var currentLine strings.Builder
+	currentLine.WriteString(groups[0])
 
-	// Start with the curl command
-	currentLine.WriteString(processedTokens[0])
-
-	for i := 1; i < len(processedTokens); i++ {
-		token := processedTokens[i]
-		isLastToken := i == len(processedTokens)-1
-
-		// Check if adding this token would exceed maxLen
-		testLine := currentLine.String() + " " + token
-
-		if len(testLine) <= maxLen {
-			// Token fits on current line
+	for i := 1; i < len(groups); i++ {
+		group := groups[i]
+		if currentLine.Len()+1+len(group) <= maxLen {
 			currentLine.WriteString(" ")
-			currentLine.WriteString(token)
+			currentLine.WriteString(group)
 		} else {
-			// Token doesn't fit, need to handle it
-			if isLastToken && isURLToken(token) && len(token) > maxLen {
-				// Handle long URLs (last token) by smart splitting at path boundaries
-				urlLines := splitLongURL(token, maxLen, lineContinuation)
-
-				// Add current line with continuation
-				lines = append(lines, currentLine.String()+lineContinuation)
-
-				// Add all URL lines except the last
-				for j := 0; j < len(urlLines)-1; j++ {
-					lines = append(lines, "  "+urlLines[j]+lineContinuation)
-				}
-
-				// Start new line with the last URL part
-				currentLine.Reset()
-				currentLine.WriteString("  ")
-				currentLine.WriteString(urlLines[len(urlLines)-1])
-			} else {
-				// Regular token that doesn't fit - start new line
-				lines = append(lines, currentLine.String()+lineContinuation)
-				currentLine.Reset()
-				currentLine.WriteString("  ")
-				currentLine.WriteString(token)
-			}
+			lines = append(lines, currentLine.String())
+			currentLine.Reset()
+			currentLine.WriteString(group)
 		}
 	}
 
-	// Add the final line (no continuation needed)
 	if currentLine.Len() > 0 {
 		lines = append(lines, currentLine.String())
 	}
 
 	return strings.Join(lines, "\n")
+}
+
+// groupCurlTokens merges flag tokens with their argument tokens
+// so that pairs like -H 'value' or --request-target 'value' stay on the same line.
+func groupCurlTokens(tokens []string) []string {
+	flagsWithArgs := map[string]bool{
+		"-H": true, "--header": true,
+		"--request-target": true,
+		"-X": true, "--request": true,
+		"-A": true, "--user-agent": true,
+		"-b": true, "--cookie": true,
+		"-d": true, "--data": true,
+		"-e": true, "--referer": true,
+		"-o": true, "--output": true,
+		"-u": true, "--user": true,
+		"-x": true, "--proxy": true,
+		"--connect-to": true,
+		"--resolve": true,
+	}
+
+	groups := make([]string, 0, len(tokens))
+	i := 0
+	for i < len(tokens) {
+		token := tokens[i]
+		if flagsWithArgs[token] && i+1 < len(tokens) {
+			groups = append(groups, token+" "+tokens[i+1])
+			i += 2
+		} else {
+			groups = append(groups, token)
+			i++
+		}
+	}
+	return groups
 }
 
 // parseCurlTokens parses a curl command into individual tokens, preserving quoted strings
@@ -554,141 +536,3 @@ func parseCurlTokens(curlCmd string) []string {
 	return tokens
 }
 
-// isURLToken checks if a token is likely a URL (more reliable than length-based check)
-func isURLToken(token string) bool {
-	// Check for quoted URLs
-	if (strings.HasPrefix(token, "'http") && strings.HasSuffix(token, "'")) ||
-		(strings.HasPrefix(token, "\"http") && strings.HasSuffix(token, "\"")) {
-		return true
-	}
-
-	// Check for unquoted URLs
-	return strings.HasPrefix(token, "http://") || strings.HasPrefix(token, "https://")
-}
-
-// splitLongToken splits a long non-URL token into smaller chunks
-func splitLongToken(token string, maxLen int) []string {
-	if len(token) <= maxLen {
-		return []string{token}
-	}
-
-	var chunks []string
-
-	// Handle quoted strings specially
-	if (strings.HasPrefix(token, "'") && strings.HasSuffix(token, "'")) ||
-		(strings.HasPrefix(token, "\"") && strings.HasSuffix(token, "\"")) {
-
-		quote := string(token[0])
-		content := token[1 : len(token)-1] // Remove quotes
-
-		// Split the content into chunks
-		chunkSize := maxLen - 2 // Account for quotes
-		if chunkSize < 1 {
-			chunkSize = maxLen - 1 // Fallback
-		}
-
-		for len(content) > 0 {
-			if len(content) <= chunkSize {
-				chunks = append(chunks, quote+content+quote)
-				break
-			}
-
-			chunk := content[:chunkSize]
-			chunks = append(chunks, quote+chunk+quote)
-			content = content[chunkSize:]
-		}
-	} else {
-		// Handle unquoted strings - simple chunking
-		for len(token) > 0 {
-			if len(token) <= maxLen {
-				chunks = append(chunks, token)
-				break
-			}
-
-			chunk := token[:maxLen]
-			chunks = append(chunks, chunk)
-			token = token[maxLen:]
-		}
-	}
-
-	return chunks
-}
-
-// splitLongURL intelligently splits a long URL at path boundaries
-func splitLongURL(url string, maxLen int, lineContinuation string) []string {
-	// Remove quotes to work with the actual URL
-	originalQuotes := ""
-	actualURL := url
-	if strings.HasPrefix(url, "'") && strings.HasSuffix(url, "'") {
-		originalQuotes = "'"
-		actualURL = url[1 : len(url)-1]
-	} else if strings.HasPrefix(url, "\"") && strings.HasSuffix(url, "\"") {
-		originalQuotes = "\""
-		actualURL = url[1 : len(url)-1]
-	}
-
-	var lines []string
-	remaining := actualURL
-
-	for len(remaining) > 0 {
-		if len(remaining) <= maxLen-len(originalQuotes)*2 {
-			// Last piece fits
-			if originalQuotes != "" {
-				lines = append(lines, originalQuotes+remaining+originalQuotes)
-			} else {
-				lines = append(lines, remaining)
-			}
-			break
-		}
-
-		// Find the best split point within maxLen
-		splitPoint := findBestURLSplitPoint(remaining, maxLen-len(originalQuotes)*2-len(lineContinuation))
-
-		if splitPoint == -1 {
-			// No good split point found, force split at maxLen
-			splitPoint = maxLen - len(originalQuotes)*2 - len(lineContinuation)
-		}
-
-		piece := remaining[:splitPoint]
-		if originalQuotes != "" {
-			lines = append(lines, originalQuotes+piece+originalQuotes)
-		} else {
-			lines = append(lines, piece)
-		}
-
-		remaining = remaining[splitPoint:]
-	}
-
-	return lines
-}
-
-// findBestURLSplitPoint finds the best place to split a URL within maxLen
-func findBestURLSplitPoint(url string, maxLen int) int {
-	if len(url) <= maxLen {
-		return len(url)
-	}
-
-	// Look for path separators within the limit, starting from the end
-	for i := maxLen - 1; i >= maxLen/2; i-- {
-		if i < len(url) && url[i] == '/' {
-			return i
-		}
-	}
-
-	// Look for query separators
-	for i := maxLen - 1; i >= maxLen/2; i-- {
-		if i < len(url) && (url[i] == '?' || url[i] == '&') {
-			return i
-		}
-	}
-
-	// Look for dots (domain separators)
-	for i := maxLen - 1; i >= maxLen/2; i-- {
-		if i < len(url) && url[i] == '.' {
-			return i
-		}
-	}
-
-	// No good split point found
-	return -1
-}
