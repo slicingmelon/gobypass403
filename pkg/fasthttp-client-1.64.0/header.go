@@ -7,7 +7,9 @@ import (
 	"fmt"
 	"io"
 	"iter"
-	"log/slog"
+	// GOBYPASS403 PATCH START
+	// "log/slog" — removed: deprecated newline warning was silenced
+	// GOBYPASS403 PATCH END
 	"sync"
 	"sync/atomic"
 	"time"
@@ -3184,26 +3186,13 @@ func (s *headerScanner) next() bool {
 			return false
 		}
 
-		// If the character before '\n' isn't '\r', print a warning.
+		// GOBYPASS403 PATCH START
+		// Silenced deprecated newline separator warning — it floods terminal output
+		// and is irrelevant for our use case (raw HTTP response parsing).
 		if !s.warned && x > 1 && s.b[x-1] != rChar {
-			// Only warn once per second.
-			now := time.Now().Unix()
-			if warnedAboutDeprecatedNewlineSeparatorLimiter.Load() < now {
-				if warnedAboutDeprecatedNewlineSeparatorLimiter.Swap(now) < now {
-					if DeprecatedNewlineIncludeContext.Load() {
-						// Include 20 characters after the '\n'.
-						xx := x + 20
-						if len(s.b) < xx {
-							xx = len(s.b)
-						}
-						slog.Error("Deprecated newline only separator found in header", "context", fmt.Sprintf("%q", s.b[:xx]))
-					} else {
-						slog.Error("Deprecated newline only separator found in header")
-					}
-					s.warned = true
-				}
-			}
+			s.warned = true
 		}
+		// GOBYPASS403 PATCH END
 	}
 	if n < 0 {
 		s.err = errNeedMore
