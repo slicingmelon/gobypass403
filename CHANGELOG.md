@@ -6,6 +6,8 @@
 
 - **Increased default response body preview size** — Changed the default for `-rbps` / `--response-body-preview-size` from 1024 to 3096 bytes, capturing more response body context by default.
 
+- **Silenced fasthttp deprecated newline separator warning** — Patched the vendored fasthttp `headerScanner.next()` to suppress the `"Deprecated newline only separator found in header"` `slog.Error` messages that flooded terminal output during scans. The warning is irrelevant for raw HTTP response parsing and was drowning out useful scan progress.
+
 # 0.8.7
 
 - **Enhanced curl POC command generation** - Added `--request-target` flag support
