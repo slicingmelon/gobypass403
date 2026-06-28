@@ -103,10 +103,93 @@ jobs:
           name: gobypass403-binary-${{ matrix.goos }}-${{ matrix.goarch }}
           path: dist/*
 
+  build-deb:
+    name: Build Debian Package
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Extract version from Git tag
+        run: |
+          VERSION=$(git describe --tags --abbrev=0 | sed 's/^v//')
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+        shell: bash
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: 1.24.1
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential \
+            libsqlite3-dev \
+            pkg-config
+
+      - name: Build Linux binary (glibc)
+        env:
+          CGO_ENABLED: 1
+          GOOS: linux
+          GOARCH: amd64
+        run: |
+          mkdir -p dist
+          go build -v \
+            -ldflags "-X github.com/slicingmelon/gobypass403/core/cli.GOBYPASS403_VERSION=${VERSION} -s -w" \
+            -o dist/gobypass403_${VERSION}_linux_amd64 \
+            ./cmd/gobypass403
+
+      - name: Build Debian package
+        run: |
+          VERSION="${{ env.VERSION }}"
+          DEB_DIR="dist/deb/gobypass403_${VERSION}_amd64"
+          mkdir -p "${DEB_DIR}/DEBIAN"
+          mkdir -p "${DEB_DIR}/usr/bin"
+
+          # Copy the binary
+          cp "dist/gobypass403_${VERSION}_linux_amd64" "${DEB_DIR}/usr/bin/gobypass403"
+          strip "${DEB_DIR}/usr/bin/gobypass403"
+
+          # Generate control file
+          cat > "${DEB_DIR}/DEBIAN/control" <<EOF
+Package: gobypass403
+Version: ${VERSION}
+Section: net
+Priority: optional
+Architecture: amd64
+Maintainer: slicingmelon <github.com@slicingmelon>
+Depends: libc6 (>= 2.31), libsqlite3-0 (>= 3.30)
+Homepage: https://github.com/slicingmelon/gobypass403
+Description: Tool to bypass 403/401 authorization errors
+ A powerful tool designed for security researchers and penetration
+ testers to bypass 403/401 authorization errors in web applications.
+ It uses path manipulation, HTTP method override, header injection,
+ and Unicode normalization to find bypass vectors.
+EOF
+
+          # Compute installed size (in KiB)
+          INSTALLED_SIZE=$(du -sk "${DEB_DIR}/usr" | cut -f1)
+          echo "Installed-Size: ${INSTALLED_SIZE}" >> "${DEB_DIR}/DEBIAN/control"
+
+          # Copy copyright
+          cp debian/copyright "${DEB_DIR}/DEBIAN/copyright"
+
+          # Build the .deb
+          dpkg-deb --build --root-owner-group "${DEB_DIR}" "dist/gobypass403_${VERSION}_amd64.deb"
+
+      - name: Upload Debian package artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: gobypass403-deb-amd64
+          path: dist/gobypass403_*.deb
+
   # Create single release with all binaries
   release:
     name: Create Release
-    needs: [build-linux, build-other]
+    needs: [build-linux, build-other, build-deb]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -116,7 +199,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           path: dist
-          pattern: gobypass403-binary-*
+          pattern: gobypass403-*
           merge-multiple: true
 
       - name: Extract changelog for current version
