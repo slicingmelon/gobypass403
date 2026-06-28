@@ -1,3 +1,10 @@
+gobypass403 (0.8.8-2) unstable; urgency=medium
+
+  * Add standard Debian packaging files and CI workflow (debian/ directory).
+  * glibc-linked .deb is built and published alongside existing binaries.
+
+ -- slicingmelon <github.com@slicingmelon>  Sun, 28 Jun 2026 00:00:00 +0000
+
 gobypass403 (0.8.8-1) unstable; urgency=medium
 
   * Initial Debian packaging.
