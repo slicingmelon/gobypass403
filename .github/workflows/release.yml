@@ -153,22 +153,23 @@ jobs:
           cp "dist/gobypass403_${VERSION}_linux_amd64" "${DEB_DIR}/usr/bin/gobypass403"
           strip "${DEB_DIR}/usr/bin/gobypass403"
 
-          # Generate control file
-          cat > "${DEB_DIR}/DEBIAN/control" <<EOF
-Package: gobypass403
-Version: ${VERSION}
-Section: net
-Priority: optional
-Architecture: amd64
-Maintainer: slicingmelon <github.com@slicingmelon>
-Depends: libc6 (>= 2.31), libsqlite3-0 (>= 3.30)
-Homepage: https://github.com/slicingmelon/gobypass403
-Description: Tool to bypass 403/401 authorization errors
- A powerful tool designed for security researchers and penetration
- testers to bypass 403/401 authorization errors in web applications.
- It uses path manipulation, HTTP method override, header injection,
- and Unicode normalization to find bypass vectors.
-EOF
+          # Build control file
+          {
+            echo "Package: gobypass403"
+            echo "Version: ${VERSION}"
+            echo "Section: net"
+            echo "Priority: optional"
+            echo "Architecture: amd64"
+            echo "Maintainer: slicingmelon <github.com@slicingmelon>"
+            echo "Depends: libc6 (>= 2.31), libsqlite3-0 (>= 3.30)"
+            echo "Homepage: https://github.com/slicingmelon/gobypass403"
+            echo "Description: Tool to bypass 403/401 authorization errors"
+            echo " A powerful tool designed for security researchers and"
+            echo " penetration testers to bypass 403/401 authorization errors"
+            echo " in web applications. It uses path manipulation, HTTP method"
+            echo " override, header injection, and Unicode normalization to find"
+            echo " bypass vectors."
+          } > "${DEB_DIR}/DEBIAN/control"
 
           # Compute installed size (in KiB)
           INSTALLED_SIZE=$(du -sk "${DEB_DIR}/usr" | cut -f1)
