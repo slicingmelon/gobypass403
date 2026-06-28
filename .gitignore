@@ -18,6 +18,10 @@
 !images/**
 !internal/
 !internal/**
+!debian/
+!debian/**
+!debian/**/*
+
 !core/
 !core/*
 !core/**

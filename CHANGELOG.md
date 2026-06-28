@@ -1,3 +1,7 @@
+# 0.8.8-2
+
+- **Added Debian packaging** — Created standard `debian/` directory (control, copyright, changelog, rules) and a `build-deb` job in the release workflow. On each `v*` tag push, a `.deb` package is now built and attached to the GitHub release.
+
 # 0.8.8
 
 - **Improved curl command display in results table** — Rewrote multi-line formatting logic for the "Curl CMD" column in the findings summary table. Removed shell continuation characters (`` ` `` on Windows, `\` on Linux) and indentation from wrapped lines. Each line now starts at column 0 and is directly copyable. Flags that take arguments (`-H`, `--request-target`, etc.) are grouped with their values so they never split across lines. URLs always appear on a single line.

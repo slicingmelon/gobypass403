@@ -1,0 +1,20 @@
+Source: gobypass403
+Section: net
+Priority: optional
+Maintainer: slicingmelon <github.com@slicingmelon>
+Build-Depends: debhelper-compat (= 13), golang-go (>= 1.24.1), libsqlite3-dev
+Standards-Version: 4.6.2
+Homepage: https://github.com/slicingmelon/gobypass403
+Vcs-Git: https://github.com/slicingmelon/gobypass403.git
+Vcs-Browser: https://github.com/slicingmelon/gobypass403
+Rules-Requires-Root: no
+
+Package: gobypass403
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Description: Tool to bypass 403/401 authorization errors
+ GoByPASS403 is a powerful tool designed for security researchers
+ and penetration testers to bypass 403/401 authorization errors
+ in web applications. It uses various techniques including path
+ manipulation, HTTP method override, header injection, and Unicode
+ normalization to find bypass vectors.
